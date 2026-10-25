@@ -36,7 +36,7 @@ function mount(responses = {}) {
     createElement:()=>({className:'',textContent:'',remove(){},classList:{toggle(){}},addEventListener(){}}),
     querySelectorAll:()=>[]
   };
-  const window={};
+  const window={ addEventListener(){} };
   runInNewContext(source,{document,window,fetch:api,location:{hash:'#overview'},confirm:message=>{confirms.push(message);return true;}, prompt:()=> 'secret-test-password', console,Number,String,Boolean,Array,Object,Date,Reflect,Math,RegExp,Error,encodeURIComponent});
   async function command(text) {
     const form=element('terminalForm');
