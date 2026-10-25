@@ -5,7 +5,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { readProjects } from './projects.ts';
 import { readRepositories, github, type LinkedRepository } from './github.ts';
 import { dockerRequest, type DockerRequest, type DockerResponse } from './apps.ts';
-import { validSha } from './releases.ts';
+const validSha = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value);
 
 const WORKFLOW = 'panel-app-build.yml';
 const DIGEST_RE = /^sha256:[0-9a-f]{64}$/;
