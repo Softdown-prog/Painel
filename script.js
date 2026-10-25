@@ -208,6 +208,7 @@ function showView(name) {
   if (view.id === 'logs') loadLogs();
   if (view.id === 'deploys') loadDeploys();
   if (view.id === 'apps' && authenticated) window.refreshManagedApplications?.();
+  if (view.id === 'projects' && authenticated) window.refreshManagedProjects?.();
 }
 window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
 showView(location.hash.slice(1));
@@ -238,6 +239,8 @@ document.getElementById('authForm').addEventListener('submit', async event => {
       await Promise.all([loadOverview(), loadDeploys()]);
       if (location.hash === '#logs') loadLogs();
       if (location.hash === '#apps') window.refreshManagedApplications?.();
+    if (location.hash === '#projects') window.refreshManagedProjects?.();
+      if (location.hash === '#projects') window.refreshManagedProjects?.();
     }
   } catch (error) { errorBox.textContent = error.message; }
   finally { button.disabled = false; }
