@@ -220,7 +220,8 @@ async function loadLogs() {
 const menu = document.getElementById('sidebar');
 const menuButton = document.getElementById('menuButton');
 function showView(name) {
-  const view = document.getElementById(name) || document.getElementById('overview');
+  const viewName = name.split('?')[0];
+  const view = document.getElementById(viewName) || document.getElementById('overview');
   document.querySelectorAll('.view').forEach(el => el.classList.toggle('active', el === view));
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === view.id));
   document.getElementById('currentCrumb').textContent = view.dataset.title;
@@ -230,6 +231,7 @@ function showView(name) {
   if (view.id === 'logs') loadLogs();
   if (view.id === 'deploys') loadDeploys();
   if (view.id === 'apps' && authenticated) window.refreshManagedApplications?.();
+  if (view.id === 'site' && authenticated) window.refreshSiteDetail?.();
   if (view.id === 'projects' && authenticated) window.refreshManagedProjects?.();
   if (view.id === 'domains' && authenticated) window.refreshManagedDomains?.();
   if (view.id === 'terminal') window.refreshTerminalConnection?.();
@@ -264,6 +266,8 @@ document.getElementById('authForm').addEventListener('submit', async event => {
       await Promise.all([loadOverview(), loadDeploys()]);
       if (location.hash === '#logs') loadLogs();
       if (location.hash === '#apps') window.refreshManagedApplications?.();
+    if (location.hash.startsWith('#site?')) window.refreshSiteDetail?.();
+      if (location.hash.startsWith('#site?')) window.refreshSiteDetail?.();
       if (location.hash === '#projects') window.refreshManagedProjects?.();
       if (location.hash === '#domains') window.refreshManagedDomains?.();
       if (location.hash === '#terminal') window.refreshTerminalConnection?.();
