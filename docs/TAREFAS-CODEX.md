@@ -131,3 +131,15 @@ Ensaiar os fluxos `Criar → GitHub → Endereço → Publicar` em Android e des
 ## Termos e arquivos de apoio
 
 Guia de uso: [GUIA-RAPIDO.md](GUIA-RAPIDO.md). Domínios técnicos: [domain-routing.md](domain-routing.md). Segurança e instalação: [docker-executor.md](docker-executor.md). Importação GitHub: [ghcr-import-and-recovery.md](ghcr-import-and-recovery.md).
+
+### C13 · Terminal Linux completo no painel (sem Codex)
+
+**Problema resolvido em parte:** a aba `Terminal VPS` agora permite executar comandos de administração por meio de endpoints já existentes (`status`, `servicos`, `apps`, `logs`, `iniciar`, `reiniciar`, `dominio criar`, etc.). Isso elimina o Codex da rotina dessas operações.
+
+**Pendente:** criar acesso SSH/PTy real para executar comandos Linux em uma sessão administrativa, mediante uma instalação inicial na VPS. O Terminal atual **não executa bash ou sudo arbitrários**.
+
+**Onde olhar:** `terminal-ui.ts`, `terminal-ui.js`, `docs/TERMINAL-VPS.md`, `server/api.mjs`, `server/executor.mjs`, `functions/api/[[path]].ts`.
+
+**Implementação sugerida:** serviço SSH/PTy autônomo na VPS, com identidade administrativa explícita e instalação inicial pelo operador; autorização vinculada à sessão do Painel, canal WebSocket privado, limite de sessões, fechamento/timeout, auditoria sem expor credenciais e confirmação de operações destrutivas. O serviço precisa funcionar sem chamadas ao Codex/GitHub durante o uso. Não abrir SSH público nem expor Docker socket por padrão. Se o operador preferir acesso administrativo ampliado para a própria VPS, implementar um modo claramente separado das contas de clientes. Validar em ambiente isolado e só depois implantar na VPS com backup e rollback.
+
+**Aceite:** usuário entra no painel pelo celular, abre uma sessão terminal Linux real na **própria VPS**, executa um comando não privilegiado permitido, recebe saída ao vivo, encerra a sessão e consegue repetir a operação sem Codex; tentativas entre clientes são isoladas. A ativação/privilegiação precisa ser feita apenas uma vez pelo administrador.
