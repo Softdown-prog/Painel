@@ -19,6 +19,7 @@
   "include": [
     "server/**/*.ts",
     "functions/**/*.ts",
-    "github-ui.ts"
+    "github-ui.ts",
+    "apps-ui.ts"
   ]
 }
