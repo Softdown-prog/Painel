@@ -1,0 +1,9 @@
+# Ative somente após criar /etc/softload-panel/github-token (permissão 600).
+# docker compose -f compose.yaml -f compose.github.yaml up -d --build
+services:
+  api:
+    environment:
+      PANEL_GITHUB_TOKEN_FILE: /run/secrets/github-token
+      PANEL_GITHUB_ALLOWED_OWNER: Softdown-prog
+    volumes:
+      - /etc/softload-panel/github-token:/run/secrets/github-token:ro
