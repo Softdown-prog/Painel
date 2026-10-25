@@ -113,7 +113,18 @@
                 }
                 else
                     addButton(actions, app, 'start', 'Iniciar');
-                addButton(actions, app, 'logs', 'Logs');
+                addButton(actions, app, 'logs', 'Ver registros');
+                for (const shortcut of [
+                    { text: 'Ligar ao GitHub', hash: '#projects' },
+                    { text: 'Escolher endereço', hash: '#domains' }
+                ]) {
+                    const link = document.createElement('a');
+                    link.className = 'app-shortcut';
+                    link.href = shortcut.hash;
+                    link.textContent = shortcut.text;
+                    link.addEventListener('click', () => Object.assign(window, { panelSelectedAppSlug: app.slug }));
+                    actions.append(link);
+                }
                 if (app.state !== 'running')
                     addButton(actions, app, 'remove', 'Remover');
                 const controls = document.createElement('div');
@@ -169,8 +180,9 @@
                 list.append(row);
             }
             info(enabled
-                ? 'Gerenciamento ativado · ' + data.applications.length + '/' + data.maxApps + ' aplicações. Sem portas públicas ou volumes do host.'
-                : 'Somente leitura. O operador precisa habilitar a criação de aplicações na VPS.');
+                ? 'Aplicações no painel: ' + data.applications.length + ' de ' + data.maxApps +
+                    ' disponíveis. A aplicação nova começa desligada; publicar na internet é uma etapa separada.'
+                : 'Criação indisponível nesta VPS. O administrador precisa liberar as imagens e o gerenciador antes de você criar aplicações.');
         }
         catch (error) {
             list.textContent = 'Aplicações indisponíveis.';
@@ -179,7 +191,7 @@
     }
     element('appCreateForm').addEventListener('submit', async (event) => {
         event.preventDefault();
-        if (!enabled || !confirm('Criar container isolado? Ele não terá domínio nem porta pública; você poderá iniciá-lo depois.'))
+        if (!enabled || !confirm('Criar esta aplicação? Ela começa desligada, sem acesso público; depois você poderá iniciá-la e escolher um endereço.'))
             return;
         const button = input('appCreateButton');
         button.disabled = true;
@@ -191,7 +203,7 @@
                 }) });
             input('appSlug').value = '';
             await refreshManagedApplications();
-            info('Container criado: ' + slug + '. Clique em Iniciar para executá-lo.');
+            info('Aplicação ' + slug + ' criada com segurança. Agora clique em Iniciar e depois use Escolher endereço quando estiver disponível.');
         }
         catch (error) {
             info(error instanceof Error ? error.message : 'Não foi possível criar o container.');
