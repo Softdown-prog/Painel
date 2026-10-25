@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test server/api.test.mjs server/github.test.mjs server/apps.test.mjs",
-    "check:js": "node --check script.js && node --check github-ui.js && node --check apps-ui.js",
-    "build:frontend": "tsc github-ui.ts apps-ui.ts --target ES2022 --module none --lib ES2022,DOM --skipLibCheck"
+    "test": "node --experimental-strip-types --test server/api.test.mjs server/github.test.mjs server/apps.test.mjs server/projects.test.mjs",
+    "check:js": "node --check script.js && node --check github-ui.js && node --check apps-ui.js && node --check projects-ui.js",
+    "build:frontend": "tsc github-ui.ts apps-ui.ts projects-ui.ts --target ES2022 --module none --lib ES2022,DOM --skipLibCheck"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
