@@ -7,6 +7,6 @@
   },
   "scripts": {
     "start": "node api.mjs",
-    "test": "node --experimental-strip-types --test api.test.mjs github.test.mjs apps.test.mjs projects.test.mjs releases.test.mjs"
+    "test": "node --experimental-strip-types --test api.test.mjs github.test.mjs apps.test.mjs projects.test.mjs releases.test.mjs image-import.test.mjs"
   }
 }
