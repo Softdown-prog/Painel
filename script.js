@@ -218,6 +218,7 @@ function showView(name) {
   if (view.id === 'projects' && authenticated) window.refreshManagedProjects?.();
   if (view.id === 'domains' && authenticated) window.refreshManagedDomains?.();
   if (view.id === 'terminal') window.refreshTerminalConnection?.();
+  if (view.id === 'revisions' && authenticated) window.refreshManagedRevisions?.();
 }
 window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
 showView(location.hash.slice(1));
@@ -251,6 +252,8 @@ document.getElementById('authForm').addEventListener('submit', async event => {
       if (location.hash === '#projects') window.refreshManagedProjects?.();
       if (location.hash === '#domains') window.refreshManagedDomains?.();
       if (location.hash === '#terminal') window.refreshTerminalConnection?.();
+    if (location.hash === '#revisions') window.refreshManagedRevisions?.();
+      if (location.hash === '#revisions') window.refreshManagedRevisions?.();
     }
   } catch (error) { errorBox.textContent = error.message; }
   finally { button.disabled = false; }
