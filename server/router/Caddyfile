@@ -1,7 +1,7 @@
-# Only included by an operator on the VPS. Does not replace the existing production Caddy.
+# Gateway interno. Não altera o Caddy de produção e não publica portas na VPS.
 :8081 {
-    route {
-        import /config/panel/caddy/*.caddy
+    import /config/panel/caddy/*.caddy
+    handle {
         respond "Aplicação não encontrada" 404
     }
 }
