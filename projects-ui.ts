@@ -32,6 +32,11 @@
     });
     return item;
   }
+  const publicationLabel: Record<string,string> = {
+    queued:'Na fila',importing:'Baixando imagem',staging:'Preparando versão',
+    health:'Testando versão',promoting:'Publicando',completed:'Publicado',
+    attention:'Precisa de revisão',failed:'Falhou'
+  };
   const publishing = new Set<string>();
   const readyForDurable = new Set<string>();
   const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
@@ -60,7 +65,7 @@
         const state = await call('/projects/' + slug + '/publication');
         const job=state.history?.find((j:{runId:number})=>j.runId===run.id);
         if (!job) throw new Error('A publicação não foi encontrada no servidor.');
-        notice('Publicação '+slug+': '+job.detail);
+        notice('Publicação '+slug+': '+ (publicationLabel[job.phase] || job.phase) +' · '+job.detail);
         if (['completed','failed','attention'].includes(job.phase)) {
           await showReleaseStatus(project,host);
           return;
@@ -150,7 +155,7 @@
         const job = running.current;
         publication.textContent = !running.enabled ?
           'Publicação pelo servidor ainda não habilitada na VPS.' :
-          job ? 'Publicação registrada · '+job.phase+' · '+job.detail :
+          job ? (publicationLabel[job.phase] || job.phase)+' · '+job.detail :
           'Publicação pelo servidor pronta para receber um build.';
         host.append(publication);
       } catch {
