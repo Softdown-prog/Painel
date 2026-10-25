@@ -31,7 +31,7 @@ function fakeDocker() {
     if (path.startsWith('/containers/create?')) {
       const name = decodeURIComponent(path.split('name=')[1]);
       if (images.has(name)) return response(409);
-      images.set(name, { Id: name, Name: '/' + name, Config: { Image: payload.Image, Labels: payload.Labels },
+      images.set(name, { Id: 'id-' + name, Name: '/' + name, Config: { Image: payload.Image, Labels: payload.Labels },
         State: { Status: 'created', Health: { Status: 'starting' } } });
       return response(201);
     }
