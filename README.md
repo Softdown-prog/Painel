@@ -227,3 +227,9 @@ A API administrativa deixou de montar diretamente `/var/run/docker.sock` no `ser
 **Atenção:** o executor continua tendo acesso privilegiado ao Docker host. Ele reduz o alcance de uma falha na API, mas não representa isolamento completo contra comprometimento do executor. A implantação na VPS ainda deve ser validada manualmente e não foi realizada nesta etapa.
 
 Veja o [manual de implantação do executor](docs/docker-executor.md) para pré-requisitos, checagens, testes e contingência.
+
+### Pré-diagnóstico de implantação do executor
+
+O executor foi testado também com **Docker real em um runner temporário do GitHub Actions**, usando a API e o socket Unix compartilhado. O workflow `.github/workflows/executor-smoke.yml` verifica autenticação, listagem dos serviços, consulta de aplicações e bloqueio das operações de criação desativadas. Esse workflow não implanta nada na VPS.
+
+Antes de recriar serviços na VPS, um administrador com Docker autorizado deve executar o verificador **somente leitura** dentro de `server/`: `bash preflight-vps.sh` (acrescentando como argumentos os nomes dos overlays em uso). Ele valida o Compose efetivo e sinaliza incompatibilidades de UID no volume existente, sem alterar permissões. O runner da Softload V4 não tem privilégios Docker/sudo e não foi usado para mudar serviços. Consulte [o manual do executor](docs/docker-executor.md).
