@@ -4,6 +4,7 @@ import { handleAppRoute, startIdleMonitor } from './apps.ts';
 import { handleProjectRoute } from './projects.ts';
 import { handleReleaseRoute } from './releases.ts';
 import { handleImageImportRoute } from './image-import.ts';
+import { handleDomainRoute } from './domains.ts';
 import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, existsSync, statfsSync } from 'node:fs';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { totalmem, freemem, loadavg, cpus } from 'node:os';
@@ -152,7 +153,8 @@ async function handler(req, res) {
   }
   if (!session(req)) return send(res, 401, { error: 'Sessão necessária' });
   if (await handleGitHubRoute(req, res, { send, body, dataDir })) return;
-  if (await handleAppRoute(req, res, { send, body })) return;
+  if (await handleDomainRoute(req, res, { send, body, dataDir })) return;
+  if (await handleAppRoute(req, res, { send, body, dataDir })) return;
   if (await handleImageImportRoute(req, res, { send, body, dataDir })) return;
   if (await handleReleaseRoute(req, res, { send, body, dataDir })) return;
   if (await handleProjectRoute(req, res, { send, body, dataDir })) return;
