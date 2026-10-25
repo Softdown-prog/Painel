@@ -122,3 +122,62 @@ test('release endpoints fail closed for unknown project', async () => {
     assert.equal(result.status, 404);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('interrupted promotion can restore owned backup only with explicit recovery confirmation', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'panel-recovery-'));
+  writeFileSync(join(dir, 'projects.json'), JSON.stringify([{ slug: 'demo', repository: repo,
+    connectedAt: '2026-10-25T00:00:00Z' }]));
+  const docker = fakeDocker();
+  const previous = docker.images.get('softload-app-demo');
+  docker.images.delete('softload-app-demo');
+  previous.Name = '/softload-backup-demo';
+  previous.State.Status = 'exited';
+  docker.images.set('softload-backup-demo', previous);
+  docker.images.set('softload-candidate-demo', {
+    Id: 'new', Name: '/softload-candidate-demo',
+    Config: { Image: 'test:next', Labels: { ...labels, [revision]: sha, [repository]: repo, [role]: 'candidate' } },
+    State: { Status: 'running', Health: { Status: 'healthy' } }
+  });
+  const invoke = async (method, path, data = {}) => {
+    let value;
+    await handleReleaseRoute({ method, url: path }, {}, {
+      dataDir: dir, docker: docker.fn, enabled: true, body: async () => data,
+      repositories: () => [{ fullName: repo, branch: 'main', workflow: 'panel-app-build.yml' }],
+      send: (_res, status, response) => { value = { status, data: response }; }
+    });
+    return value;
+  };
+  try {
+    assert.equal((await invoke('GET', '/projects/demo/releases/recovery')).data.repair, 'restore_backup');
+    assert.equal((await invoke('POST', '/projects/demo/releases/recovery')).status, 400);
+    assert.equal(docker.images.has('softload-app-demo'), false);
+    assert.equal((await invoke('POST', '/projects/demo/releases/recovery', { confirm: 'RESTORE_SAFE_STATE' })).status, 200);
+    assert.equal(docker.images.get('softload-app-demo').Id, 'old');
+    assert.equal(docker.images.get('softload-app-demo').State.Status, 'running');
+    assert.equal(docker.images.get('softload-candidate-demo').State.Status, 'exited');
+    assert.equal((await invoke('GET', '/projects/demo/releases/recovery')).data.state, 'ready');
+    assert.equal((await invoke('POST', '/projects/demo/releases/recovery', { confirm: 'RESTORE_SAFE_STATE' })).status, 409);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+test('ambiguous recovery does not rename or delete an unverified container', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'panel-recovery-'));
+  writeFileSync(join(dir, 'projects.json'), JSON.stringify([{ slug: 'demo', repository: repo,
+    connectedAt: '2026-10-25T00:00:00Z' }]));
+  const docker = fakeDocker();
+  docker.images.delete('softload-app-demo');
+  docker.images.set('softload-backup-demo', {
+    Id: 'foreign', Name: '/softload-backup-demo', Config: { Labels: {} }, State: { Status: 'exited' }
+  });
+  try {
+    let result;
+    await handleReleaseRoute({ method: 'POST', url: '/projects/demo/releases/recovery' }, {}, {
+      dataDir: dir, docker: docker.fn, enabled: true,
+      body: async () => ({ confirm: 'RESTORE_SAFE_STATE' }),
+      repositories: () => [{ fullName: repo, branch: 'main', workflow: 'panel-app-build.yml' }],
+      send: (_res, status, data) => { result = { status, data }; }
+    });
+    assert.equal(result.status, 403);
+    assert.equal(docker.images.has('softload-app-demo'), false);
+    assert.equal(docker.images.get('softload-backup-demo').Id, 'foreign');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
