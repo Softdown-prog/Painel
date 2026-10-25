@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="hosting.css">
   <link rel="stylesheet" href="terminal.css">
   <link rel="stylesheet" href="revisions.css">
+  <link rel="stylesheet" href="site-detail.css">
 </head>
 <body>
   <div class="app-shell">
@@ -151,6 +152,50 @@
           <p class="terminal-guide">A limpeza atua somente sobre imagens GHCR registradas no painel; não usa <code>docker system prune</code>, não exclui volumes nem containers. Para configurar a execução automática, veja o <a href="https://github.com/Softdown-prog/Painel/blob/main/docs/REVISOES-E-LIMPEZA.md" target="_blank" rel="noopener noreferrer">guia de manutenção</a>.</p>
         </section>
 
+        <section class="view" id="site" data-title="Detalhes do site">
+          <div class="page-heading"><div><div class="eyebrow">HOSPEDAGEM / GERENCIAR APLICAÇÃO</div><h1 id="siteTitle">Detalhes da aplicação</h1><p>Estado atual, versão, endereço, registros e ajustes em um só lugar.</p></div><a class="secondary-button" href="#apps">← Meus sites e apps</a></div>
+          <p class="github-notice" id="siteNotice" role="status">Selecione uma aplicação em Sites e apps.</p>
+          <div class="site-overview-stats">
+            <section class="panel site-stat"><small>Estado do container</small><strong id="siteState">—</strong></section>
+            <section class="panel site-stat"><small>Memória máxima</small><strong id="siteRam">—</strong></section>
+            <section class="panel site-stat"><small>CPU máxima</small><strong id="siteCpu">—</strong></section>
+            <section class="panel site-stat"><small>Disco gravado</small><strong id="siteDisk">—</strong></section>
+          </div>
+          <section class="panel full-panel site-block">
+            <div class="panel-head"><div><h2>Gerenciar aplicação</h2><p id="siteImage">Aguardando os dados do Docker...</p></div><button type="button" id="siteRefresh" class="secondary-button">↻ Atualizar</button></div>
+            <div class="site-actions">
+              <button type="button" id="siteStart" class="secondary-button" disabled>Iniciar</button>
+              <button type="button" id="siteRestart" class="secondary-button" disabled>Reiniciar</button>
+              <button type="button" id="siteStop" class="secondary-button" disabled>Parar</button>
+              <button type="button" id="siteReadLogs" class="secondary-button">Ver registros</button>
+              <a id="sitePublish" class="primary-button" href="#projects">Publicar nova versão</a>
+            </div>
+          </section>
+          <section class="panel full-panel site-block"><div class="panel-head"><div><h2>Código, endereço e versões</h2><p>Informações verificadas pela API da VPS, sem confundir endereço reservado com site publicado.</p></div></div>
+            <div class="site-facts">
+              <div><small>Repositório GitHub</small><strong id="siteRepo">—</strong></div>
+              <div><small>Endereço</small><strong id="siteDomain">—</strong></div>
+              <div><small>Versão em uso</small><strong id="siteRevision">—</strong></div>
+              <div><small>Versão anterior</small><strong id="siteBackup">—</strong></div>
+            </div>
+            <div class="site-actions"><a href="#projects" id="siteGitHub" class="secondary-button">Gerenciar GitHub / versões</a><a href="#domains" id="siteDomainLink" class="secondary-button">Configurar endereço</a></div>
+          </section>
+          <section class="panel full-panel site-block">
+            <div class="panel-head"><div><h2>Configurações</h2><p>Limites autorizados pelo servidor. Não afetam os demais sites.</p></div></div>
+            <form id="siteSettingsForm" class="site-settings">
+              <label>Memória máxima<select id="siteRamChoice"></select></label>
+              <label>CPU máxima<select id="siteCpuChoice"></select></label>
+              <label>Parar por inatividade<select id="siteIdleChoice"></select></label>
+              <button type="submit" class="primary-button" id="siteSaveSettings" disabled>Salvar configurações</button>
+            </form>
+            <p class="site-hint">A memória e CPU são limites definidos para a aplicação, não medições de consumo em tempo real. O disco listado acima é uma estimativa do container.</p>
+          </section>
+          <section class="panel full-panel site-block">
+            <div class="panel-head"><div><h2>Registros da aplicação</h2><p>Últimas mensagens retornadas pelo Docker para investigar falhas.</p></div></div>
+            <pre id="siteLogs" class="log-console">Clique em Ver registros para consultar.</pre>
+          </section>
+        </section>
+
         <section class="view" id="terminal" data-title="Terminal VPS">
           <div class="page-heading"><div><div class="eyebrow">ADMINISTRAÇÃO / VPS</div><h1>Terminal da VPS</h1><p>Consulte a VPS ou execute comandos Linux administrativos pela conexão privada.</p></div><button id="terminalHelpButton" type="button" class="secondary-button">? Comandos</button></div>
           <section class="panel full-panel terminal-wrapper" aria-label="Terminal de comandos da VPS">
@@ -219,6 +264,7 @@
   <script src="script.js" defer></script>
   <script src="github-ui.js" defer></script>
   <script src="apps-ui.js" defer></script>
+  <script src="site-detail-ui.js" defer></script>
   <script src="projects-ui.js" defer></script>
   <script src="domains-ui.js" defer></script>
   <script src="terminal-ui.js" defer></script>
