@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { dockerRequest, inspectOwned, managedContainerSpec, validSlug, AppError, type DockerRequest, type DockerResponse } from './apps.ts';
 import { github, readRepositories, type LinkedRepository } from './github.ts';
 import { readProjects } from './projects.ts';
+import { readImports } from './image-import.ts';
 
 type ReleaseDependencies = {
   dataDir: string;
@@ -18,7 +19,7 @@ type Inspect = {
   State?: { Status?: string; Health?: { Status?: string } };
 };
 type ImageInspect = {
-  Id: string; RepoTags?: string[];
+  Id: string; RepoTags?: string[]; RepoDigests?: string[];
   Config?: { Labels?: Record<string, string>; Healthcheck?: { Test?: string[] } };
 };
 const OWNER = 'com.softload.panel.managed';
@@ -94,15 +95,18 @@ async function authenticatedBuild(call: typeof github, repo: LinkedRepository, r
   }
   return sha;
 }
-async function localVerifiedImage(docker: DockerRequest, repo: string, sha: string): Promise<{ id: string; image: string }> {
-  const tag = imageTag(repo, sha);
+async function localVerifiedImage(docker: DockerRequest, repo: string, sha: string, dataDir: string, slug: string): Promise<{ id: string; image: string }> {
+  const imported = readImports(dataDir).find(entry =>
+    entry.repository === repo && entry.slug === slug && entry.revision === sha);
+  if (!imported) throw new ReleaseError(422, 'Importe e valide a imagem GHCR por digest antes de preparar a release.');
+  const tag = 'ghcr.io/' + repo.toLowerCase() + '@' + imported.digest;
   const result = await docker('/images/' + encodeURIComponent(tag) + '/json');
   if (result.status === 404) throw new ReleaseError(422, 'Imagem do build ainda não está na VPS. Importe pelo fluxo autorizado antes da preparação.');
   if (result.status >= 400) throw new ReleaseError(502, 'Não foi possível inspecionar a imagem.');
   const image = parse<ImageInspect>(result);
   const labels = image.Config?.Labels;
   if (!/^sha256:[a-f0-9]{64}$/.test(image.Id || '') ||
-    !image.RepoTags?.includes(tag) ||
+    image.Id !== imported.imageId || !image.RepoDigests?.includes(tag) ||
     labels?.['org.opencontainers.image.revision'] !== sha ||
     labels?.['org.opencontainers.image.source'] !== 'https://github.com/' + repo ||
     !Array.isArray(image.Config?.Healthcheck?.Test) ||
@@ -158,7 +162,7 @@ export async function handleReleaseRoute(req: IncomingMessage, res: ServerRespon
         if (candidate || backup) throw new ReleaseError(409, 'Já existe candidata ou backup. Resolva a publicação anterior.');
         if (current.State?.Status !== 'running') throw new ReleaseError(409, 'A aplicação atual precisa estar em execução.');
         const sha = await authenticatedBuild(githubCall, repo, input.runId as number);
-        const image = await localVerifiedImage(docker, project.repository, sha);
+        const image = await localVerifiedImage(docker, project.repository, sha, deps.dataDir, slug);
         const labels = { [REPOSITORY]: project.repository, [REVISION]: sha, [ROLE]: 'candidate' };
         const spec = managedContainerSpec(slug, image.id, labels);
         const create = await docker('/containers/create?name=' + encodeURIComponent(CANDIDATE + slug), 'POST', spec);
