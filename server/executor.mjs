@@ -50,7 +50,11 @@ function proxy(req,res,payload,decision) {
     if(req.headers['x-registry-auth'].length>8192)return json(res,400,{error:'Registry auth too large'});
     headers['x-registry-auth']=req.headers['x-registry-auth'];
   }
-  const upstream=http.request({socketPath:dockerSocket,path:req.url,method:req.method,headers,
+  // Forward by the immutable Docker ID resolved by the policy, never by a mutable alias.
+  const upstreamPath=decision.targetId
+    ? (req.url||'').replace(/^\/v1\.45\/containers\/[^/?]+/, '/v1.45/containers/'+encodeURIComponent(decision.targetId))
+    : req.url;
+  const upstream=http.request({socketPath:dockerSocket,path:upstreamPath,method:req.method,headers,
     timeout:isPull?600000:25000},response=>{
     const responseHeaders={'content-type':response.headers['content-type']||'application/json','cache-control':'no-store'};
     if(decision.filterList&&response.statusCode===200){
