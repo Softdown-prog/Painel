@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="panel.css">
   <link rel="stylesheet" href="apps.css">
+  <link rel="stylesheet" href="projects.css">
 </head>
 <body>
   <div class="app-shell">
@@ -26,6 +27,7 @@
         <a class="nav-item active" href="#overview" data-view="overview"><span class="nav-icon">▦</span> Visão geral</a>
         <a class="nav-item" href="#services" data-view="services"><span class="nav-icon">◫</span> Serviços <span class="nav-count">6</span></a>
         <a class="nav-item" href="#apps" data-view="apps"><span class="nav-icon">⬡</span> Aplicações</a>
+        <a class="nav-item" href="#projects" data-view="projects"><span class="nav-icon">⌘</span> Projetos</a>
         <a class="nav-item" href="#deploys" data-view="deploys"><span class="nav-icon">⇅</span> Deploys</a>
         <a class="nav-item" href="#logs" data-view="logs"><span class="nav-icon">≡</span> Logs</a>
         <div class="nav-group-title nav-group-spaced">SISTEMA</div>
@@ -82,6 +84,21 @@
           <section class="panel full-panel apps-list-panel"><div class="panel-head"><div><h2>Logs da aplicação</h2><p>Últimas 100 linhas do container selecionado</p></div></div><pre class="log-console managed-app-log" id="appLogs">Selecione Logs em uma aplicação.</pre></section>
         </section>
 
+
+        <section class="view" id="projects" data-title="Projetos">
+          <div class="page-heading"><div><div class="eyebrow">GITHUB / DOCKER</div><h1>Projetos</h1><p>Vincule uma aplicação gerenciada a um repositório e acompanhe os builds do GitHub Actions.</p></div><button class="primary-button" id="projectsRefreshButton" type="button">↻ Atualizar</button></div>
+          <div class="panel full-panel"><div class="panel-head"><div><h2>Vincular aplicação e repositório</h2><p>Primeiro crie uma aplicação na aba Aplicações e conecte um repositório na aba Deploys.</p></div><span class="outline-tag">BUILD SEGURO</span></div>
+            <form class="project-link-form" id="projectLinkForm">
+              <label>Aplicação existente<select id="projectApp" required></select></label>
+              <label>Repositório conectado<select id="projectRepo" required></select></label>
+              <button class="primary-button" type="submit" id="projectLinkButton" disabled>Vincular projeto</button>
+            </form>
+            <p class="github-notice" id="projectsNotice" role="status">Aguardando autenticação...</p>
+          </div>
+          <div class="panel full-panel projects-list-panel"><div class="panel-head"><div><h2>Projetos conectados</h2><p>Builds são executados no GitHub. As imagens e containers da VPS não são modificados automaticamente.</p></div></div><div id="managedProjects" class="managed-projects">Nenhum projeto carregado.</div></div>
+          <div class="bottom-callout"><div class="callout-icon">✓</div><div><strong>Fluxo de build isolado</strong><p>O workflow <code>panel-app-build.yml</code> gera a imagem no GHCR. Uma etapa futura fará a publicação controlada na VPS com verificação e rollback.</p></div><a class="secondary-button" href="https://github.com/Softdown-prog/Painel/blob/main/templates/panel-app-build.yml" target="_blank" rel="noopener noreferrer">Ver modelo</a></div>
+        </section>
+
         <section class="view" id="deploys" data-title="Deploys"><div class="page-heading"><div><div class="eyebrow">ENTREGA CONTÍNUA / MAIN</div><h1>Deploys</h1><p>Acompanhe publicações do GitHub até a VPS.</p></div><a class="primary-button" href="https://github.com/Softdown-prog/Softloadv4/actions/workflows/deploy.yml" target="_blank" rel="noopener noreferrer">↗ Abrir workflow</a></div><div class="panel full-panel"><div class="panel-head"><div><h2>Histórico de publicações</h2><p id="deployedRevision">Carregando revisão em execução...</p></div><span class="outline-tag" id="deployTag">DEMO</span></div><div class="deploy-table" id="deployTable"><div class="deploy-row deploy-header"><span>REVISÃO</span><span>ORIGEM</span><span>STATUS</span><span>QUANDO</span></div></div></div><div class="panel full-panel github-panel" id="githubManager"><div class="panel-head"><div><h2>Repositórios GitHub</h2><p>Conecte um projeto com workflow de deploy existente e acompanhe sua publicação na VPS.</p></div><span class="outline-tag">ACTIONS</span></div>
   <div class="github-manager">
     <form id="githubConnectForm" class="github-connect-form">
@@ -114,5 +131,6 @@
   <script src="script.js" defer></script>
   <script src="github-ui.js" defer></script>
   <script src="apps-ui.js" defer></script>
+  <script src="projects-ui.js" defer></script>
 </body>
 </html>
