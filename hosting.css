@@ -1,0 +1,34 @@
+/* Fluxo de hospedagem simplificado; mantém a identidade visual existente. */
+.quick-start{margin:0 0 28px}
+.quick-start-heading{margin-bottom:15px}
+.quick-start-heading h2{font-size:22px;margin:0 0 5px}
+.quick-start-heading p,.quick-start-note{color:#aeb3c1;font-size:12px;line-height:1.55}
+.quick-start-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.quick-start-card{min-height:172px;background:#171b26;border:1px solid #323647;border-radius:13px;padding:19px;display:flex;flex-direction:column;align-items:flex-start;gap:10px;transition:background .15s,border-color .15s}
+.quick-start-card:hover,.quick-start-card:focus-visible{background:#242136;border-color:#ab91f0;outline:none}
+.quick-start-icon{width:35px;height:35px;display:grid;place-items:center;background:#383047;border-radius:9px;color:#d4bdff;font-size:19px}
+.quick-start-card strong{font-size:14px;color:#f0eaf8}
+.quick-start-card small{color:#aeb2c0;line-height:1.5;font-size:11px}
+.quick-start-go{margin-top:auto;color:#c8afff;font-size:12px;font-weight:700}
+.quick-start-note{padding:0 2px;margin:12px 0 0}
+.form-help{font-weight:400;font-size:11px;color:#aeb1c0;line-height:1.4;min-height:2em}
+.hosting-explainer{background:#171c26;border:1px solid #344254;border-radius:12px;padding:18px 22px;margin:0 0 20px}
+.hosting-explainer>strong{display:block;color:#eceef6;font-size:15px;margin-bottom:15px}
+.hosting-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.hosting-steps>div{display:flex;align-items:flex-start;gap:9px}
+.hosting-steps>div>span{flex:none;width:26px;height:26px;border-radius:50%;background:#41395b;color:#d9c5ff;display:grid;place-items:center;font-weight:700}
+.hosting-steps p{display:flex;flex-direction:column;gap:4px;margin:0}
+.hosting-steps p strong{font-size:12px;color:#ececf7}
+.hosting-steps small{color:#aeb1bf;font-size:11px;line-height:1.45}
+.hosting-steps a,.hosting-help a{color:#c7aaff;text-decoration:underline;text-underline-offset:3px}
+.domain-address-preview{padding:12px 15px;margin:14px 22px 0;border-radius:9px;background:#252332;border:1px solid #504565;color:#e8dbff;font-size:12px;overflow-wrap:anywhere}
+.hosting-help{padding:0 22px 12px;font-size:12px;color:#b9c0ce;line-height:1.5}
+.hosting-help p{margin-bottom:8px}
+.domain-technical{margin-top:18px;padding:18px 0}
+.domain-technical summary{cursor:pointer;font-weight:600;padding:0 22px;color:#d5c7ec}
+.domain-technical>p{padding:14px 22px 0;margin:0;color:#adb2c2;font-size:12px;line-height:1.5}
+.domain-technical .domain-caddy-preview{margin-top:13px}
+.managed-app-actions .app-shortcut{display:inline-flex;align-items:center;justify-content:center;border:1px solid #504763;border-radius:7px;padding:8px 10px;color:#ddc5ff;font-size:12px}
+.managed-app-actions .app-shortcut:hover{background:#352941}
+@media(max-width:970px){.quick-start-grid{grid-template-columns:1fr 1fr}.hosting-steps{grid-template-columns:1fr}}
+@media(max-width:750px){.quick-start-grid{grid-template-columns:1fr}.quick-start-card{min-height:auto}.hosting-explainer{padding:15px}.domain-address-preview{margin:14px 12px 0}.hosting-help{padding:0 12px 12px}.domain-technical summary{padding:0 14px}.domain-technical>p{padding:12px 14px 0}}
