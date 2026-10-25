@@ -7,6 +7,7 @@
   type Report = {
     checkedAt:string; enabled:boolean; automatic:boolean; ageDays:number; keepPerApp:number;
     oldCount:number; oldBytesEstimate:number; totalImports:number; entries:RevisionEntry[]; history:History[];
+    hostInventory:{available:boolean;total:number;totalBytesEstimate:number;untagged:number;multipleVersionRepositories:{repository:string;versions:number}[];images:{id:string;tags:string[];sizeBytes:number;createdAt:string|null;containers:number|null}[]};
   };
   const get=(id:string)=>document.getElementById(id) as HTMLElement;
   const bytes=(size:number)=>size>=1073741824?(size/1073741824).toFixed(2)+' GB':(size/1048576).toFixed(1)+' MB';
@@ -50,6 +51,29 @@
         cell('td',label[entry.status]||entry.status),cell('td',bytes(entry.sizeBytes)),
         cell('td',date(entry.importedAt)));
       row.title=entry.reason;entries.append(row);
+    }
+    const host=report.hostInventory;
+    const hostTable=get('revisionsHostImages');hostTable.replaceChildren();
+    const groups=get('revisionsHostGroups');groups.replaceChildren();
+    if(!host?.available){
+      get('revisionsHostSummary').textContent='Não foi possível consultar o inventário completo do Docker nesta VPS.';
+      hostTable.append(cell('tr','')); // The table remains empty until the next successful refresh.
+    }else{
+      get('revisionsHostSummary').textContent=host.total+' imagens Docker encontradas · '+host.untagged+
+        ' sem tag · tamanhos somados: '+bytes(host.totalBytesEstimate)+
+        ' (estimativa, sem deduplicar camadas compartilhadas).';
+      for(const group of host.multipleVersionRepositories){
+        const span=cell('span',group.repository+' · '+group.versions+' versões locais');
+        groups.append(span);
+      }
+      if(!host.multipleVersionRepositories.length)groups.textContent='Nenhum repositório com múltiplas versões identificado nas imagens listadas.';
+      for(const image of host.images.slice(0,75)){
+        const row=document.createElement('tr');
+        row.append(cell('td',image.tags.join(', ')||'(sem tag)'),cell('td',image.id.slice(0,18)),
+          cell('td',bytes(image.sizeBytes)),cell('td',image.createdAt?date(image.createdAt):'desconhecida'));
+        hostTable.append(row);
+      }
+      if(!host.images.length)hostTable.textContent='Nenhuma imagem listada.';
     }
     const history=get('revisionsHistory');history.replaceChildren();
     if(!report.history.length)history.textContent='Nenhuma limpeza foi registrada neste painel.';
