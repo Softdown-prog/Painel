@@ -1,0 +1,23 @@
+name: softload-panel-tunnel
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: softload-panel-tunnel
+    command: tunnel --no-autoupdate run --token-file /run/secrets/tunnel-token
+    restart: unless-stopped
+    volumes:
+      - /etc/softload-panel/tunnel-token:/run/secrets/tunnel-token:ro
+    networks:
+      - proxy
+    read_only: true
+    mem_limit: 128m
+    cpus: "0.25"
+    pids_limit: 64
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+networks:
+  proxy:
+    external: true
+    name: softload_proxy

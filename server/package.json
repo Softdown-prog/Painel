@@ -1,0 +1,7 @@
+{
+  "name": "softload-panel-api",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": { "start": "node api.mjs", "test": "node --test api.test.mjs" }
+}
