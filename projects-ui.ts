@@ -32,6 +32,91 @@
     });
     return item;
   }
+  const publishing = new Set<string>();
+  const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+  async function publishSuccessfulBuild(project: ProjectLink, run: RunItem, host: HTMLElement): Promise<void> {
+    const slug = project.slug;
+    if (publishing.has(slug)) { notice('Já existe uma publicação em andamento para ' + slug + '.'); return; }
+    if (run.conclusion !== 'success' || run.status !== 'completed' || !/^[0-9a-f]{40}$/.test(run.sha)) {
+      notice('Escolha uma execução do GitHub concluída com sucesso.'); return;
+    }
+    publishing.add(slug);
+    try {
+      const [initial, imported] = await Promise.all([
+        call('/projects/' + slug + '/releases'),
+        call('/projects/' + slug + '/images/import')
+      ]);
+      if (!initial.enabled || !imported.enabled) throw new Error(
+        'Para publicar em um clique, a API precisa habilitar publicações e importação de imagens.');
+      if (initial.backup || initial.candidate) throw new Error(
+        'Já existe uma publicação anterior pendente. Restaure ou descarte a reserva antes de continuar.');
+      if (initial.current?.state !== 'running') throw new Error(
+        'Inicie a aplicação antes de publicar uma nova versão.');
+      if (imported.job?.status === 'running') throw new Error(
+        'Já há uma importação de imagem em andamento. Atualize o estado antes de publicar.');
+      if (initial.current?.revision === run.sha) throw new Error(
+        'Essa revisão já está ativa no servidor.');
+      if (!confirm('Publicar ' + slug + ' usando a revisão ' + run.sha.slice(0, 10) +
+        '?\\n\\nO painel vai baixar a imagem, testar a nova versão e trocar os containers somente após o teste de saúde. ' +
+        'Pode ocorrer uma pequena interrupção. A versão anterior ficará guardada para recuperação.')) return;
+      if (imported.imported?.revision !== run.sha) {
+        notice('1/3 · Baixando revisão ' + run.sha.slice(0, 10) + ' do GitHub...');
+        await call('/projects/' + slug + '/images/import', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ runId: run.id })
+        });
+        let downloaded = false;
+        for (let attempt = 0; attempt < 90; attempt++) {
+          await delay(2000);
+          const current = await call('/projects/' + slug + '/images/import');
+          if (current.job?.status === 'error') throw new Error(current.job.message ||
+            'A importação falhou. Confira os logs da API.');
+          if (current.imported?.revision === run.sha && current.job?.status !== 'running') {
+            downloaded = true; break;
+          }
+        }
+        if (!downloaded) throw new Error('Download ainda não foi confirmado. Consulte o histórico antes de repetir.');
+      }
+      notice('2/3 · Preparando e testando a nova versão sem parar a atual...');
+      await call('/projects/' + slug + '/releases/stage', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ runId: run.id })
+      });
+      let healthy = false;
+      for (let attempt = 0; attempt < 75; attempt++) {
+        await delay(2000);
+        const status = await call('/projects/' + slug + '/releases');
+        if (status.candidate?.revision !== run.sha || status.backup) throw new Error(
+          'O estado da versão candidata mudou. Verifique a publicação antes de continuar.');
+        if (status.candidate?.state !== 'running' || status.candidate?.health === 'unhealthy') throw new Error(
+          'Nova versão não iniciou corretamente. A versão anterior foi preservada; confira os logs.');
+        if (status.candidate.health === 'healthy') { healthy = true; break; }
+      }
+      if (!healthy) throw new Error(
+        'Teste de saúde ainda não confirmou a nova versão. A versão atual foi mantida.');
+      const finalCheck = await call('/projects/' + slug + '/releases');
+      if (!finalCheck.enabled || finalCheck.backup || finalCheck.current?.state !== 'running' ||
+          finalCheck.candidate?.revision !== run.sha || finalCheck.candidate?.health !== 'healthy')
+        throw new Error('Estado da publicação mudou. A troca foi cancelada para evitar substituir a revisão errada.');
+      notice('3/3 · Teste de saúde aprovado. Trocando para a nova revisão...');
+      await call('/projects/' + slug + '/releases/promote', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ expectedRevision: run.sha })
+      });
+      const completed = await call('/projects/' + slug + '/releases');
+      if (completed.current?.revision !== run.sha || completed.current?.state !== 'running')
+        throw new Error('A troca foi solicitada, mas o estado final ainda não foi confirmado. Verifique na VPS.');
+      notice('Publicado e conferido: ' + slug + ' · ' + run.sha.slice(0, 10) +
+        '. A versão anterior continua guardada para rollback.');
+    } catch (error) {
+      notice('Publicação interrompida: ' + (error instanceof Error ? error.message : 'falha inesperada') +
+        ' Não tente novamente sem conferir o estado das versões.');
+    } finally {
+      publishing.delete(slug);
+      try { await showReleaseStatus(project, host); }
+      catch { /* The original notice already explains the failure. */ }
+    }
+  }
   async function loadRuns(slug: string, parent: HTMLElement, releaseHost: HTMLElement): Promise<void> {
     parent.textContent = 'Carregando execuções...';
     try {
@@ -50,6 +135,11 @@
         const status = document.createElement('span');
         status.textContent = ' · ' + (run.conclusion || run.status) + ' · ' + new Date(run.createdAt).toLocaleString('pt-BR');
         line.append(link, status);
+        if (run.conclusion === 'success' && run.status === 'completed' &&
+            importReady.has(slug) && releaseReady.has(slug)) {
+          const project = projects.find(p => p.slug === slug)!;
+          line.append(button('Publicar revisão', () => publishSuccessfulBuild(project, run, releaseHost)));
+        }
         if (run.conclusion === 'success' && importReady.has(slug)) {
           line.append(button('Importar do GHCR', async () => {
             if (!confirm('Importar esta revisão do GHCR por digest SHA-256? A operação não altera containers em execução.')) return;
