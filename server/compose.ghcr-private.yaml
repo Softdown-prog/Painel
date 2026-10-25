@@ -1,0 +1,9 @@
+# Add only for private GHCR packages after provisioning the token file on VPS.
+# GitHub Packages requires a classic PAT with read:packages; use read-only scope.
+services:
+  api:
+    environment:
+      PANEL_GHCR_USERNAME: "${PANEL_GHCR_USERNAME:-}"
+      PANEL_GHCR_TOKEN_FILE: /run/secrets/ghcr-read-token
+    volumes:
+      - /etc/softload-panel/ghcr-read-token:/run/secrets/ghcr-read-token:ro
