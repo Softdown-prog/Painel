@@ -72,7 +72,7 @@ function failed(ip) {
 }
 function docker(path, method = 'GET') {
   return new Promise((resolve, reject) => {
-    const req = http.request({ socketPath: '/var/run/docker.sock', path: `/v1.45${path}`, method, timeout: 15000 }, res => {
+    const req = http.request({ socketPath: process.env.PANEL_DOCKER_SOCKET_PATH || '/run/panel-executor/docker.sock', path: `/v1.45${path}`, method, timeout: 15000 }, res => {
       const chunks = [];
       let bytes = 0;
       res.on('data', chunk => { bytes += chunk.length; if (bytes <= 4_000_000) chunks.push(chunk); else req.destroy(new Error('Docker response too large')); });
