@@ -121,7 +121,7 @@ export async function dockerRequest(path: string, method = 'GET', payload?: unkn
   const data = payload === undefined ? undefined : JSON.stringify(payload);
   if (data && Buffer.byteLength(data) > 8192) throw new Error('Docker payload too large');
   return new Promise((resolve, reject) => {
-    const req = http.request({ socketPath: '/var/run/docker.sock', path: '/v1.45' + path, method,
+    const req = http.request({ socketPath: process.env.PANEL_DOCKER_SOCKET_PATH || '/run/panel-executor/docker.sock', path: '/v1.45' + path, method,
       timeout: 15000, headers: data ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {} }, response => {
       const chunks: Buffer[] = [];
       let bytes = 0;
