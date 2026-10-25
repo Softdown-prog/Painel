@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="panel.css">
   <link rel="stylesheet" href="apps.css">
   <link rel="stylesheet" href="projects.css">
+  <link rel="stylesheet" href="domains.css">
 </head>
 <body>
   <div class="app-shell">
@@ -28,6 +29,7 @@
         <a class="nav-item" href="#services" data-view="services"><span class="nav-icon">◫</span> Serviços <span class="nav-count">6</span></a>
         <a class="nav-item" href="#apps" data-view="apps"><span class="nav-icon">⬡</span> Aplicações</a>
         <a class="nav-item" href="#projects" data-view="projects"><span class="nav-icon">⌘</span> Projetos</a>
+        <a class="nav-item" href="#domains" data-view="domains"><span class="nav-icon">🌐</span> Domínios</a>
         <a class="nav-item" href="#deploys" data-view="deploys"><span class="nav-icon">⇅</span> Deploys</a>
         <a class="nav-item" href="#logs" data-view="logs"><span class="nav-icon">≡</span> Logs</a>
         <div class="nav-group-title nav-group-spaced">SISTEMA</div>
@@ -87,6 +89,20 @@
         </section>
 
 
+
+        <section class="view" id="domains" data-title="Domínios">
+          <div class="page-heading"><div><div class="eyebrow">APLICAÇÕES / ROTEAMENTO INTERNO</div><h1>Domínios</h1><p>Prepare subdomínios exclusivos para containers gerenciados pelo Painel.</p></div><button class="primary-button" type="button" id="domainsRefreshButton">↻ Atualizar</button></div>
+          <section class="panel full-panel"><div class="panel-head"><div><h2>Adicionar subdomínio</h2><p>O hostname é derivado automaticamente da zona aprovada, sem aceitar domínios arbitrários.</p></div><span class="outline-tag">ATIVAÇÃO MANUAL</span></div>
+            <form id="domainCreateForm" class="domain-form">
+              <label>Aplicação na rede isolada<select id="domainApp" required></select></label>
+              <label>Porta HTTP interna<input id="domainPort" type="number" min="1024" max="65535" step="1" value="3000" required></label>
+              <button class="primary-button" type="submit" id="domainCreateButton" disabled>Preparar domínio</button>
+            </form><p id="domainsNotice" class="github-notice" role="status">Aguardando API de domínios...</p>
+          </section>
+          <section class="panel full-panel domain-list-panel"><div class="panel-head"><div><h2>Rotas preparadas</h2><p>O cadastro gera a configuração do gateway; não altera o Caddy de produção.</p></div></div><div id="managedDomains">Nenhum domínio carregado.</div></section>
+          <section class="panel full-panel domain-list-panel"><div class="panel-head"><div><h2>Configuração gerada para Caddy</h2><p>Somente leitura. O operador precisa validar DNS e recarregar explicitamente o gateway.</p></div></div><pre id="domainCaddyPreview" class="log-console domain-caddy-preview">Sem configuração carregada.</pre></section>
+        </section>
+
         <section class="view" id="projects" data-title="Projetos">
           <div class="page-heading"><div><div class="eyebrow">GITHUB / DOCKER</div><h1>Projetos</h1><p>Vincule uma aplicação gerenciada a um repositório e acompanhe os builds do GitHub Actions.</p></div><button class="primary-button" id="projectsRefreshButton" type="button">↻ Atualizar</button></div>
           <div class="panel full-panel"><div class="panel-head"><div><h2>Vincular aplicação e repositório</h2><p>Primeiro crie uma aplicação na aba Aplicações e conecte um repositório na aba Deploys.</p></div><span class="outline-tag">BUILD SEGURO</span></div>
@@ -134,5 +150,6 @@
   <script src="github-ui.js" defer></script>
   <script src="apps-ui.js" defer></script>
   <script src="projects-ui.js" defer></script>
+  <script src="domains-ui.js" defer></script>
 </body>
 </html>
