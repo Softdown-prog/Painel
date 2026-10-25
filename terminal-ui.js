@@ -140,7 +140,7 @@
         ];
         for (const r of d.entries || []) rows.push('  ' + r.slug + '  ' +
           String(r.revision||'').slice(0,8) + '  ' + r.status);
-        return rows.join('\\n');
+        return rows.join('\n');
       }
       if (args[1] === 'limpar' && args.length === 2) {
         if (!confirmAction('Limpar revisões antigas', 'VPS', 'Remove apenas imagens antigas, sem apagar containers ou volumes.')) return 'Cancelado.';
