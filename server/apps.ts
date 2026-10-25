@@ -159,7 +159,8 @@ function item(container: DockerContainer, details?: DockerInspect, idleMinutes =
     image: container.Image, state: container.State || 'unknown', status: container.Status || '',
     ramMb: Math.round((details?.HostConfig?.Memory || 0) / 1048576),
     cpuCores: (details?.HostConfig?.NanoCpus || 0) / 1_000_000_000,
-    diskUsedBytes: container.SizeRw ?? null, idleMinutes };
+    diskUsedBytes: container.SizeRw ?? null, idleMinutes,
+    network: details?.HostConfig?.NetworkMode || 'unknown' };
 }
 async function listManaged(docker: DockerRequest, includeSize = false): Promise<DockerContainer[]> {
   const filters = encodeURIComponent(JSON.stringify({ label: [OWNER_LABEL + '=true'] }));
