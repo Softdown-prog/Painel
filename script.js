@@ -120,6 +120,9 @@ async function loadOverview() {
     document.getElementById('topStatus').lastChild.textContent = ' VPS conectada';
     document.getElementById('apiStatus').textContent = '● API conectada';
     document.getElementById('authStatus').textContent = '● Sessão ativa';
+    document.getElementById('servicesTag').textContent = 'AO VIVO';
+    document.querySelector('.connection-card strong').textContent = 'VPS conectada';
+    document.querySelector('.connection-card small').textContent = 'API administrativa ativa';
     setBanner(`VPS conectada · Revisão ${data.currentSha?.slice(0, 8) || 'não disponível'} · Operações exigem confirmação.`, true);
   } catch (error) { toast(`Não foi possível atualizar a VPS: ${error.message}`); }
 }
@@ -247,6 +250,7 @@ document.getElementById('logoutButton').addEventListener('click', async () => {
 document.querySelectorAll('.demo-action').forEach(button => button.addEventListener('click', () => {
   if (button.dataset.action === 'Atualizar serviços') loadOverview();
   else if (button.dataset.action === 'Novo deploy') location.hash = 'deploys';
+  else if (button.dataset.action === 'Abrir aplicações') location.hash = 'apps';
   else location.hash = 'settings';
 }));
 document.getElementById('infoButton').addEventListener('click', () => toast('O painel mostra dados da VPS somente após autenticação. Caddy e Portainer são apenas leitura.'));
@@ -278,4 +282,6 @@ api('/session').then(data => {
 }).catch(() => {
   setBanner('API indisponível. Os valores exibidos são apenas exemplos; nenhuma ação alcança a VPS.');
   document.getElementById('apiStatus').textContent = '○ API indisponível';
+  document.querySelector('.connection-card strong').textContent = 'Modo de demonstração';
+  document.querySelector('.connection-card small').textContent = 'API indisponível';
 });
