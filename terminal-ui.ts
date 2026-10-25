@@ -11,6 +11,7 @@
   const history: string[] = [];
   let historyIndex = 0;
   let busy = false;
+  let sshToken = null;
   const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
   const SERVICES = ['app', 'agent', 'sandbox', 'embeddings', 'caddy', 'portainer'];
   const ACTIONS: Record<string, string> = { iniciar: 'start', parar: 'stop', reiniciar: 'restart' };
@@ -37,9 +38,12 @@
     '  dominio remover <app>            remove endereço reservado',
     '  limpar                           limpa a tela',
     '  historico                        mostra comandos desta sessão',
+    '  linux <comando>                  executa na VPS via SSH, se o administrador ativou',
+    '  linux travar                     bloqueia o acesso Linux novamente',
     '',
     'ATALHOS COMPATÍVEIS: docker ps, docker logs <nome>, docker restart <nome>.',
-    'NÃO é shell Linux irrestrito: outros comandos do sistema ficam indisponíveis.',
+    'O modo linux usa SSH opcional, com senha do painel para desbloqueio.',
+    'Sem SSH configurado, somente os comandos administrativos acima funcionam.',
     'Os comandos usam a API administrativa da VPS; alterações pedem confirmação.'
   ].join('\n');
 
@@ -88,6 +92,38 @@
       else if (args[1] === 'logs' && args.length === 3) { cmd = 'logs'; args.splice(0, args.length, cmd, args[2]); }
       else if (args[1] === 'restart' && args.length === 3) { cmd = 'reiniciar'; args.splice(0, args.length, cmd, args[2]); }
       else throw new Error('Docker direto não está liberado. Digite ajuda para ver os comandos disponíveis.');
+    }
+    if (cmd === 'linux') {
+      const shellCommand = command.slice(5).trim();
+      if (!shellCommand) throw new Error('Uso: linux <comando> — Exemplo: linux uptime');
+      if (shellCommand === 'travar') {
+        if (sshToken) {
+          try { await api('/terminal/ssh/lock', { method: 'POST' }); } finally { sshToken = null; }
+        }
+        return 'Terminal Linux bloqueado. A próxima operação exigirá sua senha administrativa.';
+      }
+      const state = await api('/terminal/ssh/status');
+      if (!state.enabled) throw new Error('Modo Linux ainda não foi ativado na VPS. Os comandos administrativos continuam disponíveis.');
+      if (!state.configured) throw new Error('O acesso SSH ainda precisa ser configurado na VPS. Consulte o guia técnico.');
+      if (!sshToken || !state.unlocked) {
+        sshToken = null;
+        const password = prompt('Confirme a senha do painel para desbloquear comandos Linux por 10 minutos:');
+        if (!password) return 'Operação cancelada.';
+        const auth = await api('/terminal/ssh/unlock', { method: 'POST',
+          headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password }) });
+        sshToken = auth.token;
+      }
+      try {
+        const result = await api('/terminal/ssh/exec', { method: 'POST',
+          headers: { 'content-type': 'application/json' }, body: JSON.stringify({ command: shellCommand, token: sshToken }) });
+        return 'LINUX DA VPS · código de saída ' + result.exitCode +
+          (result.timedOut ? ' · tempo limite atingido' : '') +
+          (result.truncated ? ' · saída limitada' : '') + '\n' +
+          (result.output || '(comando concluído sem saída)');
+      } catch (error) {
+        if (error instanceof Error && /bloqueado|desbloqueie/i.test(error.message)) sshToken = null;
+        throw error;
+      }
     }
     if (cmd === 'ajuda' || cmd === 'help' || cmd === '?') return HELP;
     if (cmd === 'historico') return history.map((x, i) => String(i + 1).padStart(2) + '  ' + x).join('\n') || 'Nenhum comando anterior.';
@@ -236,7 +272,7 @@
     if (busy) return;
     const command = text.trim();
     if (!command) return;
-    if (command.length > 180) { line('Comando muito longo.', 'error'); return; }
+    if (command.length > (command.startsWith('linux ') ? 605 : 180)) { line('Comando muito longo.', 'error'); return; }
     busy = true;
     runButton.disabled = true;
     input.disabled = true;
@@ -267,6 +303,7 @@
   });
   document.getElementById('terminalHelpButton')?.addEventListener('click', () => void execute('ajuda'));
   document.getElementById('terminalClearButton')?.addEventListener('click', () => { output.replaceChildren(); input.focus(); });
+  window.addEventListener('beforeunload', () => { sshToken = null; });
   document.querySelectorAll<HTMLButtonElement>('[data-terminal-command]').forEach(button =>
     button.addEventListener('click', () => void execute(button.dataset.terminalCommand || 'ajuda')));
 
