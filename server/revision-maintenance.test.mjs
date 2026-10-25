@@ -39,7 +39,7 @@ test('report retains running rollback, last 2 per application and recent images'
   const plan=await revisionReport(x.dir,x.docker,now);
   assert.equal(plan.totalImports,5);
   assert.equal(plan.oldCount,2);
-  assert.equal(plan.entries.find(e=>e.revision==='2'.repeat(40)).status,'em_uso');
+  assert.equal(plan.entries.find(e=>e.revision==='2'.repeat(40)).status,'reserva');
   assert.equal(plan.entries.find(e=>e.revision==='4'.repeat(40)).status,'recente');
   assert.equal(plan.entries.find(e=>e.revision==='5'.repeat(40)).status,'recente');
   assert.equal(plan.oldBytesEstimate,240000000);
