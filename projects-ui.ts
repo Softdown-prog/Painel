@@ -57,7 +57,7 @@
       if (initial.current?.revision === run.sha) throw new Error(
         'Essa revisão já está ativa no servidor.');
       if (!confirm('Publicar ' + slug + ' usando a revisão ' + run.sha.slice(0, 10) +
-        '?\\n\\nO painel vai baixar a imagem, testar a nova versão e trocar os containers somente após o teste de saúde. ' +
+        '?\n\nO painel vai baixar a imagem, testar a nova versão e trocar os containers somente após o teste de saúde. ' +
         'Pode ocorrer uma pequena interrupção. A versão anterior ficará guardada para recuperação.')) return;
       if (imported.imported?.revision !== run.sha) {
         notice('1/3 · Baixando revisão ' + run.sha.slice(0, 10) + ' do GitHub...');
