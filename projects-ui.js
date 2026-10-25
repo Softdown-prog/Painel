@@ -35,91 +35,45 @@
         return item;
     }
   const publishing = new Set();
+  const readyForDurable = new Set();
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   async function publishSuccessfulBuild(project, run, host) {
     const slug = project.slug;
-    if (publishing.has(slug)) { notice('Já existe uma publicação em andamento para ' + slug + '.'); return; }
+    if (publishing.has(slug)) { notice('A publicação já está sendo acompanhada.'); return; }
     if (run.conclusion !== 'success' || run.status !== 'completed' || !/^[0-9a-f]{40}$/.test(run.sha)) {
-      notice('Escolha uma execução do GitHub concluída com sucesso.'); return;
+      notice('Selecione um build concluído com sucesso.'); return;
     }
+    if (!confirm('Publicar '+ slug + ' na revisão ' + run.sha.slice(0,10) +
+      '?\n\nA VPS executará os passos e guardará o resultado mesmo se você fechar esta página. ' +
+      'A versão anterior continuará disponível para recuperação.')) return;
     publishing.add(slug);
     try {
-      const [initial, imported] = await Promise.all([
-        call('/projects/' + slug + '/releases'),
-        call('/projects/' + slug + '/images/import')
-      ]);
-      if (!initial.enabled || !imported.enabled) throw new Error(
-        'Para publicar em um clique, a API precisa habilitar publicações e importação de imagens.');
-      if (initial.backup || initial.candidate) throw new Error(
-        'Já existe uma publicação anterior pendente. Restaure ou descarte a reserva antes de continuar.');
-      if (initial.current?.state !== 'running') throw new Error(
-        'Inicie a aplicação antes de publicar uma nova versão.');
-      if (imported.job?.status === 'running') throw new Error(
-        'Já há uma importação de imagem em andamento. Atualize o estado antes de publicar.');
-      if (initial.current?.revision === run.sha) throw new Error(
-        'Essa revisão já está ativa no servidor.');
-      if (!confirm('Publicar ' + slug + ' usando a revisão ' + run.sha.slice(0, 10) +
-        '?\n\nO painel vai baixar a imagem, testar a nova versão e trocar os containers somente após o teste de saúde. ' +
-        'Pode ocorrer uma pequena interrupção. A versão anterior ficará guardada para recuperação.')) return;
-      if (imported.imported?.revision !== run.sha) {
-        notice('1/3 · Baixando revisão ' + run.sha.slice(0, 10) + ' do GitHub...');
-        await call('/projects/' + slug + '/images/import', {
-          method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ runId: run.id })
-        });
-        let downloaded = false;
-        for (let attempt = 0; attempt < 90; attempt++) {
-          await delay(2000);
-          const current = await call('/projects/' + slug + '/images/import');
-          if (current.job?.status === 'error') throw new Error(current.job.message ||
-            'A importação falhou. Confira os logs da API.');
-          if (current.imported?.revision === run.sha && current.job?.status !== 'running') {
-            downloaded = true; break;
-          }
+      const answer = await call('/projects/' + slug + '/publication', {
+        method:'POST', headers:{'content-type':'application/json'},
+        body:JSON.stringify({runId:run.id})
+      });
+      if (answer.job?.runId !== run.id) throw new Error('A API não confirmou o build solicitado.');
+      notice((answer.alreadyExists ? 'Publicação já registrada. ' : 'Publicação registrada. ') +
+        'A VPS continuará executando mesmo se você fechar o navegador.');
+      await showReleaseStatus(project, host);
+      // Polling is display-only. It is safe for this tab to close during a deployment.
+      for (let i=0;i<120;i++) {
+        await delay(3000);
+        const state = await call('/projects/' + slug + '/publication');
+        const job=state.history?.find((j)=>j.runId===run.id);
+        if (!job) throw new Error('A publicação não foi encontrada no servidor.');
+        notice('Publicação '+slug+': '+job.detail);
+        if (['completed','failed','attention'].includes(job.phase)) {
+          await showReleaseStatus(project,host);
+          return;
         }
-        if (!downloaded) throw new Error('Download ainda não foi confirmado. Consulte o histórico antes de repetir.');
       }
-      notice('2/3 · Preparando e testando a nova versão sem parar a atual...');
-      await call('/projects/' + slug + '/releases/stage', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ runId: run.id })
-      });
-      let healthy = false;
-      for (let attempt = 0; attempt < 75; attempt++) {
-        await delay(2000);
-        const status = await call('/projects/' + slug + '/releases');
-        if (status.candidate?.revision !== run.sha || status.backup) throw new Error(
-          'O estado da versão candidata mudou. Verifique a publicação antes de continuar.');
-        if (status.candidate?.state !== 'running' || status.candidate?.health === 'unhealthy') throw new Error(
-          'Nova versão não iniciou corretamente. A versão anterior foi preservada; confira os logs.');
-        if (status.candidate.health === 'healthy') { healthy = true; break; }
-      }
-      if (!healthy) throw new Error(
-        'Teste de saúde ainda não confirmou a nova versão. A versão atual foi mantida.');
-      const finalCheck = await call('/projects/' + slug + '/releases');
-      if (!finalCheck.enabled || finalCheck.backup || finalCheck.current?.state !== 'running' ||
-          finalCheck.candidate?.revision !== run.sha || finalCheck.candidate?.health !== 'healthy')
-        throw new Error('Estado da publicação mudou. A troca foi cancelada para evitar substituir a revisão errada.');
-      notice('3/3 · Teste de saúde aprovado. Trocando para a nova revisão...');
-      await call('/projects/' + slug + '/releases/promote', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ expectedRevision: run.sha })
-      });
-      const completed = await call('/projects/' + slug + '/releases');
-      if (completed.current?.revision !== run.sha || completed.current?.state !== 'running')
-        throw new Error('A troca foi solicitada, mas o estado final ainda não foi confirmado. Verifique na VPS.');
-      notice('Publicado e conferido: ' + slug + ' · ' + run.sha.slice(0, 10) +
-        '. A versão anterior continua guardada para rollback.');
-    } catch (error) {
-      notice('Publicação interrompida: ' + (error instanceof Error ? error.message : 'falha inesperada') +
-        ' Não tente novamente sem conferir o estado das versões.');
-    } finally {
-      publishing.delete(slug);
-      try { await showReleaseStatus(project, host); }
-      catch { /* The original notice already explains the failure. */ }
-    }
+      notice('O trabalho continua na VPS. Atualize Projetos GitHub para conferir o andamento.');
+    } catch(error) {
+      notice(error instanceof Error?error.message:'Não foi possível acompanhar a publicação.');
+    } finally { publishing.delete(slug); }
   }
-    async function loadRuns(slug, parent, releaseHost) {
+  async function loadRuns(slug, parent, releaseHost) {
         parent.textContent = 'Carregando execuções...';
         try {
             const data = await call('/projects/' + encodeURIComponent(slug) + '/runs');
@@ -141,7 +95,7 @@
                 status.textContent = ' · ' + (run.conclusion || run.status) + ' · ' + new Date(run.createdAt).toLocaleString('pt-BR');
                 line.append(link, status);
                 if (run.conclusion === 'success' && run.status === 'completed' &&
-                importReady.has(slug) && releaseReady.has(slug)) {
+                importReady.has(slug) && releaseReady.has(slug) && readyForDurable.has(slug)) {
                 const project = projects.find(p => p.slug === slug);
                 line.append(button('Publicar revisão', () => publishSuccessfulBuild(project, run, releaseHost)));
             }
@@ -207,7 +161,24 @@
                     ' (' + status.candidate.health + ')' : '') +
                 (status.backup ? ' · Backup disponível' : '');
             host.append(info);
-            const imageStatus = await call('/projects/' + project.slug + '/images/import');
+            try {
+        const running = await call('/projects/' + project.slug + '/publication');
+        if (running.enabled) readyForDurable.add(project.slug);
+        else readyForDurable.delete(project.slug);
+        const publication = document.createElement('small');
+        const job = running.current;
+        publication.textContent = !running.enabled ?
+          'Publicação pelo servidor ainda não habilitada na VPS.' :
+          job ? 'Publicação registrada · '+job.phase+' · '+job.detail :
+          'Publicação pelo servidor pronta para receber um build.';
+        host.append(publication);
+      } catch {
+        readyForDurable.delete(project.slug);
+        const message=document.createElement('small');
+        message.textContent='Publicação persistente indisponível nesta versão da API da VPS.';
+        host.append(message);
+      }
+      const imageStatus = await call('/projects/' + project.slug + '/images/import');
             if (imageStatus.enabled)
                 importReady.add(project.slug);
             else
