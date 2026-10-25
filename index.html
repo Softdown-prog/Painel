@@ -140,6 +140,13 @@
           <section class="panel full-panel revision-section"><div class="panel-head"><div><h2>O que pode ser removido?</h2><p id="revisionsRetention">Verificando política de retenção...</p></div><button id="revisionsCleanupButton" class="secondary-button" disabled type="button">Limpar antigas agora</button></div><p id="revisionsNotice" role="status" class="revision-notice">Aguardando conexão com a VPS...</p>
             <div class="revision-scroll"><table class="revision-table"><thead><tr><th>Aplicação</th><th>Revisão</th><th>Situação</th><th>Tamanho</th><th>Importada em</th></tr></thead><tbody id="revisionsEntries"><tr><td colspan="5">Clique em Verificar agora.</td></tr></tbody></table></div>
           </section>
+          <section class="panel full-panel revision-section">
+            <div class="panel-head"><div><h2>Imagens de toda a VPS</h2><p>Veja também versões da infraestrutura Softload e de outros serviços. Esta tabela é somente leitura: a limpeza automática não toca nessas imagens.</p></div></div>
+            <p id="revisionsHostSummary" class="revision-notice">Consultando imagens Docker da VPS...</p>
+            <div id="revisionsHostGroups" class="revision-host-groups"></div>
+            <div class="revision-scroll"><table class="revision-table"><thead><tr><th>Imagem / versão</th><th>Identificador</th><th>Tamanho</th><th>Data</th></tr></thead><tbody id="revisionsHostImages"><tr><td colspan="4">Clique em Verificar agora.</td></tr></tbody></table></div>
+            <p class="revision-checked">Se aparecerem várias versões da Softload, isso não significa necessariamente lixo. A remoção dessas imagens precisa considerar o deploy, os containers em uso e o rollback.</p>
+          </section>
           <section class="panel full-panel revision-section"><div class="panel-head"><div><h2>Histórico de limpeza</h2><p>Saiba quando imagens antigas foram removidas automaticamente ou manualmente.</p></div></div><div id="revisionsHistory" class="revision-history">Ainda não foi consultado.</div><p id="revisionsCheckedAt" class="revision-checked">—</p></section>
           <p class="terminal-guide">A limpeza atua somente sobre imagens GHCR registradas no painel; não usa <code>docker system prune</code>, não exclui volumes nem containers. Para configurar a execução automática, veja o <a href="https://github.com/Softdown-prog/Painel/blob/main/docs/REVISOES-E-LIMPEZA.md" target="_blank" rel="noopener noreferrer">guia de manutenção</a>.</p>
         </section>
