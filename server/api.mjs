@@ -5,6 +5,7 @@ import { handleProjectRoute } from './projects.ts';
 import { handleReleaseRoute } from './releases.ts';
 import { handleImageImportRoute } from './image-import.ts';
 import { handleDomainRoute } from './domains.ts';
+import { handleSshTerminalRoute } from './terminal-ssh.ts';
 import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, existsSync, statfsSync } from 'node:fs';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { totalmem, freemem, loadavg, cpus } from 'node:os';
@@ -152,6 +153,18 @@ async function handler(req, res) {
     return send(res, 200, { ok: true }, { 'set-cookie': cookie('', 0) });
   }
   if (!session(req)) return send(res, 401, { error: 'Sessão necessária' });
+  if (await handleSshTerminalRoute(req, res, {
+    send, body,
+    sessionId: /(?:^|;\\s*)panel_session=([a-f0-9]{64})(?:;|$)/.exec(req.headers.cookie || '')?.[1] || '',
+    verifyPassword: (password) => {
+      if (blocked(ip) || !existsSync(adminFile)) return false;
+      const admin = JSON.parse(readFileSync(adminFile, 'utf8'));
+      const candidate = password.length <= 256 ? hashPassword(password, admin.salt).hash : '';
+      const valid = equal(candidate, admin.hash);
+      if (!valid) failed(ip); else failures.delete(ip);
+      return valid;
+    }
+  })) return;
   if (await handleGitHubRoute(req, res, { send, body, dataDir })) return;
   if (await handleDomainRoute(req, res, { send, body, dataDir })) return;
   if (await handleAppRoute(req, res, { send, body, dataDir })) return;
