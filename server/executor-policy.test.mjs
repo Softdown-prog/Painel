@@ -30,7 +30,7 @@ test('create policy forbids privilege escalation, mounts, custom networks, extra
   {...safe,User:'0:0'},
   {...safe,Labels:{...safe.Labels,'com.softload.panel.slug':'other'}},
   {...safe,Image:'unknown:latest'},
-  {...safe,HostConfig:{...safe.HostConfig,PortBindings:{'80/tcp':[{'HostPort':'80'}]}}
+  {...safe,HostConfig:{...safe.HostConfig,PortBindings:{'80/tcp':[{'HostPort':'80'}]}}}
  ];
  for(const v of variants)assert.equal(validCreate('softload-app-demo',v,['example:1']),false);
  const candidate=managedContainerSpec('demo','sha256:'+'a'.repeat(64),{
