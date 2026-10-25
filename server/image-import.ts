@@ -96,7 +96,7 @@ export async function dockerPullByDigest(reference: string): Promise<void> {
     { serveraddress: 'ghcr.io' })).toString('base64');
   return new Promise<void>((resolve, reject) => {
     const req = http.request({
-      socketPath: '/var/run/docker.sock', method: 'POST',
+      socketPath: process.env.PANEL_DOCKER_SOCKET_PATH || '/run/panel-executor/docker.sock', method: 'POST',
       path: '/v1.45/images/create?fromImage=' + encodeURIComponent(reference),
       headers: { 'x-registry-auth': auth }, signal: AbortSignal.timeout(600000)
     }, response => {
