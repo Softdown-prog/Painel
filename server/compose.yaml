@@ -9,12 +9,16 @@ services:
       PORT: "8080"
       PANEL_EDGE_KEY_FILE: /run/secrets/panel-edge-key
       PANEL_DATA_DIR: /data
+      PANEL_DOCKER_SOCKET_PATH: /run/panel-executor/docker.sock
       SOFTLOAD_ENV_FILE: /host/softload.env
     volumes:
       - panel_data:/data
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - panel_executor_socket:/run/panel-executor:ro
       - /etc/softload-panel/edge-key:/run/secrets/panel-edge-key:ro
       - /opt/softload-infra/softload/.env:/host/softload.env:ro
+    depends_on:
+      executor:
+        condition: service_healthy
     networks:
       - proxy
     read_only: true
@@ -32,7 +36,39 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+  executor:
+    build:
+      context: .
+      dockerfile: executor.Dockerfile
+    image: softload-panel-executor:1
+    container_name: softload-panel-executor
+    restart: unless-stopped
+    network_mode: none
+    environment:
+      PANEL_EXECUTOR_SOCKET: /run/panel-executor/docker.sock
+      PANEL_APPS_ALLOWED_IMAGES: "${PANEL_APPS_ALLOWED_IMAGES:-}"
+      PANEL_GHCR_ALLOWED_OWNER: "${PANEL_GHCR_ALLOWED_OWNER:-Softdown-prog}"
+    volumes:
+      - panel_executor_socket:/run/panel-executor
+      - /var/run/docker.sock:/var/run/docker.sock
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    mem_limit: 128m
+    cpus: "0.25"
+    pids_limit: 64
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get({socketPath:'/run/panel-executor/docker.sock',path:'/_executor/health'},r=>{r.resume();process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 volumes:
+  panel_executor_socket:
+    name: softload_panel_executor_socket
   panel_data:
     name: softload_panel_data
 networks:
