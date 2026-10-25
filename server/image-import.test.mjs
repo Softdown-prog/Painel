@@ -72,7 +72,7 @@ test('GHCR image import pins remote digest and persists verified local image wit
     assert.equal(done.data.job.status, 'success');
     assert.equal(readImports(dir)[0].digest, digest);
     assert.equal(readImports(dir)[0].imageId, imageId);
-    assert.equal(done.data.imported.revision, sha);
+    assert.equal((await request(dir, '/projects/demo/images/import')).data.imported.revision, sha);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 test('failed GitHub run or invalid image digest cannot start an import', async () => {
