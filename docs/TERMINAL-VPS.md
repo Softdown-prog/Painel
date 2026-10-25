@@ -39,7 +39,7 @@ O Terminal não precisa chamar GitHub Actions nem Codex a cada comando: utiliza 
 
 Também implementei o comando `linux <comando>`. Exemplo: `linux uptime`, `linux ls -la /opt` ou `linux docker ps`. **Nesse modo, o comando é enviado por SSH à VPS real**, usando a conta que o administrador configurar. Não é um simulador do navegador.
 
-**Estado:** o código já existe em `server/terminal-ssh.ts`, mas está **desligado por padrão** e precisa ser instalado na VPS uma única vez. Se a API atual da VPS ainda for antiga, o painel mostrará que o modo SSH não está disponível. Não há dependência do Codex para executar comandos depois da instalação.
+**Estado em 25/10/2026:** instalado e validado na VPS `softloadeng`. O painel usa uma chave SSH exclusiva, verificação de identidade do host e a conta `root` local da VPS; `linux <comando>` portanto aceita comandos administrativos e `sudo`. A chave privada fica em `/etc/softload-panel/terminal-ssh-key` com modo 0600 e não é enviada ao frontend, ao Cloudflare Pages ou ao GitHub. Não há dependência do Codex para executar comandos depois da instalação.
 
 O funcionamento é simples: o administrador ativa o modo SSH, você digita `linux uptime`, confirma a senha do painel uma vez e tem dez minutos para executar outros comandos. Use `linux travar` para encerrar o desbloqueio. O resultado inclui o código de saída da operação.
 
@@ -47,7 +47,7 @@ Esse primeiro modo SSH **executa um comando por vez**, espera até 18 segundos e
 
 ### Instalação inicial na VPS (administrador do servidor)
 
-Estas instruções **não foram executadas** nesta conversa. O caminho depende de como o SSH da VPS está configurado. É um procedimento único que você mesmo pode fazer pelo SSH/Portainer, sem esperar o Codex.
+Estas instruções foram executadas na VPS `softloadeng` em 25/10/2026 e permanecem como referência para uma futura reinstalação.
 
 1. Identifique a conta Linux administrativa apropriada e a interface SSH do **host**. A configuração inicial sugere um usuário separado `panelops`, mas ela não é criada automaticamente; verifique se você quer uma conta com poderes administrativos e quais comandos poderá executar. Não compartilhar as credenciais da Softload com sites de clientes.
 2. Gere uma chave SSH Ed25519 **no host**, guarde a chave privada em `/etc/softload-panel/terminal-ssh-key` com leitura restrita, e cadastre **somente a chave pública** no `authorized_keys` da conta escolhida. Use permissões restritas e não publique a chave privada no GitHub, Cloudflare ou no frontend.
@@ -62,6 +62,6 @@ Se você preferir uma experiência de shell interativo como a do PuTTY, com `vim
 
 ## Status de implantação
 
-Frontend: a partir do commit que introduziu `terminal-ui.ts`, `terminal-ui.js` e `terminal.css` (ver CI do repositório). As consultas a `/services` e `/overview` dependem da API privada da VPS já estar em execução. Recursos novos como criar apps e reservar endereços só funcionam depois que os módulos opcionais do backend forem realmente atualizados e habilitados. **Não confundir frontend publicado com backend implantado na VPS.**
+Frontend publicado e backend implantado em 25/10/2026. A API e o executor estão saudáveis na VPS, e os testes autenticados pelo domínio público confirmaram `linux whoami` e `linux sudo -n whoami`, ambos com saída `root`. Recursos novos como criar apps e reservar endereços continuam dependendo de seus módulos próprios e não são implicados pela ativação do terminal.
 
 O histórico fica apenas na memória da página e não é persistido no navegador. A saída de comando usa `textContent`, não interpreta HTML recebido em logs.

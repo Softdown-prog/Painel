@@ -152,16 +152,16 @@
         </section>
 
         <section class="view" id="terminal" data-title="Terminal VPS">
-          <div class="page-heading"><div><div class="eyebrow">ADMINISTRAÇÃO / VPS</div><h1>Terminal da VPS</h1><p>Consulte e administre seus serviços digitando comandos simples. A comunicação usa a API privada da VPS.</p></div><button id="terminalHelpButton" type="button" class="secondary-button">? Comandos</button></div>
+          <div class="page-heading"><div><div class="eyebrow">ADMINISTRAÇÃO / VPS</div><h1>Terminal da VPS</h1><p>Consulte a VPS ou execute comandos Linux administrativos pela conexão privada.</p></div><button id="terminalHelpButton" type="button" class="secondary-button">? Comandos</button></div>
           <section class="panel full-panel terminal-wrapper" aria-label="Terminal de comandos da VPS">
             <div class="terminal-toolbar"><span class="terminal-light" id="terminalLight"></span><strong>Softload VPS CLI</strong><span id="terminalConnection">Sessão não verificada</span><button type="button" id="terminalClearButton" class="secondary-button">Limpar tela</button></div>
             <div id="terminalOutput" class="terminal-output" role="log" aria-live="polite" aria-relevant="additions text" tabindex="0">Digite ajuda para ver os comandos disponíveis.</div>
             <form id="terminalForm" class="terminal-form">
               <label for="terminalInput" class="terminal-prompt">vps &gt;</label>
-              <input id="terminalInput" type="text" maxlength="605" placeholder="Ex.: status, servicos, apps, reiniciar app" autocomplete="off" spellcheck="false" aria-label="Comando para a VPS">
+              <input id="terminalInput" type="text" maxlength="605" placeholder="Ex.: status ou linux sudo docker ps" autocomplete="off" spellcheck="false" aria-label="Comando para a VPS">
               <button type="submit" class="primary-button" id="terminalRunButton">Executar</button>
             </form>
-            <p class="terminal-footnote">Comandos administrativos são executados na VPS pela API existente e podem pedir confirmação. Não é um shell Linux irrestrito: use <strong>ajuda</strong> para ver as operações disponíveis.</p>
+            <p class="terminal-footnote">Use <strong>linux &lt;comando&gt;</strong> para executar um comando administrativo na VPS. A senha do painel libera o acesso por dez minutos; cada comando tem limite de tempo e saída.</p>
           </section>
           <div class="terminal-shortcuts" aria-label="Comandos rápidos">
             <button type="button" data-terminal-command="status">Estado da VPS</button>
@@ -170,7 +170,7 @@
             <button type="button" data-terminal-command="dominios">Endereços</button>
             <button type="button" data-terminal-command="ajuda">Lista de comandos</button>
           </div>
-          <p class="terminal-guide">Para instalar um terminal Linux completo por SSH no futuro, há uma tarefa específica no <a href="https://github.com/Softdown-prog/Painel/blob/main/docs/TAREFAS-CODEX.md" target="_blank" rel="noopener noreferrer">guia técnico</a>. Este terminal já permite operar funções que a API da VPS autoriza, sem esperar pelo Codex.</p>
+          <p class="terminal-guide">O modo <strong>linux</strong> já está ligado para o administrador desta VPS. Ele executa um comando por vez; comandos interativos como <code>vim</code> ainda precisam de uma sessão de terminal ao vivo.</p>
         </section>
 
         <section class="view" id="projects" data-title="Projetos GitHub">

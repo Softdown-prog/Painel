@@ -1,0 +1,7 @@
+# Scripts and Compose definitions are copied to Ubuntu during a VPS rollout.
+# Preserve LF so Bash receives valid shell options after an archive transfer.
+*.sh text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+Dockerfile text eol=lf
+*.Dockerfile text eol=lf

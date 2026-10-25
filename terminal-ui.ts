@@ -41,12 +41,12 @@
     '  revisoes limpar                  limpa apenas imagens antigas aprovadas',
     '  revisoes auto ligar|desligar     altera a limpeza automática no painel',
     '  historico                        mostra comandos desta sessão',
-    '  linux <comando>                  executa na VPS via SSH, se o administrador ativou',
+    '  linux <comando>                  executa na VPS via SSH como administrador',
     '  linux travar                     bloqueia o acesso Linux novamente',
     '',
     'ATALHOS COMPATÍVEIS: docker ps, docker logs <nome>, docker restart <nome>.',
-    'O modo linux usa SSH opcional, com senha do painel para desbloqueio.',
-    'Sem SSH configurado, somente os comandos administrativos acima funcionam.',
+    'O modo linux usa a senha do painel para liberar comandos administrativos por 10 minutos.',
+    'Exemplo: linux sudo docker ps. Cada comando tem limite de 18 segundos e 24 KB de saída.',
     'Os comandos usam a API administrativa da VPS; alterações pedem confirmação.'
   ].join('\n');
 
