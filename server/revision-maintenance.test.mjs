@@ -22,7 +22,7 @@ function env(){
    ImageID:usedImage,Names:['/softload-backup-loja'],
    Labels:{'com.softload.panel.managed':'true','com.softload.panel.slug':'loja'}
   }]);
-  const match=/^\/images\/([^?]+)(\?force=0&noprune=1)?$/.exec(path);
+  const match=/^\/images\/([^?]+?)(?:\/json|\?force=0&noprune=1)$/.exec(path);
   if(!match)return response(404,{error:'missing'});
   const ref=decodeURIComponent(match[1]);
   const item=items.find(x=>'ghcr.io/'+x.repository.toLowerCase()+'@'+x.digest===ref);
