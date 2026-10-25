@@ -24,6 +24,7 @@
     "projects-ui.ts",
     "domains-ui.ts",
     "terminal-ui.ts",
-    "revisions-ui.ts"
+    "revisions-ui.ts",
+    "site-detail-ui.ts"
   ]
 }
