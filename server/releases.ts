@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { dockerRequest, inspectOwned, managedContainerSpec, validSlug, AppError, type DockerRequest, type DockerResponse } from './apps.ts';
+import { dockerRequest, inspectOwned, managedContainerSpec, validResources, validSlug, AppError, type DockerRequest, type DockerResponse } from './apps.ts';
 import { github, readRepositories, type LinkedRepository } from './github.ts';
 import { readProjects } from './projects.ts';
 import { readImports } from './image-import.ts';
@@ -17,6 +17,7 @@ type Inspect = {
   Id: string; Name: string;
   Config?: { Image?: string; Labels?: Record<string, string> };
   State?: { Status?: string; Health?: { Status?: string } };
+  HostConfig?: { Memory?: number; NanoCpus?: number };
 };
 type ImageInspect = {
   Id: string; RepoTags?: string[]; RepoDigests?: string[];
@@ -228,7 +229,10 @@ export async function handleReleaseRoute(req: IncomingMessage, res: ServerRespon
         const sha = await authenticatedBuild(githubCall, repo, input.runId as number);
         const image = await localVerifiedImage(docker, project.repository, sha, deps.dataDir, slug);
         const labels = { [REPOSITORY]: project.repository, [REVISION]: sha, [ROLE]: 'candidate' };
-        const spec = managedContainerSpec(slug, image.id, labels);
+        const inherited = { ramMb: (current.HostConfig?.Memory || 0) / 1048576,
+          cpuCores: (current.HostConfig?.NanoCpus || 0) / 1_000_000_000 };
+        const spec = managedContainerSpec(slug, image.id, labels,
+          validResources(inherited) ? inherited : { ramMb: 256, cpuCores: 0.5 });
         const create = await docker('/containers/create?name=' + encodeURIComponent(CANDIDATE + slug), 'POST', spec);
         if (create.status !== 201) throw new ReleaseError(502, 'Docker não criou candidata (' + create.status + ').');
         await command(docker, CANDIDATE + slug, 'start');

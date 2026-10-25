@@ -1,6 +1,6 @@
 (() => {
-  interface ManagedApp { slug: string; name: string; image: string; state: string; status: string }
-  interface AppList { enabled: boolean; allowedImages: string[]; maxApps: number; applications: ManagedApp[] }
+  interface ManagedApp { slug: string; name: string; image: string; state: string; status: string; ramMb: number; cpuCores: number; diskUsedBytes: number | null; idleMinutes: number }
+  interface AppList { enabled: boolean; allowedImages: string[]; maxApps: number; ramChoices: number[]; cpuChoices: number[]; idleChoices: number[]; applications: ManagedApp[] }
   let enabled = false;
   function element(id: string): HTMLElement {
     const el = document.getElementById(id);
@@ -43,6 +43,23 @@
     });
     container.append(button);
   }
+  function choice(values: number[], selected: number, label: (value: number) => string): HTMLSelectElement {
+    const select = document.createElement('select');
+    for (const value of values) {
+      const option = document.createElement('option');
+      option.value = String(value);
+      option.textContent = label(value);
+      select.append(option);
+    }
+    select.value = String(selected);
+    return select;
+  }
+  function settingLabel(title: string, select: HTMLSelectElement): HTMLLabelElement {
+    const label = document.createElement('label');
+    label.textContent = title;
+    label.append(select);
+    return label;
+  }
   async function refreshManagedApplications(): Promise<void> {
     const list = element('managedApplications');
     list.textContent = 'Carregando aplicações...';
@@ -69,7 +86,9 @@
         detail.className = 'managed-app-detail';
         const title = document.createElement('strong'); title.textContent = app.slug;
         const subtitle = document.createElement('small');
-        subtitle.textContent = app.state + ' · ' + app.image + ' · ' + app.status;
+        const diskUsed = app.diskUsedBytes == null ? 'disco indisponível' : (app.diskUsedBytes / 1048576).toFixed(1) + ' MB gravados';
+        subtitle.textContent = app.state + ' · ' + app.image + ' · ' + (app.ramMb || '—') + ' MB RAM · ' +
+          (app.cpuCores || '—') + ' vCPU · ' + diskUsed;
         detail.append(title, subtitle);
         const actions = document.createElement('div'); actions.className = 'managed-app-actions';
         if (app.state === 'running') {
@@ -78,7 +97,40 @@
         } else addButton(actions, app, 'start', 'Iniciar');
         addButton(actions, app, 'logs', 'Logs');
         if (app.state !== 'running') addButton(actions, app, 'remove', 'Remover');
-        row.append(detail, actions);
+        const controls = document.createElement('div'); controls.className = 'managed-app-controls';
+        const ram = choice(data.ramChoices, app.ramMb, value => value + ' MB');
+        const cpu = choice(data.cpuChoices, app.cpuCores, value => value + ' vCPU');
+        const saveLimits = document.createElement('button'); saveLimits.type = 'button'; saveLimits.textContent = 'Salvar limites';
+        saveLimits.disabled = !enabled;
+        saveLimits.addEventListener('click', async () => {
+          if (!confirm('Aplicar novos limites de RAM e CPU ao container ' + app.slug + '?')) return;
+          saveLimits.disabled = true;
+          try {
+            await request('/apps/' + app.slug + '/resources', { method: 'POST', headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ ramMb: Number(ram.value), cpuCores: Number(cpu.value) }) });
+            await refreshManagedApplications();
+          } catch (error) { info(error instanceof Error ? error.message : 'Não foi possível atualizar os limites.'); }
+          finally { saveLimits.disabled = !enabled; }
+        });
+        const idle = choice(data.idleChoices, app.idleMinutes, value => value ? value + ' min sem atividade' : 'Desligado');
+        const saveIdle = document.createElement('button'); saveIdle.type = 'button'; saveIdle.textContent = 'Salvar ociosidade';
+        saveIdle.disabled = !enabled;
+        saveIdle.addEventListener('click', async () => {
+          if (Number(idle.value) && !confirm('Parar automaticamente ' + app.slug + ' quando não houver atividade de rede ou CPU? O reinício será manual.')) return;
+          saveIdle.disabled = true;
+          try {
+            await request('/apps/' + app.slug + '/idle', { method: 'POST', headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ minutes: Number(idle.value) }) });
+            await refreshManagedApplications();
+          } catch (error) { info(error instanceof Error ? error.message : 'Não foi possível salvar a ociosidade.'); }
+          finally { saveIdle.disabled = !enabled; }
+        });
+        controls.append(settingLabel('RAM máxima', ram), settingLabel('CPU máxima', cpu), saveLimits,
+          settingLabel('Parar por ociosidade', idle), saveIdle);
+        const note = document.createElement('small');
+        note.textContent = 'Uso de disco é apenas medido; Docker não oferece cota portátil para este volume. Containers parados são iniciados pelo botão Iniciar.';
+        controls.append(note);
+        row.append(detail, actions, controls);
         list.append(row);
       }
       info(enabled
@@ -97,7 +149,9 @@
     try {
       const slug = input('appSlug').value.trim();
       const image = input('appImage').value;
-      await request('/apps', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ slug, image }) });
+      await request('/apps', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+        slug, image, ramMb: Number(input('appRam').value), cpuCores: Number(input('appCpu').value)
+      }) });
       input('appSlug').value = '';
       await refreshManagedApplications();
       info('Container criado: ' + slug + '. Clique em Iniciar para executá-lo.');

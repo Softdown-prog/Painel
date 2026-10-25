@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { handleAppRoute, validSlug, validImage } from './apps.ts';
+import { handleAppRoute, scanIdleApps, validSlug, validImage } from './apps.ts';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 const tags = { 'com.softload.panel.managed': 'true', 'com.softload.panel.slug': 'teste' };
 const managed = { Id: 'abc123', Names: ['/softload-app-teste'], Image: 'example:1', State: 'created', Status: 'Created', Labels: tags };
 const response = (status, data = {}) => ({ status, buffer: Buffer.from(JSON.stringify(data)) });
@@ -62,4 +65,41 @@ test('disabled mutations and unowned containers cannot be controlled', async () 
     return response(200, []);
   };
   assert.equal((await request('/apps/teste/start', 'POST', {}, { docker: unowned })).status, 403);
+});
+test('resource changes are bounded and only apply to owned containers', async () => {
+  const calls = [];
+  const ownedDocker = async (path, method, payload) => {
+    calls.push({ path, method, payload });
+    if (path.endsWith('/json')) return response(200, { Id: 'abc123', Name: '/softload-app-teste', Config: { Labels: tags }, State: { Status: 'running' } });
+    if (path.endsWith('/update')) return response(200);
+    return response(404);
+  };
+  assert.equal((await request('/apps/teste/resources', 'POST', { ramMb: 4096, cpuCores: 1 }, { docker: ownedDocker })).status, 400);
+  assert.equal(calls.some(call => call.path.endsWith('/update')), false);
+  assert.equal((await request('/apps/teste/resources', 'POST', { ramMb: 512, cpuCores: 1 }, { docker: ownedDocker })).status, 200);
+  const update = calls.find(call => call.path.endsWith('/update'));
+  assert.deepEqual(update.payload, { Memory: 536870912, MemorySwap: 1073741824, NanoCpus: 1000000000 });
+});
+test('idle policy stops an opted-in app only after its inactivity window', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'panel-idle-'));
+  const samples = new Map();
+  let stops = 0;
+  let received = 100;
+  const runningDocker = async (path, method) => {
+    if (path.startsWith('/containers/json')) return response(200, [{ ...managed, State: 'running' }]);
+    if (path.endsWith('/json')) return response(200, { Id: 'abc123', Name: '/softload-app-teste', Config: { Labels: tags }, State: { Status: 'running' } });
+    if (path.includes('/stats?')) return response(200, { networks: { eth0: { rx_bytes: received, tx_bytes: 50 } }, cpu_stats: { cpu_usage: { total_usage: 0 } } });
+    if (path.includes('/stop?') && method === 'POST') { stops++; return response(204); }
+    return response(404);
+  };
+  try {
+    assert.equal((await request('/apps/teste/idle', 'POST', { minutes: 15 }, { docker: runningDocker, dataDir: dir })).status, 200);
+    assert.deepEqual(await scanIdleApps(runningDocker, dir, 1000, samples), []);
+    assert.equal(stops, 0);
+    received = 200;
+    assert.deepEqual(await scanIdleApps(runningDocker, dir, 16 * 60_000, samples), []);
+    assert.equal(stops, 0);
+    assert.deepEqual(await scanIdleApps(runningDocker, dir, 32 * 60_000, samples), ['teste']);
+    assert.equal(stops, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

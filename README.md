@@ -91,12 +91,16 @@ A nova aba **Aplicações** administra containers **criados pelo próprio painel
 | POST | /apps/:slug/start | Iniciar |
 | POST | /apps/:slug/stop | Parar |
 | POST | /apps/:slug/restart | Reiniciar |
+| POST | /apps/:slug/resources | Ajustar RAM e CPU do container próprio |
+| POST | /apps/:slug/idle | Ativar ou desativar parada por ociosidade |
 | GET | /apps/:slug/logs | Consultar últimas 100 linhas |
 | DELETE | /apps/:slug | Remover apenas container parado |
 
 O Docker nomeia containers com o prefixo softload-app- e labels de propriedade. O painel valida **nome e labels** antes de executar comandos, impedindo operações acidentais nos containers da Softload. Nomes de aplicação só aceitam letras minúsculas, números e hífens, de 2 a 40 caracteres.
 
-Limites iniciais, fixos no backend: máximo de **8 aplicações**, **256 MiB de RAM**, **0,5 CPU** e **64 processos** por aplicação. Containers são criados sob UID/GID 65534, sem capacidades Linux, com no-new-privileges, sistema de arquivos somente leitura e /tmp temporário limitado a 16 MiB. Não são permitidas montagens de volumes, modo privileged ou publicação de portas. A rede é a bridge padrão. **Não há domínio público, deploy de GitHub para essas aplicações, persistência nem rollback nesta etapa.** Algumas imagens não conseguem executar com essas restrições; escolha imagens compatíveis.
+São permitidas até **8 aplicações**. Cada uma pode usar 128, 256, 512, 768 ou 1024 MiB de RAM e 0,25, 0,5, 1 ou 2 vCPU; o padrão é 256 MiB e 0,5 vCPU. Os limites são aplicados pelo Docker na criação ou ao clicar em Salvar limites. Os 64 processos, UID/GID 65534, ausência de capacidades Linux, no-new-privileges, sistema de arquivos somente leitura e /tmp temporário de 16 MiB permanecem fixos. A tela mostra o espaço total/usado/livre do filesystem da VPS e os bytes gravados na camada de cada container gerenciado. Esses bytes não incluem volumes externos. Não há cota portátil de disco por container neste servidor.
+
+A parada por ociosidade é opcional por aplicação, com 15 a 240 minutos. O monitor observa tráfego de rede e uso de CPU a cada minuto; após o tempo escolhido sem atividade, para somente o container gerenciado selecionado. **O reinício é manual pelo botão Iniciar**: ainda não há rota pública por aplicação capaz de acordá-la na próxima requisição. Serviços centrais da Softload, Caddy, Portainer e o painel não entram nesse monitor. A configuração fica no volume privado `softload_panel_data`. Sem `PANEL_APPS_ENABLED=1`, o monitor e os controles de aplicação permanecem desativados.
 
 ### Habilitar experimentalmente
 

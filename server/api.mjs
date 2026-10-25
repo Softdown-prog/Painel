@@ -1,10 +1,10 @@
 import http from 'node:http';
 import { handleGitHubRoute } from './github.ts';
-import { handleAppRoute } from './apps.ts';
+import { handleAppRoute, startIdleMonitor } from './apps.ts';
 import { handleProjectRoute } from './projects.ts';
 import { handleReleaseRoute } from './releases.ts';
 import { handleImageImportRoute } from './image-import.ts';
-import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, existsSync, statfsSync } from 'node:fs';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { totalmem, freemem, loadavg, cpus } from 'node:os';
 import { join } from 'node:path';
@@ -173,12 +173,20 @@ async function handler(req, res) {
   if (path === '/overview' && req.method === 'GET') {
     const list = await containers();
     const total = totalmem();
+    let disk = null;
+    try {
+      const fs = statfsSync(dataDir);
+      const size = Number(fs.bsize) * Number(fs.blocks);
+      const available = Number(fs.bsize) * Number(fs.bavail);
+      if (Number.isFinite(size) && Number.isFinite(available) && size > 0)
+        disk = { total: size, used: size - available, available };
+    } catch { /* Filesystem capacity is optional when the volume cannot be inspected */ }
     let diskBytes = 0;
     try {
-      const disk = await dockerJson('/system/df?type=images');
-      diskBytes = disk?.Images?.reduce((sum, image) => sum + (image.Size || 0), 0) || 0;
+      const dockerDisk = await dockerJson('/system/df?type=images');
+      diskBytes = dockerDisk?.Images?.reduce((sum, image) => sum + (image.Size || 0), 0) || 0;
     } catch { /* Docker disk accounting is optional */ }
-    return send(res, 200, { services: list, memory: { total, used: total - freemem() }, cpu: { load1: loadavg()[0], cores: cpus().length }, imagesBytes: diskBytes, currentSha: currentSha(), updatedAt: new Date().toISOString() });
+    return send(res, 200, { services: list, memory: { total, used: total - freemem() }, cpu: { load1: loadavg()[0], cores: cpus().length }, disk, imagesBytes: diskBytes, currentSha: currentSha(), updatedAt: new Date().toISOString() });
   }
   if (path === '/services' && req.method === 'GET') return send(res, 200, { services: await containers() });
   const logs = /^\/services\/(app|agent|sandbox|embeddings|caddy|portainer)\/logs$/.exec(path);
@@ -214,3 +222,4 @@ http.createServer((req, res) => {
     else res.end();
   });
 }).listen(port, '0.0.0.0', () => console.log(`Panel API listening on ${port}`));
+startIdleMonitor(dataDir);

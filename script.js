@@ -114,8 +114,15 @@ async function loadOverview() {
     document.getElementById('memoryBar').style.width = `${Math.min(100, Math.round(data.memory.used / data.memory.total * 100))}%`;
     const loadPercent = Math.round(data.cpu.load1 / data.cpu.cores * 100);
     document.getElementById('cpuValue').innerHTML = `${loadPercent}<span>%</span>`;
-    document.getElementById('diskValue').innerHTML = `${gb(data.imagesBytes)} <span>GB</span>`;
-    document.getElementById('diskBar').style.width = '0%';
+    if (data.disk?.total > 0) {
+      document.getElementById('diskValue').innerHTML = `${gb(data.disk.used)} <span>GB / ${gb(data.disk.total)} GB</span>`;
+      document.getElementById('diskBar').style.width = `${Math.min(100, Math.round(data.disk.used / data.disk.total * 100))}%`;
+      document.getElementById('diskDetail').textContent = `${gb(data.disk.available)} GB livres · imagens Docker: ${gb(data.imagesBytes)} GB`;
+    } else {
+      document.getElementById('diskValue').textContent = 'Indisponível';
+      document.getElementById('diskBar').style.width = '0%';
+      document.getElementById('diskDetail').textContent = 'O servidor não informou a capacidade do disco';
+    }
     document.querySelectorAll('.live-label').forEach(el => el.textContent = 'AO VIVO');
     document.getElementById('topStatus').lastChild.textContent = ' VPS conectada';
     document.getElementById('apiStatus').textContent = '● API conectada';
