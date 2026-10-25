@@ -67,7 +67,25 @@
 
         <section class="view" id="services" data-title="Serviços"><div class="page-heading"><div><div class="eyebrow">CONTAINERS / PRODUÇÃO</div><h1>Serviços</h1><p>Visualize a saúde e os recursos de cada componente.</p></div><button class="primary-button demo-action" data-action="Atualizar serviços">↻ Atualizar</button></div><div class="panel full-panel"><div class="panel-head"><div><h2>Containers</h2><p>Lista de exemplo para revisar a interface</p></div><span class="outline-tag">SEM CONEXÃO</span></div><div id="allServices"></div></div></section>
 
-        <section class="view" id="deploys" data-title="Deploys"><div class="page-heading"><div><div class="eyebrow">ENTREGA CONTÍNUA / MAIN</div><h1>Deploys</h1><p>Acompanhe publicações do GitHub até a VPS.</p></div><a class="primary-button" href="https://github.com/Softdown-prog/Softloadv4/actions/workflows/deploy.yml" target="_blank" rel="noopener noreferrer">↗ Abrir workflow</a></div><div class="panel full-panel"><div class="panel-head"><div><h2>Histórico de publicações</h2><p id="deployedRevision">Carregando revisão em execução...</p></div><span class="outline-tag" id="deployTag">DEMO</span></div><div class="deploy-table" id="deployTable"><div class="deploy-row deploy-header"><span>REVISÃO</span><span>ORIGEM</span><span>STATUS</span><span>QUANDO</span></div></div></div></section>
+        <section class="view" id="deploys" data-title="Deploys"><div class="page-heading"><div><div class="eyebrow">ENTREGA CONTÍNUA / MAIN</div><h1>Deploys</h1><p>Acompanhe publicações do GitHub até a VPS.</p></div><a class="primary-button" href="https://github.com/Softdown-prog/Softloadv4/actions/workflows/deploy.yml" target="_blank" rel="noopener noreferrer">↗ Abrir workflow</a></div><div class="panel full-panel"><div class="panel-head"><div><h2>Histórico de publicações</h2><p id="deployedRevision">Carregando revisão em execução...</p></div><span class="outline-tag" id="deployTag">DEMO</span></div><div class="deploy-table" id="deployTable"><div class="deploy-row deploy-header"><span>REVISÃO</span><span>ORIGEM</span><span>STATUS</span><span>QUANDO</span></div></div></div><div class="panel full-panel github-panel" id="githubManager"><div class="panel-head"><div><h2>Repositórios GitHub</h2><p>Conecte um projeto com workflow de deploy existente e acompanhe sua publicação na VPS.</p></div><span class="outline-tag">ACTIONS</span></div>
+  <div class="github-manager">
+    <form id="githubConnectForm" class="github-connect-form">
+      <label>Repositório (proprietário/nome)<input id="githubRepoInput" placeholder="Softdown-prog/meu-projeto" required></label>
+      <label>Branch<input id="githubBranchInput" value="main" required></label>
+      <label>Workflow<input id="githubWorkflowInput" value="deploy.yml" required></label>
+      <button class="primary-button" id="githubConnectButton" type="submit">Conectar repositório</button>
+    </form>
+    <p id="githubNotice" class="github-notice" role="status">Carregando conexões...</p>
+    <div class="github-toolbar">
+      <label>Projeto conectado<select id="githubRepoSelect" aria-label="Repositório conectado"></select></label>
+      <button class="primary-button" type="button" id="githubDeployButton">Solicitar deploy</button>
+      <button class="secondary-button" type="button" id="githubReloadButton">Atualizar</button>
+      <button class="secondary-button" type="button" id="githubDisconnectButton">Desconectar</button>
+    </div>
+    <p class="github-hint">O deploy exige um workflow com <code>workflow_dispatch</code> e credencial restrita configurada no servidor. O painel não executa comandos arbitrários na VPS.</p>
+    <div id="githubRuns" class="github-runs"></div>
+  </div>
+</div></section>
 
         <section class="view" id="logs" data-title="Logs"><div class="page-heading"><div><div class="eyebrow">OBSERVABILIDADE</div><h1>Logs</h1><p>Mensagens dos serviços em um único lugar.</p></div><button class="primary-button" id="refreshLogs">↻ Atualizar</button></div><div class="panel full-panel"><div class="panel-head"><div><h2>Console</h2><p>Últimas linhas do container selecionado.</p></div><select id="logFilter" aria-label="Filtrar serviço"><option value="app">Backend principal</option><option value="agent">Agent Worker</option><option value="sandbox">Sandbox</option><option value="embeddings">Embeddings</option><option value="caddy">Caddy</option><option value="portainer">Portainer</option></select></div><pre class="log-console" id="logConsole">Faça login para visualizar os logs.</pre></div></section>
 
@@ -79,5 +97,6 @@
   <div class="auth-overlay" id="authOverlay" hidden><div class="auth-card"><div class="auth-logo">S<span>✦</span></div><div class="eyebrow">SOFTLOAD CONSOLE</div><h2 id="authHeading">Entrar no painel</h2><p id="authDescription">Use sua conta administrativa para acessar os dados reais da VPS.</p><form id="authForm"><label id="setupLabel" hidden>Código de configuração<input id="setupToken" name="setupToken" type="text" autocomplete="off" placeholder="Código inicial da VPS"></label><label id="usernameLabel">Usuário<input id="username" name="username" type="text" value="admin" autocomplete="username" required></label><label>Senha<input id="password" name="password" type="password" autocomplete="current-password" required></label><p class="form-error" id="authError" role="alert"></p><button class="primary-button" type="submit" id="authSubmit">Entrar</button></form><small class="auth-note">A sessão expira após 12 horas. Operações em containers exigem confirmação.</small></div></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="script.js" defer></script>
+  <script src="github-ui.js" defer></script>
 </body>
 </html>
