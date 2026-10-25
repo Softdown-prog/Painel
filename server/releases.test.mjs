@@ -96,7 +96,8 @@ test('staging requires approved run, immutable local image and healthy promotion
     assert.equal((await request('/projects/demo/releases/promote', 'POST')).status, 200);
     assert.equal(docker.images.get('softload-app-demo').Config.Labels[role], 'candidate');
     assert.equal(docker.images.get('softload-backup-demo').State.Status, 'exited');
-    assert.equal((await request('/projects/demo/releases/stage', 'POST', { runId: 987 })).status, 409);
+    const blocked = await request('/projects/demo/releases/stage', 'POST', { runId: 987 });
+    assert.equal(blocked.status, 409, JSON.stringify(blocked));
     assert.equal((await request('/projects/demo/releases/rollback', 'POST')).status, 200);
     assert.equal(docker.images.get('softload-app-demo').Id, 'old');
     assert.equal(docker.images.get('softload-app-demo').State.Status, 'running');
