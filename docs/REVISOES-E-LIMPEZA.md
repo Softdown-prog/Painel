@@ -17,6 +17,16 @@ Esta funcionalidade ajuda a impedir que a VPS pequena acumule **imagens antigas 
 - `revisoes auto ligar` — ativa a limpeza programada.
 - `revisoes auto desligar` — pausa a limpeza programada.
 
+## Imagens de toda a VPS
+
+A aba também mostra uma tabela **somente leitura** com as imagens Docker de toda a VPS, inclusive as que podem pertencer à Softload V4, ao Caddy e a serviços externos ao gerenciador de aplicações.
+
+A tabela exibe nome/tag, identificador, data e tamanho aproximado, além de destacar repositórios com **várias versões locais**. Isso ajuda a perceber se a infraestrutura está acumulando builds antigos. Ter versões com tags diferentes não significa automaticamente que sejam duplicatas descartáveis: elas podem estar sendo usadas ou preservadas para rollback.
+
+**Importante:** a limpeza agendada desta versão **não apaga imagens da infraestrutura Softload V4**, nem qualquer imagem fora dos registros GHCR importados pelo Painel. A investigação e remoção segura dessas imagens, com verificação de containers e retenção de revisões do próprio deploy da Softload, está no backlog do Codex. Não use `docker image prune -a` na produção sem inspecionar dependências e política de rollback.
+
+Se a listagem completa não estiver disponível, a aba sinaliza a indisponibilidade; não inventa contagem de imagens. O tamanho somado pode contar camadas compartilhadas mais de uma vez. A listagem do Painel é limitada para não sobrecarregar a API de uma VPS pequena.
+
 ## O que fica protegido
 
 - **A imagem que um container gerenciado usa**: versão ativa, candidata de teste ou backup para rollback.
