@@ -11,6 +11,9 @@ on:
       - server/api.mjs
       - server/Dockerfile
       - server/apps.ts
+      - server/revision-maintenance.ts
+      - server/executor-policy.ts
+      - server/compose.revisions.yaml
       - server/compose.yaml
       - server/smoke-api.mjs
   workflow_dispatch:
