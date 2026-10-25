@@ -1,4 +1,5 @@
 # Experimental isolated application gateway, NOT the existing softload-caddy.
+# Existing Caddy must be manually attached to softload_panel_apps before routing. Do not attach this gateway to the production proxy network.
 # Include only after provisioning DNS and explicit wildcard route in production Caddy.
 # Generated routes require an operator-triggered caddy reload in this gateway.
 services:
@@ -15,7 +16,6 @@ services:
       - ./router/Caddyfile:/etc/caddy/Caddyfile:ro
       - panel_data:/config/panel:ro
     networks:
-      - proxy
       - panel_apps
     read_only: true
     tmpfs:
