@@ -1,0 +1,8 @@
+# Ative explicitamente a criação de containers na VPS.
+# Para ativar, exporte PANEL_APPS_ENABLED=1 e defina imagens previamente aprovadas.
+# Sem essas variáveis, o gerenciador permanece em modo somente leitura.
+services:
+  api:
+    environment:
+      PANEL_APPS_ENABLED: "${PANEL_APPS_ENABLED:-0}"
+      PANEL_APPS_ALLOWED_IMAGES: "${PANEL_APPS_ALLOWED_IMAGES:-}"
