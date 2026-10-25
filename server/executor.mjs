@@ -80,8 +80,21 @@ function proxy(req,res,payload,decision) {
   req.on('aborted',()=>upstream.destroy(new Error('Client disconnected')));
   upstream.end(data);
 }
+async function daemonReady() {
+  return await new Promise(resolve=>{
+    const req=http.request({socketPath:dockerSocket,path:'/_ping',method:'GET',timeout:3000},response=>{
+      response.resume();resolve(response.statusCode===200);
+    });
+    req.on('timeout',()=>req.destroy(new Error('Docker health timeout')));
+    req.on('error',()=>resolve(false));
+    req.end();
+  });
+}
 const server=http.createServer(async(req,res)=>{
-  if(req.url==='/_executor/health'&&req.method==='GET')return json(res,200,{ok:true});
+  if(req.url==='/_executor/health'&&req.method==='GET') {
+    const ready=await daemonReady();
+    return json(res,ready?200:503,{ok:ready});
+  }
   try{
     const payload=await body(req);
     const decision=await authorize({method:req.method||'',url:req.url||'',payload,
