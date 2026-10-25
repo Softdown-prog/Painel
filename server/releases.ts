@@ -50,6 +50,12 @@ async function optional(docker: DockerRequest, name: string): Promise<Inspect | 
   if (response.status >= 400) throw new ReleaseError(502, 'Falha ao inspecionar container.');
   return parse<Inspect>(response);
 }
+function verifyBackup(inspect: Inspect, slug: string, repo: string): void {
+  const labels = inspect.Config?.Labels;
+  if (inspect.Name !== '/' + BACKUP + slug || labels?.[OWNER] !== 'true' || labels?.[SLUG] !== slug ||
+    (labels[REPOSITORY] && labels[REPOSITORY] !== repo))
+    throw new ReleaseError(403, 'Backup não pertence ao projeto gerenciado.');
+}
 function verifyRelease(inspect: Inspect, name: string, slug: string, repo: string, role: string): void {
   const labels = inspect.Config?.Labels;
   if (inspect.Name !== '/' + name || labels?.[OWNER] !== 'true' ||
@@ -127,7 +133,7 @@ export async function handleReleaseRoute(req: IncomingMessage, res: ServerRespon
       const candidate = await optional(docker, CANDIDATE + slug);
       const backup = await optional(docker, BACKUP + slug);
       if (candidate) verifyRelease(candidate, CANDIDATE + slug, slug, project.repository, 'candidate');
-      if (backup) verifyRelease(backup, BACKUP + slug, slug, project.repository, 'backup');
+      if (backup) verifyBackup(backup, slug, project.repository);
       send(200, { enabled, slug, current: { image: current.Config?.Image, state: current.State?.Status,
         revision: current.Config?.Labels?.[REVISION] || null },
         candidate: candidate ? { revision: candidate.Config?.Labels?.[REVISION], state: candidate.State?.Status,
@@ -142,7 +148,7 @@ export async function handleReleaseRoute(req: IncomingMessage, res: ServerRespon
       const candidate = await optional(docker, CANDIDATE + slug);
       const backup = await optional(docker, BACKUP + slug);
       if (candidate) verifyRelease(candidate, CANDIDATE + slug, slug, project.repository, 'candidate');
-      if (backup) verifyRelease(backup, BACKUP + slug, slug, project.repository, 'backup');
+      if (backup) verifyBackup(backup, slug, project.repository);
       if (operation === 'stage') {
         const input = await deps.body(req);
         if (Object.keys(input).some(key => key !== 'runId') ||
