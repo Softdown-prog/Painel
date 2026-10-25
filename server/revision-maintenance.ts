@@ -181,17 +181,25 @@ async function perform(dataDir:string,docker:DockerRequest,now:number,source:'ma
   const plan=await revisionReport(dataDir,docker,now);
   const targets=new Map(plan.entries.filter(e=>e.status==='antiga').map(e=>[e.ref,e]));
   let removed=0,failed=0,bytesEstimate=0;
-  const removedRefs=new Set<string>();
+  const cleaned=new Map<string,Set<string>>();
   for(const [ref,entry] of targets){
+   if(source==='automatic'&&!automaticFor(dataDir))break; // Pause takes effect between individual removals.
+   // If the import ledger changed since planning (another build/pull), fail closed.
+   const live=verifiedImports(dataDir).filter(e=>refOf(e)===ref);
+   const approved=plan.entries.filter(e=>e.ref===ref && e.status==='antiga');
+   const key=(e:Import)=>e.slug+'/'+e.revision+'/'+e.importedAt;
+   if(!live.length || live.length!==approved.length ||
+      live.some(e=>!approved.some(v=>key(v)===key(e)))){failed++;continue;}
    // Docker's executor independently checks ALL host containers and refuses force deletes.
    const result=await docker('/images/'+encodeURIComponent(ref)+'?force=0&noprune=1','DELETE');
-   if(result.status>=200 && result.status<300){removedRefs.add(ref);removed++;bytesEstimate+=entry.sizeBytes;}
-   else failed++;
+   if(result.status>=200 && result.status<300){
+     cleaned.set(ref,new Set(live.map(key)));removed++;bytesEstimate+=entry.sizeBytes;
+   }else failed++;
   }
-  if(removedRefs.size){
-   // Re-read to avoid dropping unrelated new imports; retain the most recent record for each app.
+  if(cleaned.size){
+   // Preserve a newly imported revision even when it shares a digest with a removed record.
    const current=verifiedImports(dataDir);
-   const remaining=current.filter(e=>!removedRefs.has(refOf(e)));
+   const remaining=current.filter(e=>!cleaned.get(refOf(e))?.has(e.slug+'/'+e.revision+'/'+e.importedAt));
    store(dataDir,RECORD_NAME,remaining);
   }
   const outcome:History={at:new Date(now).toISOString(),source,considered:targets.size,removed,failed,bytesEstimate,
