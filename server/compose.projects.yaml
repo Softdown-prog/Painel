@@ -1,0 +1,6 @@
+# Opcional: ativação do build GitHub para aplicações gerenciadas.
+# Sem este overlay, vínculos entre app e repositório ficam em modo leitura/associação.
+services:
+  api:
+    environment:
+      PANEL_PROJECT_BUILDS_ENABLED: "${PANEL_PROJECT_BUILDS_ENABLED:-0}"
