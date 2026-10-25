@@ -179,6 +179,7 @@ async function loadDeploys() {
       activity.append(item);
     }
     if (!data.runs?.length) activity.textContent = 'Histórico indisponível no momento.';
+    window.refreshGitHubRepositories?.();
   } catch (error) { toast(`Deploys: ${error.message}`); }
 }
 async function loadLogs() {
@@ -243,7 +244,7 @@ document.getElementById('logoutButton').addEventListener('click', async () => {
 });
 document.querySelectorAll('.demo-action').forEach(button => button.addEventListener('click', () => {
   if (button.dataset.action === 'Atualizar serviços') loadOverview();
-  else if (button.dataset.action === 'Novo deploy') toast('O deploy de produção continua pelo GitHub Actions. Use a aba Deploys para abrir o workflow.');
+  else if (button.dataset.action === 'Novo deploy') location.hash = 'deploys';
   else location.hash = 'settings';
 }));
 document.getElementById('infoButton').addEventListener('click', () => toast('O painel mostra dados da VPS somente após autenticação. Caddy e Portainer são apenas leitura.'));
