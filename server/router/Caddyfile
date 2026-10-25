@@ -1,0 +1,7 @@
+# Only included by an operator on the VPS. Does not replace the existing production Caddy.
+:8081 {
+    route {
+        import /config/panel/caddy/*.caddy
+        respond "Aplicação não encontrada" 404
+    }
+}
