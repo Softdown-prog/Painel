@@ -1,0 +1,6 @@
+# Enable durable one-click publication after deploying the matching backend to the VPS.
+# This does not grant new Docker privileges. GHCR and Releases must also be enabled.
+services:
+  api:
+    environment:
+      PANEL_PUBLICATIONS_ENABLED: "${PANEL_PUBLICATIONS_ENABLED:-0}"
