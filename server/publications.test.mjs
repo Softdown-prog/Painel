@@ -123,3 +123,31 @@ test('corrupt job store cannot be replaced by a new submission',async()=>{
   assert.equal(readFileSync(join(x.dir,'publication-jobs.json'),'utf8'),'{broken');
  }finally{x.dispose();}
 });
+
+test('restart after promotion reconciles the new active revision instead of promoting again',async()=>{
+ const x=fixture();
+ try{
+  await x.route('POST',{runId:123});
+  for(let i=0;i<3;i++)await runPublicationCycle(x.dir,x.operation,stamp+i*1000);
+  const stored=JSON.parse(readFileSync(join(x.dir,'publication-jobs.json'),'utf8'));
+  stored[0].phase='promoting';stored[0].revision=sha;
+  writeFileSync(join(x.dir,'publication-jobs.json'),JSON.stringify(stored));
+  x.state.revision=sha;x.state.candidate=null;x.state.backup={image:'shop:old'};
+  const before=x.calls.length;
+  await runPublicationCycle(x.dir,x.operation,stamp+4000);
+  assert.equal((await x.route()).value.current.phase,'completed');
+  assert.equal(x.calls.slice(before).filter(x=>x.method==='POST').length,0);
+ }finally{x.dispose();}
+});
+test('candidate belonging to another SHA prevents promotion after resuming',async()=>{
+ const x=fixture();
+ try{
+  await x.route('POST',{runId:123});
+  for(let i=0;i<3;i++)await runPublicationCycle(x.dir,x.operation,stamp+i*1000);
+  x.state.candidate={revision:'f'.repeat(40),state:'running',health:'healthy'};
+  await runPublicationCycle(x.dir,x.operation,stamp+4000);
+  assert.equal((await x.route()).value.current.phase,'attention');
+  assert.ok(!x.calls.some(c=>c.action==='promote'));
+  assert.equal(x.state.revision,other);
+ }finally{x.dispose();}
+});
