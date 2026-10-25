@@ -82,6 +82,16 @@ O usuário quer ações simples: **Criar site**, **Conectar GitHub**, **Escolher
 
 **Aceite:** um cliente não consegue listar, reiniciar, acessar logs, segredos ou domínios de outro cliente. Revisão de segurança antes de exposição pública.
 
+### C14 · Histórico de revisões e espaço da VPS
+
+**Implementado no código:** aba **Revisões e espaço**, API `/maintenance/revisions`, opção de limpar somente imagens GHCR antigas e autorizadas, histórico de operações, botão para ligar/pausar a limpeza automática a cada 6 horas e comandos `revisoes` no Terminal VPS. Política inicial: manter 2 revisões por aplicação e tudo que foi importado há menos de 14 dias, preservar imagem em uso, candidata, backup e imagens compartilhadas. O executor confere todos os containers do host antes de permitir uma remoção individual sem `force`.
+
+**Estado:** código preparado e testado no CI; **não instalado/validado na VPS de produção**. A ativação inicial exige instalar API e executor atuais e ligar `PANEL_REVISIONS_CLEANUP_ENABLED=1` usando `compose.revisions.yaml`. Depois disso, o administrador controla a programação pelo Painel, sem depender do Codex.
+
+**Próximas melhorias:** consumo real de armazenamento com camadas compartilhadas, retenção de imagens da infraestrutura Softload V4, cache de build, alertas de disco, cron durável fora do processo web, comportamento consistente com jobs de importação/release e locks distribuídos entre réplicas da API. Testar limpeza com Docker real e cargas concorrentes **sem usar produção**.
+
+**Aceite:** inventário e histórico mostram imagens preservadas e candidatas à limpeza; agendamento apaga apenas revisões antigas elegíveis após validação Docker, sem comprometer a versão atual ou rollback; porcentagem de espaço recuperado tem rótulo de estimativa; limpeza nunca executa prune global e não afeta sites de clientes.
+
 ## P1 — Hospedar clientes com praticidade
 
 ### C05 · Tela única “Meus sites”
