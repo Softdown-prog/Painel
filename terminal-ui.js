@@ -36,6 +36,9 @@
     '  dominio criar <app> <porta>      reserva endereço (não publica na internet)',
     '  dominio remover <app>            remove endereço reservado',
     '  limpar                           limpa a tela',
+    '  revisoes                         lista versões antigas e protegidas',
+    '  revisoes limpar                  limpa apenas imagens antigas aprovadas',
+    '  revisoes auto ligar|desligar     altera a limpeza automática no painel',
     '  historico                        mostra comandos desta sessão',
     '  linux <comando>                  executa na VPS via SSH, se o administrador ativou',
     '  linux travar                     bloqueia o acesso Linux novamente',
@@ -125,6 +128,35 @@
       }
     }
     if (cmd === 'ajuda' || cmd === 'help' || cmd === '?') return HELP;
+    if (cmd === 'revisoes') {
+      if (args.length === 1) {
+        const d = await api('/maintenance/revisions');
+        const rows = [
+          'REVISÕES DA VPS',
+          '  Registradas: ' + d.totalImports + ' · antigas elegíveis: ' + d.oldCount,
+          '  Espaço estimado: ' + fmt(d.oldBytesEstimate),
+          '  Limpeza automática: ' + (d.automatic && d.enabled ? 'ligada (a cada 6h)' : 'desligada'),
+          '  Retenção: últimas ' + d.keepPerApp + ' revisões/app; prazo ' + d.ageDays + ' dias'
+        ];
+        for (const r of d.entries || []) rows.push('  ' + r.slug + '  ' +
+          String(r.revision||'').slice(0,8) + '  ' + r.status);
+        return rows.join('\\n');
+      }
+      if (args[1] === 'limpar' && args.length === 2) {
+        if (!confirmAction('Limpar revisões antigas', 'VPS', 'Remove apenas imagens antigas, sem apagar containers ou volumes.')) return 'Cancelado.';
+        const result = await mutate('/maintenance/revisions/cleanup','POST',{confirm:'LIMPAR_REVISOES_ANTIGAS'});
+        return 'Limpeza concluída: ' + result.removed + ' removidas · ' + result.failed + ' falhas.';
+      }
+      if (args[1] === 'auto' && args.length === 3 && ['ligar','desligar'].includes(args[2])) {
+        const automatic = args[2] === 'ligar';
+        if (!confirmAction(automatic?'Ativar limpeza automática':'Pausar limpeza automática', 'VPS',
+          automatic ? 'Verifica a cada seis horas, protegendo backups e duas últimas revisões/app.' : 'Nenhuma imagem será apagada automaticamente.'))
+          return 'Cancelado.';
+        const result = await mutate('/maintenance/revisions/settings','POST',{automatic});
+        return result.message||'Configuração alterada.';
+      }
+      throw new Error('Uso: revisoes | revisoes limpar | revisoes auto ligar | revisoes auto desligar');
+    }
     if (cmd === 'historico') return history.map((x, i) => String(i + 1).padStart(2) + '  ' + x).join('\n') || 'Nenhum comando anterior.';
     if (cmd === 'limpar' || cmd === 'clear') { output.replaceChildren(); return 'Tela limpa.'; }
     if (cmd === 'status' || cmd === 'recursos') {
