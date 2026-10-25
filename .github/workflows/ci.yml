@@ -16,5 +16,6 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run typecheck
       - run: npm test
+      - run: docker compose -f server/compose.yaml -f server/compose.apps.yaml -f server/compose.routing.yaml config --quiet
       - run: npm run check:js
       - run: npm run build:frontend && node --check github-ui.js && node --check apps-ui.js && node --check projects-ui.js && node --check domains-ui.js
