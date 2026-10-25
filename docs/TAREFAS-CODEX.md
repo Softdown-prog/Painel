@@ -4,6 +4,8 @@
 >
 > **Estado de referência:** GitHub `Softdown-prog/Painel`, branch `main`, interface Cloudflare Pages, backend Node 24/TypeScript e Docker Compose na pasta `server/`.
 
+**Limite atual de capacidade:** são permitidas até **8 aplicações gerenciadas** por instalação. Esse teto é uma proteção temporária do protótipo, não o desenho final de hospedagem de clientes. Aumentar o limite exige controle por servidor, cotas, separação de clientes e observabilidade (tarefa C07).
+
 ## Regra principal de experiência
 
 O usuário quer ações simples: **Criar site**, **Conectar GitHub**, **Escolher domínio**, **Publicar**, **Ver se está funcionando**, **Reiniciar**, **Fazer backup** e **Excluir**. Nunca mostrar comandos, identificadores internos ou configurações do Caddy na tela principal. Explicar limitações em português do Brasil, sem fingir que algo está pronto.
