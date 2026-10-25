@@ -66,11 +66,11 @@ jobs:
             --mount type=volume,src="$data",dst=/data \
             --tmpfs /tmp:rw,nosuid,nodev,size=16m \
             --mount type=bind,src="$tmp/edge-key",dst=/run/secrets/panel-edge-key,readonly \
+            --mount type=bind,src="$GITHUB_WORKSPACE/server/smoke-api.mjs",dst=/run/panel-smoke.mjs,readonly \
             panel-api-smoke:ci >/dev/null
           test "$(docker inspect "$ex" -f '{{.HostConfig.NetworkMode}}')" = none
           test "$(docker inspect "$api" -f '{{.HostConfig.NetworkMode}}')" = none
           docker inspect "$api" -f '{{json .Mounts}}' | \
             python3 -c 'import json,sys; m=json.load(sys.stdin); assert all(v.get("Destination") != "/var/run/docker.sock" for v in m)'
-          docker cp server/smoke-api.mjs "$api:/tmp/smoke-api.mjs"
-          docker exec "$api" node /tmp/smoke-api.mjs
+          docker exec "$api" node /run/panel-smoke.mjs
           echo 'PASS: real Docker daemon reached only through the executor in isolated CI'
