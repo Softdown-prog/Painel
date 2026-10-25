@@ -50,6 +50,9 @@ jobs:
           docker build -t panel-api-smoke:ci -f server/Dockerfile server
           docker volume create "$sock" >/dev/null
           docker volume create "$data" >/dev/null
+          # The CI sandbox starts with an empty named volume. Initialize ownership before starting the unprivileged API.
+          docker run --rm --user 0 --mount type=volume,src="$data",dst=/data \
+            --entrypoint chown panel-api-smoke:ci 1000:1000 /data
           printf '%s\n' 'ci-test-edge-key-with-at-least-32-characters-only' > "$tmp/edge-key"
           # The CI-only fake key must be readable under Docker user-namespace remapping.
           chmod 644 "$tmp/edge-key"
