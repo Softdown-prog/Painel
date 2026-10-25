@@ -266,12 +266,10 @@ document.getElementById('authForm').addEventListener('submit', async event => {
       await Promise.all([loadOverview(), loadDeploys()]);
       if (location.hash === '#logs') loadLogs();
       if (location.hash === '#apps') window.refreshManagedApplications?.();
-    if (location.hash.startsWith('#site?')) window.refreshSiteDetail?.();
       if (location.hash.startsWith('#site?')) window.refreshSiteDetail?.();
       if (location.hash === '#projects') window.refreshManagedProjects?.();
       if (location.hash === '#domains') window.refreshManagedDomains?.();
       if (location.hash === '#terminal') window.refreshTerminalConnection?.();
-    if (location.hash === '#revisions') window.refreshManagedRevisions?.();
       if (location.hash === '#revisions') window.refreshManagedRevisions?.();
     }
   } catch (error) { errorBox.textContent = error.message; }
@@ -313,6 +311,7 @@ api('/session').then(data => {
     document.getElementById('logoutButton').hidden = false;
     Promise.all([loadOverview(), loadDeploys()]);
     if (location.hash === '#apps') window.refreshManagedApplications?.();
+    if (location.hash.startsWith('#site?')) window.refreshSiteDetail?.();
     if (location.hash === '#projects') window.refreshManagedProjects?.();
     if (location.hash === '#domains') window.refreshManagedDomains?.();
     if (location.hash === '#terminal') window.refreshTerminalConnection?.();
