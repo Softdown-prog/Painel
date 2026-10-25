@@ -63,8 +63,8 @@
       ]);
       projects = linked.projects;
       buildsEnabled = linked.buildsEnabled;
-      const selectApp = field('projectApp') as HTMLSelectElement;
-      const selectRepo = field('projectRepo') as HTMLSelectElement;
+      const selectApp = get('projectApp') as HTMLSelectElement;
+      const selectRepo = get('projectRepo') as HTMLSelectElement;
       const previousApp = selectApp.value;
       const previousRepo = selectRepo.value;
       selectApp.replaceChildren();
