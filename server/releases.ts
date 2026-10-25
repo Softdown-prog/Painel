@@ -116,9 +116,23 @@ async function localVerifiedImage(docker: DockerRequest, repo: string, sha: stri
   }
   return { id: image.Id, image: tag };
 }
+type RecoveryState = { state: 'ready' | 'recoverable' | 'manual_review'; repair: 'restore_backup' | 'restart_current' | null; detail: string };
+function recoveryState(current: Inspect | null, candidate: Inspect | null, backup: Inspect | null): RecoveryState {
+  if (!current && backup && backup.State?.Status !== 'running') {
+    return { state: 'recoverable', repair: 'restore_backup', detail: 'Container principal ausente; backup anterior disponível para restauração.' };
+  }
+  if (current && !backup && current.State?.Status !== 'running') {
+    return { state: 'recoverable', repair: 'restart_current', detail: 'Container principal parado, sem backup pendente. É possível reiniciá-lo.' };
+  }
+  if (current && current.State?.Status === 'running' && !(backup && candidate)) {
+    return { state: 'ready', repair: null, detail: 'Container principal em execução; nenhuma recuperação automática necessária.' };
+  }
+  return { state: 'manual_review', repair: null, detail: 'Estado ambíguo. Não execute remoções ou renomeações sem revisar os três slots.' };
+}
+
 export async function handleReleaseRoute(req: IncomingMessage, res: ServerResponse, deps: ReleaseDependencies): Promise<boolean> {
   const path = new URL(req.url || '/', 'http://panel.local').pathname;
-  const match = /^\/projects\/([a-z0-9-]+)\/releases(?:\/(stage|promote|rollback|finalize))?$/.exec(path);
+  const match = /^\/projects\/([a-z0-9-]+)\/releases(?:\/(stage|promote|rollback|finalize|recovery))?$/.exec(path);
   if (!match) return false;
   const send = (status: number, value: unknown) => deps.send(res, status, value);
   const docker = deps.docker || dockerRequest;
@@ -132,6 +146,22 @@ export async function handleReleaseRoute(req: IncomingMessage, res: ServerRespon
     const repo = (deps.repositories || (() => readRepositories(deps.dataDir)))()
       .find(item => item.fullName === project.repository);
     if (!repo || repo.workflow !== WORKFLOW) throw new ReleaseError(409, 'Workflow GitHub do projeto não autorizado.');
+    if (operation === 'recovery' && req.method === 'GET') {
+      const current = await optional(docker, PREFIX + slug);
+      const candidate = await optional(docker, CANDIDATE + slug);
+      const backup = await optional(docker, BACKUP + slug);
+      if (current) {
+        const labels = current.Config?.Labels;
+        if (current.Name !== '/' + PREFIX + slug || labels?.[OWNER] !== 'true' || labels?.[SLUG] !== slug)
+          throw new ReleaseError(403, 'Slot principal não pertence ao painel.');
+      }
+      if (candidate) verifyRelease(candidate, CANDIDATE + slug, slug, project.repository, 'candidate');
+      if (backup) verifyBackup(backup, slug, project.repository);
+      send(200, { enabled, slug, ...recoveryState(current, candidate, backup),
+        slots: { current: current?.State?.Status || null, candidate: candidate?.State?.Status || null,
+          backup: backup?.State?.Status || null } });
+      return true;
+    }
     if (!operation && req.method === 'GET') {
       const current = await inspectOwned(docker, slug);
       const candidate = await optional(docker, CANDIDATE + slug);
@@ -147,6 +177,40 @@ export async function handleReleaseRoute(req: IncomingMessage, res: ServerRespon
     }
     if (!enabled) throw new ReleaseError(403, 'Publicação na VPS desabilitada pelo administrador.');
     if (req.method !== 'POST' || !operation) throw new ReleaseError(405, 'Método não permitido.');
+    if (operation === 'recovery') {
+      const input = await deps.body(req);
+      if (input.confirm !== 'RESTORE_SAFE_STATE' || Object.keys(input).length !== 1)
+        throw new ReleaseError(400, 'Confirmação RESTORE_SAFE_STATE necessária.');
+      const result = await locked(async () => {
+        const current = await optional(docker, PREFIX + slug);
+        const candidate = await optional(docker, CANDIDATE + slug);
+        const backup = await optional(docker, BACKUP + slug);
+        if (current) {
+          const labels = current.Config?.Labels;
+          if (current.Name !== '/' + PREFIX + slug || labels?.[OWNER] !== 'true' || labels?.[SLUG] !== slug)
+            throw new ReleaseError(403, 'Slot principal não pertence ao painel.');
+        }
+        if (candidate) verifyRelease(candidate, CANDIDATE + slug, slug, project.repository, 'candidate');
+        if (backup) verifyBackup(backup, slug, project.repository);
+        const diagnosis = recoveryState(current, candidate, backup);
+        if (diagnosis.repair === 'restore_backup' && backup) {
+          if (candidate?.State?.Status === 'running') await command(docker, CANDIDATE + slug, 'stop');
+          await command(docker, BACKUP + slug, 'rename', PREFIX + slug);
+          await command(docker, PREFIX + slug, 'start');
+          return { repaired: true, action: diagnosis.repair,
+            message: 'Versão anterior restaurada. A candidata, se existente, ficou parada para inspeção.' };
+        }
+        if (diagnosis.repair === 'restart_current' && current) {
+          await command(docker, PREFIX + slug, 'start');
+          return { repaired: true, action: diagnosis.repair,
+            message: 'Container principal reiniciado. Nenhuma versão foi substituída.' };
+        }
+        throw new ReleaseError(409, 'Este estado requer análise manual, não recuperação automática.');
+      });
+      console.log('Panel release recovery:', slug, result.action);
+      send(200, result);
+      return true;
+    }
     const result = await locked(async () => {
       const current = await inspectOwned(docker, slug);
       const candidate = await optional(docker, CANDIDATE + slug);
