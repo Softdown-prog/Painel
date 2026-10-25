@@ -11,7 +11,7 @@
   const history: string[] = [];
   let historyIndex = 0;
   let busy = false;
-  let sshToken = null;
+  let sshToken: string | null = null;
   const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
   const SERVICES = ['app', 'agent', 'sandbox', 'embeddings', 'caddy', 'portainer'];
   const ACTIONS: Record<string, string> = { iniciar: 'start', parar: 'stop', reiniciar: 'restart' };
