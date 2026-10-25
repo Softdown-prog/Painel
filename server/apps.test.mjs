@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { handleAppRoute, scanIdleApps, validSlug, validImage } from './apps.ts';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { handleAppRoute, managedContainerSpec, scanIdleApps, validSlug, validImage } from './apps.ts';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const tags = { 'com.softload.panel.managed': 'true', 'com.softload.panel.slug': 'teste' };
@@ -101,5 +101,20 @@ test('idle policy stops an opted-in app only after its inactivity window', async
     assert.equal(stops, 0);
     assert.deepEqual(await scanIdleApps(runningDocker, dir, 32 * 60_000, samples), ['teste']);
     assert.equal(stops, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('managed app network is allowlisted and a routed app cannot be removed before its domain', async () => {
+  assert.equal(managedContainerSpec('teste', 'example:1', {}, undefined, 'softload_panel_apps').HostConfig.NetworkMode, 'softload_panel_apps');
+  assert.equal(managedContainerSpec('teste', 'example:1', {}, undefined, 'host').HostConfig.NetworkMode, 'bridge');
+  const dir = mkdtempSync(join(tmpdir(), 'panel-app-domains-'));
+  try {
+    writeFileSync(join(dir, 'domain-routes.json'), JSON.stringify([
+      { slug: 'teste', host: 'teste.apps.analysepro.com', port: 3000, createdAt: new Date().toISOString() }
+    ]));
+    docker.calls = [];
+    const result = await request('/apps/teste', 'DELETE', {}, { dataDir: dir });
+    assert.equal(result.status, 409);
+    assert.equal(docker.calls.some(item => item.method === 'DELETE'), false);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
