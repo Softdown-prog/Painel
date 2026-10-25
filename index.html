@@ -8,6 +8,7 @@
   <title>Softload Console — Prévia</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="panel.css">
+  <link rel="stylesheet" href="apps.css">
 </head>
 <body>
   <div class="app-shell">
@@ -24,6 +25,7 @@
         <div class="nav-group-title">GERENCIAMENTO</div>
         <a class="nav-item active" href="#overview" data-view="overview"><span class="nav-icon">▦</span> Visão geral</a>
         <a class="nav-item" href="#services" data-view="services"><span class="nav-icon">◫</span> Serviços <span class="nav-count">6</span></a>
+        <a class="nav-item" href="#apps" data-view="apps"><span class="nav-icon">⬡</span> Aplicações</a>
         <a class="nav-item" href="#deploys" data-view="deploys"><span class="nav-icon">⇅</span> Deploys</a>
         <a class="nav-item" href="#logs" data-view="logs"><span class="nav-icon">≡</span> Logs</a>
         <div class="nav-group-title nav-group-spaced">SISTEMA</div>
@@ -67,6 +69,19 @@
 
         <section class="view" id="services" data-title="Serviços"><div class="page-heading"><div><div class="eyebrow">CONTAINERS / PRODUÇÃO</div><h1>Serviços</h1><p>Visualize a saúde e os recursos de cada componente.</p></div><button class="primary-button demo-action" data-action="Atualizar serviços">↻ Atualizar</button></div><div class="panel full-panel"><div class="panel-head"><div><h2>Containers</h2><p>Lista de exemplo para revisar a interface</p></div><span class="outline-tag">SEM CONEXÃO</span></div><div id="allServices"></div></div></section>
 
+        <section class="view" id="apps" data-title="Aplicações">
+          <div class="page-heading"><div><div class="eyebrow">DOCKER / APLICAÇÕES GERENCIADAS</div><h1>Aplicações</h1><p>Crie containers isolados sem alterar os serviços da Softload.</p></div><button class="primary-button" id="appsRefreshButton">↻ Atualizar</button></div>
+          <section class="panel full-panel"><div class="panel-head"><div><h2>Nova aplicação</h2><p>Somente imagens autorizadas e já instaladas na VPS</p></div><span class="outline-tag">CONTROLADO</span></div>
+            <form id="appCreateForm" class="app-create-form">
+              <label>Identificador<input id="appSlug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" minlength="2" maxlength="40" placeholder="meu-site"></label>
+              <label>Imagem Docker<select id="appImage" required><option value="">Configure a VPS primeiro</option></select></label>
+              <button class="primary-button" id="appCreateButton" type="submit" disabled>Criar container</button>
+            </form><p class="github-notice" id="appsNotice" role="status">Aguardando API...</p>
+          </section>
+          <section class="panel full-panel apps-list-panel"><div class="panel-head"><div><h2>Containers gerenciados</h2><p>Sem portas públicas, sem montagens do host, usuário não privilegiado e limites de recursos.</p></div></div><div id="managedApplications">Aguardando consulta...</div></section>
+          <section class="panel full-panel apps-list-panel"><div class="panel-head"><div><h2>Logs da aplicação</h2><p>Últimas 100 linhas do container selecionado</p></div></div><pre class="log-console managed-app-log" id="appLogs">Selecione Logs em uma aplicação.</pre></section>
+        </section>
+
         <section class="view" id="deploys" data-title="Deploys"><div class="page-heading"><div><div class="eyebrow">ENTREGA CONTÍNUA / MAIN</div><h1>Deploys</h1><p>Acompanhe publicações do GitHub até a VPS.</p></div><a class="primary-button" href="https://github.com/Softdown-prog/Softloadv4/actions/workflows/deploy.yml" target="_blank" rel="noopener noreferrer">↗ Abrir workflow</a></div><div class="panel full-panel"><div class="panel-head"><div><h2>Histórico de publicações</h2><p id="deployedRevision">Carregando revisão em execução...</p></div><span class="outline-tag" id="deployTag">DEMO</span></div><div class="deploy-table" id="deployTable"><div class="deploy-row deploy-header"><span>REVISÃO</span><span>ORIGEM</span><span>STATUS</span><span>QUANDO</span></div></div></div><div class="panel full-panel github-panel" id="githubManager"><div class="panel-head"><div><h2>Repositórios GitHub</h2><p>Conecte um projeto com workflow de deploy existente e acompanhe sua publicação na VPS.</p></div><span class="outline-tag">ACTIONS</span></div>
   <div class="github-manager">
     <form id="githubConnectForm" class="github-connect-form">
@@ -98,5 +113,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="script.js" defer></script>
   <script src="github-ui.js" defer></script>
+  <script src="apps-ui.js" defer></script>
 </body>
 </html>
