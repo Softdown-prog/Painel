@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { handleGitHubRoute } from './github.ts';
 import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, existsSync } from 'node:fs';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { totalmem, freemem, loadavg, cpus } from 'node:os';
@@ -146,6 +147,7 @@ async function handler(req, res) {
     return send(res, 200, { ok: true }, { 'set-cookie': cookie('', 0) });
   }
   if (!session(req)) return send(res, 401, { error: 'Sessão necessária' });
+  if (await handleGitHubRoute(req, res, { send, body, dataDir })) return;
   if (path === '/password' && req.method === 'POST') {
     const input = await body(req);
     const admin = JSON.parse(readFileSync(adminFile, 'utf8'));
