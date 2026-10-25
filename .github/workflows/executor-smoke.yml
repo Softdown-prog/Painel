@@ -1,0 +1,75 @@
+name: Docker executor integration smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/executor-smoke.yml
+      - server/executor.mjs
+      - server/executor-policy.ts
+      - server/executor.Dockerfile
+      - server/api.mjs
+      - server/Dockerfile
+      - server/apps.ts
+      - server/compose.yaml
+      - server/smoke-api.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ephemeral-docker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Isolated real-Docker API and executor smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTIONS" == "true" && "${RUNNER_ENVIRONMENT:-}" == "github-hosted" ]]
+          ex="panel-smoke-executor-$GITHUB_RUN_ID"
+          api="panel-smoke-api-$GITHUB_RUN_ID"
+          sock="panel_smoke_sock_$GITHUB_RUN_ID"
+          data="panel_smoke_data_$GITHUB_RUN_ID"
+          tmp="$(mktemp -d)"
+          cleanup() {
+            rc=$?
+            if (( rc != 0 )); then
+              docker logs "$ex" 2>&1 | tail -60 || true
+              docker logs "$api" 2>&1 | tail -60 || true
+            fi
+            docker rm -f "$api" "$ex" >/dev/null 2>&1 || true
+            docker volume rm "$data" "$sock" >/dev/null 2>&1 || true
+            rm -rf "$tmp"
+            exit "$rc"
+          }
+          trap cleanup EXIT
+          docker build -t panel-executor-smoke:ci -f server/executor.Dockerfile server
+          docker build -t panel-api-smoke:ci -f server/Dockerfile server
+          docker volume create "$sock" >/dev/null
+          docker volume create "$data" >/dev/null
+          printf '%s\n' 'ci-test-edge-key-with-at-least-32-characters-only' > "$tmp/edge-key"
+          chmod 600 "$tmp/edge-key"
+          docker run -d --name "$ex" --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --pids-limit 64 --memory 128m --cpus 0.25 \
+            --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+            --mount type=volume,src="$sock",dst=/run/panel-executor \
+            panel-executor-smoke:ci >/dev/null
+          docker run -d --name "$api" --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --pids-limit 64 --memory 160m --cpus 0.5 \
+            -e PANEL_DOCKER_SOCKET_PATH=/run/panel-executor/docker.sock \
+            -e PANEL_EDGE_KEY_FILE=/run/secrets/panel-edge-key \
+            -e PANEL_DATA_DIR=/data \
+            --mount type=volume,src="$sock",dst=/run/panel-executor,readonly \
+            --mount type=volume,src="$data",dst=/data \
+            --mount type=bind,src="$tmp/edge-key",dst=/run/secrets/panel-edge-key,readonly \
+            panel-api-smoke:ci >/dev/null
+          test "$(docker inspect "$ex" -f '{{.HostConfig.NetworkMode}}')" = none
+          test "$(docker inspect "$api" -f '{{.HostConfig.NetworkMode}}')" = none
+          docker inspect "$api" -f '{{json .Mounts}}' | \
+            python3 -c 'import json,sys; m=json.load(sys.stdin); assert all(v.get("Destination") != "/var/run/docker.sock" for v in m)'
+          docker cp server/smoke-api.mjs "$api:/tmp/smoke-api.mjs"
+          docker exec "$api" node /tmp/smoke-api.mjs
+          echo 'PASS: real Docker daemon reached only through the executor in isolated CI'
