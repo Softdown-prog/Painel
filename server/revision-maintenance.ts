@@ -86,15 +86,16 @@ async function hostInventory(docker:DockerRequest):Promise<HostInventory>{
   if(result.status!==200)return unavailable;
   const raw=parse<HostImage[]>(result.buffer);
   if(!Array.isArray(raw))return unavailable;
-  const images=raw.slice(0,250).map(i=>({
+  const allImages=raw.map(i=>({
    id:String(i.Id||'').slice(0,30),
    tags:Array.isArray(i.RepoTags)?i.RepoTags.filter(x=>x&&x!=='<none>:<none>').slice(0,5):[],
    sizeBytes:Number.isFinite(i.Size)?Math.max(0,i.Size||0):0,
    createdAt:Number.isFinite(i.Created)?new Date((i.Created||0)*1000).toISOString():null,
-   containers:Number.isSafeInteger(i.Containers)&&i.Containers!>=0?i.Containers!:null
+   containers:typeof i.Containers==='number'&&Number.isSafeInteger(i.Containers)&&i.Containers>=0?i.Containers:null
   }));
+  const images=allImages.slice(0,250);
   const groups=new Map<string,Set<string>>();
-  for(const i of images)for(const tag of i.tags){
+  for(const i of allImages)for(const tag of i.tags){
    const separator=tag.lastIndexOf(':');
    if(separator<0)continue;
    const repo=tag.slice(0,separator);
@@ -105,8 +106,8 @@ async function hostInventory(docker:DockerRequest):Promise<HostInventory>{
     .map(([repository,ids])=>({repository,versions:ids.size}))
     .sort((a,b)=>b.versions-a.versions).slice(0,30);
   return {available:true,total:raw.length,
-   totalBytesEstimate:images.reduce((v,i)=>v+i.sizeBytes,0),
-   untagged:images.filter(i=>!i.tags.length).length,multipleVersionRepositories,images};
+   totalBytesEstimate:allImages.reduce((v,i)=>v+i.sizeBytes,0),
+   untagged:allImages.filter(i=>!i.tags.length).length,multipleVersionRepositories,images};
  }catch{return unavailable;}
 }
 
