@@ -64,6 +64,7 @@ jobs:
             -e PANEL_DATA_DIR=/data \
             --mount type=volume,src="$sock",dst=/run/panel-executor,readonly \
             --mount type=volume,src="$data",dst=/data \
+            --tmpfs /tmp:rw,nosuid,nodev,size=16m \
             --mount type=bind,src="$tmp/edge-key",dst=/run/secrets/panel-edge-key,readonly \
             panel-api-smoke:ci >/dev/null
           test "$(docker inspect "$ex" -f '{{.HostConfig.NetworkMode}}')" = none
