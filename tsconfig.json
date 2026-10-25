@@ -23,6 +23,7 @@
     "apps-ui.ts",
     "projects-ui.ts",
     "domains-ui.ts",
-    "terminal-ui.ts"
+    "terminal-ui.ts",
+    "revisions-ui.ts"
   ]
 }
