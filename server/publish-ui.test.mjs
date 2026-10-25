@@ -32,13 +32,18 @@ function harness(unhealthy=false){
     '/apps':{applications:[{slug:'demo',state:'running',image:'shop:old'}]},
     '/repositories':{repositories:[{fullName:'Softdown-prog/shop',branch:'main',workflow:'panel-app-build.yml'}]},
     '/projects/demo/runs':{runs:[{id:123,sha:revision,status:'completed',conclusion:'success',createdAt:'2026-10-25T12:00:00Z'}]},
-    '/projects/demo/images/import':{enabled:true,job:null,imported:{revision}}
+    '/projects/demo/images/import':{enabled:true,job:null,imported:{revision}},
+    '/projects/demo/publication':{enabled:true,current:null,history:[]}
   };
   async function fetch(path,opts={}){
     const name=String(path).replace(/^\/api/,'');
     calls.push({path:name,method:opts.method||'GET',data:opts.body?JSON.parse(opts.body):null});
     let data=responses[name];
-    if(name==='/projects/demo/releases'&&(opts.method||'GET')==='GET'){
+    if(name==='/projects/demo/publication'&&opts.method==='POST'){
+      data={ok:true,job:{runId:123,phase:'queued',detail:'Na fila'}};responses[name]={enabled:true,current:{runId:123,phase:'completed',detail:'Publicado e verificado.'},
+        history:[{runId:123,phase:'completed',detail:'Publicado e verificado.'}]};
+    }
+        if(name==='/projects/demo/releases'&&(opts.method||'GET')==='GET'){
       data={enabled:true,current:{revision:promoted?revision:'b'.repeat(40),state:'running',image:'shop:old'},
         candidate:staged&&!promoted?{revision,state:'running',health:unhealthy?'unhealthy':'healthy'}:null,
         backup:promoted?{image:'shop:old',state:'exited'}:null};
@@ -78,21 +83,18 @@ async function exercise(unhealthy=false) {
   await publish.handlers.click();
   return env;
 }
-test('one-click publishing tests healthy revision, locks chosen SHA and keeps backup',async()=>{
+test('one-click button queues backend job and does not orchestrate Docker from browser',async()=>{
   const h=await exercise();
   const steps=h.calls.filter(x=>x.method==='POST');
-  assert.deepEqual(steps.map(x=>x.path),[
-    '/projects/demo/releases/stage','/projects/demo/releases/promote'
-  ]);
+  assert.deepEqual(steps.map(x=>x.path),['/projects/demo/publication']);
   assert.equal(steps[0].data.runId,123);
-  assert.equal(steps[1].data.expectedRevision,revision);
-  assert.equal(h.promoted,true);
+  assert.equal(h.promoted,false,'Only the backend worker may promote revisions');
   assert.equal(h.confirmations.length,1);
-  assert.match(h.elements.get('projectsNotice').textContent,/Publicado e conferido/);
+  assert.match(h.elements.get('projectsNotice').textContent,/Publicado e verificado|A VPS continuará executando/);
 });
-test('one-click publishing does not promote an unhealthy candidate',async()=>{
+test('publications are displayed as server jobs rather than client-owned deploy',async()=>{
   const h=await exercise(true);
   assert.equal(h.promoted,false);
-  assert.ok(!h.calls.some(x=>x.path.endsWith('/promote')));
-  assert.match(h.elements.get('projectsNotice').textContent,/não iniciou corretamente/i);
+  assert.ok(!h.calls.some(x=>x.path.includes('/promote')||x.path.includes('/stage')));
+  assert.ok(h.calls.some(x=>x.path==='/projects/demo/publication'&&x.method==='GET'));
 });
