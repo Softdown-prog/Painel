@@ -219,3 +219,11 @@ A aba **Domínios** prepara uma rota exclusiva para cada aplicação criada pelo
 **Nenhum domínio se torna público por cadastrar a rota.** É necessário preparar DNS/TLS, conectar explicitamente o Caddy frontal à rede de aplicativos e recarregar o gateway. O gateway não publica portas externas, não tem acesso ao Docker socket e não participa da rede proxy de produção. A API administrativa principal ainda precisa ser isolada do Docker socket antes de atender usuários não confiáveis.
 
 Veja o [guia operacional de domínios](docs/domain-routing.md) para pré-requisitos e etapas de ativação. A implantação desse gateway na VPS não foi executada automaticamente.
+
+## Sexta etapa: executor restrito para o Docker
+
+A API administrativa deixou de montar diretamente `/var/run/docker.sock` no `server/compose.yaml`. Somente o novo executor independente tem o socket do Docker. A API comunica-se por socket Unix compartilhado em volume somente leitura, e o executor usa uma política de autorização explícita para containers conhecidos, imagens GHCR aprovadas, operações de recursos e releases. Operações desconhecidas são rejeitadas e auditadas sem registrar credenciais.
+
+**Atenção:** o executor continua tendo acesso privilegiado ao Docker host. Ele reduz o alcance de uma falha na API, mas não representa isolamento completo contra comprometimento do executor. A implantação na VPS ainda deve ser validada manualmente e não foi realizada nesta etapa.
+
+Veja o [manual de implantação do executor](docs/docker-executor.md) para pré-requisitos, checagens, testes e contingência.
