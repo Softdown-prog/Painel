@@ -22,7 +22,7 @@ type DockerContainer = {
   Id: string; Names?: string[]; Image: string; State?: string; Status?: string;
   Labels?: Record<string, string>; SizeRw?: number;
 };
-type DockerInspect = { Id: string; Name: string; Config?: { Labels?: Record<string, string>; Image?: string }; State?: { Status?: string }; HostConfig?: { Memory?: number; NanoCpus?: number } };
+type DockerInspect = { Id: string; Name: string; Config?: { Labels?: Record<string, string>; Image?: string }; State?: { Status?: string }; HostConfig?: { Memory?: number; NanoCpus?: number; NetworkMode?: string } };
 type Resources = { ramMb: number; cpuCores: number };
 export function validResources(value: Record<string, unknown>): value is Record<string, unknown> & Resources {
   return RAM_CHOICES.includes(value.ramMb as number) && CPU_CHOICES.includes(value.cpuCores as number);
