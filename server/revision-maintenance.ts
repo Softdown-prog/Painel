@@ -83,7 +83,12 @@ export async function revisionReport(dataDir:string,docker:DockerRequest=dockerR
  if(!Array.isArray(containers))throw new CleanupError(502,'Lista do Docker inválida.');
  // The executor returns all panel-managed slots, including the backup and the candidate.
  const owned=containers.filter(isManagedContainer);
- const used=new Set(owned.map(c=>c.ImageID).filter(Boolean));
+ const usedBy=new Map<string,'em_uso'|'reserva'>();
+ for(const c of owned){
+  if(!c.ImageID)continue;
+  const backup=(c.Names||[]).some(name=>name.startsWith('/softload-backup-')||name.startsWith('/softload-candidate-'));
+  if(!usedBy.has(c.ImageID)||!backup)usedBy.set(c.ImageID,backup?'reserva':'em_uso');
+ }
  const recent=latestKeys(imported);
  const lookedUp=new Map<string,Image|null>();
  const entries:Entry[]=[];
@@ -107,7 +112,10 @@ export async function revisionReport(dataDir:string,docker:DockerRequest=dockerR
   if(!Number.isFinite(importedAt) || importedAt>now+DAY){
    status='protegida';reason='Data de importação inválida ou futura.';
   }else if(!image){status='ausente';reason='Registro presente, mas imagem não encontrada no Docker.';}
-  else if(used.has(record.imageId)){status='em_uso';reason='Um container da aplicação, reserva ou rollback usa esta imagem.';}
+  else if(usedBy.has(record.imageId)){
+   status=usedBy.get(record.imageId)!;
+   reason=status==='reserva'?'Imagem guardada para rollback ou teste da próxima versão.':'Esta imagem está associada ao container principal.';
+  }
   else if(recent.has(record.slug+'/'+record.revision)){status='recente';reason='Entre as duas últimas revisões preservadas desta aplicação.';}
   else if(now-importedAt<DAYS*DAY){status='recente';reason='Importada há menos de 14 dias.';}
   entries.push({...record,ref,sizeBytes:image?.Size||0,status,reason});
