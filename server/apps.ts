@@ -23,6 +23,19 @@ function allowedImages(): string[] {
   return (process.env.PANEL_APPS_ALLOWED_IMAGES || '').split(',').map(s => s.trim())
     .filter(s => /^[a-zA-Z0-9][a-zA-Z0-9._/:@-]{0,190}$/.test(s));
 }
+export function managedContainerSpec(slug: string, image: string, labels: Record<string, string> = {}) {
+  return {
+    Image: image, User: '65534:65534',
+    Labels: { [OWNER_LABEL]: 'true', [ID_LABEL]: slug, ...labels },
+    HostConfig: {
+      NetworkMode: 'bridge', ReadonlyRootfs: true,
+      Memory: RAM_BYTES, NanoCpus: CPU_NANOS, PidsLimit: 64,
+      CapDrop: ['ALL'], SecurityOpt: ['no-new-privileges'],
+      Init: false, AutoRemove: false, PublishAllPorts: false,
+      Tmpfs: { '/tmp': 'rw,nosuid,nodev,size=16m,mode=1777' }
+    }
+  };
+}
 export function validSlug(value: unknown): value is string {
   return typeof value === 'string' && /^(?=.{2,40}$)[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
 }
@@ -118,17 +131,7 @@ export async function handleAppRoute(req: IncomingMessage, res: ServerResponse, 
         if (present.some(c => c.Labels?.[ID_LABEL] === slug)) throw new AppError(409, 'Aplicação já existe.');
         const available = await json<Array<{ RepoTags?: string[] }>>(docker, '/images/json');
         if (!available.some(v => v.RepoTags?.includes(image))) throw new AppError(422, 'Imagem não encontrada localmente na VPS.');
-        const spec = {
-          Image: image, User: '65534:65534',
-          Labels: { [OWNER_LABEL]: 'true', [ID_LABEL]: slug },
-          HostConfig: {
-            NetworkMode: 'bridge', ReadonlyRootfs: true,
-            Memory: RAM_BYTES, NanoCpus: CPU_NANOS, PidsLimit: 64,
-            CapDrop: ['ALL'], SecurityOpt: ['no-new-privileges'],
-            Init: false, AutoRemove: false, PublishAllPorts: false,
-            Tmpfs: { '/tmp': 'rw,nosuid,nodev,size=16m,mode=1777' }
-          }
-        };
+        const spec = managedContainerSpec(slug, image);
         const response = await docker('/containers/create?name=' + encodeURIComponent(PREFIX + slug), 'POST', spec);
         if (response.status === 409) throw new AppError(409, 'Já existe um container com esse nome.');
         if (response.status !== 201) throw new AppError(502, 'Docker não conseguiu criar o container (' + response.status + ').');
