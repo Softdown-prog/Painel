@@ -22,7 +22,8 @@ const BUILD_WORKFLOW = 'panel-app-build.yml';
 const MAX_PROJECTS = 8;
 
 class ProjectError extends Error {
-  constructor(readonly status: number, message: string) { super(message); }
+  readonly status: number;
+  constructor(status: number, message: string) { super(message); this.status = status; }
 }
 function storeFile(dataDir: string): string {
   return join(dataDir, 'projects.json');
