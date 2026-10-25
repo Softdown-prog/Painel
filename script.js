@@ -133,7 +133,16 @@ async function loadOverview() {
     setBanner(`VPS conectada · Revisão ${data.currentSha?.slice(0, 8) || 'não disponível'} · Operações exigem confirmação.`, true);
   } catch (error) { toast(`Não foi possível atualizar a VPS: ${error.message}`); }
 }
-function deployRow(run) {
+function deployLabel(run, currentSha) {
+  if (run.sha === currentSha) return 'PUBLICADO NA VPS';
+  if (run.status === 'queued' || run.status === 'pending' || run.status === 'waiting') return 'NA FILA';
+  if (run.status === 'in_progress') return 'EM EXECUÇÃO NO GITHUB';
+  if (run.conclusion === 'success') return 'CONCLUÍDO, NÃO ATIVO';
+  if (run.conclusion === 'cancelled') return 'CANCELADO';
+  if (run.conclusion === 'failure') return 'FALHOU';
+  return run.conclusion || run.status || 'DESCONHECIDO';
+}
+function deployRow(run, currentSha) {
   const row = document.createElement('div');
   row.className = 'deploy-row';
   const revision = document.createElement('span');
@@ -152,8 +161,8 @@ function deployRow(run) {
   const status = document.createElement('span');
   const badge = document.createElement('i');
   badge.className = 'status-badge';
-  badge.textContent = run.conclusion || run.status;
-  if (run.conclusion === 'success') badge.classList.add('success-badge');
+  badge.textContent = deployLabel(run, currentSha);
+  if (run.sha === currentSha) badge.classList.add('success-badge');
   status.append(badge);
   const time = document.createElement('span');
   time.textContent = new Date(run.createdAt).toLocaleString('pt-BR');
@@ -163,23 +172,28 @@ function deployRow(run) {
 async function loadDeploys() {
   if (!authenticated) return;
   try {
-    const data = await api('/deploys');
-    document.getElementById('deployedRevision').textContent = `Em execução: ${data.currentSha?.slice(0, 12) || 'não informado'}`;
-    document.getElementById('deployTag').textContent = 'GITHUB';
+    const [data, overview] = await Promise.all([api('/deploys'), api('/overview')]);
+    const runningServices = (overview.services || []).filter(service => ['app', 'agent', 'sandbox', 'embeddings'].includes(service.id) && service.state === 'running').length;
+    const activeRun = (data.runs || []).find(run => ['queued', 'pending', 'waiting', 'in_progress'].includes(run.status));
+    const vpsState = runningServices === 0 ? 'Em repouso' : runningServices === 4 ? 'Ativa' : 'Inicializando ou parcialmente ativa';
+    const githubState = activeRun ? (activeRun.status === 'in_progress' ? `GitHub executando ${activeRun.sha?.slice(0, 8)}` : `GitHub com ${activeRun.sha?.slice(0, 8)} na fila`) :
+      data.runs?.[0]?.sha !== data.currentSha ? 'Aguardando a próxima publicação' : 'Atualizada';
+    document.getElementById('deployedRevision').textContent = `VPS ${vpsState} · SHA ${data.currentSha?.slice(0, 12) || 'não informado'} · ${githubState}`;
+    document.getElementById('deployTag').textContent = activeRun ? 'DEPLOY EM CURSO' : runningServices === 0 ? 'EM REPOUSO' : 'ATIVA';
     document.getElementById('activityTag').textContent = 'GITHUB';
     const table = document.getElementById('deployTable');
-    table.replaceChildren(table.firstElementChild, ...(data.runs || []).map(deployRow));
+    table.replaceChildren(table.firstElementChild, ...(data.runs || []).map(run => deployRow(run, data.currentSha)));
     const activity = document.getElementById('activityList');
     activity.replaceChildren();
     for (const run of (data.runs || []).slice(0, 3)) {
       const item = document.createElement('div');
       item.className = 'timeline-item';
       const symbol = document.createElement('span');
-      symbol.className = 'timeline-symbol ' + (run.conclusion === 'success' ? 'success' : 'neutral');
-      symbol.textContent = run.conclusion === 'success' ? '✓' : '↗';
+      symbol.className = 'timeline-symbol ' + (run.sha === data.currentSha ? 'success' : 'neutral');
+      symbol.textContent = run.sha === data.currentSha ? '✓' : '↗';
       const content = document.createElement('div');
       const title = document.createElement('strong');
-      title.textContent = `Deploy ${run.conclusion || run.status}`;
+      title.textContent = deployLabel(run, data.currentSha);
       const summary = document.createElement('p');
       summary.textContent = `${run.branch || 'main'} · ${run.sha?.slice(0, 8)}`;
       const time = document.createElement('small');
@@ -189,6 +203,7 @@ async function loadDeploys() {
       activity.append(item);
     }
     if (!data.runs?.length) activity.textContent = 'Histórico indisponível no momento.';
+    document.querySelector('.activity-footer').lastChild.textContent = ` VPS ${vpsState.toLowerCase()} · ${githubState}`;
     window.refreshGitHubRepositories?.();
   } catch (error) { toast(`Deploys: ${error.message}`); }
 }
