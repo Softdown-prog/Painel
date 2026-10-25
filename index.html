@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="projects.css">
   <link rel="stylesheet" href="domains.css">
   <link rel="stylesheet" href="hosting.css">
+  <link rel="stylesheet" href="terminal.css">
 </head>
 <body>
   <div class="app-shell">
@@ -29,6 +30,7 @@
         <a class="nav-item active" href="#overview" data-view="overview"><span class="nav-icon">▦</span> Visão geral</a>
         <a class="nav-item" href="#services" data-view="services"><span class="nav-icon">◫</span> Serviços Softload <span class="nav-count">6</span></a>
         <a class="nav-item" href="#apps" data-view="apps"><span class="nav-icon">⬡</span> Sites e apps</a>
+        <a class="nav-item" href="#terminal" data-view="terminal"><span class="nav-icon">›_</span> Terminal VPS</a>
         <a class="nav-item" href="#projects" data-view="projects"><span class="nav-icon">⌘</span> Projetos GitHub</a>
         <a class="nav-item" href="#domains" data-view="domains"><span class="nav-icon">🌐</span> Endereços</a>
         <a class="nav-item" href="#deploys" data-view="deploys"><span class="nav-icon">⇅</span> Publicações</a>
@@ -124,6 +126,28 @@
           <details class="panel full-panel domain-technical"><summary>Configuração avançada para administrador ou Codex</summary><p>Trecho técnico gerado para Caddy. Antes de colocar no ar, o administrador precisa configurar DNS, HTTPS e recarregar o servidor de rotas.</p><pre id="domainCaddyPreview" class="log-console domain-caddy-preview">Sem configuração carregada.</pre></details>
         </section>
 
+        <section class="view" id="terminal" data-title="Terminal VPS">
+          <div class="page-heading"><div><div class="eyebrow">ADMINISTRAÇÃO / VPS</div><h1>Terminal da VPS</h1><p>Consulte e administre seus serviços digitando comandos simples. A comunicação usa a API privada da VPS.</p></div><button id="terminalHelpButton" type="button" class="secondary-button">? Comandos</button></div>
+          <section class="panel full-panel terminal-wrapper" aria-label="Terminal de comandos da VPS">
+            <div class="terminal-toolbar"><span class="terminal-light" id="terminalLight"></span><strong>Softload VPS CLI</strong><span id="terminalConnection">Sessão não verificada</span><button type="button" id="terminalClearButton" class="secondary-button">Limpar tela</button></div>
+            <div id="terminalOutput" class="terminal-output" role="log" aria-live="polite" aria-relevant="additions text" tabindex="0">Digite ajuda para ver os comandos disponíveis.</div>
+            <form id="terminalForm" class="terminal-form">
+              <label for="terminalInput" class="terminal-prompt">vps &gt;</label>
+              <input id="terminalInput" type="text" maxlength="180" placeholder="Ex.: status, servicos, apps, reiniciar app" autocomplete="off" spellcheck="false" aria-label="Comando para a VPS">
+              <button type="submit" class="primary-button" id="terminalRunButton">Executar</button>
+            </form>
+            <p class="terminal-footnote">Comandos administrativos são executados na VPS pela API existente e podem pedir confirmação. Não é um shell Linux irrestrito: use <strong>ajuda</strong> para ver as operações disponíveis.</p>
+          </section>
+          <div class="terminal-shortcuts" aria-label="Comandos rápidos">
+            <button type="button" data-terminal-command="status">Estado da VPS</button>
+            <button type="button" data-terminal-command="servicos">Serviços Softload</button>
+            <button type="button" data-terminal-command="apps">Sites e apps</button>
+            <button type="button" data-terminal-command="dominios">Endereços</button>
+            <button type="button" data-terminal-command="ajuda">Lista de comandos</button>
+          </div>
+          <p class="terminal-guide">Para instalar um terminal Linux completo por SSH no futuro, há uma tarefa específica no <a href="https://github.com/Softdown-prog/Painel/blob/main/docs/TAREFAS-CODEX.md" target="_blank" rel="noopener noreferrer">guia técnico</a>. Este terminal já permite operar funções que a API da VPS autoriza, sem esperar pelo Codex.</p>
+        </section>
+
         <section class="view" id="projects" data-title="Projetos GitHub">
           <div class="page-heading"><div><div class="eyebrow">CÓDIGO / GITHUB</div><h1>Projetos GitHub</h1><p>Ligue o código à aplicação para acompanhar novas versões.</p></div><button class="primary-button" id="projectsRefreshButton" type="button">↻ Atualizar</button></div>
           <div class="panel full-panel"><div class="panel-head"><div><h2>Ligar aplicação ao código</h2><p>Primeiro <a href="#apps" class="text-link">crie uma aplicação</a> e depois <a href="#deploys" class="text-link">conecte o GitHub</a>.</p></div><span class="outline-tag">BUILD SEGURO</span></div>
@@ -172,5 +196,6 @@
   <script src="apps-ui.js" defer></script>
   <script src="projects-ui.js" defer></script>
   <script src="domains-ui.js" defer></script>
+  <script src="terminal-ui.js" defer></script>
 </body>
 </html>
