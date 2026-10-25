@@ -2,7 +2,6 @@
 # Read-only production preflight. Never starts/stops containers or changes volumes.
 set -euo pipefail
 cd "$(dirname "$0")"
-cd ..
 
 compose=(-f compose.yaml)
 for overlay in "$@"; do
