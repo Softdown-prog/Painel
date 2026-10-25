@@ -1,6 +1,6 @@
 # Softload Console — Painel da VPS
 
-Painel: https://softload-vps-panel.pages.dev
+Painel: https://panel.analysepro.com (alternativo: https://softload-vps-panel.pages.dev)
 
 Cada push na `main` executa `.github/workflows/deploy-pages.yml`: testes, build do frontend e publicação no projeto Cloudflare Pages `softload-vps-panel`. O workflow usa um token exclusivo `Pages Write` armazenado em `CLOUDFLARE_API_TOKEN` nos segredos GitHub. `CLOUDFLARE_ACCOUNT_ID` está no mesmo local. As credenciais da API privada da VPS permanecem nos segredos do Cloudflare Pages.
 
