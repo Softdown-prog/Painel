@@ -20,7 +20,7 @@ test('setup, login, session and logout require the edge key', async () => {
   const keyPath = join(dir, 'edge-key');
   writeFileSync(keyPath, key);
   const port = await freePort();
-  const child = spawn(process.execPath, [join(import.meta.dirname, 'api.mjs')], {
+  const child = spawn(process.execPath, ['--experimental-strip-types', join(import.meta.dirname, 'api.mjs')], {
     env: { ...process.env, PORT: String(port), PANEL_DATA_DIR: dir, PANEL_EDGE_KEY_FILE: keyPath },
     stdio: ['ignore', 'pipe', 'pipe']
   });
