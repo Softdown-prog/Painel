@@ -42,6 +42,29 @@
         cell('td',date(entry.importedAt)));
       row.title=entry.reason;entries.append(row);
     }
+    const host=report.hostInventory;
+    const hostTable=get('revisionsHostImages');hostTable.replaceChildren();
+    const groups=get('revisionsHostGroups');groups.replaceChildren();
+    if(!host?.available){
+      get('revisionsHostSummary').textContent='Não foi possível consultar o inventário completo do Docker nesta VPS.';
+      hostTable.append(cell('tr','')); // The table remains empty until the next successful refresh.
+    }else{
+      get('revisionsHostSummary').textContent=host.total+' imagens Docker encontradas · '+host.untagged+
+        ' sem tag · tamanhos somados: '+bytes(host.totalBytesEstimate)+
+        ' (estimativa, sem deduplicar camadas compartilhadas).';
+      for(const group of host.multipleVersionRepositories){
+        const span=cell('span',group.repository+' · '+group.versions+' versões locais');
+        groups.append(span);
+      }
+      if(!host.multipleVersionRepositories.length)groups.textContent='Nenhum repositório com múltiplas versões identificado nas imagens listadas.';
+      for(const image of host.images.slice(0,75)){
+        const row=document.createElement('tr');
+        row.append(cell('td',image.tags.join(', ')||'(sem tag)'),cell('td',image.id.slice(0,18)),
+          cell('td',bytes(image.sizeBytes)),cell('td',image.createdAt?date(image.createdAt):'desconhecida'));
+        hostTable.append(row);
+      }
+      if(!host.images.length)hostTable.textContent='Nenhuma imagem listada.';
+    }
     const history=get('revisionsHistory');history.replaceChildren();
     if(!report.history.length)history.textContent='Nenhuma limpeza foi registrada neste painel.';
     for(const item of [...report.history].reverse().slice(0,12)){
