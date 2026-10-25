@@ -1,0 +1,6 @@
+# Optional GHCR import by immutable digest. Default disabled.
+# Public GHCR packages need no credential; for private packages also use compose.ghcr-private.yaml.
+services:
+  api:
+    environment:
+      PANEL_GHCR_PULL_ENABLED: "${PANEL_GHCR_PULL_ENABLED:-0}"
