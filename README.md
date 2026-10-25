@@ -114,3 +114,43 @@ As APIs dessa etapa estão em server/apps.ts, com testes em server/apps.test.mjs
 Um processo com acesso ao Docker socket possui poderes administrativos efetivos sobre o host, **mesmo quando o socket é montado com :ro**. As validações acima protegem as rotas publicadas, mas não protegem contra comprometimento do próprio processo da API. **Não exponha esta interface a usuários não confiáveis.** Para uma versão multiusuário será necessário um agente isolado ou um proxy de API Docker com permissões estritas e auditoria antes de permitir provisionamento de aplicações.
 
 Próximos passos: integrar builds e imagens produzidas pelo GitHub Actions, organizar o catálogo de projetos, configuração segura de domínios/portas/variáveis e rollback, e concluir a migração de server/api.mjs e script.js para TypeScript.
+
+## Projetos: GitHub + aplicações Docker (segunda etapa)
+
+A aba **Projetos** reúne a conexão GitHub (aba Deploys) com uma aplicação já criada na aba Aplicações. Os dados do vínculo são armazenados no volume protegido da API em `projects.json`, sem credenciais.
+
+### Fluxo disponível
+
+1. Conecte o repositório pela aba Deploys. Configure seu workflow como `panel-app-build.yml`.
+2. No repositório da aplicação, copie o conteúdo de `templates/panel-app-build.yml` para `.github/workflows/panel-app-build.yml`. O repositório da aplicação precisa ter um `Dockerfile` válido e habilitar gravação de pacotes no GitHub Actions.
+3. Crie uma aplicação na aba Aplicações usando uma imagem local permitida (com a funcionalidade de aplicações habilitada).
+4. Na aba Projetos, associe essa aplicação ao repositório GitHub. A vinculação exige que a API confirme que o container foi criado pelo painel, verificando o nome e as labels de propriedade.
+5. Consulte os builds ou execute manualmente o workflow após habilitar `PANEL_PROJECT_BUILDS_ENABLED=1`.
+
+O workflow de exemplo compila e publica uma imagem com tag vinculada ao SHA do commit, em `ghcr.io/owner/repository:sha-<commit>`. **Ele não faz deploy, pull ou troca de containers na VPS.** A publicação na VPS e o rollback continuam pendentes da implantação de um agente restrito e de um mecanismo de troca controlada.
+
+### API
+
+| Método | Endpoint | Descrição |
+| --- | --- | --- |
+| GET | /projects | Listar vínculos, branch, workflow e permissão de build |
+| POST | /projects | Associar `slug` de app existente e `repository` já conectado |
+| DELETE | /projects/:slug | Desvincular sem apagar aplicação |
+| GET | /projects/:slug/runs | Histórico do workflow de build |
+| POST | /projects/:slug/build | Solicitar `workflow_dispatch` do workflow dedicado de build |
+
+Somente o arquivo com nome exato `panel-app-build.yml` pode ser acionado pela rota de build, para impedir que um botão dessa área dispare o deploy principal da Softload V4. O comando de build é desligado por padrão.
+
+Para habilitar explicitamente na VPS, inclua o overlay `server/compose.projects.yaml` junto aos overlays de GitHub e Aplicações:
+
+    export PANEL_PROJECT_BUILDS_ENABLED=1
+    docker compose -f compose.yaml -f compose.github.yaml -f compose.apps.yaml -f compose.projects.yaml up -d --build api
+
+Esse comando requer que as variáveis e o arquivo do token GitHub já tenham sido configurados conforme os passos acima. Use `PANEL_PROJECT_BUILDS_ENABLED=0` para desligar novamente. Uma execução aceita pelo GitHub não significa que o build finalizou ou que o container foi atualizado.
+
+### Pendências antes do deploy automático completo
+
+- Validar a origem e o digest imutável da imagem publicada no GHCR, com credenciais de leitura restritas ao pacote.
+- Fazer `pull` em uma zona restrita, verificar saúde, trocar o container gerenciado e reter a imagem anterior para rollback.
+- Permitir configuração segura e auditável de domínio, porta, variáveis e volumes, sem permitir acesso a containers de produção não gerenciados.
+- Migrar o código legado de `server/api.mjs` e `script.js` para TypeScript; nessa etapa o módulo `server/projects.ts` e a interface `projects-ui.ts` já foram escritos em TypeScript.
