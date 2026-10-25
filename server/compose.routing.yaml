@@ -1,0 +1,35 @@
+# Experimental isolated application gateway, NOT the existing softload-caddy.
+# Include only after provisioning DNS and explicit wildcard route in production Caddy.
+# Generated routes require an operator-triggered caddy reload in this gateway.
+services:
+  api:
+    environment:
+      PANEL_DOMAINS_ENABLED: "${PANEL_DOMAINS_ENABLED:-0}"
+      PANEL_APPS_DOMAIN_ZONE: "${PANEL_APPS_DOMAIN_ZONE:-}"
+      PANEL_APPS_NETWORK: softload_panel_apps
+  app-gateway:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    volumes:
+      - ./router/Caddyfile:/etc/caddy/Caddyfile:ro
+      - panel_data:/config/panel:ro
+    networks:
+      - proxy
+      - panel_apps
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+      - /data:size=16m,mode=1777
+      - /config/caddy:size=8m,mode=1777
+    mem_limit: 128m
+    cpus: "0.5"
+    pids_limit: 64
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+networks:
+  panel_apps:
+    name: softload_panel_apps
+    driver: bridge
