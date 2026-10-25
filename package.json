@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test server/api.test.mjs server/github.test.mjs server/apps.test.mjs server/projects.test.mjs server/releases.test.mjs server/image-import.test.mjs server/domains.test.mjs server/executor-policy.test.mjs server/executor.integration.test.mjs server/hosting-ux.test.mjs server/terminal-ui.test.mjs server/terminal-ssh.test.mjs server/revision-maintenance.test.mjs server/site-detail-ui.test.mjs",
+    "test": "node --experimental-strip-types --test server/api.test.mjs server/github.test.mjs server/apps.test.mjs server/projects.test.mjs server/releases.test.mjs server/image-import.test.mjs server/domains.test.mjs server/executor-policy.test.mjs server/executor.integration.test.mjs server/hosting-ux.test.mjs server/terminal-ui.test.mjs server/terminal-ssh.test.mjs server/revision-maintenance.test.mjs server/site-detail-ui.test.mjs server/publish-ui.test.mjs",
     "check:js": "node --check script.js && node --check github-ui.js && node --check apps-ui.js && node --check projects-ui.js && node --check domains-ui.js && node --check server/executor.mjs && node --check terminal-ui.js && node --check revisions-ui.js && node --check site-detail-ui.js",
     "build:frontend": "tsc github-ui.ts apps-ui.ts projects-ui.ts domains-ui.ts terminal-ui.ts --target ES2022 --module none --lib ES2022,DOM --skipLibCheck revisions-ui.ts site-detail-ui.ts"
   },
