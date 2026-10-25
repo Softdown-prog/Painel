@@ -47,7 +47,7 @@ async function authorizedContainer(id:string,inspect:(id:string)=>Promise<Inspec
  if(operation==='delete'&&(item.State?.Running||item.State?.Status==='running'))return denied('Must stop container before removal');
  return {...approved(name),targetId:item.Id};
 }
-export async function authorize(input:{method:string;url:string;payload?:unknown;inspect:(id:string)=>Promise<Inspect|null>;images?:string[];ghcrOwner?:string}):Promise<Decision>{
+export async function authorize(input:{method:string;url:string;payload?:unknown;inspect:(id:string)=>Promise<Inspect|null>;inspectImage?: (ref:string)=>Promise<{Id?:string;RepoDigests?:string[]}|null>;imageUsed?: (id:string)=>Promise<boolean>;images?:string[];ghcrOwner?:string}):Promise<Decision>{
  const {method,payload,inspect}=input;
  let u:URL;
  try{u=new URL(input.url,'http://docker.internal')}catch{return denied('Malformed URI')}
@@ -79,6 +79,21 @@ export async function authorize(input:{method:string;url:string;payload?:unknown
    const prefix='ghcr.io/'+ownerName.toLowerCase()+'/';
    return [...q.keys()].join(',')==='fromImage'&&ref.startsWith(prefix)&&
      /^[a-z0-9_.-]+@sha256:[a-f0-9]{64}$/.test(ref.slice(prefix.length))?approved():denied('Unapproved image pull');
+ }
+ if(method==='DELETE'&&path.startsWith('/images/')) {
+  if(q.get('force')!=='0'||q.get('noprune')!=='1'||[...q.keys()].length!==2||!input.inspectImage||!input.imageUsed)
+   return denied('Unsafe image deletion');
+  let ref:string;
+  try{ref=decodeURIComponent(path.slice('/images/'.length));}catch{return denied('Invalid image reference');}
+  const allowedOwner=(input.ghcrOwner||'Softdown-prog').toLowerCase();
+  if(!/^[a-z0-9-]{1,39}$/.test(allowedOwner)||!ref.startsWith('ghcr.io/'+allowedOwner+'/')||
+    !/^[a-z0-9_.-]+@sha256:[a-f0-9]{64}$/.test(ref.slice(('ghcr.io/'+allowedOwner+'/').length)))
+   return denied('Only imported GHCR digests may be removed');
+  const image=await input.inspectImage(ref);
+  if(!image?.Id||!/^sha256:[a-f0-9]{64}$/.test(image.Id)||!image.RepoDigests?.includes(ref))
+   return denied('Image identity could not be verified');
+  if(await input.imageUsed(image.Id))return denied('Image used by a container on this host');
+  return approved(ref);
  }
  const route=/^\/containers\/([^/]+)(?:\/(json|logs|stats|start|stop|restart|rename|update))?$/.exec(path);
  if(!route)return denied('Operation not allowlisted');
