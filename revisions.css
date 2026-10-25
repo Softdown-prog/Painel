@@ -19,3 +19,7 @@
 .revision-checked{margin:12px 20px 17px;color:#aeb8c7;font-size:11px}
 @media(max-width:950px){.revision-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:580px){.revision-stats{grid-template-columns:1fr 1fr;gap:8px}.revision-stat{padding:13px}.revision-stat strong{font-size:19px}.revision-history-line{flex-direction:column;gap:3px}.revision-notice{margin:12px}.revision-scroll{margin:12px}}
+
+.revision-host-groups{margin:4px 20px;display:flex;flex-wrap:wrap;gap:7px}
+.revision-host-groups span{border:1px solid #554466;background:#2d2839;color:#dac9f3;border-radius:7px;font-size:11px;padding:6px 9px;overflow-wrap:anywhere}
+@media(max-width:580px){.revision-host-groups{margin:10px 12px}}
