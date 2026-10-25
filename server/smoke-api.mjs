@@ -63,6 +63,13 @@ async function main() {
   assert.deepEqual(apps.data.applications, []);
   assert.equal(apps.data.enabled, false);
 
+  const revisions = await call('/maintenance/revisions','GET',undefined,cookie);
+  assert.equal(revisions.status,200,JSON.stringify(revisions.data));
+  assert.equal(revisions.data.totalImports,0);
+  assert.equal(revisions.data.oldCount,0);
+  assert.equal(revisions.data.enabled,false);
+  assert.equal(revisions.data.hostInventory.available,true);
+  assert.ok(revisions.data.hostInventory.total>=0);
   const overview = await call('/overview','GET',undefined,cookie);
   assert.equal(overview.status, 200, JSON.stringify(overview.data));
   assert.equal(overview.data.services.length, 6);
