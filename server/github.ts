@@ -39,7 +39,7 @@ export function validWorkflow(value: unknown): value is string {
   return typeof value === 'string' && /^[A-Za-z0-9_.-]{1,80}\.ya?ml$/.test(value);
 }
 function repositoryFile(dataDir: string): string { return join(dataDir, 'github-repositories.json'); }
-function readRepositories(dataDir: string): LinkedRepository[] {
+export function readRepositories(dataDir: string): LinkedRepository[] {
   const path = repositoryFile(dataDir);
   if (!existsSync(path)) return [initial];
   const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
@@ -58,7 +58,7 @@ class GitHubError extends Error {
   readonly status: number;
   constructor(status: number, message: string) { super(message); this.status = status; }
 }
-async function github(path: string, method = 'GET', payload?: object): Promise<any> {
+export async function github(path: string, method = 'GET', payload?: object): Promise<any> {
   const secret = token();
   if (method !== 'GET' && !secret) throw new GitHubError(503, 'Configure o token do GitHub na VPS para habilitar alterações.');
   const response = await fetch('https://api.github.com' + path, {
