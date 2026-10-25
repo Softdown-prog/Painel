@@ -7,6 +7,7 @@
   let projects: ProjectLink[] = [];
   let buildsEnabled = false;
   const releaseReady = new Set<string>();
+  const importReady = new Set<string>();
   const get = (id: string): HTMLElement => {
     const el = document.getElementById(id);
     if (!el) throw new Error('Elemento ausente: ' + id);
@@ -49,6 +50,21 @@
         const status = document.createElement('span');
         status.textContent = ' · ' + (run.conclusion || run.status) + ' · ' + new Date(run.createdAt).toLocaleString('pt-BR');
         line.append(link, status);
+        if (run.conclusion === 'success' && importReady.has(slug)) {
+          line.append(button('Importar do GHCR', async () => {
+            if (!confirm('Importar esta revisão do GHCR por digest SHA-256? A operação não altera containers em execução.')) return;
+            try {
+              const result = await call('/projects/' + slug + '/images/import', {
+                method: 'POST', headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ runId: run.id })
+              });
+              notice('Download iniciado para ' + String(result.revision || '').slice(0, 8) +
+                '. Atualize o projeto para conferir o resultado antes de preparar a versão.');
+              const project = projects.find(p => p.slug === slug);
+              if (project) await showReleaseStatus(project, releaseHost);
+            } catch (error) { notice(error instanceof Error ? error.message : 'Falha ao importar imagem.'); }
+          }));
+        }
         if (run.conclusion === 'success' && releaseReady.has(slug)) {
           line.append(button('Preparar na VPS', async () => {
             if (!confirm('Preparar a imagem desta revisão na VPS? A imagem deve ter sido importada previamente. O container atual permanecerá ativo.')) return;
@@ -82,6 +98,15 @@
           ' (' + status.candidate.health + ')' : '') +
         (status.backup ? ' · Backup disponível' : '');
       host.append(info);
+      const imageStatus = await call('/projects/' + project.slug + '/images/import');
+      if (imageStatus.enabled) importReady.add(project.slug);
+      else importReady.delete(project.slug);
+      const importLine = document.createElement('small');
+      importLine.textContent = 'GHCR: ' + (imageStatus.job?.status || (imageStatus.imported ? 'importado' : 'sem importação')) +
+        (imageStatus.imported ? ' · Digest ' + String(imageStatus.imported.digest).slice(0, 20) + '…' : '') +
+        (imageStatus.job?.message ? ' · ' + imageStatus.job.message : '');
+      host.append(importLine);
+
       if (status.enabled && status.candidate?.health === 'healthy' && !status.backup) {
         host.append(button('Publicar candidata', async () => {
           if (!confirm('Substituir ' + project.slug + ' pela candidata saudável? A aplicação poderá ficar indisponível brevemente.')) return;
@@ -108,6 +133,29 @@
       }
     } catch (error) {
       host.textContent = error instanceof Error ? error.message : 'Publicação indisponível.';
+    }
+    try {
+      const recovery = await call('/projects/' + project.slug + '/releases/recovery');
+      const detail = document.createElement('small');
+      detail.textContent = 'Recuperação: ' + recovery.detail;
+      host.append(detail);
+      if (recovery.enabled && recovery.state === 'recoverable') {
+        host.append(button('Restaurar estado seguro', async () => {
+          if (!confirm('Executar recuperação de ' + project.slug + '? A versão anterior poderá ser reiniciada. Confirme somente se nenhuma manutenção externa estiver em andamento.')) return;
+          try {
+            await call('/projects/' + project.slug + '/releases/recovery', {
+              method: 'POST', headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ confirm: 'RESTORE_SAFE_STATE' })
+            });
+            notice('Recuperação executada. Verifique novamente os containers.');
+          } catch (error) { notice(error instanceof Error ? error.message : 'Falha na recuperação.'); }
+          await showReleaseStatus(project, host);
+        }));
+      }
+    } catch {
+      const warning = document.createElement('small');
+      warning.textContent = 'Diagnóstico de recuperação indisponível.';
+      host.append(warning);
     }
   }
   async function releaseOperation(project: ProjectLink, action: 'promote' | 'rollback', host: HTMLElement): Promise<void> {
