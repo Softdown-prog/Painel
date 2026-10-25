@@ -28,6 +28,7 @@ test('Unix executor rejects forbidden Docker calls and forwards authorized mutat
   const daemon=http.createServer((req,res)=>{
     requests.push({path:req.url,method:req.method});
     const reply=(code,data)=>{res.writeHead(code,{'content-type':'application/json'});res.end(JSON.stringify(data));};
+    if(req.method==='GET' && req.url==='/_ping')return reply(200,{ok:true});
     if(req.method==='GET' && req.url==='/v1.45/containers/softload-app-demo/json')
       return reply(200,{Id:ident,Name:'/softload-app-demo',Config:{Labels:labels},State:{Running:true,Status:'running'}});
     if(req.method==='GET' && req.url==='/v1.45/containers/json?all=1')
