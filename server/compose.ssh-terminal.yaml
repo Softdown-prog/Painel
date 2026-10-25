@@ -1,0 +1,17 @@
+# Optional operator-managed SSH access from the Panel API to the SAME VPS.
+# Must NOT be enabled without installing and checking the SSH key and known_hosts on the host.
+# This overlay never exposes an extra public port and does not change the Softload runner.
+services:
+  api:
+    environment:
+      PANEL_TERMINAL_SSH_ENABLED: "${PANEL_TERMINAL_SSH_ENABLED:-0}"
+      PANEL_TERMINAL_SSH_HOST: "${PANEL_TERMINAL_SSH_HOST:-host.docker.internal}"
+      PANEL_TERMINAL_SSH_USER: "${PANEL_TERMINAL_SSH_USER:-panelops}"
+      PANEL_TERMINAL_SSH_PORT: "${PANEL_TERMINAL_SSH_PORT:-22}"
+      PANEL_TERMINAL_SSH_KEY_FILE: /run/secrets/panel-ssh-key
+      PANEL_TERMINAL_SSH_KNOWN_HOSTS: /run/secrets/panel-ssh-known-hosts
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /etc/softload-panel/terminal-ssh-key:/run/secrets/panel-ssh-key:ro
+      - /etc/softload-panel/terminal-ssh-known-hosts:/run/secrets/panel-ssh-known-hosts:ro
