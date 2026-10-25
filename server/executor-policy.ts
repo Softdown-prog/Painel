@@ -1,5 +1,5 @@
 export type Inspect = { Id?: string; Name?: string; Config?: { Labels?: Record<string,string> }; State?: { Running?: boolean; Status?: string } };
-export type Decision = { ok: boolean; reason: string; filterList?: boolean; name?: string };
+export type Decision = { ok: boolean; reason: string; filterList?: boolean; name?: string; targetId?: string };
 const owner='com.softload.panel.managed', slugLabel='com.softload.panel.slug';
 const services=new Set(['softload-vps-app-1','softload-vps-agent-1','softload-vps-sandbox-1','softload-vps-embeddings-1']);
 const monitor=new Set(['softload-caddy','softload-portainer']);
@@ -39,13 +39,13 @@ async function authorizedContainer(id:string,inspect:(id:string)=>Promise<Inspec
  if(!item?.Id||!item.Name?.startsWith('/'))return denied('Container does not exist');
  const name=item.Name.slice(1);
  if(id!==name&&id!==item.Id)return denied('Inspect target mismatch');
- if(services.has(name))return ['read','start','stop','restart'].includes(operation)?approved(name):denied('Protected service');
- if(monitor.has(name))return operation==='read'?approved(name):denied('Read-only system service');
+ if(services.has(name))return ['read','start','stop','restart'].includes(operation)?{...approved(name),targetId:item.Id}:denied('Protected service');
+ if(monitor.has(name))return operation==='read'?{...approved(name),targetId:item.Id}:denied('Read-only system service');
  const slot=slots.exec(name);
  if(!slot||slot[2].length>40||item.Config?.Labels?.[owner]!=='true'||item.Config.Labels[slugLabel]!==slot[2])return denied('Unmanaged container');
  if(slot[1]==='candidate'&&item.Config.Labels['com.softload.panel.release-role']!=='candidate')return denied('Untrusted release slot');
  if(operation==='delete'&&(item.State?.Running||item.State?.Status==='running'))return denied('Must stop container before removal');
- return approved(name);
+ return {...approved(name),targetId:item.Id};
 }
 export async function authorize(input:{method:string;url:string;payload?:unknown;inspect:(id:string)=>Promise<Inspect|null>;images?:string[];ghcrOwner?:string}):Promise<Decision>{
  const {method,payload,inspect}=input;
