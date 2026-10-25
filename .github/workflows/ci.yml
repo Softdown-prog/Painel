@@ -19,4 +19,4 @@ jobs:
       - run: docker compose -f server/compose.yaml -f server/compose.apps.yaml -f server/compose.routing.yaml config --quiet
       - run: bash -n server/preflight-vps.sh
       - run: npm run check:js
-      - run: npm run build:frontend && node --check github-ui.js && node --check apps-ui.js && node --check projects-ui.js && node --check domains-ui.js
+      - run: npm run build:frontend && node --check github-ui.js && node --check apps-ui.js && node --check projects-ui.js && node --check domains-ui.js && node --check terminal-ui.js
