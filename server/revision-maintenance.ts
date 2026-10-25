@@ -8,8 +8,12 @@ type Import = ReturnType<typeof readImports>[number];
 type Image = { Id?: string; Size?: number; RepoDigests?: string[] };
 type Container = { Id?: string; ImageID?: string; Names?: string[]; Labels?: Record<string,string>; State?: string };
 type Entry = Import & { ref: string; sizeBytes: number; status: 'em_uso'|'reserva'|'recente'|'protegida'|'antiga'|'ausente'; reason: string };
-type Report = { checkedAt: string; enabled: boolean; automatic: boolean; ageDays: number; keepPerApp: number; totalImports: number; oldCount: number; oldBytesEstimate: number; entries: Entry[]; history: History[]; lastResult: History | null };
+type Report = { checkedAt: string; enabled: boolean; automatic: boolean; ageDays: number; keepPerApp: number; totalImports: number; oldCount: number; oldBytesEstimate: number; entries: Entry[]; history: History[]; lastResult: History | null; hostInventory: HostInventory };
 type History = { at: string; source: 'manual'|'automatic'; considered: number; removed: number; failed: number; bytesEstimate: number; message: string };
+type HostImage = { Id?:string; RepoTags?:string[]; RepoDigests?:string[]; Size?:number; Created?:number; Containers?:number };
+type HostInventory = { available:boolean; total:number; totalBytesEstimate:number; untagged:number;
+ multipleVersionRepositories:{repository:string;versions:number}[]; images:{id:string;tags:string[];sizeBytes:number;createdAt:string|null;containers:number|null}[] };
+
 type Deps = {
  dataDir: string;
  send: (res: ServerResponse,status:number,value:unknown)=>void;
@@ -75,8 +79,40 @@ function latestKeys(imports:Import[]):Set<string>{
  }
  return keep;
 }
+async function hostInventory(docker:DockerRequest):Promise<HostInventory>{
+ const unavailable:HostInventory={available:false,total:0,totalBytesEstimate:0,untagged:0,multipleVersionRepositories:[],images:[]};
+ try{
+  const result=await docker('/images/json');
+  if(result.status!==200)return unavailable;
+  const raw=parse<HostImage[]>(result.buffer);
+  if(!Array.isArray(raw))return unavailable;
+  const images=raw.slice(0,250).map(i=>({
+   id:String(i.Id||'').slice(0,30),
+   tags:Array.isArray(i.RepoTags)?i.RepoTags.filter(x=>x&&x!=='<none>:<none>').slice(0,5):[],
+   sizeBytes:Number.isFinite(i.Size)?Math.max(0,i.Size||0):0,
+   createdAt:Number.isFinite(i.Created)?new Date((i.Created||0)*1000).toISOString():null,
+   containers:Number.isSafeInteger(i.Containers)&&i.Containers!>=0?i.Containers!:null
+  }));
+  const groups=new Map<string,Set<string>>();
+  for(const i of images)for(const tag of i.tags){
+   const separator=tag.lastIndexOf(':');
+   if(separator<0)continue;
+   const repo=tag.slice(0,separator);
+   if(!repo)continue;
+   const versions=groups.get(repo)||new Set<string>();versions.add(i.id);groups.set(repo,versions);
+  }
+  const multipleVersionRepositories=[...groups.entries()].filter(([,ids])=>ids.size>1)
+    .map(([repository,ids])=>({repository,versions:ids.size}))
+    .sort((a,b)=>b.versions-a.versions).slice(0,30);
+  return {available:true,total:raw.length,
+   totalBytesEstimate:images.reduce((v,i)=>v+i.sizeBytes,0),
+   untagged:images.filter(i=>!i.tags.length).length,multipleVersionRepositories,images};
+ }catch{return unavailable;}
+}
+
 export async function revisionReport(dataDir:string,docker:DockerRequest=dockerRequest,now=Date.now()):Promise<Report>{
  const imported=verifiedImports(dataDir);
+ const hostImages=await hostInventory(docker);
  const listResponse=await docker('/containers/json?all=1');
  if(listResponse.status!==200)throw new CleanupError(502,'Não foi possível verificar os containers. Nenhuma limpeza será feita.');
  const containers=parse<Container[]>(listResponse.buffer);
@@ -135,7 +171,7 @@ export async function revisionReport(dataDir:string,docker:DockerRequest=dockerR
    totalImports:entries.length,oldCount:oldRefs.size,
    oldBytesEstimate:[...oldRefs.values()].reduce((sum,e)=>sum+e.sizeBytes,0),
    entries:entries.slice().sort((a,b)=>Date.parse(b.importedAt)-Date.parse(a.importedAt)),
-   history,lastResult:history.at(-1)||null};
+   history,lastResult:history.at(-1)||null,hostInventory:hostImages};
 }
 async function perform(dataDir:string,docker:DockerRequest,now:number,source:'manual'|'automatic'):Promise<History>{
  if(cleaning)throw new CleanupError(409,'Uma limpeza já está em andamento.');
