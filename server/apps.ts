@@ -98,12 +98,12 @@ function allowedImages(): string[] {
   return (process.env.PANEL_APPS_ALLOWED_IMAGES || '').split(',').map(s => s.trim())
     .filter(s => /^[a-zA-Z0-9][a-zA-Z0-9._/:@-]{0,190}$/.test(s));
 }
-export function managedContainerSpec(slug: string, image: string, labels: Record<string, string> = {}, resources: Resources = { ramMb: 256, cpuCores: 0.5 }) {
+export function managedContainerSpec(slug: string, image: string, labels: Record<string, string> = {}, resources: Resources = { ramMb: 256, cpuCores: 0.5 }, networkMode = process.env.PANEL_APPS_NETWORK === 'softload_panel_apps' ? 'softload_panel_apps' : 'bridge') {
   return {
     Image: image, User: '65534:65534',
     Labels: { [OWNER_LABEL]: 'true', [ID_LABEL]: slug, ...labels },
     HostConfig: {
-      NetworkMode: 'bridge', ReadonlyRootfs: true,
+      NetworkMode: networkMode === 'softload_panel_apps' ? networkMode : 'bridge', ReadonlyRootfs: true,
       ...limits(resources), PidsLimit: 64,
       CapDrop: ['ALL'], SecurityOpt: ['no-new-privileges'],
       Init: false, AutoRemove: false, PublishAllPorts: false,
@@ -283,6 +283,12 @@ export async function handleAppRoute(req: IncomingMessage, res: ServerResponse, 
       return true;
     }
     if (!operation && req.method === 'DELETE') {
+      const domainRegistry = join(dataDir, 'domain-routes.json');
+      if (existsSync(domainRegistry)) {
+        const routes = JSON.parse(readFileSync(domainRegistry, 'utf8')) as Array<{ slug?: unknown }>;
+        if (!Array.isArray(routes) || routes.some(route => route?.slug === slug))
+          throw new AppError(409, 'Remova o domínio cadastrado antes de excluir a aplicação.');
+      }
       if (details.State?.Status === 'running') throw new AppError(409, 'Pare a aplicação antes de remover o container.');
       const response = await docker('/containers/' + encodeURIComponent(details.Id) + '?force=0&v=0', 'DELETE');
       if (response.status !== 204) throw new AppError(502, 'Docker não removeu o container (' + response.status + ').');
