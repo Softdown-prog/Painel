@@ -247,8 +247,6 @@ document.getElementById('authForm').addEventListener('submit', async event => {
       await Promise.all([loadOverview(), loadDeploys()]);
       if (location.hash === '#logs') loadLogs();
       if (location.hash === '#apps') window.refreshManagedApplications?.();
-    if (location.hash === '#projects') window.refreshManagedProjects?.();
-    if (location.hash === '#domains') window.refreshManagedDomains?.();
       if (location.hash === '#projects') window.refreshManagedProjects?.();
       if (location.hash === '#domains') window.refreshManagedDomains?.();
     }
@@ -291,6 +289,8 @@ api('/session').then(data => {
     document.getElementById('logoutButton').hidden = false;
     Promise.all([loadOverview(), loadDeploys()]);
     if (location.hash === '#apps') window.refreshManagedApplications?.();
+    if (location.hash === '#projects') window.refreshManagedProjects?.();
+    if (location.hash === '#domains') window.refreshManagedDomains?.();
   } else showAuth(data.setupRequired);
 }).catch(() => {
   setBanner('API indisponível. Os valores exibidos são apenas exemplos; nenhuma ação alcança a VPS.');
