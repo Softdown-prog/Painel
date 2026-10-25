@@ -4,6 +4,14 @@ Painel: https://panel.analysepro.com (alternativo: https://softload-vps-panel.pa
 
 Cada push na `main` executa `.github/workflows/deploy-pages.yml`: testes, build do frontend e publicação no projeto Cloudflare Pages `softload-vps-panel`. O workflow usa um token exclusivo `Pages Write` armazenado em `CLOUDFLARE_API_TOKEN` nos segredos GitHub. `CLOUDFLARE_ACCOUNT_ID` está no mesmo local. As credenciais da API privada da VPS permanecem nos segredos do Cloudflare Pages.
 
+## Comece aqui — sem conhecer Docker
+
+O painel foi pensado para criar e administrar sites rapidamente. Use [Guia rápido do painel](docs/GUIA-RAPIDO.md) para entender as telas: **Sites e apps**, **Projetos GitHub** e **Endereços**. Configurações internas do servidor ficam em **Avançado**.
+
+**Para o Codex:** as limitações, problemas que ainda dependem de acesso à VPS, próximos serviços, hospedagem de clientes e expansão para várias VPS estão em [Tarefas do Codex](docs/TAREFAS-CODEX.md). As instruções para o agente estão em [AGENTS.md](AGENTS.md). O backlog distingue código pronto de funcionalidades já validadas na produção.
+
+**Aviso importante:** neste protótipo o máximo atual é **8 aplicações gerenciadas**; registrar um domínio ainda **não o publica** automaticamente na internet. A ampliação para clientes e muitas VPS é uma tarefa planejada, não algo concluído.
+
 ## Arquitetura atual
 
 Cloudflare Pages -> Function TypeScript -> Cloudflare Access -> Cloudflare Tunnel -> API privada da VPS -> Docker.
