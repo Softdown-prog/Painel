@@ -57,6 +57,12 @@ O usuário quer ações simples: **Criar site**, **Conectar GitHub**, **Escolher
 
 ### C03 · Publicar projeto GitHub em fluxo guiado
 
+**Parcialmente implementado no frontend (2026-10-25):** o botão **Publicar revisão** apareceu nos builds concluídos com sucesso. Ele consulta o estado real, importa a imagem GHCR por digest quando necessário, espera a verificação de importação, prepara a candidata, espera o HEALTHCHECK `healthy` e envia a promoção com `expectedRevision` (SHA esperado). O backend confere a revisão candidata sob o lock da operação. Não remove o backup da publicação anterior. O fluxo está coberto pelo teste `server/publish-ui.test.mjs`.
+
+**Ainda pendente:** transformar a operação em *job durável* na API, com idempotência, acompanhamento independente do navegador, retomada após fechar a aba/cair a rede e concorrência segura entre instâncias. Hoje o botão funciona **apenas após um build concluído com sucesso** e com módulos `PANEL_GHCR_PULL_ENABLED`/`PANEL_RELEASES_ENABLED` ligados na VPS; ele **não dispara build, aguarda build e publica em um só job de servidor**. Sem backend atualizado e habilitado, não faz publicação. Não declarar entrega ponta a ponta antes do teste de homologação na VPS.
+
+
+
 **Por que:** conectar repositório, gerar imagem, importar e promover ainda exige várias etapas manuais.
 
 **Onde olhar:** `github-ui.ts`, `projects-ui.ts`, `server/github.ts`, `server/projects.ts`, `server/image-import.ts`, `server/releases.ts`, `templates/panel-app-build.yml`.
@@ -97,6 +103,10 @@ O usuário quer ações simples: **Criar site**, **Conectar GitHub**, **Escolher
 ## P1 — Hospedar clientes com praticidade
 
 ### C05 · Tela única “Meus sites”
+
+**Parcialmente implementado no frontend (2026-10-25):** link **Painel completo** em cada aplicação e página `#site?slug=<nome>` com estado do container, limites, disco gravado, imagem, GitHub, endereço reservado, versão, backup, iniciar/parar/reiniciar, edição de RAM/CPU/ociosidade e registros Docker. Reutiliza APIs já existentes em vez de criar comandos SSH arbitrários. Testes `server/site-detail-ui.test.mjs` confirmam informações e validações básicas. O endereço é mostrado como reservado; não afirma publicação HTTPS.
+**Ainda pendente:** CPU/RAM de uso real por aplicação em histórico, métricas de rede e armazenamento persistente, filtro/pesquisa para muitos sites, visualização automática de saúde HTTP externo e validação na VPS.
+
 Mostrar nome, endereço, status **confirmado**, consumo, GitHub conectado, último deploy e ações `Abrir site`, `Atualizar`, `Reiniciar`, `Ver registros`, `Backup`. Ajustar `index.html`, `apps-ui.ts` e backend necessário. Fazer pesquisa e filtros para dezenas/centenas de sites; **não** carregar todos os logs de uma vez. Aceite: administrar um site frequente sem passar por várias telas.
 
 ### C06 · Arquivos, variáveis e bancos de dados
