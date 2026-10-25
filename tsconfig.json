@@ -21,6 +21,7 @@
     "functions/**/*.ts",
     "github-ui.ts",
     "apps-ui.ts",
-    "projects-ui.ts"
+    "projects-ui.ts",
+    "domains-ui.ts"
   ]
 }
