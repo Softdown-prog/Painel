@@ -28,6 +28,36 @@ async function dockerInspect(id) {
     req.on('error',reject);req.on('timeout',()=>req.destroy(new Error('Docker inspect timeout')));req.end();
   });
 }
+async function internalJson(path) {
+  return new Promise((resolve,reject)=>{
+    const request=http.request({socketPath:dockerSocket,path,method:'GET',timeout:12000},response=>{
+      if(response.statusCode===404){response.resume();resolve(null);return;}
+      if(response.statusCode!==200){response.resume();reject(new Error('Docker internal query failed'));return;}
+      const parts=[];let size=0;
+      response.on('data',chunk=>{
+        size+=chunk.length;
+        if(size>2000000)request.destroy(new Error('Docker internal query oversized'));
+        else parts.push(chunk);
+      });
+      response.on('end',()=>{try{resolve(JSON.parse(Buffer.concat(parts).toString('utf8')));}
+        catch(error){reject(error);}});
+    });
+    request.on('timeout',()=>request.destroy(new Error('Docker internal query timeout')));
+    request.on('error',reject);request.end();
+  });
+}
+async function inspectDockerImage(ref) {
+  return internalJson('/v1.45/images/'+encodeURIComponent(ref)+'/json');
+}
+async function imageUsedAnywhere(id) {
+  const all=await internalJson('/v1.45/containers/json?all=1');
+  if(!Array.isArray(all))throw new Error('Host container list unavailable');
+  return all.some(container=>{
+    // Unknown image identity means deny removal rather than guessing.
+    if(typeof container.ImageID!=='string')return true;
+    return container.ImageID===id;
+  });
+}
 async function body(req) {
   if(req.method!=='POST' || req.url?.includes('/images/create')) return undefined;
   const chunks=[];let size=0;
@@ -98,7 +128,7 @@ const server=http.createServer(async(req,res)=>{
   try{
     const payload=await body(req);
     const decision=await authorize({method:req.method||'',url:req.url||'',payload,
-      inspect:dockerInspect,images,ghcrOwner});
+      inspect:dockerInspect,inspectImage:inspectDockerImage,imageUsed:imageUsedAnywhere,images,ghcrOwner});
     audit(req.method||'',req.url||'',decision.ok?200:403,decision.reason);
     if(!decision.ok)return json(res,403,{error:'Docker operation denied by executor'});
     proxy(req,res,payload,decision);
