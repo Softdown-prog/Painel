@@ -1,0 +1,16 @@
+{
+  "name": "softload-console",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test server/api.test.mjs server/github.test.mjs",
+    "check:js": "node --check script.js && node --check github-ui.js",
+    "build:frontend": "tsc github-ui.ts --target ES2022 --module none --lib ES2022,DOM --skipLibCheck"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.3"
+  }
+}
