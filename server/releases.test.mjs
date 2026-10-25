@@ -96,7 +96,10 @@ test('staging requires approved run, immutable local image and healthy promotion
     assert.equal(createCall.payload.HostConfig.PublishAllPorts, false);
     assert.equal((await request('/projects/demo/releases/promote', 'POST')).status, 409);
     docker.images.get('softload-candidate-demo').State.Health.Status = 'healthy';
-    assert.equal((await request('/projects/demo/releases/promote', 'POST')).status, 200);
+    assert.equal((await request('/projects/demo/releases/promote', 'POST', { expectedRevision: '0'.repeat(40) })).status, 409);
+    assert.ok(docker.images.has('softload-candidate-demo'), 'Wrong revision must not trigger a promotion');
+    assert.equal((await request('/projects/demo/releases/promote', 'POST', { expectedRevision: 'invalid' })).status, 400);
+    assert.equal((await request('/projects/demo/releases/promote', 'POST', { expectedRevision: sha })).status, 200);
     assert.equal(docker.images.get('softload-app-demo').Config.Labels[role], 'candidate');
     assert.equal(docker.images.get('softload-backup-demo').State.Status, 'exited');
     const blocked = await request('/projects/demo/releases/stage', 'POST', { runId: 987 });
