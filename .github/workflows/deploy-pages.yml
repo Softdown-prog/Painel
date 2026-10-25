@@ -1,0 +1,47 @@
+name: Deploy panel to Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: softload-vps-panel-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install and verify
+        run: |
+          npm install --no-audit --no-fund
+          npm run typecheck
+          npm test
+          npm run build:frontend
+          npm run check:js
+
+      - name: Prepare static site
+        run: |
+          mkdir dist
+          cp index.html *.css *.js dist/
+
+      - name: Deploy Pages and Functions
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=softload-vps-panel --branch=main
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

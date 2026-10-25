@@ -2,3 +2,4 @@ dist/
 .cloudflare/
 .wrangler/
 .secrets/
+node_modules/
