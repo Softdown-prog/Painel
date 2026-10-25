@@ -37,7 +37,7 @@ function mount(responses = {}) {
     querySelectorAll:()=>[]
   };
   const window={};
-  runInNewContext(source,{document,window,fetch:api,location:{hash:'#overview'},confirm:message=>{confirms.push(message);return true;}, console,Number,String,Boolean,Array,Object,Date,Reflect,Math,RegExp,Error,encodeURIComponent});
+  runInNewContext(source,{document,window,fetch:api,location:{hash:'#overview'},confirm:message=>{confirms.push(message);return true;}, prompt:()=> 'secret-test-password', console,Number,String,Boolean,Array,Object,Date,Reflect,Math,RegExp,Error,encodeURIComponent});
   async function command(text) {
     const form=element('terminalForm');
     element('terminalInput').value=text;
@@ -83,4 +83,21 @@ test('CLI creates a domain via the actual API and reports it as only reserved',a
   const request=cli.requested.find(x=>x.url==='/api/domains');
   assert.equal(request?.options.method,'POST');
   assert.equal(JSON.parse(request.options.body).port,3000);
+});
+
+test('opt-in Linux commands unlock with password and use SSH backend rather than browser shell', async()=>{
+  const cli=mount({
+    '/api/terminal/ssh/status':{enabled:true,configured:true,unlocked:false},
+    'POST /api/terminal/ssh/unlock':{token:'a'.repeat(64),expiresInSeconds:600},
+    'POST /api/terminal/ssh/exec':{exitCode:0,output:'vps online',timedOut:false,truncated:false}
+  });
+  const output=await cli.command('linux uptime');
+  assert.match(output,/LINUX DA VPS/);
+  assert.match(output,/vps online/);
+  const unlock=cli.requested.find(x=>x.url==='/api/terminal/ssh/unlock');
+  assert.equal(unlock?.options.method,'POST');
+  assert.equal(JSON.parse(unlock.options.body).password,'secret-test-password');
+  const execution=cli.requested.find(x=>x.url==='/api/terminal/ssh/exec');
+  assert.equal(JSON.parse(execution.options.body).command,'uptime');
+  assert.ok(!output.includes('secret-test-password'), 'Never expose password in terminal history');
 });
