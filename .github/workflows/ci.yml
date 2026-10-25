@@ -21,4 +21,4 @@ jobs:
       - run: docker compose -f server/compose.yaml -f server/compose.revisions.yaml config --quiet
       - run: bash -n server/preflight-vps.sh
       - run: npm run check:js
-      - run: npm run build:frontend && node --check github-ui.js && node --check apps-ui.js && node --check projects-ui.js && node --check domains-ui.js && node --check terminal-ui.js && node --check revisions-ui.js
+      - run: npm run build:frontend && node --check github-ui.js && node --check apps-ui.js && node --check projects-ui.js && node --check domains-ui.js && node --check terminal-ui.js && node --check revisions-ui.js && node --check site-detail-ui.js
