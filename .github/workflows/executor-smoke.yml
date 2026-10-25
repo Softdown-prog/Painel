@@ -51,7 +51,8 @@ jobs:
           docker volume create "$sock" >/dev/null
           docker volume create "$data" >/dev/null
           printf '%s\n' 'ci-test-edge-key-with-at-least-32-characters-only' > "$tmp/edge-key"
-          chmod 600 "$tmp/edge-key"
+          # The CI-only fake key must be readable under Docker user-namespace remapping.
+          chmod 644 "$tmp/edge-key"
           docker run -d --name "$ex" --network none --read-only --cap-drop ALL \
             --security-opt no-new-privileges --pids-limit 64 --memory 128m --cpus 0.25 \
             --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
