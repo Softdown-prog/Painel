@@ -49,7 +49,7 @@ export async function dockerRequest(path: string, method = 'GET', payload?: unkn
     req.end(data);
   });
 }
-class AppError extends Error {
+export class AppError extends Error {
   readonly status: number;
   constructor(status: number, message: string) { super(message); this.status = status; }
 }
