@@ -204,6 +204,7 @@ function showView(name) {
   document.title = `${view.dataset.title} — Softload Console`;
   if (view.id === 'logs') loadLogs();
   if (view.id === 'deploys') loadDeploys();
+  if (view.id === 'apps' && authenticated) window.refreshManagedApplications?.();
 }
 window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
 showView(location.hash.slice(1));
@@ -233,6 +234,7 @@ document.getElementById('authForm').addEventListener('submit', async event => {
       document.getElementById('password').value = '';
       await Promise.all([loadOverview(), loadDeploys()]);
       if (location.hash === '#logs') loadLogs();
+      if (location.hash === '#apps') window.refreshManagedApplications?.();
     }
   } catch (error) { errorBox.textContent = error.message; }
   finally { button.disabled = false; }
@@ -271,6 +273,7 @@ api('/session').then(data => {
     authenticated = true;
     document.getElementById('logoutButton').hidden = false;
     Promise.all([loadOverview(), loadDeploys()]);
+    if (location.hash === '#apps') window.refreshManagedApplications?.();
   } else showAuth(data.setupRequired);
 }).catch(() => {
   setBanner('API indisponível. Os valores exibidos são apenas exemplos; nenhuma ação alcança a VPS.');
