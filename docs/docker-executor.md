@@ -26,6 +26,12 @@ Essas regras são uma fronteira de autorização entre a API e o Docker, mas o p
 
 Pré-requisitos: backup verificável do projeto e do volume `softload_panel_data`, Docker Compose atualizado, acesso administrativo e uma janela de manutenção. Confira a configuração efetiva e todos os overlays usados na VPS antes de recriar serviços.
 
+Antes de qualquer alteração, execute o **pré-diagnóstico somente leitura** no diretório `server`:
+
+    bash preflight-vps.sh
+
+Se o Painel utiliza overlays, informe seus nomes como argumentos, por exemplo `bash preflight-vps.sh compose.apps.yaml compose.github.yaml`. O script verifica a configuração mesclada sem exibir segredos, o daemon, volumes e os containers conhecidos; não recria serviços. O proprietário do volume `/data` merece atenção: a API roda com UID 0, porém sem capacidades Linux; portanto, um volume pertencente a outro UID pode impedir gravações, mesmo que o processo seja root. **Não altere a propriedade de volumes existentes enquanto a API estiver ativa e sem backup.**
+
     cd /caminho/real/do/Painel/server
     docker compose -f compose.yaml config
     docker compose -f compose.yaml build executor api
@@ -58,3 +64,13 @@ Se o novo executor falhar, mantenha os serviços de produção intactos e diagno
 - Política por projeto/usuário e autorização no daemon (plugin de autorização Docker ou um controlador de escopo ainda menor).
 - Confirmações, idempotência e journal transacional de releases; detecção de atualizações concorrentes entre instâncias.
 - Prometheus/observabilidade, limites de taxa e alertas para operações negadas e repetidas.
+
+## Verificação adicional em Docker real no GitHub
+
+O workflow `.github/workflows/executor-smoke.yml` constrói a API e o executor em uma máquina efêmera hospedada no GitHub e inicia ambos com os limites de CPU, RAM, filesystem somente leitura e capacidades removidas. Não usa o Docker daemon da VPS. O teste executa inicialização administrativa de dados descartáveis, valida a autenticação por segredo de borda e sessão, consulta `/services`, `/apps` e `/overview`, e confirma que operações de criação continuam proibidas por padrão.
+
+Esse teste revelou um problema real de permissão: a imagem original criava `/data` sob o UID `node`, enquanto o processo efetivo da API usava UID 0 sem `CAP_DAC_OVERRIDE`. Em volumes iniciais com UID 1000 e modo 0755, a API não conseguia criar `/data/setup-token`. O Dockerfile foi alinhado ao UID efetivo, e o smoke test agora inicializa e testa explicitamente o volume descartável com as capacidades removidas. Em instalações existentes, é necessário verificar a propriedade real do volume e corrigir somente após backup e inspeção autorizada.
+
+## Limitação de acesso remoto
+
+O repositório Painel não possui, nesta etapa, um workflow configurado para atualizar sua API diretamente na VPS. No repositório Softloadv4, o runner `softloadrunner` é deliberadamente sem Docker e sem `sudo`; a ação de deploy desse projeto usa SSH com comandos restritos próprios. Essas permissões não devem ser ampliadas ou contornadas para atualizar outro serviço. A implantação definitiva do Painel depende de um mecanismo **específico e aprovado para o painel**, executado por um administrador da VPS, com auditoria e rollback.
