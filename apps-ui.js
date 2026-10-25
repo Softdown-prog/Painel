@@ -114,6 +114,12 @@
                 else
                     addButton(actions, app, 'start', 'Iniciar');
                 addButton(actions, app, 'logs', 'Ver registros');
+                const detailLink = document.createElement('a');
+                detailLink.className = 'app-shortcut';
+                detailLink.href = '#site?slug=' + encodeURIComponent(app.slug);
+                detailLink.textContent = 'Painel completo';
+                detailLink.addEventListener('click', () => Object.assign(window, { panelSelectedAppSlug: app.slug }));
+                actions.prepend(detailLink);
                 for (const shortcut of [
                     { text: 'Ligar ao GitHub', hash: '#projects' },
                     { text: 'Escolher endereço', hash: '#domains' }
