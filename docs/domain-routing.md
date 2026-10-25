@@ -8,13 +8,13 @@ A aba Domínios prepara subdomínios para aplicações Docker gerenciadas. Os ar
 - Somente até oito aplicações gerenciadas pelo Painel, verificadas por nome e labels, na rede softload_panel_apps podem receber rotas; portas HTTP internas entre 1024 e 65535.
 - Os containers preexistentes na rede bridge não são migrados automaticamente. O overlay atribui a rede isolada somente aos novos containers; releases preservam o modo de rede do container anterior.
 - Registrar/remover gera configuração em /data/caddy/managed-apps.caddy e um cadastro em /data/domain-routes.json, no volume do Painel. A alteração não muda DNS, não recarrega o Caddy e não garante disponibilidade pública.
-- O serviço novo app-gateway escuta internamente em 8081 e não publica portas 80/443 nem monta o Docker socket. O Caddy existente permanece intocado.
+- O serviço novo app-gateway escuta internamente em 8081 e não publica portas 80/443 nem monta o Docker socket. O Caddy existente permanece intocado no código; o operador deverá conectá-lo à rede de aplicativos antes de ativar o roteamento.
 
 ## Implantação opcional
 
 1. Revise sua configuração existente e crie um registro DNS curinga para a zona dos aplicativos, apontando para a entrada pública apropriada da VPS.
 2. Configure HTTPS para a zona no Caddy existente. Certificados wildcard exigem DNS-01 ou um certificado wildcard previamente emitido; apenas cadastrar o DNS não basta.
-3. Adicione ao Caddy existente uma regra estritamente limitada à zona de aplicativos, encaminhando as requisições para app-gateway:8081, preservando Host. Não utilize uma regra que capture os domínios da Softload.
+3. Após instalar o overlay, conecte manualmente o container Caddy frontal identificado na VPS à rede softload_panel_apps (no projeto original, o nome esperado é softload-caddy): docker network connect softload_panel_apps softload-caddy. Confira o nome real e o estado dos serviços antes de executar. Acrescente à configuração do Caddy existente uma regra estritamente limitada à zona de aplicativos, encaminhando as requisições para app-gateway:8081, preservando Host. Não capture os domínios da Softload. O gateway fica somente na rede dedicada, não na rede proxy de produção.
 4. Habilite o overlay apenas após revisar todos os overlays e dependências usados na VPS:
 
     cd /caminho/real/do/Painel/server
@@ -44,5 +44,5 @@ A exclusão de um container com domínio registrado é bloqueada. Remova a rota 
 
 - DNS e TLS são configurados pelo operador. O fluxo atual não efetua reload automático do Caddy de produção nem do gateway.
 - O proxy poderá retornar 502 para aplicações paradas. Ainda não há ativação sob demanda, monitoramento de saúde pelo gateway nem migração de volumes.
-- A API principal continua com Docker socket de poder administrativo. O gateway não tem esse socket, porém um executor Docker de permissões estritas ainda é necessário antes de oferecer a terceiros.
+- A API principal continua com Docker socket de poder administrativo. O gateway não tem esse socket nem pertence à rede proxy de produção, porém um executor Docker de permissões estritas ainda é necessário antes de oferecer a terceiros.
 - A publicação de releases atual pode provocar pequena indisponibilidade na troca de nomes.
