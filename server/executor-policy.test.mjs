@@ -89,3 +89,18 @@ test('GHCR pulls require fixed owner and digest; image operations reject arbitra
  assert.equal((await check('POST','/v1.45/images/create?fromImage='+encodeURIComponent('ghcr.io/softdown-prog/x:latest'))).ok,false);
  assert.equal((await check('DELETE','/v1.45/images/'+encodeURIComponent(good))).ok,false);
 });
+
+test('image cleanup allows only verified GHCR digests unused by ALL containers',async()=>{
+ const ref='ghcr.io/softdown-prog/shop@sha256:'+'a'.repeat(64);
+ const path='/v1.45/images/'+encodeURIComponent(ref)+'?force=0&noprune=1';
+ const base={method:'DELETE',url:path,inspect,ghcrOwner:'Softdown-prog',
+  inspectImage:async()=>({Id:'sha256:'+'b'.repeat(64),RepoDigests:[ref]}),
+  imageUsed:async()=>false};
+ assert.equal((await authorize(base)).ok,true);
+ assert.equal((await authorize({...base,imageUsed:async()=>true})).ok,false);
+ assert.equal((await authorize({...base,inspectImage:async()=>null})).ok,false);
+ assert.equal((await authorize({...base,url:path.replace('force=0','force=1')})).ok,false);
+ assert.equal((await authorize({...base,url:'/v1.45/images/'+encodeURIComponent('ghcr.io/attacker/shop@sha256:'+'a'.repeat(64))+'?force=0&noprune=1'})).ok,false);
+ assert.equal((await authorize({...base,inspectImage:undefined})).ok,false);
+ assert.equal((await authorize({...base,imageUsed:undefined})).ok,false);
+});
