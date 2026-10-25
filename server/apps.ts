@@ -75,7 +75,7 @@ async function listManaged(docker: DockerRequest): Promise<DockerContainer[]> {
   const all = await json<DockerContainer[]>(docker, '/containers/json?all=1&filters=' + filters);
   return all.filter(safeContainer);
 }
-async function inspectOwned(docker: DockerRequest, slug: string): Promise<DockerInspect> {
+export async function inspectOwned(docker: DockerRequest, slug: string): Promise<DockerInspect> {
   const result = await docker('/containers/' + encodeURIComponent(PREFIX + slug) + '/json');
   if (result.status === 404) throw new AppError(404, 'Aplicação não encontrada.');
   if (result.status >= 400) throw new AppError(502, 'Falha ao consultar aplicação no Docker.');
