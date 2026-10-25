@@ -1,0 +1,7 @@
+# Disabled by default. The API can stage/promote/rollback only panel-managed containers.
+# Requires an operator-approved GHCR image already imported into the VPS Docker image store.
+# The operator must review this experimental feature before enabling.
+services:
+  api:
+    environment:
+      PANEL_RELEASES_ENABLED: "${PANEL_RELEASES_ENABLED:-0}"
