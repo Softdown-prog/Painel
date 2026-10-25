@@ -6,6 +6,7 @@
   interface ProjectsResponse { projects: ProjectLink[]; buildsEnabled: boolean; requiredWorkflow: string }
   let projects: ProjectLink[] = [];
   let buildsEnabled = false;
+  const releaseReady = new Set<string>();
   const get = (id: string): HTMLElement => {
     const el = document.getElementById(id);
     if (!el) throw new Error('Elemento ausente: ' + id);
@@ -48,7 +49,7 @@
         const status = document.createElement('span');
         status.textContent = ' · ' + (run.conclusion || run.status) + ' · ' + new Date(run.createdAt).toLocaleString('pt-BR');
         line.append(link, status);
-        if (run.conclusion === 'success' && buildsEnabled) {
+        if (run.conclusion === 'success' && releaseReady.has(slug)) {
           line.append(button('Preparar na VPS', async () => {
             if (!confirm('Preparar a imagem desta revisão na VPS? A imagem deve ter sido importada previamente. O container atual permanecerá ativo.')) return;
             try {
@@ -71,6 +72,8 @@
     host.textContent = 'Verificando publicação na VPS...';
     try {
       const status = await call('/projects/' + project.slug + '/releases');
+      if (status.enabled) releaseReady.add(project.slug);
+      else releaseReady.delete(project.slug);
       host.replaceChildren();
       const info = document.createElement('small');
       info.textContent = 'Publicação ' + (status.enabled ? 'habilitada' : 'desabilitada') +
