@@ -63,7 +63,7 @@ A CI em .github/workflows/ci.yml verifica tipos, testes, sintaxe JavaScript e bu
 
 ## Segurança e limitações
 
-- Os seis serviços originais permanecem identificados por nome fixo. A aba Aplicações já permite criar e controlar containers gerenciados separadamente; ainda faltam portas, domínios, variáveis, volumes persistentes, publicação de revisões e rollback.
+- Os seis serviços originais continuam identificados por nome fixo. A aba Aplicações já permite criar containers separadamente; o fluxo experimental de releases, importação GHCR por digest e rollback manual está implementado. Faltam portas, domínios, volumes persistentes, alta disponibilidade e isolamento do Docker socket.
 - Mesmo com o arquivo docker.sock montado como read-only, a API Docker permite operações de escrita. O código atual limita ações, mas antes de disponibilizar o painel a outros usuários é importante isolar o controle Docker atrás de um agente com permissões mínimas.
 - Evite reutilizar credenciais SSH root ou chaves de produção entre repositórios; exija CI e proteção da branch para produção.
 - A aceitação HTTP 204 do GitHub confirma somente que o pedido de execução foi recebido, **não** que o deploy terminou com sucesso.
@@ -165,7 +165,7 @@ A aba **Projetos** agora tem preparação de versão, promoção para o nome pri
 
 - O projeto precisa estar vinculado a um repositório cadastrado com `panel-app-build.yml`.
 - O build informado precisa ter **conclusão bem-sucedida**, ter sido executado na branch autorizada, no repositório correto e no workflow dedicado.
-- A imagem **precisa já estar na VPS** com a tag `ghcr.io/owner/repo:sha-<SHA_DO_COMMIT>`. O Painel **ainda não baixa imagens** automaticamente do GHCR.
+- A imagem precisa ser importada pelo fluxo GHCR por digest, com registro da revisão aprovada e digest SHA-256. A preparação recusa imagens sem esse registro (veja a seção seguinte).
 - O Docker inspeciona a imagem local, confere o ID imutável `sha256`, a tag, as labels OCI `org.opencontainers.image.source` e `org.opencontainers.image.revision`, além de exigir um `HEALTHCHECK` declarado na imagem.
 - É necessário que o container principal esteja em execução. A candidata é criada com as mesmas restrições de CPU, RAM, capacidades e filesystem da aba Aplicações, sem montar volumes ou expor portas.
 
@@ -192,14 +192,18 @@ docker compose -f compose.yaml -f compose.github.yaml -f compose.apps.yaml -f co
 
 Esse comando é **orientação de instalação**, não foi executado nesta alteração. Não rode sem revisar as variáveis dos outros overlays e sem ter certeza de que a API e o Docker estão protegidos.
 
-Para importar **manualmente** uma imagem pública já revisada, use o Docker na VPS com o SHA completo do commit de um build aprovado: `docker pull ghcr.io/owner/repo:sha-<SHA_DO_COMMIT>`. Pacotes privados exigem autenticação com permissões mínimas somente de leitura. Nunca coloque tokens no frontend, no repositório, nas URLs ou em parâmetros de comandos que possam ser expostos.
+A importação agora é feita na aba Projetos pelo GHCR por digest, sem Docker CLI manual, após habilitar a função experimental. Para pacotes privados, monte credenciais de leitura somente no servidor. Nunca publique tokens no frontend, repositório ou URLs.
 
 ### Limites que permanecem
 
 - Esse é um mecanismo inicial de **troca com pequena interrupção**, não um balanceamento sem downtime. Não há roteamento por domínio, migração de volumes nem distribuição de tráfego.
 - A candidata precisa reportar `healthy` pelo Docker. Imagens sem `HEALTHCHECK` explícito não são aceitas.
-- O Painel ainda **não executa pull autenticado, verificação criptográfica de assinatura/attestation da imagem ou atualização automática após build**. Labels OCI e metadados do GitHub ajudam a verificar consistência, mas não substituem uma cadeia de suprimentos confiável.
+- O painel oferece pull autenticado opcional por digest, mas **não verifica assinaturas/attestations nem substitui automaticamente containers após o build**. Labels OCI e metadados do GitHub ajudam a conferir consistência, não provam autoria criptograficamente.
 - Se o processo da API ou o Docker cair durante renomeações, pode ser necessária intervenção administrativa para reparar nomes e estados. Os dados do container antigo não são apagados automaticamente.
 - O `docker.sock` dá poderes administrativos ao processo mesmo montado `:ro`; mantenha acesso estritamente administrativo e evolua para um agente restrito antes de oferecer a terceiros.
 
-**Próxima etapa:** fluxo de importação verificada por digest do GHCR, recuperação transacional de operações interrompidas, roteamento por domínio e observabilidade pós-deploy.
+**Próxima etapa:** roteamento por domínio, observabilidade pós-deploy, journal transacional para recuperação e isolamento do Docker socket.
+
+## Quarta etapa: importação GHCR e recuperação
+
+Foi acrescentada a importação opt-in de imagens GHCR por digest SHA-256, com consulta do status da operação, persistência da revisão/digest, preparação condicionada ao registro validado e recuperação explícita de estados interrompidos. Consulte o [manual operacional](docs/ghcr-import-and-recovery.md) para APIs, configuração segura de credenciais e limites de segurança.
