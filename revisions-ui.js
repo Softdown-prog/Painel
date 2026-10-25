@@ -26,6 +26,10 @@
     get('revisionsAuto').textContent=report.automatic&&report.enabled?'Ligada · a cada 6 horas':'Desligada';
     get('revisionsRetention').textContent='Mantendo pelo menos '+report.keepPerApp+
       ' revisões por aplicação e protegendo as importadas há menos de '+report.ageDays+' dias.';
+    const autoButton=get('revisionsAutoButton');
+    autoButton.disabled=!report.enabled;
+    autoButton.textContent=report.automatic?'Pausar limpeza automática':'Ativar limpeza automática';
+    autoButton.dataset.automatic=String(report.automatic);
     const button=get('revisionsCleanupButton');
     button.disabled=!report.enabled||report.oldCount===0;
     button.title=!report.enabled?'A limpeza precisa ser habilitada pelo administrador na VPS.':report.oldCount===0?'Não há imagens antigas elegíveis.':'Excluir apenas imagens antigas verificadas';
@@ -60,6 +64,21 @@
         '. O frontend sozinho não consegue garantir que imagens antigas foram removidas.');
     }
   }
+  get('revisionsAutoButton').addEventListener('click',async()=>{
+    const element=get('revisionsAutoButton');
+    const next=element.dataset.automatic!=='true';
+    if(!confirm(next
+      ? 'Ativar limpeza automática a cada 6 horas?\n\nSomente imagens importadas há mais de 14 dias e fora das duas versões preservadas por aplicação poderão ser removidas.'
+      : 'Pausar a limpeza automática de revisões antigas?'))return;
+    element.disabled=true;
+    try{
+      const result=await call('/maintenance/revisions/settings',{method:'POST',
+        headers:{'content-type':'application/json'},body:JSON.stringify({automatic:next})});
+      info(result.message||'Configuração salva.');
+      await refreshManagedRevisions();
+    }catch(error){info(error instanceof Error?error.message:'Não foi possível mudar a limpeza automática.');
+      await refreshManagedRevisions();}
+  });
   get('revisionsRefreshButton').addEventListener('click',()=>void refreshManagedRevisions());
   get('revisionsCleanupButton').addEventListener('click',async()=>{
     if(!confirm('Excluir SOMENTE imagens antigas importadas pelo Painel?\\n\\nA versão em uso, backups, containers e volumes serão preservados. A operação não poderá ser desfeita.'))return;
