@@ -53,6 +53,7 @@ test('read API supports only bounded allowlisted requests and filters nonowned c
   assert.equal((await check('GET',url)).ok,false,url);
  }
  assert.equal((await check('GET','/v1.45/containers/softload-app-demo/json')).ok,true);
+ assert.equal((await check('GET','/v1.45/containers/softload-app-demo/json')).targetId,fake.Id);
  assert.equal((await check('GET','/v1.45/containers/'+fake.Id+'/json')).ok,true);
  assert.equal((await check('GET','/v1.45/containers/softload-caddy/json')).ok,true);
  assert.equal((await check('GET','/v1.45/system/df?type=images')).ok,true);
