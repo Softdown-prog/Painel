@@ -140,3 +140,30 @@ test('read-only Docker-wide inventory remains optional if host image listing is 
   assert.equal(x.deleted.length,0);
  }finally{x.destroy();}
 });
+
+test('cleanup does not delete a digest if a new import arrives after the inventory snapshot',async()=>{
+ const x=env();
+ try{
+  let modified=false;
+  const docker=async(path,method)=>{
+   const result=await x.docker(path,method);
+   if(path.startsWith('/images/')&&path.endsWith('/json')&&!modified){
+    modified=true;
+    const newer=record(1,0,'outro-cliente');
+    writeFileSync(join(x.dir,'image-imports.json'),JSON.stringify([...x.items,newer]));
+   }
+   return result;
+  };
+  let received;
+  await handleRevisionRoute({url:'/maintenance/revisions/cleanup',method:'POST'}, {}, {
+   enabled:true,dataDir:x.dir,docker,now:()=>now,
+   body:async()=>({confirm:'LIMPAR_REVISOES_ANTIGAS'}),
+   send(_res,status,data){received={status,...data};}
+  });
+  assert.equal(received.status,200);
+  assert.equal(received.failed,1,'The concurrently reused digest must not be deleted');
+  assert.ok(!x.deleted.some(ref=>ref.endsWith('1'.repeat(64))));
+  const data=JSON.parse(readFileSync(join(x.dir,'image-imports.json'),'utf8'));
+  assert.ok(data.some(r=>r.slug==='outro-cliente'));
+ }finally{x.destroy();}
+});
