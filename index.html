@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="domains.css">
   <link rel="stylesheet" href="hosting.css">
   <link rel="stylesheet" href="terminal.css">
+  <link rel="stylesheet" href="revisions.css">
 </head>
 <body>
   <div class="app-shell">
@@ -31,6 +32,7 @@
         <a class="nav-item" href="#services" data-view="services"><span class="nav-icon">◫</span> Serviços Softload <span class="nav-count">6</span></a>
         <a class="nav-item" href="#apps" data-view="apps"><span class="nav-icon">⬡</span> Sites e apps</a>
         <a class="nav-item" href="#terminal" data-view="terminal"><span class="nav-icon">›_</span> Terminal VPS</a>
+        <a class="nav-item" href="#revisions" data-view="revisions"><span class="nav-icon">◴</span> Revisões e espaço</a>
         <a class="nav-item" href="#projects" data-view="projects"><span class="nav-icon">⌘</span> Projetos GitHub</a>
         <a class="nav-item" href="#domains" data-view="domains"><span class="nav-icon">🌐</span> Endereços</a>
         <a class="nav-item" href="#deploys" data-view="deploys"><span class="nav-icon">⇅</span> Publicações</a>
@@ -126,6 +128,22 @@
           <details class="panel full-panel domain-technical"><summary>Configuração avançada para administrador ou Codex</summary><p>Trecho técnico gerado para Caddy. Antes de colocar no ar, o administrador precisa configurar DNS, HTTPS e recarregar o servidor de rotas.</p><pre id="domainCaddyPreview" class="log-console domain-caddy-preview">Sem configuração carregada.</pre></details>
         </section>
 
+        <section class="view" id="revisions" data-title="Revisões e espaço">
+          <div class="page-heading"><div><div class="eyebrow">MANUTENÇÃO / IMAGENS DOCKER</div><h1>Revisões e espaço</h1><p>Confira versões antigas, veja o que está protegido e acompanhe a limpeza sem apagar seu site.</p></div><button type="button" class="primary-button" id="revisionsRefreshButton">↻ Verificar agora</button></div>
+          <p class="revision-explainer">Cada atualização pode guardar uma imagem do programa na VPS. <strong>A versão em uso, as duas últimas revisões de cada aplicação e o backup de recuperação são protegidos.</strong> Imagens antigas só podem ser removidas depois do prazo de retenção e de uma verificação no Docker.</p>
+          <div class="revision-stats">
+            <article class="panel revision-stat"><small>Revisões registradas</small><strong id="revisionsCount">—</strong><span>Importadas pelo painel</span></article>
+            <article class="panel revision-stat"><small>Antigas elegíveis</small><strong id="revisionsOldCount">—</strong><span>Imagens não usadas e fora da retenção</span></article>
+            <article class="panel revision-stat"><small>Espaço estimado</small><strong id="revisionsOldSize">—</strong><span>Pode variar por camadas compartilhadas</span></article>
+            <article class="panel revision-stat"><small>Limpeza automática</small><strong id="revisionsAuto">—</strong><span>Configurada na VPS</span></article>
+          </div>
+          <section class="panel full-panel revision-section"><div class="panel-head"><div><h2>O que pode ser removido?</h2><p id="revisionsRetention">Verificando política de retenção...</p></div><button id="revisionsCleanupButton" class="secondary-button" disabled type="button">Limpar antigas agora</button></div><p id="revisionsNotice" role="status" class="revision-notice">Aguardando conexão com a VPS...</p>
+            <div class="revision-scroll"><table class="revision-table"><thead><tr><th>Aplicação</th><th>Revisão</th><th>Situação</th><th>Tamanho</th><th>Importada em</th></tr></thead><tbody id="revisionsEntries"><tr><td colspan="5">Clique em Verificar agora.</td></tr></tbody></table></div>
+          </section>
+          <section class="panel full-panel revision-section"><div class="panel-head"><div><h2>Histórico de limpeza</h2><p>Saiba quando imagens antigas foram removidas automaticamente ou manualmente.</p></div></div><div id="revisionsHistory" class="revision-history">Ainda não foi consultado.</div><p id="revisionsCheckedAt" class="revision-checked">—</p></section>
+          <p class="terminal-guide">A limpeza atua somente sobre imagens GHCR registradas no painel; não usa <code>docker system prune</code>, não exclui volumes nem containers. Para configurar a execução automática, veja o <a href="https://github.com/Softdown-prog/Painel/blob/main/docs/REVISOES-E-LIMPEZA.md" target="_blank" rel="noopener noreferrer">guia de manutenção</a>.</p>
+        </section>
+
         <section class="view" id="terminal" data-title="Terminal VPS">
           <div class="page-heading"><div><div class="eyebrow">ADMINISTRAÇÃO / VPS</div><h1>Terminal da VPS</h1><p>Consulte e administre seus serviços digitando comandos simples. A comunicação usa a API privada da VPS.</p></div><button id="terminalHelpButton" type="button" class="secondary-button">? Comandos</button></div>
           <section class="panel full-panel terminal-wrapper" aria-label="Terminal de comandos da VPS">
@@ -197,5 +215,6 @@
   <script src="projects-ui.js" defer></script>
   <script src="domains-ui.js" defer></script>
   <script src="terminal-ui.js" defer></script>
+  <script src="revisions-ui.js" defer></script>
 </body>
 </html>
