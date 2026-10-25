@@ -18,6 +18,11 @@ function env(){
  writeFileSync(join(dir,'image-imports.json'),JSON.stringify(items));
  const docker=async(path,method='GET')=>{
   const response=(status,data)=>({status,buffer:Buffer.from(JSON.stringify(data))});
+  if(path==='/images/json')return response(200,[
+   {Id:imageId(1),RepoTags:['ghcr.io/softdown-prog/shop:sha-old'],Size:120000000,Created:1725000000},
+   {Id:imageId(2),RepoTags:['ghcr.io/softdown-prog/shop:sha-current'],Size:130000000,Created:1726000000},
+   {Id:imageId(3),RepoTags:[],Size:20000000,Created:1724000000}
+  ]);
   if(path==='/containers/json?all=1')return response(200,[{
    ImageID:usedImage,Names:['/softload-backup-loja'],
    Labels:{'com.softload.panel.managed':'true','com.softload.panel.slug':'loja'}
@@ -39,6 +44,9 @@ test('report retains running rollback, last 2 per application and recent images'
   const plan=await revisionReport(x.dir,x.docker,now);
   assert.equal(plan.totalImports,5);
   assert.equal(plan.oldCount,2);
+  assert.equal(plan.hostInventory.total,3);
+  assert.equal(plan.hostInventory.untagged,1);
+  assert.equal(plan.hostInventory.multipleVersionRepositories[0].versions,2);
   assert.equal(plan.entries.find(e=>e.revision==='2'.repeat(40)).status,'reserva');
   assert.equal(plan.entries.find(e=>e.revision==='4'.repeat(40)).status,'recente');
   assert.equal(plan.entries.find(e=>e.revision==='5'.repeat(40)).status,'recente');
@@ -97,6 +105,38 @@ test('shared image remains protected if it is retained by any application',async
   const report=await revisionReport(x.dir,x.docker,now);
   assert.equal(report.entries.find(e=>e.slug==='loja'&&e.revision==='1'.repeat(40)).status,'reserva');
   assert.equal(report.oldCount,1);
+  assert.equal(x.deleted.length,0);
+ }finally{x.destroy();}
+});
+
+test('scheduled cleanup can be activated and paused by the administrator without deleting images',async()=>{
+ const x=env();
+ try{
+  let returned;
+  const call=async automatic=>{
+   await handleRevisionRoute({url:'/maintenance/revisions/settings',method:'POST'}, {},{
+    enabled:true,dataDir:x.dir,docker:x.docker,now:()=>now,body:async()=>({automatic}),
+    send(_res,status,data){returned={status,...data};}
+   });
+   return returned;
+  };
+  assert.equal((await call(true)).automatic,true);
+  assert.equal((await revisionReport(x.dir,x.docker,now)).automatic,true);
+  assert.equal((await call(false)).automatic,false);
+  assert.equal((await revisionReport(x.dir,x.docker,now)).automatic,false);
+  assert.equal(x.deleted.length,0);
+ }finally{x.destroy();}
+});
+test('read-only Docker-wide inventory remains optional if host image listing is unavailable',async()=>{
+ const x=env();
+ try{
+  const docker=async(path,method)=>{
+   if(path==='/images/json')return {status:503,buffer:Buffer.from('{}')};
+   return x.docker(path,method);
+  };
+  const report=await revisionReport(x.dir,docker,now);
+  assert.equal(report.hostInventory.available,false);
+  assert.equal(report.oldCount,2);
   assert.equal(x.deleted.length,0);
  }finally{x.destroy();}
 });
