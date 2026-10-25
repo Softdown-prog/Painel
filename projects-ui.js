@@ -34,7 +34,7 @@
         });
         return item;
     }
-  const publishing = new Set<string>();
+  const publishing = new Set();
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   async function publishSuccessfulBuild(project, run, host) {
     const slug = project.slug;
