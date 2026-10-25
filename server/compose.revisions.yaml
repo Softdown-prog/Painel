@@ -1,0 +1,7 @@
+# Opt-in housekeeping; no Docker-wide prune, no volume cleanup, no running-container deletion.
+# Only verified GHCR images imported by the Panel, older than 14 days, with 2 revisions retained per app.
+services:
+  api:
+    environment:
+      PANEL_REVISIONS_CLEANUP_ENABLED: "${PANEL_REVISIONS_CLEANUP_ENABLED:-0}"
+      PANEL_REVISIONS_AUTOMATIC: "${PANEL_REVISIONS_AUTOMATIC:-0}"
