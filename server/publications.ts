@@ -130,9 +130,10 @@ export async function publicationStep(dir:string,job:Publication,operation:Opera
    if(release.backup)throw new Error('Existe backup não resolvido. Confira os slots antes de publicar.');
    if(!candidate){
     if(current?.state!=='running')throw new Error('Aplicação atual não está funcionando.');
-    move(dir,job,'health','Candidata iniciada; aguardando teste de saúde.',now);
+    // Stay in staging until the Docker operation finishes. If the API restarts,
+    // the next cycle inspects the candidate and can safely reconcile this step.
     await operation(job.slug,'release','POST','stage',{runId:job.runId});
-    return job;
+    return move(dir,job,'health','Candidata iniciada; aguardando teste de saúde.',now);
    }
    if(candidate.revision!==job.revision)throw new Error('Outra revisão candidata foi encontrada.');
    return move(dir,job,'health','Aguardando o teste de saúde da candidata.',now);
