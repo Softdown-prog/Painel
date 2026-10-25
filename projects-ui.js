@@ -1,5 +1,5 @@
 (() => {
-  let projects: ProjectLink[] = [];
+  let projects = [];
   let buildsEnabled = false;
   const get = (id) => {
     const el = document.getElementById(id);
