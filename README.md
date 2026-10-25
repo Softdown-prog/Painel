@@ -211,3 +211,11 @@ A importação agora é feita na aba Projetos pelo GHCR por digest, sem Docker C
 ## Quarta etapa: importação GHCR e recuperação
 
 Foi acrescentada a importação opt-in de imagens GHCR por digest SHA-256, com consulta do status da operação, persistência da revisão/digest, preparação condicionada ao registro validado e recuperação explícita de estados interrompidos. Consulte o [manual operacional](docs/ghcr-import-and-recovery.md) para APIs, configuração segura de credenciais e limites de segurança.
+
+## Quinta etapa: domínios de aplicações
+
+A aba **Domínios** prepara uma rota exclusiva para cada aplicação criada pelo Painel na rede Docker dedicada `softload_panel_apps`, com portas internas e zona DNS autorizadas. O código de roteamento está em `server/domains.ts`, o gateway de Caddy separado em `server/router/Caddyfile` e o overlay opcional em `server/compose.routing.yaml`.
+
+**Nenhum domínio se torna público por cadastrar a rota.** É necessário preparar DNS/TLS, conectar explicitamente o Caddy frontal à rede de aplicativos e recarregar o gateway. O gateway não publica portas externas, não tem acesso ao Docker socket e não participa da rede proxy de produção. A API administrativa principal ainda precisa ser isolada do Docker socket antes de atender usuários não confiáveis.
+
+Veja o [guia operacional de domínios](docs/domain-routing.md) para pré-requisitos e etapas de ativação. A implantação desse gateway na VPS não foi executada automaticamente.
