@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { dockerRequest, inspectOwned, validSlug, type DockerRequest } from './apps.ts';
+import { dockerRequest, inspectOwned, validSlug, AppError, type DockerRequest } from './apps.ts';
 import { readRepositories, github, type LinkedRepository } from './github.ts';
 
 export type ProjectBinding = {
@@ -149,7 +149,7 @@ export async function handleProjectRoute(req: IncomingMessage, res: ServerRespon
     }
     throw new ProjectError(405, 'Método não permitido.');
   } catch (error) {
-    if (error instanceof ProjectError) send(error.status, { error: error.message });
+    if (error instanceof ProjectError || error instanceof AppError) send(error.status, { error: error.message });
     else if (error instanceof SyntaxError) send(400, { error: 'JSON inválido.' });
     else {
       console.error('Project bridge failed:', error instanceof Error ? error.message : String(error));
