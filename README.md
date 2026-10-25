@@ -249,3 +249,9 @@ A aba **Terminal VPS** está disponível no frontend. Consulte **`status`**, **`
 **Linux real opcional:** o código da API suporta `linux uptime`, `linux ls -la /opt`, `linux docker ps` e outros comandos executados por SSH na VPS. O acesso exige revalidar sua senha administrativa, mantém o desbloqueio por 10 minutos e é **desligado por padrão**. O administrador precisa provisionar uma vez uma conta SSH, chave privada protegida e known_hosts na VPS e acrescentar `server/compose.ssh-terminal.yaml` aos overlays em uso. O código **não foi ativado na VPS** nesta etapa. Com a configuração pronta, o usuário opera sem Codex.
 
 O SSH atual executa um comando por vez e devolve sua saída, com limites de tempo e tamanho. Ainda não é uma sessão PTY interativa para editores como vim. Consulte [o manual do Terminal VPS](docs/TERMINAL-VPS.md), que também contém a instalação inicial e as limitações.
+
+## Revisões e espaço — limpeza automática controlada
+
+A nova aba **Revisões e espaço** mostra imagens de revisões importadas pelo Painel, identifica versões ativas, backups e imagens antigas elegíveis, estima espaço e apresenta histórico de limpezas. O administrador também pode ativar ou pausar a limpeza automática pelo próprio painel ou pelo Terminal VPS (`revisoes`, `revisoes limpar`, `revisoes auto ligar`).
+
+A rotina usa retenção conservadora de 14 dias e 2 revisões por aplicação e não apaga containers ou volumes. Ela é **desabilitada no backend por padrão**: exige instalação autorizada da API e do executor atualizados e habilitação inicial via `server/compose.revisions.yaml`. A API agendará verificações a cada 6 horas após ativação; relatórios sem acesso ao Docker não são apresentados como dados reais. Consulte [guia da limpeza de revisões](docs/REVISOES-E-LIMPEZA.md) e [backlog de melhorias pendentes](docs/TAREFAS-CODEX.md).
