@@ -6,6 +6,7 @@ import { handleReleaseRoute } from './releases.ts';
 import { handleImageImportRoute } from './image-import.ts';
 import { handleDomainRoute } from './domains.ts';
 import { handleSshTerminalRoute } from './terminal-ssh.ts';
+import { handleRevisionRoute, startRevisionMonitor } from './revision-maintenance.ts';
 import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, existsSync, statfsSync } from 'node:fs';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { totalmem, freemem, loadavg, cpus } from 'node:os';
@@ -165,6 +166,7 @@ async function handler(req, res) {
       return valid;
     }
   })) return;
+  if (await handleRevisionRoute(req, res, { send, body, dataDir })) return;
   if (await handleGitHubRoute(req, res, { send, body, dataDir })) return;
   if (await handleDomainRoute(req, res, { send, body, dataDir })) return;
   if (await handleAppRoute(req, res, { send, body, dataDir })) return;
@@ -238,3 +240,4 @@ http.createServer((req, res) => {
   });
 }).listen(port, '0.0.0.0', () => console.log(`Panel API listening on ${port}`));
 startIdleMonitor(dataDir);
+startRevisionMonitor(dataDir);
