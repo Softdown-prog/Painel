@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#10121a">
-  <meta name="description" content="Prévia do painel de administração da VPS Softload.">
-  <title>Softload Console — Prévia</title>
+  <meta name="description" content="Gerenciamento de aplicações Docker, serviços e deploys da VPS Softload.">
+  <title>Softload Console</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="panel.css">
   <link rel="stylesheet" href="apps.css">
@@ -33,8 +33,8 @@
       </nav>
 
       <div class="sidebar-bottom">
-        <div class="connection-card"><span class="connection-dot"></span><span><strong>Modo de demonstração</strong><small>API ainda não conectada</small></span></div>
-        <div class="sidebar-profile"><span class="avatar">S</span><span><strong>Administrador</strong><small>Prévia do painel</small></span><span class="profile-menu">⋯</span></div>
+        <div class="connection-card"><span class="connection-dot"></span><span><strong>Conectando à VPS</strong><small>Verificando acesso à API</small></span></div>
+        <div class="sidebar-profile"><span class="avatar">S</span><span><strong>Administrador</strong><small>Softload Console</small></span><span class="profile-menu">⋯</span></div>
       </div>
     </aside>
 
@@ -51,7 +51,7 @@
         <section class="view active" id="overview" data-title="Visão geral">
           <div class="page-heading"><div><div class="eyebrow">SOFTLOAD ENGINE / PRODUÇÃO</div><h1>Visão geral <span class="heading-accent">✳</span></h1><p>Acompanhe seus serviços e publicações em um só lugar.</p></div><button class="primary-button demo-action" data-action="Novo deploy"><span>＋</span> Novo deploy</button></div>
 
-          <div class="section-heading"><h2>Infraestrutura</h2><span class="section-subtitle">Dados ilustrativos · VPS softloadeng</span></div>
+          <div class="section-heading"><h2>Infraestrutura</h2><span class="section-subtitle">Indicadores da VPS · autenticados</span></div>
           <div class="stats-grid">
             <article class="stat-card"><div class="stat-top"><span class="stat-icon purple">◫</span><span class="mini-pill live-label">EXEMPLO</span></div><div class="stat-value" id="serviceCount">6 <span>/ 6</span></div><div class="stat-name">Serviços em execução</div><div class="stat-foot" id="serviceFoot"><span class="dot green"></span> Estado demonstrativo</div></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-icon orange">◴</span><span class="mini-pill live-label">EXEMPLO</span></div><div class="stat-value" id="memoryValue">1.8 <span>GB / 4 GB</span></div><div class="stat-name">Memória utilizada</div><div class="progress"><span id="memoryBar" style="width:45%"></span></div></article>
@@ -64,10 +64,10 @@
             <section class="panel activity-panel"><div class="panel-head"><div><h2>Atividade recente</h2><p>Publicações do GitHub Actions</p></div><span class="outline-tag" id="activityTag">DEMO</span></div><div class="timeline" id="activityList"><div class="timeline-item"><span class="timeline-symbol neutral">↗</span><div><strong>Aguardando API</strong><p>O histórico aparecerá após o login.</p></div></div></div><div class="activity-footer"><span class="pulse-dot"></span> GitHub Actions é a fonte dos deploys</div></section>
           </div>
 
-          <section class="bottom-callout"><div class="callout-icon">⌘</div><div><strong>Pronto para a próxima etapa</strong><p>Após aprovar o visual, conectaremos login e API privada para mostrar dados reais e controlar os serviços.</p></div><button class="secondary-button demo-action" data-action="Integrações">Ver integração <span>↗</span></button></section>
+          <section class="bottom-callout"><div class="callout-icon">⌘</div><div><strong>Gerencie seus próprios containers</strong><p>Crie, inicie, pare e acompanhe aplicações independentes dos serviços da Softload.</p></div><button class="secondary-button demo-action" data-action="Abrir aplicações">Aplicações <span>↗</span></button></section>
         </section>
 
-        <section class="view" id="services" data-title="Serviços"><div class="page-heading"><div><div class="eyebrow">CONTAINERS / PRODUÇÃO</div><h1>Serviços</h1><p>Visualize a saúde e os recursos de cada componente.</p></div><button class="primary-button demo-action" data-action="Atualizar serviços">↻ Atualizar</button></div><div class="panel full-panel"><div class="panel-head"><div><h2>Containers</h2><p>Lista de exemplo para revisar a interface</p></div><span class="outline-tag">SEM CONEXÃO</span></div><div id="allServices"></div></div></section>
+        <section class="view" id="services" data-title="Serviços"><div class="page-heading"><div><div class="eyebrow">CONTAINERS / PRODUÇÃO</div><h1>Serviços</h1><p>Visualize a saúde e os recursos de cada componente.</p></div><button class="primary-button demo-action" data-action="Atualizar serviços">↻ Atualizar</button></div><div class="panel full-panel"><div class="panel-head"><div><h2>Containers</h2><p>Serviços registrados no servidor</p></div><span class="outline-tag" id="servicesTag">EXEMPLO</span></div><div id="allServices"></div></div></section>
 
         <section class="view" id="apps" data-title="Aplicações">
           <div class="page-heading"><div><div class="eyebrow">DOCKER / APLICAÇÕES GERENCIADAS</div><h1>Aplicações</h1><p>Crie containers isolados sem alterar os serviços da Softload.</p></div><button class="primary-button" id="appsRefreshButton">↻ Atualizar</button></div>
