@@ -35,18 +35,30 @@ Atalhos opcionais: `docker logs loja`, `docker restart app`. Esses nomes são um
 
 O Terminal não precisa chamar GitHub Actions nem Codex a cada comando: utiliza os endpoints que já existem na API. A API pode impedir alterações quando o módulo da VPS estiver desativado, a imagem não estiver autorizada ou o container não pertencer ao painel. Isso aparece como erro, não como sucesso fictício.
 
-## O que falta para comandos Linux completos
+## Comandos Linux de verdade (SSH opcional)
 
-Este primeiro Terminal já funciona como cliente de administração da API existente, mas **não é SSH/bash**: `sudo`, `apt`, `cd`, edição de arquivos e comandos arbitrários ainda não estão disponíveis. Um comando desconhecido é recusado, sem ser encaminhado ao host.
+Também implementei o comando `linux <comando>`. Exemplo: `linux uptime`, `linux ls -la /opt` ou `linux docker ps`. **Nesse modo, o comando é enviado por SSH à VPS real**, usando a conta que o administrador configurar. Não é um simulador do navegador.
 
-Para oferecer um verdadeiro terminal Linux dentro da interface e continuar independente do Codex, a próxima fase é instalar **uma única vez** na VPS um serviço próprio de terminal SSH/PTy, acessível apenas ao administrador autenticado do Painel. Requisitos mínimos:
-- Conta de operação separada dos serviços Softload e controle explícito de quando uma sessão abre/fecha.
-- Conexão através do Tunnel existente, com sessão curta e log de acesso (sem armazenar senhas e tokens digitados).
-- Streaming WebSocket para saída de terminal e redimensionamento, confirmação para comandos destrutivos e bloqueio entre clientes quando multiusuário.
-- Instalação operada por quem já possui acesso SSH/Portainer autorizado à VPS. **Não exige usar o Codex depois de instalada**, nem abrir uma porta de SSH pública extra.
-- Revisão de conflitos com as configurações atuais, backup e testes na VPS. Não habilitar root remoto irrestrito por engano.
+**Estado:** o código já existe em `server/terminal-ssh.ts`, mas está **desligado por padrão** e precisa ser instalado na VPS uma única vez. Se a API atual da VPS ainda for antiga, o painel mostrará que o modo SSH não está disponível. Não há dependência do Codex para executar comandos depois da instalação.
 
-Essa evolução está documentada como C13 em [TAREFAS-CODEX.md](TAREFAS-CODEX.md). O instalador poderia ser executado **manualmente uma vez** por você ou um administrador; o Codex é opcional, não faz parte da operação cotidiana.
+O funcionamento é simples: o administrador ativa o modo SSH, você digita `linux uptime`, confirma a senha do painel uma vez e tem dez minutos para executar outros comandos. Use `linux travar` para encerrar o desbloqueio. O resultado inclui o código de saída da operação.
+
+Esse primeiro modo SSH **executa um comando por vez**, espera até 18 segundos e devolve até 24 KB de saída. Ainda não é uma sessão interativa do tipo `vim`, `htop` ou `nano`, nem mantém o diretório entre comandos `cd`. Para operações demoradas use ferramentas apropriadas (por exemplo `systemctl`, `docker compose` ou um job no host), com os privilégios que a conta SSH realmente possui.
+
+### Instalação inicial na VPS (administrador do servidor)
+
+Estas instruções **não foram executadas** nesta conversa. O caminho depende de como o SSH da VPS está configurado. É um procedimento único que você mesmo pode fazer pelo SSH/Portainer, sem esperar o Codex.
+
+1. Identifique a conta Linux administrativa apropriada e a interface SSH do **host**. A configuração inicial sugere um usuário separado `panelops`, mas ela não é criada automaticamente; verifique se você quer uma conta com poderes administrativos e quais comandos poderá executar. Não compartilhar as credenciais da Softload com sites de clientes.
+2. Gere uma chave SSH Ed25519 **no host**, guarde a chave privada em `/etc/softload-panel/terminal-ssh-key` com leitura restrita, e cadastre **somente a chave pública** no `authorized_keys` da conta escolhida. Use permissões restritas e não publique a chave privada no GitHub, Cloudflare ou no frontend.
+3. Verifique a chave pública do servidor SSH (*host key*) presencialmente no host e prepare o arquivo `/etc/softload-panel/terminal-ssh-known-hosts` com o hostname e fingerprint corretos. Não desative verificação de identidade SSH para “funcionar mais rápido”.
+4. Confirme que o container `api` consegue alcançar a porta SSH do host Docker via `host.docker.internal`. Em algumas VPS o SSH não aceita conexões pela interface Docker; isso precisa ser ajustado no host, sem abrir uma nova porta pública.
+5. Adicione o overlay `server/compose.ssh-terminal.yaml` ao seu conjunto Compose **atual**. Configure `PANEL_TERMINAL_SSH_ENABLED=1`, `PANEL_TERMINAL_SSH_HOST`, `PANEL_TERMINAL_SSH_PORT` e `PANEL_TERMINAL_SSH_USER` conforme o host. Confira previamente a configuração mesclada com `docker compose ... config` (sem imprimir segredos no chat ou em logs compartilhados). Atualize somente a API quando tiver backup e janela de manutenção.
+6. Teste primeiro `linux whoami` e `linux uptime`. Depois confira os comandos administrativos que a conta possui. `sudo` só funcionará se a **sua** configuração de permissões no host permitir; o Painel não concede privilégios adicionais escondidos.
+
+O serviço SSH usa a senha administrativa do Painel para desbloqueio temporário, exige sua sessão autenticada, não grava a senha fornecida em logs e não registra o comando completo no log do servidor (somente um hash resumido, duração e código de saída). Não abre nenhuma nova porta pública, e a chave privada fica montada somente na API. Um comando demorado ou saída muito grande é interrompido por limite.
+
+Se você preferir uma experiência de shell interativo como a do PuTTY, com `vim` e entrada contínua, ainda faltará uma segunda etapa: PTY/WebSocket com controle de sessões. Ela está anotada para depois em [TAREFAS-CODEX.md](TAREFAS-CODEX.md), mas **não é necessária para usar `linux <comando>`**.
 
 ## Status de implantação
 
