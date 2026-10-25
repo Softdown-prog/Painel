@@ -53,6 +53,10 @@ jobs:
           # The CI sandbox starts with an empty named volume. Initialize ownership before starting the unprivileged API.
           docker run --rm --user 0 --mount type=volume,src="$data",dst=/data \
             --entrypoint chown panel-api-smoke:ci 1000:1000 /data
+          # Fail before startup if the container's actual runtime user cannot write the data volume.
+          docker image inspect panel-api-smoke:ci --format 'CI image default user={{.Config.User}}'
+          docker run --rm --mount type=volume,src="$data",dst=/data \
+            --entrypoint sh panel-api-smoke:ci -c 'id && ls -ldn /data && touch /data/.volume-writable && rm /data/.volume-writable'
           printf '%s\n' 'ci-test-edge-key-with-at-least-32-characters-only' > "$tmp/edge-key"
           # The CI-only fake key must be readable under Docker user-namespace remapping.
           chmod 644 "$tmp/edge-key"
