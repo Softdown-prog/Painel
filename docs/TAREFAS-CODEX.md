@@ -88,6 +88,8 @@ O usuário quer ações simples: **Criar site**, **Conectar GitHub**, **Escolher
 
 **Estado:** código preparado e testado no CI; **não instalado/validado na VPS de produção**. A ativação inicial exige instalar API e executor atuais e ligar `PANEL_REVISIONS_CLEANUP_ENABLED=1` usando `compose.revisions.yaml`. Depois disso, o administrador controla a programação pelo Painel, sem depender do Codex.
 
+**Melhoria adicional entregue:** o painel agora também consulta em modo somente leitura o inventário de imagens de toda a VPS, incluindo versões de containers da Softload V4, e destaca repositórios com múltiplas imagens locais. Não remove imagens desse inventário geral.
+
 **Próximas melhorias:** consumo real de armazenamento com camadas compartilhadas, retenção de imagens da infraestrutura Softload V4, cache de build, alertas de disco, cron durável fora do processo web, comportamento consistente com jobs de importação/release e locks distribuídos entre réplicas da API. Testar limpeza com Docker real e cargas concorrentes **sem usar produção**.
 
 **Aceite:** inventário e histórico mostram imagens preservadas e candidatas à limpeza; agendamento apaga apenas revisões antigas elegíveis após validação Docker, sem comprometer a versão atual ou rollback; porcentagem de espaço recuperado tem rótulo de estimativa; limpeza nunca executa prune global e não afeta sites de clientes.
