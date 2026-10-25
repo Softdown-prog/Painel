@@ -156,3 +156,50 @@ Esse comando requer que as variáveis e o arquivo do token GitHub já tenham sid
 - Fazer `pull` em uma zona restrita, verificar saúde, trocar o container gerenciado e reter a imagem anterior para rollback.
 - Permitir configuração segura e auditável de domínio, porta, variáveis e volumes, sem permitir acesso a containers de produção não gerenciados.
 - Migrar o código legado de `server/api.mjs` e `script.js` para TypeScript; nessa etapa o módulo `server/projects.ts` e a interface `projects-ui.ts` já foram escritos em TypeScript.
+
+## Publicação de revisões e rollback (terceira etapa)
+
+A aba **Projetos** agora tem preparação de versão, promoção para o nome principal, restauração e descarte de container reserva. O código está em `server/releases.ts` e os testes simulados em `server/releases.test.mjs`. São gerenciados **exclusivamente** containers criados pelo Painel, com labels do proprietário e slug. A publicação **não** altera os seis containers fixos da Softload.
+
+### Requisitos para preparar uma release
+
+- O projeto precisa estar vinculado a um repositório cadastrado com `panel-app-build.yml`.
+- O build informado precisa ter **conclusão bem-sucedida**, ter sido executado na branch autorizada, no repositório correto e no workflow dedicado.
+- A imagem **precisa já estar na VPS** com a tag `ghcr.io/owner/repo:sha-<SHA_DO_COMMIT>`. O Painel **ainda não baixa imagens** automaticamente do GHCR.
+- O Docker inspeciona a imagem local, confere o ID imutável `sha256`, a tag, as labels OCI `org.opencontainers.image.source` e `org.opencontainers.image.revision`, além de exigir um `HEALTHCHECK` declarado na imagem.
+- É necessário que o container principal esteja em execução. A candidata é criada com as mesmas restrições de CPU, RAM, capacidades e filesystem da aba Aplicações, sem montar volumes ou expor portas.
+
+### Controles e API
+
+| Método | Endpoint | Ação |
+|---|---|---|
+| GET | `/projects/:slug/releases` | Consultar ativa, candidata e backup; modo habilitado |
+| POST | `/projects/:slug/releases/stage` | Recebe JSON `{ "runId": 123 }`, verifica origem e inicia candidata |
+| POST | `/projects/:slug/releases/promote` | Exige candidata saudável; para o container atual e o renomeia como backup, promovendo a candidata |
+| POST | `/projects/:slug/releases/rollback` | Para a nova versão, restaura e inicia o backup anterior |
+| POST | `/projects/:slug/releases/finalize` | Recebe `{ "confirm": "DELETE_BACKUP" }`, descarta explicitamente backup ou candidata parada |
+
+O nome da candidata é `softload-candidate-<slug>` e o backup recebe `softload-backup-<slug>`. Não é possível iniciar outro ciclo de publicação enquanto existir um backup ou uma candidata pendente. A versão anterior permanece preservada até a finalização explícita. Depois de rollback, a versão rejeitada permanece parada para diagnóstico até ser descartada.
+
+### Habilitação experimental
+
+**O recurso está desabilitado por padrão.** Configure as credenciais do GitHub e os overlays de Aplicações e Projetos conforme as seções anteriores. Adicione `server/compose.releases.yaml` e habilite a variável no processo autorizado da VPS:
+
+```sh
+export PANEL_RELEASES_ENABLED=1
+docker compose -f compose.yaml -f compose.github.yaml -f compose.apps.yaml -f compose.projects.yaml -f compose.releases.yaml up -d --build api
+```
+
+Esse comando é **orientação de instalação**, não foi executado nesta alteração. Não rode sem revisar as variáveis dos outros overlays e sem ter certeza de que a API e o Docker estão protegidos.
+
+Para importar **manualmente** uma imagem pública já revisada, use o Docker na VPS com o SHA completo do commit de um build aprovado: `docker pull ghcr.io/owner/repo:sha-<SHA_DO_COMMIT>`. Pacotes privados exigem autenticação com permissões mínimas somente de leitura. Nunca coloque tokens no frontend, no repositório, nas URLs ou em parâmetros de comandos que possam ser expostos.
+
+### Limites que permanecem
+
+- Esse é um mecanismo inicial de **troca com pequena interrupção**, não um balanceamento sem downtime. Não há roteamento por domínio, migração de volumes nem distribuição de tráfego.
+- A candidata precisa reportar `healthy` pelo Docker. Imagens sem `HEALTHCHECK` explícito não são aceitas.
+- O Painel ainda **não executa pull autenticado, verificação criptográfica de assinatura/attestation da imagem ou atualização automática após build**. Labels OCI e metadados do GitHub ajudam a verificar consistência, mas não substituem uma cadeia de suprimentos confiável.
+- Se o processo da API ou o Docker cair durante renomeações, pode ser necessária intervenção administrativa para reparar nomes e estados. Os dados do container antigo não são apagados automaticamente.
+- O `docker.sock` dá poderes administrativos ao processo mesmo montado `:ro`; mantenha acesso estritamente administrativo e evolua para um agente restrito antes de oferecer a terceiros.
+
+**Próxima etapa:** fluxo de importação verificada por digest do GHCR, recuperação transacional de operações interrompidas, roteamento por domínio e observabilidade pós-deploy.
