@@ -241,3 +241,11 @@ Veja o [manual de implantação do executor](docs/docker-executor.md) para pré-
 O executor foi testado também com **Docker real em um runner temporário do GitHub Actions**, usando a API e o socket Unix compartilhado. O workflow `.github/workflows/executor-smoke.yml` verifica autenticação, listagem dos serviços, consulta de aplicações e bloqueio das operações de criação desativadas. Esse workflow não implanta nada na VPS.
 
 Antes de recriar serviços na VPS, um administrador com Docker autorizado deve executar o verificador **somente leitura** dentro de `server/`: `bash preflight-vps.sh` (acrescentando como argumentos os nomes dos overlays em uso). Ele valida o Compose efetivo e sinaliza incompatibilidades de UID no volume existente, sem alterar permissões. O runner da Softload V4 não tem privilégios Docker/sudo e não foi usado para mudar serviços. Consulte [o manual do executor](docs/docker-executor.md).
+
+## Terminal da VPS: CLI sem Codex
+
+A aba **Terminal VPS** está disponível no frontend. Consulte **`status`**, **`servicos`**, **`apps`**, **`logs app`**, **`reiniciar app`**, **`dominios`**, **`projetos`** e outros comandos listados com `ajuda`. Eles usam a API já autenticada do painel, sem acionar Codex ou GitHub Actions por comando.
+
+**Linux real opcional:** o código da API suporta `linux uptime`, `linux ls -la /opt`, `linux docker ps` e outros comandos executados por SSH na VPS. O acesso exige revalidar sua senha administrativa, mantém o desbloqueio por 10 minutos e é **desligado por padrão**. O administrador precisa provisionar uma vez uma conta SSH, chave privada protegida e known_hosts na VPS e acrescentar `server/compose.ssh-terminal.yaml` aos overlays em uso. O código **não foi ativado na VPS** nesta etapa. Com a configuração pronta, o usuário opera sem Codex.
+
+O SSH atual executa um comando por vez e devolve sua saída, com limites de tempo e tamanho. Ainda não é uma sessão PTY interativa para editores como vim. Consulte [o manual do Terminal VPS](docs/TERMINAL-VPS.md), que também contém a instalação inicial e as limitações.
