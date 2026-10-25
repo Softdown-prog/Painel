@@ -43,6 +43,10 @@
         option.textContent = app.slug + ' (' + app.image + ')';
         appPicker.append(option);
       }
+      const selectedFromApps = Reflect.get(window, 'panelSelectedAppSlug');
+      if (typeof selectedFromApps === 'string' && eligible.some(app => app.slug === selectedFromApps)) {
+        appPicker.value = selectedFromApps;
+      }
       canCreate = result.enabled && eligible.length > 0;
       (get('domainCreateButton') as HTMLButtonElement).disabled = !canCreate;
       updatePreview();
