@@ -1,0 +1,102 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { revisionReport, handleRevisionRoute } from './revision-maintenance.ts';
+const now=Date.parse('2026-10-25T14:00:00.000Z');
+const days=d=>new Date(now-d*86400000).toISOString();
+const imageId=n=>'sha256:'+String(n).repeat(64);
+const digest=n=>'sha256:'+String(n).repeat(64);
+const record=(num,age,slug='loja')=>({slug,repository:'Softdown-prog/shop',revision:String(num).repeat(40),
+ digest:digest(num),imageId:imageId(num),runId:num,importedAt:days(age)});
+function env(){
+ const dir=mkdtempSync(join(tmpdir(),'revisions-'));
+ const items=[record(1,110),record(2,80),record(3,40),record(4,4),record(5,1)];
+ const deleted=[];
+ const usedImage=imageId(2);
+ writeFileSync(join(dir,'image-imports.json'),JSON.stringify(items));
+ const docker=async(path,method='GET')=>{
+  const response=(status,data)=>({status,buffer:Buffer.from(JSON.stringify(data))});
+  if(path==='/containers/json?all=1')return response(200,[{
+   ImageID:usedImage,Names:['/softload-backup-loja'],
+   Labels:{'com.softload.panel.managed':'true','com.softload.panel.slug':'loja'}
+  }]);
+  const match=/^\/images\/([^?]+)(\?force=0&noprune=1)?$/.exec(path);
+  if(!match)return response(404,{error:'missing'});
+  const ref=decodeURIComponent(match[1]);
+  const item=items.find(x=>'ghcr.io/'+x.repository.toLowerCase()+'@'+x.digest===ref);
+  if(!item)return response(404,{});
+  if(method==='DELETE'){deleted.push(ref);return response(200,[{Untagged:ref}]);}
+  return response(200,{Id:item.imageId,Size:120000000,RepoDigests:[ref]});
+ };
+ function destroy(){rmSync(dir,{force:true,recursive:true});}
+ return {dir,items,docker,deleted,destroy};
+}
+test('report retains running rollback, last 2 per application and recent images',async()=>{
+ const x=env();
+ try{
+  const plan=await revisionReport(x.dir,x.docker,now);
+  assert.equal(plan.totalImports,5);
+  assert.equal(plan.oldCount,2);
+  assert.equal(plan.entries.find(e=>e.revision==='2'.repeat(40)).status,'em_uso');
+  assert.equal(plan.entries.find(e=>e.revision==='4'.repeat(40)).status,'recente');
+  assert.equal(plan.entries.find(e=>e.revision==='5'.repeat(40)).status,'recente');
+  assert.equal(plan.oldBytesEstimate,240000000);
+  assert.equal(x.deleted.length,0);
+ }finally{x.destroy();}
+});
+test('manual cleanup requires explicit opt-in and confirmation, records counts and preserves backups',async()=>{
+ const x=env();
+ try{
+  let response;
+  async function call(enabled,bodyValue) {
+   response=undefined;
+   await handleRevisionRoute({url:'/maintenance/revisions/cleanup',method:'POST'}, {}, {
+    enabled,dataDir:x.dir,docker:x.docker,now:()=>now,
+    body:async()=>bodyValue,send(_res,status,value){response={status,...value};}
+   });
+   return response;
+  }
+  assert.equal((await call(false,{confirm:'LIMPAR_REVISOES_ANTIGAS'})).status,403);
+  assert.equal((await call(true,{confirm:'wrong'})).status,400);
+  assert.equal(x.deleted.length,0);
+  const result=await call(true,{confirm:'LIMPAR_REVISOES_ANTIGAS'});
+  assert.equal(result.status,200);
+  assert.equal(result.removed,2);
+  assert.equal(result.failed,0);
+  assert.equal(x.deleted.length,2);
+  assert.ok(x.deleted.every(ref=>!ref.includes('sha256:'+ '2'.repeat(64))));
+  const remaining=JSON.parse(readFileSync(join(x.dir,'image-imports.json'),'utf8'));
+  assert.equal(remaining.length,3);
+  const history=JSON.parse(readFileSync(join(x.dir,'revision-cleanup-history.json'),'utf8'));
+  assert.equal(history.length,1);assert.equal(history[0].source,'manual');
+ }finally{x.destroy();}
+});
+test('report blocks cleanup when image metadata differs from verified import record',async()=>{
+ const x=env();
+ try{
+  const fake=async(path,method)=>{
+   const value=await x.docker(path,method);
+   if(path.includes('/images/')&&method!=='DELETE'){
+    const image=JSON.parse(value.buffer.toString('utf8'));
+    image.Id=imageId(9);
+    return {status:200,buffer:Buffer.from(JSON.stringify(image))};
+   }
+   return value;
+  };
+  await assert.rejects(revisionReport(x.dir,fake,now),/imagem não corresponde/i);
+  assert.equal(x.deleted.length,0);
+ }finally{x.destroy();}
+});
+test('shared image remains protected if it is retained by any application',async()=>{
+ const x=env();
+ try{
+  x.items.push({...record(1,1,'outra'),imageId:imageId(1)});
+  writeFileSync(join(x.dir,'image-imports.json'),JSON.stringify(x.items));
+  const report=await revisionReport(x.dir,x.docker,now);
+  assert.equal(report.entries.find(e=>e.slug==='loja'&&e.revision==='1'.repeat(40)).status,'reserva');
+  assert.equal(report.oldCount,1);
+  assert.equal(x.deleted.length,0);
+ }finally{x.destroy();}
+});
