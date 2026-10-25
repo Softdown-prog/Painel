@@ -57,11 +57,9 @@ O usuário quer ações simples: **Criar site**, **Conectar GitHub**, **Escolher
 
 ### C03 · Publicar projeto GitHub em fluxo guiado
 
-**Parcialmente implementado no frontend (2026-10-25):** o botão **Publicar revisão** apareceu nos builds concluídos com sucesso. Ele consulta o estado real, importa a imagem GHCR por digest quando necessário, espera a verificação de importação, prepara a candidata, espera o HEALTHCHECK `healthy` e envia a promoção com `expectedRevision` (SHA esperado). O backend confere a revisão candidata sob o lock da operação. Não remove o backup da publicação anterior. O fluxo está coberto pelo teste `server/publish-ui.test.mjs`.
+**Implementado no backend, opt-in (2026-10-25):** `server/publications.ts` gerencia jobs persistidos em `/data/publication-jobs.json` com verificação de importação GHCR, staging, HEALTHCHECK, promoção com SHA esperado, conferência de container ativo e backup preservado. `projects-ui.ts` passou a registrar e acompanhar o job pelo endpoint autenticado `/projects/:slug/publication`. A API retoma operações incompletas a partir do estado gravado após reinicialização. Testes `server/publications.test.mjs` e `server/publish-ui.test.mjs`. O recurso fica desligado até instalar e configurar `server/compose.publications.yaml` na VPS; `PANEL_GHCR_PULL_ENABLED=1` e `PANEL_RELEASES_ENABLED=1` também são necessários.
 
-**Ainda pendente:** transformar a operação em *job durável* na API, com idempotência, acompanhamento independente do navegador, retomada após fechar a aba/cair a rede e concorrência segura entre instâncias. Hoje o botão funciona **apenas após um build concluído com sucesso** e com módulos `PANEL_GHCR_PULL_ENABLED`/`PANEL_RELEASES_ENABLED` ligados na VPS; ele **não dispara build, aguarda build e publica em um só job de servidor**. Sem backend atualizado e habilitado, não faz publicação. Não declarar entrega ponta a ponta antes do teste de homologação na VPS.
-
-
+**Pendente para homologação/Codex:** instalar API atualizada e overlays sem interromper Softload V4, testar build+import+release em VPS de testes com imagem real, validar após reboot, e implementar lock/lease distribuído antes de habilitar múltiplas réplicas da API. Atualmente há **um worker por processo**, com apenas um job ativo e idempotência por app/run; não é seguro executar múltiplos workers no mesmo volume. A publicação começa de um **build previamente concluído**, não automatiza todo o caminho de commit até build e deployment. Consultar [guia de publicação persistente](PUBLICACAO-EM-SEGUNDO-PLANO.md) antes de ativar na produção.
 
 **Por que:** conectar repositório, gerar imagem, importar e promover ainda exige várias etapas manuais.
 
