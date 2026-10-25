@@ -25,9 +25,9 @@ const KEEP = 2; // Last two imports per app are always retained.
 const DAYS = 14; // Do not remove very recent images, even on a small VPS.
 const INTERVAL = 6 * 60 * 60 * 1000;
 const DAY = 86400000;
-const LOCK_NAME = 'revision-cleanup.lock';
 const RECORD_NAME = 'image-imports.json';
 const HISTORY_NAME = 'revision-cleanup-history.json';
+const SETTINGS_NAME = 'revision-cleanup-settings.json';
 let cleaning = false;
 class CleanupError extends Error {
  readonly status: number;
@@ -35,6 +35,14 @@ class CleanupError extends Error {
 }
 function parse<T>(data:Buffer):T{return JSON.parse(data.toString('utf8')) as T;}
 function refOf(item:Import):string {return 'ghcr.io/'+item.repository.toLowerCase()+'@'+item.digest;}
+function automaticFor(dataDir:string):boolean{
+ try{
+  const settings:unknown=JSON.parse(readFileSync(join(dataDir,SETTINGS_NAME),'utf8'));
+  if(settings && typeof settings==='object' && typeof (settings as {automatic?:unknown}).automatic==='boolean')
+   return (settings as {automatic:boolean}).automatic;
+ }catch{ /* Default to deploy configuration until changed by an administrator */ }
+ return process.env.PANEL_REVISIONS_AUTOMATIC==='1';
+}
 function histories(dataDir:string):History[]{
  try {
   const content:unknown=JSON.parse(readFileSync(join(dataDir,HISTORY_NAME),'utf8'));
@@ -115,7 +123,7 @@ export async function revisionReport(dataDir:string,docker:DockerRequest=dockerR
  const oldRefs=new Map(stale.map(e=>[e.ref,e]));
  const history=histories(dataDir);
  return {checkedAt:new Date(now).toISOString(),enabled:process.env.PANEL_REVISIONS_CLEANUP_ENABLED==='1',
-   automatic:process.env.PANEL_REVISIONS_AUTOMATIC==='1',ageDays:DAYS,keepPerApp:KEEP,
+   automatic:automaticFor(dataDir),ageDays:DAYS,keepPerApp:KEEP,
    totalImports:entries.length,oldCount:oldRefs.size,
    oldBytesEstimate:[...oldRefs.values()].reduce((sum,e)=>sum+e.sizeBytes,0),
    entries:entries.slice().sort((a,b)=>Date.parse(b.importedAt)-Date.parse(a.importedAt)),
@@ -151,13 +159,25 @@ async function perform(dataDir:string,docker:DockerRequest,now:number,source:'ma
 }
 export async function handleRevisionRoute(req:IncomingMessage,res:ServerResponse,deps:Deps):Promise<boolean>{
  const path=new URL(req.url||'/','http://panel.local').pathname;
- if(!['/maintenance/revisions','/maintenance/revisions/cleanup'].includes(path))return false;
+ if(!['/maintenance/revisions','/maintenance/revisions/cleanup','/maintenance/revisions/settings'].includes(path))return false;
  const send=(status:number,value:unknown)=>deps.send(res,status,value);
  const docker=deps.docker||dockerRequest,now=deps.now?.()||Date.now();
  try{
   if(path==='/maintenance/revisions'&&req.method==='GET'){
    const report=await revisionReport(deps.dataDir,docker,now);
    send(200,{...report,enabled:deps.enabled ?? report.enabled,automatic:deps.automatic ?? report.automatic});
+   return true;
+  }
+  if(path==='/maintenance/revisions/settings'&&req.method==='POST'){
+   if(!(deps.enabled ?? process.env.PANEL_REVISIONS_CLEANUP_ENABLED==='1'))
+    throw new CleanupError(403,'A limpeza precisa ser habilitada na configuração do servidor.');
+   const input=await deps.body(req);
+   if(Object.keys(input).length!==1||typeof input.automatic!=='boolean')
+    throw new CleanupError(400,'Informe apenas automatic: true ou false.');
+   store(deps.dataDir,SETTINGS_NAME,{automatic:input.automatic,changedAt:new Date(now).toISOString()});
+   send(200,{ok:true,automatic:input.automatic,message:input.automatic ?
+    'Limpeza programada. A próxima verificação será feita no ciclo de seis horas.' :
+    'Limpeza automática pausada. Nenhuma revisão foi apagada nesta operação.'});
    return true;
   }
   if(path==='/maintenance/revisions/cleanup'&&req.method==='POST'){
@@ -181,10 +201,14 @@ export async function handleRevisionRoute(req:IncomingMessage,res:ServerResponse
  }
 }
 export function startRevisionMonitor(dataDir:string):void {
- if(process.env.PANEL_REVISIONS_CLEANUP_ENABLED!=='1'||process.env.PANEL_REVISIONS_AUTOMATIC!=='1')return;
- const run=async()=>{try{await perform(dataDir,dockerRequest,Date.now(),'automatic');}
-  catch(error){console.error('Automatic revision cleanup failed:',error instanceof Error?error.message:String(error));}};
+ // A disabled deployment cannot clean; the timer allows toggling automatic mode without restarting the API.
+ if(process.env.PANEL_REVISIONS_CLEANUP_ENABLED!=='1')return;
+ const run=async()=>{
+  if(!automaticFor(dataDir))return;
+  try{await perform(dataDir,dockerRequest,Date.now(),'automatic');}
+  catch(error){console.error('Automatic revision cleanup failed:',error instanceof Error?error.message:String(error));}
+ };
  const timer=setInterval(()=>{void run();},INTERVAL);
  timer.unref();
- console.log('Automatic revision cleanup scheduled every 6 hours; only imports older than 14 days, retaining two per app.');
+ console.log('Revision cleanup monitor ready; checks auto setting every 6 hours and keeps two imports per app.');
 }
