@@ -75,3 +75,42 @@ A CI em .github/workflows/ci.yml verifica tipos, testes, sintaxe JavaScript e bu
 4. Instalar workflows por template e conectar GitHub por GitHub App em vez de token manual.
 
 Fluxo de produto pretendido: **Conectar repositório -> Configurar aplicação -> Validar -> Deploy -> Logs e rollback**.
+
+
+## Aplicações Docker (primeira etapa)
+
+A nova aba **Aplicações** administra containers **criados pelo próprio painel**, independentemente dos seis serviços preexistentes. Todos os endpoints continuam exigindo a sessão administrativa e a proteção da Cloudflare. As operações permanecem **desabilitadas por padrão**.
+
+| Método | Rota | Função |
+|---|---|---|
+| GET | /apps | Listar aplicações próprias e imagens permitidas |
+| POST | /apps | Criar um container parado a partir de imagem já instalada |
+| GET | /apps/:slug | Consultar imagem e estado |
+| POST | /apps/:slug/start | Iniciar |
+| POST | /apps/:slug/stop | Parar |
+| POST | /apps/:slug/restart | Reiniciar |
+| GET | /apps/:slug/logs | Consultar últimas 100 linhas |
+| DELETE | /apps/:slug | Remover apenas container parado |
+
+O Docker nomeia containers com o prefixo softload-app- e labels de propriedade. O painel valida **nome e labels** antes de executar comandos, impedindo operações acidentais nos containers da Softload. Nomes de aplicação só aceitam letras minúsculas, números e hífens, de 2 a 40 caracteres.
+
+Limites iniciais, fixos no backend: máximo de **8 aplicações**, **256 MiB de RAM**, **0,5 CPU** e **64 processos** por aplicação. Containers são criados sob UID/GID 65534, sem capacidades Linux, com no-new-privileges, sistema de arquivos somente leitura e /tmp temporário limitado a 16 MiB. Não são permitidas montagens de volumes, modo privileged ou publicação de portas. A rede é a bridge padrão. **Não há domínio público, deploy de GitHub para essas aplicações, persistência nem rollback nesta etapa.** Algumas imagens não conseguem executar com essas restrições; escolha imagens compatíveis.
+
+### Habilitar experimentalmente
+
+O overlay opt-in está em server/compose.apps.yaml. Na VPS, a partir da pasta server:
+
+    docker image ls
+    export PANEL_APPS_ENABLED=1
+    export PANEL_APPS_ALLOWED_IMAGES='imagem-existente:versao'
+    docker compose -f compose.yaml -f compose.apps.yaml up -d --build api
+
+Substitua imagem-existente:versao por uma tag **real já instalada**, revisada e compatível com execução como usuário não privilegiado. **Não execute esse passo sem conferir a imagem e sua origem.** Se também usar GitHub, inclua compose.github.yaml no mesmo comando. Para desabilitar novamente, use PANEL_APPS_ENABLED=0 e recrie somente o serviço api. Desabilitar novas operações não apaga containers que já foram criados.
+
+As APIs dessa etapa estão em server/apps.ts, com testes em server/apps.test.mjs. A nova tela usa apps-ui.ts e o correspondente apps-ui.js servido pelo Cloudflare Pages.
+
+### Aviso sobre o Docker socket
+
+Um processo com acesso ao Docker socket possui poderes administrativos efetivos sobre o host, **mesmo quando o socket é montado com :ro**. As validações acima protegem as rotas publicadas, mas não protegem contra comprometimento do próprio processo da API. **Não exponha esta interface a usuários não confiáveis.** Para uma versão multiusuário será necessário um agente isolado ou um proxy de API Docker com permissões estritas e auditoria antes de permitir provisionamento de aplicações.
+
+Próximos passos: integrar builds e imagens produzidas pelo GitHub Actions, organizar o catálogo de projetos, configuração segura de domínios/portas/variáveis e rollback, e concluir a migração de server/api.mjs e script.js para TypeScript.
