@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test server/api.test.mjs server/github.test.mjs server/apps.test.mjs server/projects.test.mjs server/releases.test.mjs server/image-import.test.mjs server/domains.test.mjs",
-    "check:js": "node --check script.js && node --check github-ui.js && node --check apps-ui.js && node --check projects-ui.js && node --check domains-ui.js",
+    "test": "node --experimental-strip-types --test server/api.test.mjs server/github.test.mjs server/apps.test.mjs server/projects.test.mjs server/releases.test.mjs server/image-import.test.mjs server/domains.test.mjs server/executor-policy.test.mjs",
+    "check:js": "node --check script.js && node --check github-ui.js && node --check apps-ui.js && node --check projects-ui.js && node --check domains-ui.js && node --check server/executor.mjs",
     "build:frontend": "tsc github-ui.ts apps-ui.ts projects-ui.ts domains-ui.ts --target ES2022 --module none --lib ES2022,DOM --skipLibCheck"
   },
   "devDependencies": {
