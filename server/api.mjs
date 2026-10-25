@@ -7,6 +7,7 @@ import { handleImageImportRoute } from './image-import.ts';
 import { handleDomainRoute } from './domains.ts';
 import { handleSshTerminalRoute } from './terminal-ssh.ts';
 import { handleRevisionRoute, startRevisionMonitor } from './revision-maintenance.ts';
+import { handlePublicationRoute, startPublicationWorker } from './publications.ts';
 import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, existsSync, statfsSync } from 'node:fs';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { totalmem, freemem, loadavg, cpus } from 'node:os';
@@ -171,6 +172,7 @@ async function handler(req, res) {
   if (await handleDomainRoute(req, res, { send, body, dataDir })) return;
   if (await handleAppRoute(req, res, { send, body, dataDir })) return;
   if (await handleImageImportRoute(req, res, { send, body, dataDir })) return;
+  if (await handlePublicationRoute(req, res, { send, body, dataDir })) return;
   if (await handleReleaseRoute(req, res, { send, body, dataDir })) return;
   if (await handleProjectRoute(req, res, { send, body, dataDir })) return;
   if (path === '/password' && req.method === 'POST') {
@@ -241,3 +243,4 @@ http.createServer((req, res) => {
 }).listen(port, '0.0.0.0', () => console.log(`Panel API listening on ${port}`));
 startIdleMonitor(dataDir);
 startRevisionMonitor(dataDir);
+startPublicationWorker(dataDir);
