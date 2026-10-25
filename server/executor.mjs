@@ -5,7 +5,8 @@ import { dirname } from 'node:path';
 import { authorize, visibleContainers } from './executor-policy.ts';
 
 const socket = process.env.PANEL_EXECUTOR_SOCKET || '/run/panel-executor/docker.sock';
-const dockerSocket = '/var/run/docker.sock';
+const dockerSocket = process.env.NODE_ENV === 'test' && process.env.PANEL_TEST_DOCKER_SOCKET
+  ? process.env.PANEL_TEST_DOCKER_SOCKET : '/var/run/docker.sock';
 const images = (process.env.PANEL_APPS_ALLOWED_IMAGES || '').split(',').map(s=>s.trim()).filter(Boolean);
 const ghcrOwner = process.env.PANEL_GHCR_ALLOWED_OWNER || 'Softdown-prog';
 const maxJson = 32 * 1024;
