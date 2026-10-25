@@ -61,7 +61,7 @@ A CI em .github/workflows/ci.yml verifica tipos, testes, sintaxe JavaScript e bu
 
 ## Segurança e limitações
 
-- O painel ainda reconhece containers existentes por nome fixo; provisionamento de novos aplicativos, portas, domínios, variáveis, volumes e rollback ainda **não foram implementados**.
+- Os seis serviços originais permanecem identificados por nome fixo. A aba Aplicações já permite criar e controlar containers gerenciados separadamente; ainda faltam portas, domínios, variáveis, volumes persistentes, publicação de revisões e rollback.
 - Mesmo com o arquivo docker.sock montado como read-only, a API Docker permite operações de escrita. O código atual limita ações, mas antes de disponibilizar o painel a outros usuários é importante isolar o controle Docker atrás de um agente com permissões mínimas.
 - Evite reutilizar credenciais SSH root ou chaves de produção entre repositórios; exija CI e proteção da branch para produção.
 - A aceitação HTTP 204 do GitHub confirma somente que o pedido de execução foi recebido, **não** que o deploy terminou com sucesso.
