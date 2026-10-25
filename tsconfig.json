@@ -20,6 +20,7 @@
     "server/**/*.ts",
     "functions/**/*.ts",
     "github-ui.ts",
-    "apps-ui.ts"
+    "apps-ui.ts",
+    "projects-ui.ts"
   ]
 }
