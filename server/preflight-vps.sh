@@ -45,6 +45,15 @@ done
 
 if docker volume inspect softload_panel_data >/dev/null 2>&1; then
   echo 'PASS: Existing panel data volume located (backup independently before any rollout)'
+  mountpoint="$(docker volume inspect softload_panel_data --format '{{.Mountpoint}}')"
+  if [[ -d "$mountpoint" ]]; then
+    volume_uid="$(stat -c '%u' "$mountpoint" 2>/dev/null || echo unknown)"
+    if [[ "$volume_uid" != 0 ]]; then
+      echo "NOTICE: Panel data volume ownership UID=$volume_uid. API uses UID 0 with all capabilities dropped; verify write access before rollout (user namespaces can change UID mapping)."
+    else
+      echo 'PASS: Panel data volume appears owned by root on this host.'
+    fi
+  fi
 else
   echo 'NOTICE: No existing panel data volume. Confirm whether this is a fresh installation.'
 fi
