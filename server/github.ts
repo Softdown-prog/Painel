@@ -55,7 +55,8 @@ function saveRepositories(dataDir: string, repositories: LinkedRepository[]): vo
   renameSync(temp, target);
 }
 class GitHubError extends Error {
-  constructor(public status: number, message: string) { super(message); }
+  readonly status: number;
+  constructor(status: number, message: string) { super(message); this.status = status; }
 }
 async function github(path: string, method = 'GET', payload?: object): Promise<any> {
   const secret = token();
