@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import { handleReleaseRoute } from './releases.ts';
 const repo = 'Softdown-prog/sample';
 const sha = 'a'.repeat(40);
-const tag = 'ghcr.io/softdown-prog/sample:sha-' + sha;
+const digest = 'sha256:' + 'c'.repeat(64);
+const tag = 'ghcr.io/softdown-prog/sample@' + digest;
 const role = 'com.softload.panel.release-role';
 const revision = 'com.softload.panel.revision';
 const repository = 'com.softload.panel.repository';
@@ -24,7 +25,7 @@ function fakeDocker() {
     const found = images.get(key) || [...images.values()].find(c => c.Id === key);
     const response = (status, data = {}) => ({ status, buffer: Buffer.from(JSON.stringify(data)) });
     if (path.startsWith('/images/')) return response(200, { Id: 'sha256:' + 'b'.repeat(64),
-      RepoTags: [tag], Config: { Labels: {
+      RepoDigests: [tag], Config: { Labels: {
         'org.opencontainers.image.source': 'https://github.com/' + repo,
         'org.opencontainers.image.revision': sha
       }, Healthcheck: { Test: ['CMD', '/healthcheck'] } } });
@@ -60,6 +61,8 @@ test('staging requires approved run, immutable local image and healthy promotion
   const dir = mkdtempSync(join(tmpdir(), 'panel-releases-'));
   writeFileSync(join(dir, 'projects.json'), JSON.stringify([{ slug: 'demo', repository: repo,
     connectedAt: '2026-10-25T00:00:00Z' }]));
+  writeFileSync(join(dir, 'image-imports.json'), JSON.stringify([{ slug: 'demo', repository: repo,
+    revision: sha, digest, imageId: 'sha256:' + 'b'.repeat(64), runId: 987, importedAt: '2026-10-25T00:00:00Z' }]));
   const docker = fakeDocker();
   let githubApproved = true;
   const githubRequest = async (path) => {
