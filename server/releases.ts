@@ -239,6 +239,12 @@ export async function handleReleaseRoute(req: IncomingMessage, res: ServerRespon
         return { staged: true, revision: sha, message: 'Candidata iniciada. Aguarde HEALTHCHECK saudável antes de promover.' };
       }
       if (operation === 'promote') {
+        const input = await deps.body(req);
+        if (Object.keys(input).some(key => key !== 'expectedRevision') ||
+            (input.expectedRevision !== undefined && !validSha(input.expectedRevision)))
+          throw new ReleaseError(400, 'Revisão esperada inválida.');
+        if (input.expectedRevision && candidate?.Config?.Labels?.[REVISION] !== input.expectedRevision)
+          throw new ReleaseError(409, 'A candidata não corresponde à revisão escolhida para publicação.');
         if (!candidate || backup) throw new ReleaseError(409, 'É necessário ter candidata e nenhum backup pendente.');
         if (current.State?.Status !== 'running') throw new ReleaseError(409, 'Container original precisa estar em execução.');
         if (candidate.State?.Status !== 'running' || candidate.State.Health?.Status !== 'healthy')
