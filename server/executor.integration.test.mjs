@@ -8,6 +8,9 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ident='a'.repeat(64);
+const usedRef='ghcr.io/softdown-prog/example@sha256:'+'f'.repeat(64);
+const unusedRef='ghcr.io/softdown-prog/example@sha256:'+'d'.repeat(64);
+const usedImage='sha256:'+'e'.repeat(64),unusedImage='sha256:'+'c'.repeat(64);
 const labels={'com.softload.panel.managed':'true','com.softload.panel.slug':'demo'};
 async function exchange(socket,path,method='GET',data) {
   return await new Promise((resolve,reject)=>{
@@ -33,10 +36,17 @@ test('Unix executor rejects forbidden Docker calls and forwards authorized mutat
       return reply(200,{Id:ident,Name:'/softload-app-demo',Config:{Labels:labels},State:{Running:true,Status:'running'}});
     if(req.method==='GET' && req.url==='/v1.45/containers/json?all=1')
       return reply(200,[
-        {Names:['/softload-app-demo'],Labels:labels},
-        {Names:['/another-project'],Labels:{}},
-        {Names:['/softload-vps-app-1'],Labels:{}}
+        {Names:['/softload-app-demo'],Labels:labels,ImageID:usedImage},
+        {Names:['/another-project'],Labels:{},ImageID:'sha256:'+'b'.repeat(64)},
+        {Names:['/softload-vps-app-1'],Labels:{},ImageID:'sha256:'+'a'.repeat(64)}
       ]);
+    const image=/^\/v1\.45\/images\/([^?]+)(?:\/json|\?force=0&noprune=1)$/.exec(req.url||'');
+    if(image){
+      const ref=decodeURIComponent(image[1]);
+      if(![usedRef,unusedRef].includes(ref))return reply(404,{error:'bad ref'});
+      if(req.method==='GET')return reply(200,{Id:ref===usedRef?usedImage:unusedImage,RepoDigests:[ref]});
+      if(req.method==='DELETE')return reply(200,[{Untagged:ref}]);
+    }
     if(req.method==='POST' && req.url==='/v1.45/containers/'+ident+'/stop?t=10')
       return reply(200,{ok:true});
     return reply(404,{error:'no such route'});
@@ -72,6 +82,13 @@ test('Unix executor rejects forbidden Docker calls and forwards authorized mutat
     const stopped=await exchange(executorSocket,'/v1.45/containers/softload-app-demo/stop?t=10','POST');
     assert.equal(stopped.status,200);
     assert.ok(requests.some(r=>r.path==='/v1.45/containers/'+ident+'/stop?t=10'));
+    const removal=(ref)=>'/v1.45/images/'+encodeURIComponent(ref)+'?force=0&noprune=1';
+    const used=await exchange(executorSocket,removal(usedRef),'DELETE');
+    assert.equal(used.status,403,'Even panel-owned image must be protected if host container references it');
+    const unused=await exchange(executorSocket,removal(unusedRef),'DELETE');
+    assert.equal(unused.status,200);
+    assert.equal(requests.some(r=>r.method==='DELETE'&&r.path===removal(usedRef)),false);
+    assert.ok(requests.some(r=>r.method==='DELETE'&&r.path===removal(unusedRef)));
     assert.equal(requests.some(r=>r.path.includes('/prune')||r.path.includes('/create?')),false);
   }finally{
     child.kill('SIGTERM');
