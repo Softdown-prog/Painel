@@ -134,7 +134,9 @@ async function loadOverview() {
   } catch (error) { toast(`Não foi possível atualizar a VPS: ${error.message}`); }
 }
 const deployStatusLabels = Object.freeze({
-  active: 'IMAGEM ATIVA NA VPS',
+  active: 'IMAGEM ATIVA · HTTPS NÃO CONFERIDO',
+  published: 'PUBLICADO · HTTPS CONFERIDO',
+  'public-mismatch': 'IMAGEM ATIVA · SITE DIVERGENTE',
   superseded: 'CONCLUÍDO · OUTRA VERSÃO ATIVA',
   unconfirmed: 'CONCLUÍDO · ATIVAÇÃO NÃO CONFIRMADA',
   queued: 'NA FILA',
@@ -143,7 +145,7 @@ const deployStatusLabels = Object.freeze({
   failed: 'FALHOU',
   unknown: 'ESTADO DESCONHECIDO'
 });
-function deployState(run, runtime) {
+function deployState(run, runtime, publicHealth = null) {
   // Older backends never prove a deployment from the .env SHA alone.
   if (run.status === 'queued' || run.status === 'pending' || run.status === 'waiting') return 'queued';
   if (run.status === 'in_progress') return 'building';
@@ -151,12 +153,15 @@ function deployState(run, runtime) {
   if (run.conclusion === 'failure') return 'failed';
   if (run.conclusion !== 'success' || run.status !== 'completed') return 'unknown';
   if (runtime?.app?.status !== 'verified') return 'unconfirmed';
-  return run.sha === runtime.app.revision ? 'active' : 'superseded';
+  if (run.sha !== runtime.app.revision) return 'superseded';
+  if (publicHealth?.status === 'matched') return 'published';
+  if (publicHealth?.status === 'different') return 'public-mismatch';
+  return 'active';
 }
-function deployLabel(run, runtime) {
-  return deployStatusLabels[deployState(run, runtime)];
+function deployLabel(run, runtime, publicHealth = null) {
+  return deployStatusLabels[deployState(run, runtime, publicHealth)];
 }
-function renderDeployRuntime(runtime, configuredSha) {
+function renderDeployRuntime(runtime, configuredSha, publicHealth = null) {
   const host = document.getElementById('deployRuntimeDetails');
   host.replaceChildren();
   const heading = document.createElement('strong');
@@ -181,6 +186,23 @@ function renderDeployRuntime(runtime, configuredSha) {
     (runtime?.configuredSha || configuredSha || 'não disponível') +
     ' · Validação do site público: não incluída nesta verificação';
   host.append(configured);
+  const publicLine = document.createElement('p');
+  publicLine.className = 'deploy-public-health';
+  if (publicHealth?.status === 'matched') {
+    publicLine.textContent = 'HTTPS público conferido: /health confirma a revisão em execução no Docker (' +
+      publicHealth.revision.slice(0, 12) + ').';
+  } else if (publicHealth?.status === 'different') {
+    publicLine.textContent = 'ATENÇÃO: o site público informa a revisão ' + publicHealth.revision.slice(0,12) +
+      ', mas o Docker está executando ' + (runtime?.app?.revision?.slice(0,12) || 'não confirmada') +
+      '. Verifique o roteamento e o deploy antes de declarar sucesso.';
+  } else if (publicHealth?.status === 'observed') {
+    publicLine.textContent = 'O site público informa a revisão ' + publicHealth.revision.slice(0,12) +
+      ', porém a revisão Docker ainda não foi confirmada.';
+  } else {
+    publicLine.textContent = 'Verificação pública HTTPS indisponível ou não instalada na API. ' +
+      'Isso não significa que o site esteja fora do ar.';
+  }
+  host.append(publicLine);
   if (!runtime?.services) return;
   const list = document.createElement('div');
   list.className = 'deploy-runtime-services';
@@ -202,7 +224,7 @@ function renderDeployRuntime(runtime, configuredSha) {
   }
   host.append(list);
 }
-function deployRow(run, runtime) {
+function deployRow(run, runtime, publicHealth = null) {
   const row = document.createElement('div');
   row.className = 'deploy-row';
   const revision = document.createElement('span');
@@ -221,8 +243,8 @@ function deployRow(run, runtime) {
   const status = document.createElement('span');
   const badge = document.createElement('i');
   badge.className = 'status-badge';
-  badge.textContent = deployLabel(run, runtime);
-  if (deployState(run, runtime) === 'active') badge.classList.add('success-badge');
+  badge.textContent = deployLabel(run, runtime, publicHealth);
+  if (deployState(run, runtime, publicHealth) === 'published') badge.classList.add('success-badge');
   status.append(badge);
   const time = document.createElement('span');
   time.textContent = new Date(run.createdAt).toLocaleString('pt-BR');
@@ -243,22 +265,26 @@ async function loadDeploys() {
       data.runs?.[0]?.sha === appSha ? 'Último workflow corresponde ao Docker' :
       'Uma revisão diferente está em execução na VPS';
     document.getElementById('deployedRevision').textContent = `VPS ${vpsState} · Imagem da aplicação: ${appSha?.slice(0, 12) || 'não confirmada'} · ${githubState}`;
-    renderDeployRuntime(runtime, data.currentSha);
-    document.getElementById('deployTag').textContent = activeRun ? 'DEPLOY EM CURSO' : appSha ? 'IMAGEM VERIFICADA' : 'REVISÃO NÃO CONFIRMADA';
+    const publicHealth = data.publicHealth || null;
+    renderDeployRuntime(runtime, data.currentSha, publicHealth);
+    document.getElementById('deployTag').textContent = activeRun ? 'DEPLOY EM CURSO' :
+      publicHealth?.status === 'different' ? 'SITE DIVERGENTE' :
+      publicHealth?.status === 'matched' ? 'PUBLICADO E CONFERIDO' :
+      appSha ? 'IMAGEM VERIFICADA' : 'REVISÃO NÃO CONFIRMADA';
     document.getElementById('activityTag').textContent = 'GITHUB';
     const table = document.getElementById('deployTable');
-    table.replaceChildren(table.firstElementChild, ...(data.runs || []).map(run => deployRow(run, runtime)));
+    table.replaceChildren(table.firstElementChild, ...(data.runs || []).map(run => deployRow(run, runtime, publicHealth)));
     const activity = document.getElementById('activityList');
     activity.replaceChildren();
     for (const run of (data.runs || []).slice(0, 3)) {
       const item = document.createElement('div');
       item.className = 'timeline-item';
       const symbol = document.createElement('span');
-      symbol.className = 'timeline-symbol ' + (deployState(run, runtime) === 'active' ? 'success' : 'neutral');
-      symbol.textContent = deployState(run, runtime) === 'active' ? '✓' : '↗';
+      symbol.className = 'timeline-symbol ' + (deployState(run, runtime, publicHealth) === 'published' ? 'success' : 'neutral');
+      symbol.textContent = deployState(run, runtime, publicHealth) === 'published' ? '✓' : '↗';
       const content = document.createElement('div');
       const title = document.createElement('strong');
-      title.textContent = deployLabel(run, runtime);
+      title.textContent = deployLabel(run, runtime, publicHealth);
       const summary = document.createElement('p');
       summary.textContent = `${run.branch || 'main'} · ${run.sha?.slice(0, 8)}`;
       const time = document.createElement('small');
