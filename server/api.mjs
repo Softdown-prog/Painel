@@ -9,6 +9,7 @@ import { handleSshTerminalRoute } from './terminal-ssh.ts';
 import { handleRevisionRoute, startRevisionMonitor } from './revision-maintenance.ts';
 import { handlePublicationRoute, startPublicationWorker } from './publications.ts';
 import { handleSecretsRoute } from './secrets.ts';
+import { inspectDeployedServices, runDeploymentStatus } from './deploy-verification.mjs';
 import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, existsSync, statfsSync } from 'node:fs';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { totalmem, freemem, loadavg, cpus } from 'node:os';
@@ -241,7 +242,12 @@ async function handler(req, res) {
       const response = await fetch('https://api.github.com/repos/Softdown-prog/Softloadv4/actions/workflows/deploy.yml/runs?per_page=8', { headers: { 'user-agent': 'softload-panel-api', accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(8000) });
       if (response.ok) runs = (await response.json()).workflow_runs?.map(run => ({ id: run.id, sha: run.head_sha, branch: run.head_branch, status: run.status, conclusion: run.conclusion, createdAt: run.created_at, url: run.html_url })) || [];
     } catch { /* GitHub status is optional; production status still returns */ }
-    return send(res, 200, { currentSha: currentSha(), runs });
+    const runtime = await inspectDeployedServices(docker, currentSha());
+    return send(res, 200, {
+      currentSha: runtime.configuredSha,
+      runtime,
+      runs: runs.map(run => ({ ...run, deploymentStatus: runDeploymentStatus(run, runtime) }))
+    });
   }
   return send(res, 404, { error: 'Rota não encontrada' });
 }
