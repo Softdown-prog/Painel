@@ -130,19 +130,79 @@ async function loadOverview() {
     document.getElementById('servicesTag').textContent = 'AO VIVO';
     document.querySelector('.connection-card strong').textContent = 'VPS conectada';
     document.querySelector('.connection-card small').textContent = 'API administrativa ativa';
-    setBanner(`VPS conectada · Revisão ${data.currentSha?.slice(0, 8) || 'não disponível'} · Operações exigem confirmação.`, true);
+    setBanner(`VPS conectada · Revisão configurada ${data.currentSha?.slice(0, 8) || 'não disponível'} · Confira a imagem em Publicações.`, true);
   } catch (error) { toast(`Não foi possível atualizar a VPS: ${error.message}`); }
 }
-function deployLabel(run, currentSha) {
-  if (run.sha === currentSha) return 'PUBLICADO NA VPS';
-  if (run.status === 'queued' || run.status === 'pending' || run.status === 'waiting') return 'NA FILA';
-  if (run.status === 'in_progress') return 'EM EXECUÇÃO NO GITHUB';
-  if (run.conclusion === 'success') return 'CONCLUÍDO, NÃO ATIVO';
-  if (run.conclusion === 'cancelled') return 'CANCELADO';
-  if (run.conclusion === 'failure') return 'FALHOU';
-  return run.conclusion || run.status || 'DESCONHECIDO';
+const deployStatusLabels = Object.freeze({
+  active: 'IMAGEM ATIVA NA VPS',
+  superseded: 'CONCLUÍDO · OUTRA VERSÃO ATIVA',
+  unconfirmed: 'CONCLUÍDO · ATIVAÇÃO NÃO CONFIRMADA',
+  queued: 'NA FILA',
+  building: 'EM EXECUÇÃO NO GITHUB',
+  cancelled: 'CANCELADO',
+  failed: 'FALHOU',
+  unknown: 'ESTADO DESCONHECIDO'
+});
+function deployState(run, runtime) {
+  // Older backends never prove a deployment from the .env SHA alone.
+  if (run.status === 'queued' || run.status === 'pending' || run.status === 'waiting') return 'queued';
+  if (run.status === 'in_progress') return 'building';
+  if (run.conclusion === 'cancelled') return 'cancelled';
+  if (run.conclusion === 'failure') return 'failed';
+  if (run.conclusion !== 'success' || run.status !== 'completed') return 'unknown';
+  if (runtime?.app?.status !== 'verified') return 'unconfirmed';
+  return run.sha === runtime.app.revision ? 'active' : 'superseded';
 }
-function deployRow(run, currentSha) {
+function deployLabel(run, runtime) {
+  return deployStatusLabels[deployState(run, runtime)];
+}
+function renderDeployRuntime(runtime, configuredSha) {
+  const host = document.getElementById('deployRuntimeDetails');
+  host.replaceChildren();
+  const heading = document.createElement('strong');
+  if (!runtime || runtime.app?.status !== 'verified') {
+    heading.textContent = 'Revisão da aplicação ainda não confirmada pelo Docker';
+    host.append(heading);
+    const reason = document.createElement('p');
+    reason.textContent = 'A versão configurada no arquivo da VPS não comprova que o container esteja executando essa imagem. ' +
+      'Confira a API/executor ou aguarde o deploy antes de concluir.';
+    host.append(reason);
+  } else {
+    heading.textContent = 'Aplicação em execução · ' + runtime.app.revision.slice(0,12);
+    host.append(heading);
+    const message = document.createElement('p');
+    message.textContent = runtime.configuredMatchesRunning === false ?
+      'A revisão registrada no arquivo de ambiente é diferente da imagem em execução. O Docker é a referência para esta tela.' :
+      'A revisão foi confirmada pela imagem do container da aplicação na VPS.';
+    host.append(message);
+  }
+  const configured = document.createElement('small');
+  configured.textContent = 'Referência em /host/softload.env: ' +
+    (runtime?.configuredSha || configuredSha || 'não disponível') +
+    ' · Validação do site público: não incluída nesta verificação';
+  host.append(configured);
+  if (!runtime?.services) return;
+  const list = document.createElement('div');
+  list.className = 'deploy-runtime-services';
+  const titles = { app: 'Aplicação', agent: 'Agente', sandbox: 'Sandbox', embeddings: 'Embeddings' };
+  for (const id of ['app','agent','sandbox','embeddings']) {
+    const item = runtime.services[id];
+    if (!item) continue;
+    const line = document.createElement('div');
+    const label = document.createElement('strong');
+    label.textContent = titles[id];
+    const detail = document.createElement('span');
+    detail.textContent = item.status === 'verified'
+      ? 'Em execução · ' + item.revision.slice(0,12)
+      : item.status === 'stopped' ? 'Parado'
+      : item.status === 'missing' ? 'Container não encontrado'
+      : 'Revisão não verificável';
+    line.append(label,detail);
+    list.append(line);
+  }
+  host.append(list);
+}
+function deployRow(run, runtime) {
   const row = document.createElement('div');
   row.className = 'deploy-row';
   const revision = document.createElement('span');
@@ -161,8 +221,8 @@ function deployRow(run, currentSha) {
   const status = document.createElement('span');
   const badge = document.createElement('i');
   badge.className = 'status-badge';
-  badge.textContent = deployLabel(run, currentSha);
-  if (run.sha === currentSha) badge.classList.add('success-badge');
+  badge.textContent = deployLabel(run, runtime);
+  if (deployState(run, runtime) === 'active') badge.classList.add('success-badge');
   status.append(badge);
   const time = document.createElement('span');
   time.textContent = new Date(run.createdAt).toLocaleString('pt-BR');
@@ -176,24 +236,29 @@ async function loadDeploys() {
     const runningServices = (overview.services || []).filter(service => ['app', 'agent', 'sandbox', 'embeddings'].includes(service.id) && service.state === 'running').length;
     const activeRun = (data.runs || []).find(run => ['queued', 'pending', 'waiting', 'in_progress'].includes(run.status));
     const vpsState = runningServices === 0 ? 'Em repouso' : runningServices === 4 ? 'Ativa' : 'Inicializando ou parcialmente ativa';
+    const runtime = data.runtime || null;
+    const appSha = runtime?.app?.status === 'verified' ? runtime.app.revision : null;
     const githubState = activeRun ? (activeRun.status === 'in_progress' ? `GitHub executando ${activeRun.sha?.slice(0, 8)}` : `GitHub com ${activeRun.sha?.slice(0, 8)} na fila`) :
-      data.runs?.[0]?.sha !== data.currentSha ? 'Aguardando a próxima publicação' : 'Atualizada';
-    document.getElementById('deployedRevision').textContent = `VPS ${vpsState} · SHA ${data.currentSha?.slice(0, 12) || 'não informado'} · ${githubState}`;
-    document.getElementById('deployTag').textContent = activeRun ? 'DEPLOY EM CURSO' : runningServices === 0 ? 'EM REPOUSO' : 'ATIVA';
+      !appSha ? 'Imagem da aplicação ainda não verificada' :
+      data.runs?.[0]?.sha === appSha ? 'Último workflow corresponde ao Docker' :
+      'Uma revisão diferente está em execução na VPS';
+    document.getElementById('deployedRevision').textContent = `VPS ${vpsState} · Imagem da aplicação: ${appSha?.slice(0, 12) || 'não confirmada'} · ${githubState}`;
+    renderDeployRuntime(runtime, data.currentSha);
+    document.getElementById('deployTag').textContent = activeRun ? 'DEPLOY EM CURSO' : appSha ? 'IMAGEM VERIFICADA' : 'REVISÃO NÃO CONFIRMADA';
     document.getElementById('activityTag').textContent = 'GITHUB';
     const table = document.getElementById('deployTable');
-    table.replaceChildren(table.firstElementChild, ...(data.runs || []).map(run => deployRow(run, data.currentSha)));
+    table.replaceChildren(table.firstElementChild, ...(data.runs || []).map(run => deployRow(run, runtime)));
     const activity = document.getElementById('activityList');
     activity.replaceChildren();
     for (const run of (data.runs || []).slice(0, 3)) {
       const item = document.createElement('div');
       item.className = 'timeline-item';
       const symbol = document.createElement('span');
-      symbol.className = 'timeline-symbol ' + (run.sha === data.currentSha ? 'success' : 'neutral');
-      symbol.textContent = run.sha === data.currentSha ? '✓' : '↗';
+      symbol.className = 'timeline-symbol ' + (deployState(run, runtime) === 'active' ? 'success' : 'neutral');
+      symbol.textContent = deployState(run, runtime) === 'active' ? '✓' : '↗';
       const content = document.createElement('div');
       const title = document.createElement('strong');
-      title.textContent = deployLabel(run, data.currentSha);
+      title.textContent = deployLabel(run, runtime);
       const summary = document.createElement('p');
       summary.textContent = `${run.branch || 'main'} · ${run.sha?.slice(0, 8)}`;
       const time = document.createElement('small');
