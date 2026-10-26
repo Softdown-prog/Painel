@@ -18,14 +18,22 @@ O valor de `SOFTLOAD_IMAGE_TAG` em `/host/softload.env` continua visível como *
 
 O endpoint autenticado `GET /deploys` agora inclui `runtime` com o resultado de chamadas **somente leitura** ao executor Docker, usando `GET /containers/<nome>/json` para os quatro serviços. A API não tem acesso direto ao Docker socket. Não são enviados para o navegador `Config.Env`, mounts, tokens ou configurações privadas: somente estado, nome da imagem e SHA extraído da tag.
 
-A análise verifica a **imagem do container em execução**, não a funcionalidade do site pelo endereço público. O deploy do próprio repositório Softloadv4 realiza uma verificação externa separada em `https://softload.analysepro.com/health`. Para confirmar também o HTTP/HTTPS externamente pelo Painel, adicionar uma checagem específica sem confundí-la com a verificação do Docker.
+A verificação de imagem consulta os containers Docker. **Uma segunda verificação, independente, consulta o HTTPS público `https://softload.analysepro.com/health`**, lê apenas `deploy.gitSha` da resposta e compara com a revisão do container principal. O resultado público é incluído em `GET /deploys` sob o campo `publicHealth`. O endereço da consulta é fixo no código, não é escolhido pelo usuário, e as respostas são limitadas a 16 KB e timeout de 5 segundos. Os resultados são reutilizados por 25 segundos para não sobrecarregar o site.
+
+Estados adicionais:
+- **DOCKER + /HEALTH CONFERIDOS**: GitHub concluiu, Docker executa aquela revisão e o `/health` público apresenta o mesmo SHA.
+- **IMAGEM ATIVA · SITE DIVERGENTE**: Docker executa a imagem daquela revisão, mas o `/health` público informa outro SHA. Exige investigar publicação/roteamento, sem marcar o workflow como falho automaticamente.
+- **IMAGEM ATIVA · HTTPS NÃO CONFERIDO**: Docker confirmou a imagem, mas o `/health` não foi verificado. **Não significa que o site caiu**; a consulta pode estar indisponível.
+- **Revisão pública observada**: caso o `/health` responda mas o Docker não possa ser confirmado, o SHA é mostrado sem afirmar que corresponde ao container.
+
+**Limite do teste público:** conferir `/health` não garante que toda a interface React, os scripts, o login ou demais rotas estejam corretos. O workflow do Softloadv4 já faz uma checagem própria do bundle JavaScript após verificar o `/health`.
 
 **Compatibilidade:** se o frontend estiver atualizado, mas a API na VPS ainda for antiga e não retornar `runtime`, os workflows concluídos aparecerão como **Ativação não confirmada**, nunca erroneamente como "Imagem ativa na VPS". É necessário instalar o backend atualizado para mostrar os SHAs reais.
 
 ## Instalação na VPS
 
-A nova funcionalidade exige atualizar **somente a imagem da API do Painel** com o código e o novo módulo `server/deploy-verification.mjs`; o executor existente já permite leitura de containers gerenciados e dos quatro serviços Softload. Não é necessário mudar Caddy, DNS, Softload V4, credenciais ou permissões SSH.
+A nova funcionalidade exige atualizar **somente a imagem da API do Painel** com os módulos `server/deploy-verification.mjs` e `server/deploy-public-health.mjs`; o executor existente já permite leitura de containers gerenciados e dos quatro serviços Softload. Não é necessário mudar Caddy, DNS, Softload V4, credenciais ou permissões SSH.
 
 Verifique o Compose em uso, crie backup antes de atualizar e execute o preflight read-only. Depois de atualizar a API e confirmar sua saúde, abra a aba **Publicações**, confira os quatro serviços, compare a revisão ativa do app com a versão configurada e compare os estados ao histórico do GitHub.
 
-Nenhum deploy foi disparado na VPS nem houve alteração de containers de produção ao implementar essa correção.
+O CI cobre comparação, divergência e indisponibilidade do HTTPS, e o teste isolado com Docker verifica a resposta autenticada da API mesmo quando não existe rede externa. **Nenhum deploy foi disparado na VPS nem houve alteração de containers de produção ao implementar essa correção.**
