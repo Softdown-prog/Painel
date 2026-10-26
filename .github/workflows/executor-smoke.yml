@@ -9,6 +9,9 @@ on:
       - server/executor-policy.ts
       - server/executor.Dockerfile
       - server/api.mjs
+      - server/deploy-verification.mjs
+      - server/deploy-public-health.mjs
+      - server/deploy-public-health.test.mjs
       - server/Dockerfile
       - server/apps.ts
       - server/revision-maintenance.ts
