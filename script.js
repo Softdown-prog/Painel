@@ -331,6 +331,7 @@ function showView(name) {
   if (view.id === 'terminal') window.refreshTerminalConnection?.();
   if (view.id === 'revisions' && authenticated) window.refreshManagedRevisions?.();
   if (view.id === 'secrets' && authenticated) window.refreshPanelSecrets?.();
+  if (view.id === 'traffic' && authenticated) window.refreshTraffic?.();
 }
 window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
 showView(location.hash.slice(1));
@@ -366,6 +367,7 @@ document.getElementById('authForm').addEventListener('submit', async event => {
       if (location.hash === '#domains') window.refreshManagedDomains?.();
       if (location.hash === '#terminal') window.refreshTerminalConnection?.();
     if (location.hash === '#secrets') window.refreshPanelSecrets?.();
+      if (location.hash === '#traffic') window.refreshTraffic?.();
       if (location.hash === '#revisions') window.refreshManagedRevisions?.();
     }
   } catch (error) { errorBox.textContent = error.message; }
@@ -412,6 +414,7 @@ api('/session').then(data => {
     if (location.hash === '#domains') window.refreshManagedDomains?.();
     if (location.hash === '#terminal') window.refreshTerminalConnection?.();
     if (location.hash === '#secrets') window.refreshPanelSecrets?.();
+    if (location.hash === '#traffic') window.refreshTraffic?.();
   } else showAuth(data.setupRequired);
 }).catch(() => {
   setBanner('API indisponível. Os valores exibidos são apenas exemplos; nenhuma ação alcança a VPS.');

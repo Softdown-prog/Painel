@@ -16,6 +16,7 @@ services:
       - panel_executor_socket:/run/panel-executor:ro
       - /etc/softload-panel/edge-key:/run/secrets/panel-edge-key:ro
       - /opt/softload-infra/softload/.env:/host/softload.env:ro
+      - /proc/net/dev:/host/proc/net/dev:ro
     depends_on:
       executor:
         condition: service_healthy

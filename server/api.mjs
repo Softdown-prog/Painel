@@ -9,6 +9,7 @@ import { executeSshCommand, handleSshTerminalRoute } from './terminal-ssh.ts';
 import { handleRevisionRoute, startRevisionMonitor } from './revision-maintenance.ts';
 import { handlePublicationRoute, startPublicationWorker } from './publications.ts';
 import { handleSecretsRoute } from './secrets.ts';
+import { handleTrafficRoute, startTrafficMonitor } from './traffic.ts';
 import { inspectDeployedServices, runDeploymentStatus } from './deploy-verification.mjs';
 import { cachedPublicHealth } from './deploy-public-health.mjs';
 import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, existsSync, statfsSync } from 'node:fs';
@@ -182,6 +183,7 @@ async function handler(req, res) {
     }
   })) return;
   if (await handleRevisionRoute(req, res, { send, body, dataDir })) return;
+  if (await handleTrafficRoute(req, res, { send, body, dataDir })) return;
   if (await handleGitHubRoute(req, res, { send, body, dataDir })) return;
   if (await handleDomainRoute(req, res, { send, body, dataDir,
     execute: executeSshCommand,
@@ -281,3 +283,4 @@ http.createServer((req, res) => {
 startIdleMonitor(dataDir);
 startRevisionMonitor(dataDir);
 startPublicationWorker(dataDir);
+startTrafficMonitor(dataDir);

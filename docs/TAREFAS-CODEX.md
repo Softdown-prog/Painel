@@ -131,6 +131,7 @@ Remover a suposição fixa de 8 apps por meio de capacidade configurável com te
 Backups automáticos e testados (restauração periódica), snapshots apenas quando compatíveis, histórico de operações, jobs duráveis com estados e repetição segura de deploys interrompidos. Aceite: recuperação demonstrada após falha de um deploy e de uma aplicação persistente.
 
 ### C09 · Monitoramento e orçamento da VPS
+**Implementado no código, aguardando validação na VPS (26/10/2026):** a aba **Tráfego de Rede** lê somente os contadores da interface externa configurada (padrão `eth0`) por bind mount de `/proc/net/dev` em modo leitura. A API grava deltas a cada cinco minutos no volume privado do Painel, exclui loopback, Docker, bridges e veths, separa RX/TX, trata reinício de contador sem inventar bytes e mantém até 370 dias. A referência inicial é 1 TB por ciclo, configurável com dia de renovação e alertas de 70%, 85% e 95%. Não substitui a medição faturada da LocaCloud; não havia histórico `vnstat` na VPS antes desta coleta.
 Painel simples de consumo por aplicação (memória, CPU, armazenamento, tráfego), alertas de disco/RAM e de indisponibilidade, limites de custo por cliente e estimativas sem inventar cobrança exata. Métricas amostradas sem sobrecarregar VPS pequena. Aceite: alerta antecipado antes de esgotar disco/memória e visão agregada por host.
 
 ### C15 · Painel de controle do host (facilitar administração da VPS)

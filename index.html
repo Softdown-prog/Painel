@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="revisions.css">
   <link rel="stylesheet" href="site-detail.css">
   <link rel="stylesheet" href="secrets.css">
+  <link rel="stylesheet" href="traffic.css">
 </head>
 <body>
   <div class="app-shell">
@@ -35,6 +36,7 @@
         <a class="nav-item" href="#apps" data-view="apps"><span class="nav-icon">⬡</span> Sites e apps</a>
         <a class="nav-item" href="#terminal" data-view="terminal"><span class="nav-icon">›_</span> Terminal VPS</a>
         <a class="nav-item" href="#revisions" data-view="revisions"><span class="nav-icon">◴</span> Revisões e espaço</a>
+        <a class="nav-item" href="#traffic" data-view="traffic"><span class="nav-icon">↕</span> Tráfego de Rede</a>
         <a class="nav-item" href="#projects" data-view="projects"><span class="nav-icon">⌘</span> Projetos GitHub</a>
         <a class="nav-item" href="#domains" data-view="domains"><span class="nav-icon">🌐</span> Endereços</a>
         <a class="nav-item" href="#deploys" data-view="deploys"><span class="nav-icon">⇅</span> Publicações</a>
@@ -86,6 +88,15 @@
           </div>
 
           <section class="bottom-callout"><div class="callout-icon">⌘</div><div><strong>Gerencie seus próprios containers</strong><p>Crie, inicie, pare e acompanhe aplicações independentes dos serviços da Softload.</p></div><button class="secondary-button demo-action" data-action="Abrir aplicações">Aplicações <span>↗</span></button></section>
+        </section>
+
+        <section class="view" id="traffic" data-title="Tráfego de Rede">
+          <div class="page-heading"><div><div class="eyebrow">VPS / REDE</div><h1>Tráfego de Rede</h1><p>Acompanhe a referência de consumo da interface externa da VPS.</p></div><button class="primary-button" id="trafficRefresh" type="button">↻ Atualizar</button></div>
+          <p id="trafficNotice" class="github-notice" role="status">Consultando dados da VPS...</p>
+          <section class="traffic-grid"><article class="panel traffic-stat"><small>Recebido (RX)</small><strong id="trafficRx">—</strong></article><article class="panel traffic-stat"><small>Enviado (TX)</small><strong id="trafficTx">—</strong></article><article class="panel traffic-stat"><small>Total do ciclo</small><strong id="trafficTotal">—</strong></article><article class="panel traffic-stat"><small>Franquia usada</small><strong id="trafficPercent">—</strong></article></section>
+          <section class="panel full-panel"><div class="panel-head"><div><h2>Franquia de referência</h2><p id="trafficCycle">Aguardando dados...</p></div></div><div class="traffic-progress"><div id="trafficBar" class="traffic-bar" style="width:0%"></div></div><form id="trafficForm" class="traffic-settings"><label>Franquia (TB)<input id="trafficAllowance" type="number" min="0.01" max="1000" step="0.01" value="1" required></label><label>Renova no dia<select id="trafficResetDay"><option>1</option><option>5</option><option>10</option><option>15</option><option>20</option><option>25</option></select></label><button id="trafficSave" class="secondary-button" type="submit">Salvar referência</button></form></section>
+          <section class="panel full-panel"><div class="panel-head"><div><h2>Consumo diário</h2><p>Azul: recebido · roxo: enviado</p></div></div><div id="trafficChart" class="traffic-chart"></div><p id="trafficMeta" class="traffic-meta"></p></section>
+          <p class="traffic-meta">Os dados vêm dos contadores do Linux da interface externa. Eles são uma referência técnica e podem divergir da medição faturada pela LocaCloud.</p>
         </section>
 
         <section class="view" id="services" data-title="Serviços Softload"><div class="page-heading"><div><div class="eyebrow">CONTAINERS / PRODUÇÃO</div><h1>Serviços</h1><p>Visualize a saúde e os recursos de cada componente.</p></div><button class="primary-button demo-action" data-action="Atualizar serviços">↻ Atualizar</button></div><div class="panel full-panel"><div class="panel-head"><div><h2>Containers</h2><p>Serviços registrados no servidor</p></div><span class="outline-tag" id="servicesTag">EXEMPLO</span></div><div id="allServices"></div></div></section>
@@ -305,5 +316,6 @@
   <script src="terminal-ui.js" defer></script>
   <script src="revisions-ui.js" defer></script>
   <script src="secrets-ui.js" defer></script>
+  <script src="traffic-ui.js" defer></script>
 </body>
 </html>
