@@ -76,7 +76,9 @@ async function main() {
   // CI has Docker but no Softload containers and no external network. The UI must not invent an active release.
   const deploy = await call('/deploys','GET',undefined,cookie,18000);
   assert.equal(deploy.status,200,JSON.stringify(deploy.data));
-  assert.equal(deploy.data.runtime?.app?.status,'missing');
+  // The executor rejects introspection of a nonexistent allowlisted container (403).
+  // This must remain inconclusive; it is not proof of a running or inactive version.
+  assert.equal(deploy.data.runtime?.app?.status,'unavailable');
   assert.equal(deploy.data.publicHealth?.status,'unavailable');
   assert.equal(deploy.data.runtime?.services?.app?.revision,null);
   const blocked = await call('/apps','POST',{slug:'blocked',image:'fake:1'},cookie);
