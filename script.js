@@ -236,6 +236,7 @@ function showView(name) {
   if (view.id === 'domains' && authenticated) window.refreshManagedDomains?.();
   if (view.id === 'terminal') window.refreshTerminalConnection?.();
   if (view.id === 'revisions' && authenticated) window.refreshManagedRevisions?.();
+  if (view.id === 'secrets' && authenticated) window.refreshPanelSecrets?.();
 }
 window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
 showView(location.hash.slice(1));
@@ -270,6 +271,7 @@ document.getElementById('authForm').addEventListener('submit', async event => {
       if (location.hash === '#projects') window.refreshManagedProjects?.();
       if (location.hash === '#domains') window.refreshManagedDomains?.();
       if (location.hash === '#terminal') window.refreshTerminalConnection?.();
+    if (location.hash === '#secrets') window.refreshPanelSecrets?.();
       if (location.hash === '#revisions') window.refreshManagedRevisions?.();
     }
   } catch (error) { errorBox.textContent = error.message; }
