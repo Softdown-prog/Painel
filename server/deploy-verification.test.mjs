@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
 import { inspectDeployedServices, revisionFromImage, runDeploymentStatus } from './deploy-verification.mjs';
 
 const current = 'a'.repeat(40);
@@ -73,4 +75,23 @@ test('wrong repository, partial hashes and digest-only references are not mistak
   assert.equal(revisionFromImage('softload-app@sha256:'+old.repeat(2).slice(0,64),'app'),null);
   assert.equal(revisionFromImage('ghcr.io/softdown-prog/softload-app:'+current,'app'),current);
   assert.equal(revisionFromImage('softload-agent:'+current,'app'),null);
+});
+
+test('deploy history frontend never treats configured .env SHA alone as active',()=>{
+  const source=readFileSync(new URL('../script.js',import.meta.url),'utf8');
+  const start=source.indexOf('const deployStatusLabels = Object.freeze(');
+  const end=source.indexOf('function renderDeployRuntime(',start);
+  assert.ok(start>0&&end>start);
+  const { deployState, deployLabel }=runInNewContext(source.slice(start,end)+';({deployState,deployLabel})');
+  const recorded={app:{status:'unconfirmed',revision:null},configuredSha:current};
+  assert.equal(deployState(run(current),recorded),'unconfirmed');
+  assert.match(deployLabel(run(current),recorded),/NÃO CONFIRMADA/);
+  const verified={app:{status:'verified',revision:current},configuredSha:old};
+  assert.equal(deployState(run(current),verified),'active');
+  assert.equal(deployState(run(old),verified),'superseded');
+  assert.equal(deployState(run(current,'failure'),verified),'failed');
+});
+test('VPS API image contains module needed by the deployment-status endpoint',()=>{
+  const dockerfile=readFileSync(new URL('Dockerfile',import.meta.url),'utf8');
+  assert.match(dockerfile,/COPY .*deploy-verification\.mjs/);
 });
