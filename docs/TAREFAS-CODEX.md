@@ -23,6 +23,12 @@ O usuário quer ações simples: **Criar site**, **Conectar GitHub**, **Escolher
 | Deploy da API no host | **Não implantado por esta automação** | Acesso administrativo restrito específico para o Painel, backup e rollback |
 | CI | Testes de código, Compose, smoke com Docker real em runner temporário | E2E do usuário no navegador e smoke seguro na VPS |
 
+### Correção de diagnóstico · Publicações da Softload V4 (26/10/2026)
+
+**Implementado no repositório:** `server/deploy-verification.mjs` consulta apenas dados dos quatro containers Softload pelo executor Docker, identifica a revisão real da imagem em execução e separa workflow concluído, imagem ativa, outra versão em execução e revisão não confirmada. A aba Publicações deixa de classificar como “NÃO ATIVO” apenas porque o SHA do GitHub difere de `SOFTLOAD_IMAGE_TAG`. Um `.env` isolado nunca confirma ativação. Docker API sem acesso direto pela API do Painel; o executor permanece isolado.
+
+**Ainda pendente:** atualizar a API na VPS real e conferir imagens/SHAs atuais após backup e preflight, sem reiniciar serviços Softload; testar revisão Docker versus `/health` público; criar diagnóstico adicional de revisão por digest caso o ambiente passe a usar referências sem tags Git SHA. O frontend anterior pode estar publicado enquanto o backend ainda retorna apenas `currentSha`; nesse caso deve mostrar “ativação não confirmada”. Ver [guia de status](STATUS-DEPLOYS.md).
+
 ## P0 — Resolver antes de vender hospedagem
 
 ### C01 · Implantação controlada do backend na VPS
