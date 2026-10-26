@@ -73,6 +73,12 @@ async function main() {
   const overview = await call('/overview','GET',undefined,cookie);
   assert.equal(overview.status, 200, JSON.stringify(overview.data));
   assert.equal(overview.data.services.length, 6);
+  // CI has Docker but no Softload containers and no external network. The UI must not invent an active release.
+  const deploy = await call('/deploys','GET',undefined,cookie);
+  assert.equal(deploy.status,200,JSON.stringify(deploy.data));
+  assert.equal(deploy.data.runtime?.app?.status,'missing');
+  assert.equal(deploy.data.publicHealth?.status,'unavailable');
+  assert.equal(deploy.data.runtime?.services?.app?.revision,null);
   const blocked = await call('/apps','POST',{slug:'blocked',image:'fake:1'},cookie);
   assert.equal(blocked.status, 403, 'New apps must remain disabled by default');
 
