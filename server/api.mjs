@@ -8,6 +8,7 @@ import { handleDomainRoute } from './domains.ts';
 import { handleSshTerminalRoute } from './terminal-ssh.ts';
 import { handleRevisionRoute, startRevisionMonitor } from './revision-maintenance.ts';
 import { handlePublicationRoute, startPublicationWorker } from './publications.ts';
+import { handleSecretsRoute } from './secrets.ts';
 import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, existsSync, statfsSync } from 'node:fs';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { totalmem, freemem, loadavg, cpus } from 'node:os';
@@ -159,6 +160,17 @@ async function handler(req, res) {
     send, body,
     sessionId: /(?:^|;\s*)panel_session=([a-f0-9]{64})(?:;|$)/.exec(req.headers.cookie || '')?.[1] || '',
     verifyPassword: (password) => {
+      if (blocked(ip) || !existsSync(adminFile)) return false;
+      const admin = JSON.parse(readFileSync(adminFile, 'utf8'));
+      const candidate = password.length <= 256 ? hashPassword(password, admin.salt).hash : '';
+      const valid = equal(candidate, admin.hash);
+      if (!valid) failed(ip); else failures.delete(ip);
+      return valid;
+    }
+  })) return;
+  if (await handleSecretsRoute(req, res, {
+    send, body,
+    verifyPassword: password => {
       if (blocked(ip) || !existsSync(adminFile)) return false;
       const admin = JSON.parse(readFileSync(adminFile, 'utf8'));
       const candidate = password.length <= 256 ? hashPassword(password, admin.salt).hash : '';
