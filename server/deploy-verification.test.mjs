@@ -95,3 +95,29 @@ test('VPS API image contains module needed by the deployment-status endpoint',()
   const dockerfile=readFileSync(new URL('Dockerfile',import.meta.url),'utf8');
   assert.match(dockerfile,/COPY .*deploy-verification\.mjs/);
 });
+
+test('public HTTPS/Docker disagreement is visible but never counted as successful publication',()=>{
+  const runtime={app:{status:'verified',revision:current}};
+  const matching={status:'matched',revision:current,comparedTo:current};
+  const different={status:'different',revision:old,comparedTo:current};
+  assert.equal(runDeploymentStatus(run(current),runtime,matching),'published');
+  assert.equal(runDeploymentStatus(run(current),runtime,different),'public-mismatch');
+  assert.equal(runDeploymentStatus(run(current),runtime,{status:'unavailable'}),'active');
+  assert.equal(runDeploymentStatus(run(old),runtime,matching),'superseded');
+  assert.equal(runDeploymentStatus(run(current,'failure'),runtime,matching),'failed');
+  const source=readFileSync(new URL('../script.js',import.meta.url),'utf8');
+  const start=source.indexOf('const deployStatusLabels = Object.freeze(');
+  const end=source.indexOf('function renderDeployRuntime(',start);
+  const {deployState,deployLabel}=runInNewContext(source.slice(start,end)+';({deployState,deployLabel})');
+  assert.equal(deployState(run(current),runtime,matching),'published');
+  assert.equal(deployState(run(current),runtime,different),'public-mismatch');
+  assert.match(deployLabel(run(current),runtime,different),/SITE DIVERGENTE/);
+  assert.equal(deployState(run(current),runtime,{status:'unavailable'}),'active');
+});
+test('production API and image include public HTTPS verification',()=>{
+  const dockerfile=readFileSync(new URL('Dockerfile',import.meta.url),'utf8');
+  const api=readFileSync(new URL('api.mjs',import.meta.url),'utf8');
+  assert.ok(dockerfile.includes('deploy-public-health.mjs'));
+  assert.ok(api.includes('const publicHealth = await cachedPublicHealth('));
+  assert.ok(api.includes('runDeploymentStatus(run, runtime, publicHealth)'));
+});
