@@ -25,6 +25,7 @@
     "domains-ui.ts",
     "terminal-ui.ts",
     "revisions-ui.ts",
-    "site-detail-ui.ts"
+    "site-detail-ui.ts",
+    "secrets-ui.ts"
   ]
 }
