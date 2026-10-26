@@ -317,6 +317,7 @@ api('/session').then(data => {
     if (location.hash === '#projects') window.refreshManagedProjects?.();
     if (location.hash === '#domains') window.refreshManagedDomains?.();
     if (location.hash === '#terminal') window.refreshTerminalConnection?.();
+    if (location.hash === '#secrets') window.refreshPanelSecrets?.();
   } else showAuth(data.setupRequired);
 }).catch(() => {
   setBanner('API indisponível. Os valores exibidos são apenas exemplos; nenhuma ação alcança a VPS.');
