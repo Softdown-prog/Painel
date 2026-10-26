@@ -50,6 +50,17 @@ test('setup, login, session and logout require the edge key', async () => {
     assert.match(login.response.headers.get('set-cookie'), /HttpOnly; Secure; SameSite=Strict/);
     assert.equal((await request('/session', 'GET', undefined, key, cookie)).data.authenticated, true);
     assert.equal((await request('/services')).response.status, 401);
+    assert.equal((await request('/secrets')).response.status, 401);
+    const secrets = await request('/secrets', 'GET', undefined, key, cookie);
+    assert.equal(secrets.response.status, 200);
+    assert.equal(secrets.data.enabled, false);
+    assert.deepEqual(secrets.data.entries, []);
+    const rejected = await request('/secrets', 'POST', {
+      name:'gemini-api-key',category:'sistema',label:'Gemini',value:'sensitive-value-1234',password:'A long password!123'
+    },key,cookie);
+    assert.equal(rejected.response.status,403);
+    assert.ok(!JSON.stringify(rejected.data).includes('sensitive-value-1234'));
+
     assert.equal((await request('/password', 'POST', { currentPassword: 'wrong', newPassword: 'Even longer password 456' }, key, cookie)).response.status, 403);
     assert.equal((await request('/password', 'POST', { currentPassword: 'A long password!123', newPassword: 'Even longer password 456' }, key, cookie)).response.status, 200);
     assert.equal((await request('/session', 'GET', undefined, key, cookie)).data.authenticated, false);
