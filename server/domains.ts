@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AppError, dockerRequest, inspectOwned, validSlug, type DockerRequest } from './apps.ts';
+import { checkPublicHttps, ensureDnsRecord, installPublicGateway, publishConfig, removeDnsRecord, type PublishDetails, type SshResult } from './domain-publish.ts';
 
 export type DomainRoute = { slug: string; host: string; port: number; createdAt: string };
 type Dependencies = {
@@ -11,6 +12,8 @@ type Dependencies = {
   docker?: DockerRequest;
   enabled?: boolean;
   zone?: string;
+  execute?: (command: string) => Promise<SshResult>;
+  publishingEnabled?: boolean;
 };
 const NETWORK = 'softload_panel_apps';
 const MAX_ROUTES = 8;
@@ -28,6 +31,26 @@ export function validDomainZone(value: unknown): value is string {
 }
 function recordFile(dataDir: string): string {
   return join(dataDir, 'domain-routes.json');
+}
+function publicationFile(dataDir: string): string { return join(dataDir, 'domain-publications.json'); }
+function readPublications(dataDir: string): Record<string, PublishDetails> {
+  const file = publicationFile(dataDir);
+  if (!existsSync(file)) return {};
+  const value: unknown = JSON.parse(readFileSync(file, 'utf8'));
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new DomainError(500, 'Registro de publicação inválido.');
+  const result: Record<string, PublishDetails> = {};
+  for (const [slug, detail] of Object.entries(value)) {
+    const item = detail as PublishDetails;
+    if (!validSlug(slug) || !item || !['reserved', 'dns_ready', 'certificate_pending', 'published', 'failed'].includes(item.state) ||
+      typeof item.updatedAt !== 'string' || (item.message !== undefined && typeof item.message !== 'string') ||
+      (item.dnsRecordId !== undefined && !/^[a-f0-9]{32}$/i.test(item.dnsRecordId))) throw new DomainError(500, 'Registro de publicação inválido.');
+    result[slug] = item;
+  }
+  return result;
+}
+function savePublications(dataDir: string, publications: Record<string, PublishDetails>) {
+  const file = publicationFile(dataDir); const temp = file + '.' + process.pid + '.tmp';
+  writeFileSync(temp, JSON.stringify(publications, null, 2) + '\n', { mode: 0o600 }); renameSync(temp, file);
 }
 export function readDomainRoutes(dataDir: string): DomainRoute[] {
   const path = recordFile(dataDir);
@@ -84,7 +107,7 @@ async function serialize<T>(callback: () => Promise<T>): Promise<T> {
 export async function handleDomainRoute(req: IncomingMessage, res: ServerResponse, deps: Dependencies): Promise<boolean> {
   const pathname = new URL(req.url || '/', 'http://panel.local').pathname;
   if (pathname !== '/domains' && pathname !== '/domains/caddy' &&
-      !/^\/domains\/[a-z0-9-]+$/.test(pathname)) return false;
+      !/^\/domains\/[a-z0-9-]+(?:\/publish)?$/.test(pathname)) return false;
   const send = (status: number, value: unknown) => deps.send(res, status, value);
   const enabled = deps.enabled ?? process.env.PANEL_DOMAINS_ENABLED === '1';
   const zone = deps.zone ?? process.env.PANEL_APPS_DOMAIN_ZONE ?? '';
@@ -92,7 +115,8 @@ export async function handleDomainRoute(req: IncomingMessage, res: ServerRespons
   try {
     if (pathname === '/domains' && req.method === 'GET') {
       send(200, { enabled: enabled && validDomainZone(zone), zone: validDomainZone(zone) ? zone : null,
-        network: NETWORK, activation: 'manual_caddy_reload', routes: readDomainRoutes(deps.dataDir) });
+        network: NETWORK, publicationEnabled: Boolean(deps.publishingEnabled ?? process.env.PANEL_DOMAIN_PUBLISH_ENABLED === '1') && Boolean(publishConfig()),
+        routes: readDomainRoutes(deps.dataDir), publications: readPublications(deps.dataDir) });
       return true;
     }
     if (pathname === '/domains/caddy' && req.method === 'GET') {
@@ -122,7 +146,40 @@ export async function handleDomainRoute(req: IncomingMessage, res: ServerRespons
         return added;
       });
       console.log('Panel domain route staged:', route.slug, route.host, route.port);
-      send(201, { route, requiresCaddyReload: true, live: false });
+      const publications = readPublications(deps.dataDir);
+      publications[route.slug] = { state: 'reserved', updatedAt: new Date().toISOString(), message: 'Endereço reservado. Clique em Publicar para configurar DNS e HTTPS.' };
+      savePublications(deps.dataDir, publications);
+      send(201, { route, live: false });
+      return true;
+    }
+    const publish = /^\/domains\/([a-z0-9-]+)\/publish$/.exec(pathname);
+    if (publish && req.method === 'POST') {
+      if (!enabled || !validDomainZone(zone)) throw new DomainError(403, 'Domínios desabilitados ou zona apps. não configurada.');
+      if (!(deps.publishingEnabled ?? process.env.PANEL_DOMAIN_PUBLISH_ENABLED === '1') || !deps.execute || !publishConfig())
+        throw new DomainError(503, 'A publicação automática ainda não foi configurada nesta VPS.');
+      const route = readDomainRoutes(deps.dataDir).find(item => item.slug === publish[1]);
+      if (!route) throw new DomainError(404, 'Domínio não encontrado.');
+      const details = await inspectOwned(docker, route.slug);
+      if (details.State?.Status !== 'running') throw new DomainError(409, 'Inicie a aplicação antes de publicar o endereço.');
+      const config = publishConfig();
+      if (!config) throw new DomainError(503, 'Falta a credencial restrita do DNS no cofre do Painel.');
+      const publications = readPublications(deps.dataDir);
+      try {
+        const dnsRecordId = await ensureDnsRecord(config, route);
+        publications[route.slug] = { state: 'dns_ready', dnsRecordId, updatedAt: new Date().toISOString(), message: 'DNS criado. Preparando HTTPS...' };
+        savePublications(deps.dataDir, publications);
+        const routes = readDomainRoutes(deps.dataDir);
+        await installPublicGateway(routes.filter(item => item.slug === route.slug || ['dns_ready', 'certificate_pending', 'published'].includes(publications[item.slug]?.state || 'reserved')), deps.execute);
+        const live = await checkPublicHttps(route.host);
+        publications[route.slug] = { state: live ? 'published' : 'certificate_pending', dnsRecordId, updatedAt: new Date().toISOString(),
+          message: live ? 'Publicado e confirmado por HTTPS.' : 'DNS e gateway configurados. O certificado ainda está sendo emitido; atualize em instantes.' };
+        savePublications(deps.dataDir, publications);
+        send(200, { route, publication: publications[route.slug], live });
+      } catch (error) {
+        publications[route.slug] = { state: 'failed', updatedAt: new Date().toISOString(), message: error instanceof Error ? error.message : 'Não foi possível publicar o endereço.' };
+        savePublications(deps.dataDir, publications);
+        throw error;
+      }
       return true;
     }
     const match = /^\/domains\/([a-z0-9-]+)$/.exec(pathname);
@@ -130,11 +187,22 @@ export async function handleDomainRoute(req: IncomingMessage, res: ServerRespons
       if (!validSlug(match[1])) throw new DomainError(404, 'Domínio não encontrado.');
       await serialize(async () => {
         const routes = readDomainRoutes(deps.dataDir);
-        if (!routes.some(route => route.slug === match[1])) throw new DomainError(404, 'Domínio não encontrado.');
+        const route = routes.find(item => item.slug === match[1]);
+        if (!route) throw new DomainError(404, 'Domínio não encontrado.');
+        const publications = readPublications(deps.dataDir);
+        const active = ['dns_ready', 'certificate_pending', 'published'].includes(publications[route.slug]?.state || 'reserved');
+        if (active) {
+          const config = publishConfig();
+          if (!(deps.publishingEnabled ?? process.env.PANEL_DOMAIN_PUBLISH_ENABLED === '1') || !deps.execute || !config)
+            throw new DomainError(409, 'Esse endereço está publicado; a publicação automática precisa estar disponível para removê-lo com segurança.');
+          await installPublicGateway(routes.filter(item => item.slug !== route.slug && ['dns_ready', 'certificate_pending', 'published'].includes(publications[item.slug]?.state || 'reserved')), deps.execute);
+          await removeDnsRecord(config, route);
+        }
         saveDomainRoutes(deps.dataDir, routes.filter(route => route.slug !== match[1]));
+        delete publications[route.slug]; savePublications(deps.dataDir, publications);
       });
       console.log('Panel domain route removed:', match[1]);
-      send(200, { ok: true, requiresCaddyReload: true, live: false });
+      send(200, { ok: true, live: false });
       return true;
     }
     throw new DomainError(405, 'Método não permitido.');

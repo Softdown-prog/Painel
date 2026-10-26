@@ -5,7 +5,7 @@ import { handleProjectRoute } from './projects.ts';
 import { handleReleaseRoute } from './releases.ts';
 import { handleImageImportRoute } from './image-import.ts';
 import { handleDomainRoute } from './domains.ts';
-import { handleSshTerminalRoute } from './terminal-ssh.ts';
+import { executeSshCommand, handleSshTerminalRoute } from './terminal-ssh.ts';
 import { handleRevisionRoute, startRevisionMonitor } from './revision-maintenance.ts';
 import { handlePublicationRoute, startPublicationWorker } from './publications.ts';
 import { handleSecretsRoute } from './secrets.ts';
@@ -182,7 +182,10 @@ async function handler(req, res) {
   })) return;
   if (await handleRevisionRoute(req, res, { send, body, dataDir })) return;
   if (await handleGitHubRoute(req, res, { send, body, dataDir })) return;
-  if (await handleDomainRoute(req, res, { send, body, dataDir })) return;
+  if (await handleDomainRoute(req, res, { send, body, dataDir,
+    execute: executeSshCommand,
+    publishingEnabled: process.env.PANEL_DOMAIN_PUBLISH_ENABLED === '1'
+  })) return;
   if (await handleAppRoute(req, res, { send, body, dataDir })) return;
   if (await handleImageImportRoute(req, res, { send, body, dataDir })) return;
   if (await handlePublicationRoute(req, res, { send, body, dataDir })) return;

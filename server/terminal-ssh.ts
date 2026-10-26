@@ -34,7 +34,9 @@ function config() {
     existsSync(key) && existsSync(hosts);
   return { host, user, port, key, hosts, valid };
 }
-function runSSH(command: string): Promise<SSHResult> {
+// This is deliberately exported only for fixed, server-generated operations.
+// Routes using it must never concatenate browser-provided shell fragments.
+export function executeSshCommand(command: string): Promise<SSHResult> {
   const settings = config();
   if (!settings.valid) return Promise.reject(new Error('SSH da VPS ainda não foi configurado.'));
   return new Promise((resolve, reject) => {
@@ -136,7 +138,7 @@ export async function handleSshTerminalRoute(req: IncomingMessage, res: ServerRe
     const fingerprint = createHash('sha256').update(data.command).digest('hex').slice(0, 16);
     const started = Date.now();
     try {
-      const result = await (deps.execute || runSSH)(data.command);
+      const result = await (deps.execute || executeSshCommand)(data.command);
       console.log(JSON.stringify({ event: 'panel_ssh_command', fingerprint, exitCode: result.exitCode,
         durationMs: Date.now() - started, at: new Date().toISOString() }));
       deps.send(res, 200, result);

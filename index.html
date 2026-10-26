@@ -68,7 +68,7 @@
             <div class="quick-start-grid">
               <a class="quick-start-card" href="#apps"><span class="quick-start-icon">＋</span><strong>Criar site ou app</strong><small>Escolha o nome, a imagem e quanto de memória pode usar.</small><span class="quick-start-go">Abrir aplicações →</span></a>
               <a class="quick-start-card" href="#projects"><span class="quick-start-icon">⌘</span><strong>Ligar ao GitHub</strong><small>Associe seu projeto e acompanhe as versões do código.</small><span class="quick-start-go">Abrir projetos →</span></a>
-              <a class="quick-start-card" href="#domains"><span class="quick-start-icon">◎</span><strong>Escolher um endereço</strong><small>Prepare o link da aplicação; a publicação na internet ainda exige ativação na VPS.</small><span class="quick-start-go">Abrir endereços →</span></a>
+              <a class="quick-start-card" href="#domains"><span class="quick-start-icon">◎</span><strong>Escolher um endereço</strong><small>Reserve, publique com DNS e HTTPS e acompanhe a confirmação.</small><span class="quick-start-go">Abrir endereços →</span></a>
             </div>
             <p class="quick-start-note">Os serviços internos da Softload ficam separados dos projetos de hospedagem. Atualmente o limite experimental é de 8 aplicações gerenciadas. <a href="https://github.com/Softdown-prog/Painel/blob/main/docs/GUIA-RAPIDO.md" target="_blank" rel="noopener noreferrer">Entenda o passo a passo no guia rápido →</a></p>
           </section>
@@ -114,10 +114,10 @@
             <div class="hosting-steps">
               <div><span>1</span><p><strong>Crie a aplicação</strong><small>Em <a href="#apps">Sites e apps</a>.</small></p></div>
               <div><span>2</span><p><strong>Escolha o endereço</strong><small>Use o nome do site e a porta interna.</small></p></div>
-              <div><span>3</span><p><strong>Coloque no ar</strong><small>A ativação de DNS e do servidor ainda depende da configuração do administrador.</small></p></div>
+              <div><span>3</span><p><strong>Publique</strong><small>O painel configura DNS, HTTPS e confirma o acesso público.</small></p></div>
             </div>
           </div>
-          <section class="panel full-panel"><div class="panel-head"><div><h2>Escolher endereço</h2><p>Você não precisa digitar um domínio complicado. O painel monta o endereço com o nome da aplicação.</p></div><span class="outline-tag">AINDA NÃO PUBLICA NA INTERNET</span></div>
+          <section class="panel full-panel"><div class="panel-head"><div><h2>Escolher endereço</h2><p>Você não precisa digitar um domínio complicado. O painel monta o endereço com o nome da aplicação.</p></div><span class="outline-tag">DNS E HTTPS GUIADOS</span></div>
             <form id="domainCreateForm" class="domain-form">
               <label>Qual aplicação?<small class="form-help">Só aparecem as aplicações prontas para receber um endereço.</small><select id="domainApp" required></select></label>
               <label>Porta do site<small class="form-help">Número usado pelo programa dentro do container. Exemplos: 3000 ou 8080.</small><input id="domainPort" type="number" min="1024" max="65535" step="1" value="3000" required></label>
@@ -127,8 +127,8 @@
             <p id="domainsNotice" class="github-notice" role="status">Consultando aplicações...</p>
             <div id="domainsHelp" class="hosting-help"></div>
           </section>
-          <section class="panel full-panel domain-list-panel"><div class="panel-head"><div><h2>Endereços reservados</h2><p>Um endereço reservado não significa que o site já esteja acessível. É preciso ativar a publicação no servidor.</p></div></div><div id="managedDomains">Nenhum endereço carregado.</div></section>
-          <details class="panel full-panel domain-technical"><summary>Configuração avançada para administrador ou Codex</summary><p>Trecho técnico gerado para Caddy. Antes de colocar no ar, o administrador precisa configurar DNS, HTTPS e recarregar o servidor de rotas.</p><pre id="domainCaddyPreview" class="log-console domain-caddy-preview">Sem configuração carregada.</pre></details>
+          <section class="panel full-panel domain-list-panel"><div class="panel-head"><div><h2>Endereços dos sites</h2><p>O painel só mostra como publicado depois de confirmar a resposta por HTTPS.</p></div></div><div id="managedDomains">Nenhum endereço carregado.</div></section>
+          <details class="panel full-panel domain-technical"><summary>Configuração avançada</summary><p>Rotas internas geradas para o gateway. Não edite este conteúdo manualmente.</p><pre id="domainCaddyPreview" class="log-console domain-caddy-preview">Sem configuração carregada.</pre></details>
         </section>
 
         <section class="view" id="revisions" data-title="Revisões e espaço">

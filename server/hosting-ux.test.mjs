@@ -19,7 +19,7 @@ test('simple hosting navigation preserves technical view identifiers', () => {
   assert.match(html, /Ligar ao GitHub/);
   assert.match(html, /Escolher um endereço/);
   assert.match(html, /<details class="panel full-panel domain-technical">/);
-  assert.match(html, /AINDA NÃO PUBLICA NA INTERNET/);
+  assert.match(html, /DNS E HTTPS GUIADOS/);
 });
 
 test('domain and app shortcuts keep labels and real publication status', () => {

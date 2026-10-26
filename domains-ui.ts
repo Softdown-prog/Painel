@@ -1,7 +1,8 @@
 (() => {
   type Domain = { slug: string; host: string; port: number; createdAt: string };
   type App = { slug: string; image: string; network: string };
-  type DomainList = { enabled: boolean; zone: string | null; network: string; routes: Domain[] };
+  type Publication = { state: 'reserved' | 'dns_ready' | 'certificate_pending' | 'published' | 'failed'; updatedAt: string; message?: string };
+  type DomainList = { enabled: boolean; publicationEnabled: boolean; zone: string | null; network: string; routes: Domain[]; publications: Record<string, Publication> };
   const get = (id: string): HTMLElement => {
     const target = document.getElementById(id);
     if (!target) throw new Error('Elemento ausente: ' + id);
@@ -66,8 +67,10 @@
           : 'Para escolher um endereço, você precisa criar a aplicação primeiro.';
         link.href = '#apps';
         link.textContent = 'Ir para Sites e apps';
+      } else if (!result.publicationEnabled) {
+        hint.textContent = 'Você pode reservar o endereço agora. Para publicar com DNS e HTTPS, falta configurar a credencial restrita do DNS nesta VPS.';
       } else {
-        hint.textContent = 'Esta etapa só reserva o endereço no painel. A publicação na internet será feita depois da configuração segura do servidor.';
+        hint.textContent = 'Depois de reservar, clique em Publicar. O painel vai configurar o DNS, preparar HTTPS e só confirmará quando o endereço responder pela internet.';
       }
       help.append(hint);
       if (link.textContent) help.append(link);
@@ -80,25 +83,44 @@
         const detail = document.createElement('div'); detail.className = 'managed-domain-info';
         const title = document.createElement('strong'); title.textContent = route.host;
         const secondary = document.createElement('small');
-        secondary.textContent = 'Porta ' + route.port + ' · Reservado no painel; publicação na internet ainda não confirmada';
+        const publication = result.publications[route.slug] || { state: 'reserved', updatedAt: '' };
+        const labels: Record<Publication['state'], string> = {
+          reserved: 'Reservado — ainda não publicado', dns_ready: 'DNS configurado — preparando HTTPS',
+          certificate_pending: 'Certificado em andamento', published: 'Publicado e confirmado por HTTPS', failed: 'Publicação precisa de atenção'
+        };
+        secondary.textContent = 'Porta ' + route.port + ' · ' + labels[publication.state] + (publication.message ? ' · ' + publication.message : '');
         detail.append(title, secondary);
+        const actions = document.createElement('div'); actions.className = 'managed-domain-actions';
+        const publish = document.createElement('button'); publish.type = 'button';
+        publish.textContent = publication.state === 'published' ? 'Verificar publicação' : 'Publicar';
+        publish.disabled = !result.publicationEnabled;
+        publish.addEventListener('click', async () => {
+          if (!confirm('Publicar ' + route.host + '? O painel criará ou atualizará apenas o DNS desta aplicação e configurará HTTPS.')) return;
+          publish.disabled = true;
+          try {
+            const response = await call('/domains/' + route.slug + '/publish', { method: 'POST' });
+            await refreshManagedDomains();
+            notice(response.live ? 'Site publicado e confirmado por HTTPS.' : 'DNS e HTTPS foram preparados. Atualize em alguns instantes para conferir o certificado.');
+          } catch (error) { notice(error instanceof Error ? error.message : 'Erro ao publicar endereço.'); }
+          finally { publish.disabled = !result.publicationEnabled; }
+        });
         const remove = document.createElement('button'); remove.type = 'button';
-        remove.textContent = 'Remover endereço'; remove.disabled = !result.enabled;
+        remove.textContent = 'Despublicar e remover'; remove.disabled = !result.enabled;
         remove.addEventListener('click', async () => {
-          if (!confirm('Remover o endereço ' + route.host + ' da lista? O administrador ainda precisa atualizar a configuração do servidor.')) return;
+          if (!confirm('Despublicar e remover ' + route.host + '? O site deixará de responder nesse endereço, mas a aplicação e seus arquivos serão preservados.')) return;
           remove.disabled = true;
           try {
             await call('/domains/' + route.slug, { method: 'DELETE' });
             await refreshManagedDomains();
-            notice('Endereço removido do cadastro. A configuração do servidor ainda precisa ser atualizada.');
+            notice('Endereço removido. A aplicação e seus arquivos foram preservados.');
           } catch (error) { notice(error instanceof Error ? error.message : 'Erro ao remover domínio.'); }
           finally { remove.disabled = !result.enabled; }
         });
-        row.append(detail, remove);
+        actions.append(publish, remove); row.append(detail, actions);
         list.append(row);
       }
       notice(result.enabled
-        ? 'Área de endereços: ' + result.zone + '. Reservar não publica o site automaticamente.'
+        ? (result.publicationEnabled ? 'Área de endereços: ' + result.zone + '. O painel pode publicar endereços configurados.' : 'Área de endereços: ' + result.zone + '. Reserve o endereço enquanto a publicação automática não é configurada.')
         : 'Cadastro indisponível nesta VPS. Veja o guia de tarefas do Codex para ativar a publicação.');
     } catch (error) {
       list.textContent = 'Domínios indisponíveis.';
@@ -110,14 +132,14 @@
     const slug = (get('domainApp') as HTMLSelectElement).value;
     const port = Number((get('domainPort') as HTMLInputElement).value);
     if (!slug || !Number.isSafeInteger(port)) return;
-    if (!confirm('Reservar um endereço para ' + slug + '? O endereço não ficará público até a configuração do servidor.')) return;
+    if (!confirm('Reservar um endereço para ' + slug + '? Você poderá publicar DNS e HTTPS na próxima etapa.')) return;
     const button = get('domainCreateButton') as HTMLButtonElement;
     button.disabled = true;
     try {
       const data = await call('/domains', { method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ slug, port }) });
       await refreshManagedDomains();
-      notice('Endereço ' + data.route.host + ' reservado. Ele ainda não está publicado na internet.');
+      notice('Endereço ' + data.route.host + ' reservado. Clique em Publicar para colocar o site no ar.');
     } catch (error) { notice(error instanceof Error ? error.message : 'Erro ao criar domínio.'); }
     finally { button.disabled = !canCreate; }
   });

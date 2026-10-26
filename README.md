@@ -10,7 +10,7 @@ O painel foi pensado para criar e administrar sites rapidamente. Use [Guia rápi
 
 **Para o Codex:** as limitações, problemas que ainda dependem de acesso à VPS, próximos serviços, hospedagem de clientes e expansão para várias VPS estão em [Tarefas do Codex](docs/TAREFAS-CODEX.md). As instruções para o agente estão em [AGENTS.md](AGENTS.md). O backlog distingue código pronto de funcionalidades já validadas na produção.
 
-**Aviso importante:** neste protótipo o máximo atual é **8 aplicações gerenciadas**; registrar um domínio ainda **não o publica** automaticamente na internet. A ampliação para clientes e muitas VPS é uma tarefa planejada, não algo concluído.
+**Aviso importante:** neste protótipo o máximo atual é **8 aplicações gerenciadas**. O código já possui publicação guiada de DNS/HTTPS para aplicações do Painel, mas ela só fica disponível depois da configuração explícita e da validação na VPS; o painel nunca mostra um endereço como público sem teste HTTPS. A ampliação para clientes e muitas VPS é uma tarefa planejada, não algo concluído.
 
 ## Arquitetura atual
 
@@ -224,7 +224,9 @@ Foi acrescentada a importação opt-in de imagens GHCR por digest SHA-256, com c
 
 A aba **Domínios** prepara uma rota exclusiva para cada aplicação criada pelo Painel na rede Docker dedicada `softload_panel_apps`, com portas internas e zona DNS autorizadas. O código de roteamento está em `server/domains.ts`, o gateway de Caddy separado em `server/router/Caddyfile` e o overlay opcional em `server/compose.routing.yaml`.
 
-**Nenhum domínio se torna público por cadastrar a rota.** É necessário preparar DNS/TLS, conectar explicitamente o Caddy frontal à rede de aplicativos e recarregar o gateway. O gateway não publica portas externas, não tem acesso ao Docker socket e não participa da rede proxy de produção. A API administrativa principal ainda precisa ser isolada do Docker socket antes de atender usuários não confiáveis.
+**Nenhum domínio se torna público apenas por cadastrar a rota.** Depois de habilitada, a ação **Publicar** cria o DNS pertencente ao Painel, atualiza uma rota Caddy limitada ao endereço, valida/recarrega o proxy e confirma HTTPS externamente. Até a confirmação, o estado fica como certificado em andamento ou precisa de atenção. O gateway não publica portas externas, não tem acesso ao Docker socket e não participa da rede proxy de produção. A API administrativa principal ainda precisa ser isolada do Docker socket antes de atender usuários não confiáveis.
+
+Veja [publicação guiada de domínios](docs/PUBLICACAO-DOMINIOS.md) para a configuração única, a credencial mínima e o teste C02. Ela ainda não foi habilitada na VPS por esta alteração.
 
 Veja o [guia operacional de domínios](docs/domain-routing.md) para pré-requisitos e etapas de ativação. A implantação desse gateway na VPS não foi executada automaticamente.
 

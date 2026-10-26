@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleDomainRoute, renderManagedCaddy, validDomainZone, readDomainRoutes } from './domains.ts';
+import { renderCaddyInstallCommand, renderPublicCaddy } from './domain-publish.ts';
 
 const managed = {
   Id: 'abc123', Name: '/softload-app-demo',
@@ -48,6 +49,16 @@ test('zone and Caddy renderer reject wildcard and host injection', () => {
   assert.match(renderManagedCaddy([{ slug: 'demo', host: 'demo.apps.analysepro.com', port: 3000, createdAt: '' }]),
     /@panel_demo host demo\.apps\.analysepro\.com\nhandle @panel_demo \{\n    reverse_proxy softload-app-demo:3000/);
 });
+test('public gateway renderer accepts only stored routes and transports config without shell interpolation', () => {
+  const route = { slug: 'demo', host: 'demo.apps.analysepro.com', port: 3000, createdAt: '' };
+  const publicConfig = renderPublicCaddy([route]);
+  assert.match(publicConfig, /https:\/\/demo\.apps\.analysepro\.com/);
+  assert.match(publicConfig, /reverse_proxy app-gateway:8081/);
+  const command = renderCaddyInstallCommand(publicConfig);
+  assert.match(command, /docker network connect softload_panel_apps softload-caddy/);
+  assert.match(command, /caddy validate/);
+  assert.doesNotMatch(command, /demo\.apps\.analysepro\.com/);
+});
 test('domains only register panel-owned apps on isolated network; removal updates Caddy snippet', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'panel-domains-'));
   try {
@@ -62,7 +73,6 @@ test('domains only register panel-owned apps on isolated network; removal update
     const created = await request(dir, '/domains', 'POST', { slug: 'demo', port: 3000 });
     assert.equal(created.status, 201);
     assert.equal(created.data.live, false);
-    assert.equal(created.data.requiresCaddyReload, true);
     assert.equal(created.data.route.host, 'demo.apps.analysepro.com');
     assert.equal((await request(dir, '/domains', 'POST', { slug: 'demo', port: 3100 })).status, 409);
     assert.equal(readDomainRoutes(dir).length, 1);
