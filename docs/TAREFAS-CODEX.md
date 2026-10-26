@@ -102,7 +102,7 @@ O usuário quer ações simples: **Criar site**, **Conectar GitHub**, **Escolher
 
 **Implementado no código:** aba **Revisões e espaço**, API `/maintenance/revisions`, opção de limpar somente imagens GHCR antigas e autorizadas, histórico de operações, botão para ligar/pausar a limpeza automática a cada 6 horas e comandos `revisoes` no Terminal VPS. Política inicial: manter 2 revisões por aplicação e tudo que foi importado há menos de 14 dias, preservar imagem em uso, candidata, backup e imagens compartilhadas. O executor confere todos os containers do host antes de permitir uma remoção individual sem `force`.
 
-**Estado:** código preparado e testado no CI; **não instalado/validado na VPS de produção**. A ativação inicial exige instalar API e executor atuais e ligar `PANEL_REVISIONS_CLEANUP_ENABLED=1` usando `compose.revisions.yaml`. Depois disso, o administrador controla a programação pelo Painel, sem depender do Codex.
+**Estado:** rotina instalada e ativada na VPS em 2026-10-26. O painel exibe se o Compose habilitou o recurso, o intervalo efetivo de seis horas e permite pausar/retomar a programação persistida sem expor o arquivo `.env`. A ativação inicial usa `PANEL_REVISIONS_CLEANUP_ENABLED=1` e `PANEL_REVISIONS_AUTOMATIC=1` no Compose.
 
 **Melhoria adicional entregue:** o painel agora também consulta em modo somente leitura o inventário de imagens de toda a VPS, incluindo versões de containers da Softload V4, e destaca repositórios com múltiplas imagens locais. Não remove imagens desse inventário geral.
 

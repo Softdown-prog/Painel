@@ -25,6 +25,9 @@
         get('revisionsOldCount').textContent = String(report.oldCount);
         get('revisionsOldSize').textContent = bytes(report.oldBytesEstimate);
         get('revisionsAuto').textContent = report.automatic && report.enabled ? 'Ligada · a cada 6 horas' : 'Desligada';
+        get('revisionsCompose').textContent = report.scheduler?.enabledByCompose
+            ? 'Compose: rotina habilitada · intervalo de ' + (report.scheduler.intervalHours || 6) + ' horas.'
+            : 'Compose: rotina desabilitada na VPS.';
         get('revisionsRetention').textContent = 'Mantendo pelo menos ' + report.keepPerApp +
             ' revisões por aplicação e protegendo as importadas há menos de ' + report.ageDays + ' dias.';
         const autoButton = get('revisionsAutoButton');

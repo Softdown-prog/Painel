@@ -8,7 +8,7 @@ type Import = ReturnType<typeof readImports>[number];
 type Image = { Id?: string; Size?: number; RepoDigests?: string[] };
 type Container = { Id?: string; ImageID?: string; Names?: string[]; Labels?: Record<string,string>; State?: string };
 type Entry = Import & { ref: string; sizeBytes: number; status: 'em_uso'|'reserva'|'recente'|'protegida'|'antiga'|'ausente'; reason: string };
-type Report = { checkedAt: string; enabled: boolean; automatic: boolean; ageDays: number; keepPerApp: number; totalImports: number; oldCount: number; oldBytesEstimate: number; entries: Entry[]; history: History[]; lastResult: History | null; hostInventory: HostInventory };
+type Report = { checkedAt: string; enabled: boolean; automatic: boolean; scheduler: { intervalHours: number; enabledByCompose: boolean; automaticDefault: boolean }; ageDays: number; keepPerApp: number; totalImports: number; oldCount: number; oldBytesEstimate: number; entries: Entry[]; history: History[]; lastResult: History | null; hostInventory: HostInventory };
 type History = { at: string; source: 'manual'|'automatic'; considered: number; removed: number; failed: number; bytesEstimate: number; message: string };
 type HostImage = { Id?:string; RepoTags?:string[]; RepoDigests?:string[]; Size?:number; Created?:number; Containers?:number };
 type HostInventory = { available:boolean; total:number; totalBytesEstimate:number; untagged:number;
@@ -167,8 +167,8 @@ export async function revisionReport(dataDir:string,docker:DockerRequest=dockerR
  const stale=entries.filter(e=>e.status==='antiga');
  const oldRefs=new Map(stale.map(e=>[e.ref,e]));
  const history=histories(dataDir);
- return {checkedAt:new Date(now).toISOString(),enabled:process.env.PANEL_REVISIONS_CLEANUP_ENABLED==='1',
-   automatic:automaticFor(dataDir),ageDays:DAYS,keepPerApp:KEEP,
+  return {checkedAt:new Date(now).toISOString(),enabled:process.env.PANEL_REVISIONS_CLEANUP_ENABLED==='1',
+   automatic:automaticFor(dataDir),scheduler:{intervalHours:6,enabledByCompose:process.env.PANEL_REVISIONS_CLEANUP_ENABLED==='1',automaticDefault:process.env.PANEL_REVISIONS_AUTOMATIC==='1'},ageDays:DAYS,keepPerApp:KEEP,
    totalImports:entries.length,oldCount:oldRefs.size,
    oldBytesEstimate:[...oldRefs.values()].reduce((sum,e)=>sum+e.sizeBytes,0),
    entries:entries.slice().sort((a,b)=>Date.parse(b.importedAt)-Date.parse(a.importedAt)),
