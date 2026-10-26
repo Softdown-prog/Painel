@@ -40,13 +40,13 @@
         '  revisoes limpar                  limpa apenas imagens antigas aprovadas',
         '  revisoes auto ligar|desligar     altera a limpeza automática no painel',
         '  historico                        mostra comandos desta sessão',
-        '  linux <comando>                  executa na VPS via SSH como administrador',
+        '  <comando Linux>                  executa na VPS via SSH como administrador',
         '  linux travar                     bloqueia o acesso Linux novamente',
         '',
-        'ATALHOS COMPATÍVEIS: docker ps, docker logs <nome>, docker restart <nome>.',
-        'O modo linux usa a senha do painel para liberar comandos administrativos por 10 minutos.',
-        'Exemplo: linux sudo docker ps. Cada comando tem limite de 18 segundos e 24 KB de saída.',
-        'Os comandos usam a API administrativa da VPS; alterações pedem confirmação.'
+        'SHELL ADMINISTRATIVO: depois de confirmar a senha do painel, qualquer comando Linux é executado como root.',
+        'Exemplo: docker ps, systemctl status ssh ou curl https://exemplo.com.',
+        'Digite linux travar para encerrar o desbloqueio. Cada comando tem limite de 18 segundos e 24 KB de saída.',
+        'Chaves coladas em comandos são mascaradas na tela e no histórico.'
     ].join('\n');
     function line(message, kind = 'response') {
         const div = document.createElement('div');
@@ -88,72 +88,65 @@
     function confirmAction(action, target, consequences) {
         return confirm(action + ' "' + target + '" na VPS?\n\n' + consequences);
     }
+    function redactShell(command) {
+        return command
+            .replace(/(authorization\s*:\s*bearer\s+)[^\s"']+/ig, '$1<oculto>')
+            .replace(/((?:--?(?:token|password|api[-_]?key)|authorization)\s*(?:=|\s)\s*)[^\s"']+/ig, '$1<oculto>')
+            .replace(/\b(?:cfut|cfpat|ghp|github_pat|sk|AIza)[A-Za-z0-9_\-]{12,}\b/g, '<oculto>');
+    }
     async function mutate(path, method, data) {
         const result = await api(path, { method, ...(data ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) } : {}) });
         setConnection(true, 'API da VPS conectada');
         return result;
     }
+    async function runLinux(shellCommand) {
+        if (!shellCommand)
+            throw new Error('Digite um comando Linux. Exemplo: uptime');
+        if (shellCommand === 'travar') {
+            if (sshToken) {
+                try {
+                    await api('/terminal/ssh/lock', { method: 'POST' });
+                }
+                finally {
+                    sshToken = null;
+                }
+            }
+            return 'Terminal Linux bloqueado. A próxima operação exigirá sua senha administrativa.';
+        }
+        const state = await api('/terminal/ssh/status');
+        if (!state.enabled)
+            throw new Error('Terminal Linux ainda não foi ativado na VPS.');
+        if (!state.configured)
+            throw new Error('O acesso SSH ainda precisa ser configurado na VPS.');
+        if (!sshToken || !state.unlocked) {
+            sshToken = null;
+            const password = prompt('Confirme a senha do painel para desbloquear o shell da VPS por 10 minutos:');
+            if (!password)
+                return 'Operação cancelada.';
+            const auth = await api('/terminal/ssh/unlock', { method: 'POST',
+                headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password }) });
+            sshToken = auth.token;
+        }
+        try {
+            const result = await api('/terminal/ssh/exec', { method: 'POST',
+                headers: { 'content-type': 'application/json' }, body: JSON.stringify({ command: shellCommand, token: sshToken }) });
+            return 'SHELL DA VPS · código de saída ' + result.exitCode +
+                (result.timedOut ? ' · tempo limite atingido' : '') +
+                (result.truncated ? ' · saída limitada' : '') + '\n' +
+                (result.output || '(comando concluído sem saída)');
+        }
+        catch (error) {
+            if (error instanceof Error && /bloqueado|desbloqueie/i.test(error.message))
+                sshToken = null;
+            throw error;
+        }
+    }
     async function runCommand(command) {
         const args = command.trim().split(/\s+/);
         let cmd = args[0].toLowerCase();
-        if (cmd === 'docker') {
-            if (args[1] === 'ps' && args.length === 2) {
-                cmd = 'servicos';
-                args.splice(0, args.length, cmd);
-            }
-            else if (args[1] === 'logs' && args.length === 3) {
-                cmd = 'logs';
-                args.splice(0, args.length, cmd, args[2]);
-            }
-            else if (args[1] === 'restart' && args.length === 3) {
-                cmd = 'reiniciar';
-                args.splice(0, args.length, cmd, args[2]);
-            }
-            else
-                throw new Error('Docker direto não está liberado. Digite ajuda para ver os comandos disponíveis.');
-        }
         if (cmd === 'linux') {
             const shellCommand = command.slice(5).trim();
-            if (!shellCommand)
-                throw new Error('Uso: linux <comando> — Exemplo: linux uptime');
-            if (shellCommand === 'travar') {
-                if (sshToken) {
-                    try {
-                        await api('/terminal/ssh/lock', { method: 'POST' });
-                    }
-                    finally {
-                        sshToken = null;
-                    }
-                }
-                return 'Terminal Linux bloqueado. A próxima operação exigirá sua senha administrativa.';
-            }
-            const state = await api('/terminal/ssh/status');
-            if (!state.enabled)
-                throw new Error('Modo Linux ainda não foi ativado na VPS. Os comandos administrativos continuam disponíveis.');
-            if (!state.configured)
-                throw new Error('O acesso SSH ainda precisa ser configurado na VPS. Consulte o guia técnico.');
-            if (!sshToken || !state.unlocked) {
-                sshToken = null;
-                const password = prompt('Confirme a senha do painel para desbloquear comandos Linux por 10 minutos:');
-                if (!password)
-                    return 'Operação cancelada.';
-                const auth = await api('/terminal/ssh/unlock', { method: 'POST',
-                    headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password }) });
-                sshToken = auth.token;
-            }
-            try {
-                const result = await api('/terminal/ssh/exec', { method: 'POST',
-                    headers: { 'content-type': 'application/json' }, body: JSON.stringify({ command: shellCommand, token: sshToken }) });
-                return 'LINUX DA VPS · código de saída ' + result.exitCode +
-                    (result.timedOut ? ' · tempo limite atingido' : '') +
-                    (result.truncated ? ' · saída limitada' : '') + '\n' +
-                    (result.output || '(comando concluído sem saída)');
-            }
-            catch (error) {
-                if (error instanceof Error && /bloqueado|desbloqueie/i.test(error.message))
-                    sshToken = null;
-                throw error;
-            }
+            return runLinux(shellCommand);
         }
         if (cmd === 'ajuda' || cmd === 'help' || cmd === '?')
             return HELP;
@@ -349,7 +342,7 @@
             }
             throw new Error('Uso: dominio criar <app> <porta> | dominio remover <app>');
         }
-        throw new Error('Comando não disponível: ' + cmd + '. Digite ajuda.\nEste terminal não executa bash, sudo nem comandos arbitrários.');
+        return runLinux(command);
     }
     async function execute(text) {
         if (busy)
@@ -357,18 +350,19 @@
         const command = text.trim();
         if (!command)
             return;
-        if (command.length > (command.startsWith('linux ') ? 605 : 180)) {
+        if (command.length > 600) {
             line('Comando muito longo.', 'error');
             return;
         }
         busy = true;
         runButton.disabled = true;
         input.disabled = true;
-        history.push(command);
+        const visibleCommand = redactShell(command);
+        history.push(visibleCommand);
         if (history.length > 50)
             history.shift();
         historyIndex = history.length;
-        line('vps > ' + command, 'command');
+        line('vps > ' + visibleCommand, 'command');
         try {
             const answer = await runCommand(command);
             line(answer, 'response');

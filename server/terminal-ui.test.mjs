@@ -69,11 +69,18 @@ test('CLI confirms mutations and sends correct method to existing protected API'
   const req=cli.requested.find(x=>x.url==='/api/services/agent/restart');
   assert.equal(req?.options.method,'POST');
 });
-test('CLI rejects shell commands without contacting the VPS',async()=>{
-  const cli=mount({});
-  const output=await cli.command('sudo rm -rf /');
-  assert.match(output,/Comando não disponível|shell Linux/);
-  assert.equal(cli.requested.length,0);
+test('CLI forwards direct shell commands through the SSH backend and masks tokens on screen',async()=>{
+  const token='cfut_'+ 'a'.repeat(48);
+  const cli=mount({
+    '/api/terminal/ssh/status':{enabled:true,configured:true,unlocked:false},
+    'POST /api/terminal/ssh/unlock':{token:'a'.repeat(64),expiresInSeconds:600},
+    'POST /api/terminal/ssh/exec':{exitCode:0,output:'ok',timedOut:false,truncated:false}
+  });
+  const output=await cli.command('curl -H "Authorization: Bearer '+token+'" https://api.cloudflare.com/client/v4/user/tokens/verify');
+  assert.match(output,/SHELL DA VPS/);
+  assert.ok(!output.includes(token), 'Never show token in terminal output/history');
+  const execution=cli.requested.find(x=>x.url==='/api/terminal/ssh/exec');
+  assert.ok(JSON.parse(execution.options.body).command.includes(token), 'The original command reaches only the SSH backend');
 });
 test('CLI creates a domain via the actual API and reports it as only reserved',async()=>{
   const cli=mount({'POST /api/domains':{route:{host:'loja.apps.analysepro.com'}}});
@@ -92,7 +99,7 @@ test('opt-in Linux commands unlock with password and use SSH backend rather than
     'POST /api/terminal/ssh/exec':{exitCode:0,output:'vps online',timedOut:false,truncated:false}
   });
   const output=await cli.command('linux uptime');
-  assert.match(output,/LINUX DA VPS/);
+  assert.match(output,/SHELL DA VPS/);
   assert.match(output,/vps online/);
   const unlock=cli.requested.find(x=>x.url==='/api/terminal/ssh/unlock');
   assert.equal(unlock?.options.method,'POST');
