@@ -98,6 +98,13 @@
     }catch(error){message(error instanceof Error?error.message:'Falha ao salvar a chave na VPS.');}
     finally{button.disabled=!enabled;}
   });
+  get('secretsForm').addEventListener('invalid',event=>{
+    const field=event.target as HTMLInputElement;
+    if(field.id==='secretName') message('Use um nome curto em minúsculas, com letras, números e hífen. Para Cloudflare, use exatamente: cloudflare-dns.');
+    else if(field.id==='secretValue') message('Cole a chave sem espaços ou quebra de linha antes/depois do valor.');
+    else if(field.id==='secretsAdminPassword') message('Informe a senha administrativa usada para entrar neste Painel.');
+    else message('Confira os campos obrigatórios antes de gravar a chave.');
+  },true);
   get('secretsRefresh').addEventListener('click',()=>void refreshPanelSecrets());
   Object.assign(window,{refreshPanelSecrets});
 })();

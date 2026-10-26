@@ -269,7 +269,7 @@
             <section class="panel secret-card">
               <div class="panel-head"><div><h2>Cadastrar ou trocar chave</h2><p>Para substituir, use exatamente o mesmo nome e informe a nova chave.</p></div></div>
               <form id="secretsForm" class="secret-form" autocomplete="off">
-                <label>Nome da chave no servidor<input id="secretName" type="text" pattern="[a-z][a-z0-9-]{1,47}" minlength="2" maxlength="48" placeholder="gemini-api-key" spellcheck="false" required></label>
+                <label>Nome da chave no servidor<input id="secretName" type="text" pattern="[a-z][a-z0-9-]{1,47}" minlength="2" maxlength="48" placeholder="cloudflare-dns" spellcheck="false" required></label>
                 <label>Identificação amigável<input id="secretLabel" maxlength="80" minlength="2" placeholder="API Gemini do Solaris" required></label>
                 <label>Onde será utilizada<select id="secretCategory"><option value="sistema">Serviços da VPS</option><option value="aplicacao">Site ou aplicação</option></select></label>
                 <label>Nova chave de API<input id="secretValue" type="password" autocomplete="new-password" spellcheck="false" maxlength="8192" placeholder="Cole a chave aqui" required></label>
