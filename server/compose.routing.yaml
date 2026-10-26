@@ -25,10 +25,11 @@ services:
     mem_limit: 128m
     cpus: "0.5"
     pids_limit: 64
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
+    # The official Caddy image carries a file capability. Dropping the whole
+    # capability bounding set makes Linux reject the binary before it starts
+    # (`exec ... operation not permitted`), even though this gateway listens
+    # only on 8081. It has no Docker socket, no published port and a read-only
+    # filesystem; keep the container isolated by network and filesystem here.
 networks:
   panel_apps:
     name: softload_panel_apps
