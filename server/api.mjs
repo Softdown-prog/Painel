@@ -241,13 +241,26 @@ async function handler(req, res) {
     return send(res, 200, { ok: true, service: id, action });
   }
   if (path === '/deploys' && req.method === 'GET') {
-    let runs = [];
-    try {
-      const response = await fetch('https://api.github.com/repos/Softdown-prog/Softloadv4/actions/workflows/deploy.yml/runs?per_page=8', { headers: { 'user-agent': 'softload-panel-api', accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(8000) });
-      if (response.ok) runs = (await response.json()).workflow_runs?.map(run => ({ id: run.id, sha: run.head_sha, branch: run.head_branch, status: run.status, conclusion: run.conclusion, createdAt: run.created_at, url: run.html_url })) || [];
-    } catch { /* GitHub status is optional; production status still returns */ }
+    // GitHub and Docker are independent sources; start them together so
+    // a slow GitHub request never adds to the Docker/public-health duration.
+    const runsPromise = (async () => {
+      try {
+        const response = await fetch('https://api.github.com/repos/Softdown-prog/Softloadv4/actions/workflows/deploy.yml/runs?per_page=8', {
+          headers: { 'user-agent': 'softload-panel-api', accept: 'application/vnd.github+json' },
+          signal: AbortSignal.timeout(8000)
+        });
+        if (!response.ok) return [];
+        return (await response.json()).workflow_runs?.map(run => ({
+          id: run.id, sha: run.head_sha, branch: run.head_branch, status: run.status,
+          conclusion: run.conclusion, createdAt: run.created_at, url: run.html_url
+        })) || [];
+      } catch { return []; }
+    })();
     const runtime = await inspectDeployedServices(docker, currentSha());
-    const publicHealth = await cachedPublicHealth(runtime.app?.revision);
+    const [runs, publicHealth] = await Promise.all([
+      runsPromise,
+      cachedPublicHealth(runtime.app?.revision)
+    ]);
     return send(res, 200, {
       currentSha: runtime.configuredSha,
       runtime,
