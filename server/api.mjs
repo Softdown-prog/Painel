@@ -10,6 +10,7 @@ import { handleRevisionRoute, startRevisionMonitor } from './revision-maintenanc
 import { handlePublicationRoute, startPublicationWorker } from './publications.ts';
 import { handleSecretsRoute } from './secrets.ts';
 import { inspectDeployedServices, runDeploymentStatus } from './deploy-verification.mjs';
+import { cachedPublicHealth } from './deploy-public-health.mjs';
 import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, existsSync, statfsSync } from 'node:fs';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { totalmem, freemem, loadavg, cpus } from 'node:os';
@@ -246,10 +247,12 @@ async function handler(req, res) {
       if (response.ok) runs = (await response.json()).workflow_runs?.map(run => ({ id: run.id, sha: run.head_sha, branch: run.head_branch, status: run.status, conclusion: run.conclusion, createdAt: run.created_at, url: run.html_url })) || [];
     } catch { /* GitHub status is optional; production status still returns */ }
     const runtime = await inspectDeployedServices(docker, currentSha());
+    const publicHealth = await cachedPublicHealth(runtime.app?.revision);
     return send(res, 200, {
       currentSha: runtime.configuredSha,
       runtime,
-      runs: runs.map(run => ({ ...run, deploymentStatus: runDeploymentStatus(run, runtime) }))
+      publicHealth,
+      runs: runs.map(run => ({ ...run, deploymentStatus: runDeploymentStatus(run, runtime, publicHealth) }))
     });
   }
   return send(res, 404, { error: 'Rota não encontrada' });
