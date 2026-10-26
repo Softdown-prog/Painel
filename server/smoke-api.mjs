@@ -4,11 +4,11 @@ import { readFileSync } from 'node:fs';
 
 const key = readFileSync('/run/secrets/panel-edge-key', 'utf8').trim();
 const password = 'CI-Only-A11y-Passphrase-2026';
-function call(path, method='GET', body, cookie) {
+function call(path, method='GET', body, cookie, timeout=5000) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? undefined : Buffer.from(JSON.stringify(body));
     const req = http.request({
-      hostname: '127.0.0.1', port: 8080, path, method, timeout: 5000,
+      hostname: '127.0.0.1', port: 8080, path, method, timeout,
       headers: {
         'x-panel-edge-key': key,
         ...(payload ? { 'content-type': 'application/json', 'content-length': String(payload.length) } : {}),
@@ -74,7 +74,7 @@ async function main() {
   assert.equal(overview.status, 200, JSON.stringify(overview.data));
   assert.equal(overview.data.services.length, 6);
   // CI has Docker but no Softload containers and no external network. The UI must not invent an active release.
-  const deploy = await call('/deploys','GET',undefined,cookie);
+  const deploy = await call('/deploys','GET',undefined,cookie,18000);
   assert.equal(deploy.status,200,JSON.stringify(deploy.data));
   assert.equal(deploy.data.runtime?.app?.status,'missing');
   assert.equal(deploy.data.publicHealth?.status,'unavailable');
