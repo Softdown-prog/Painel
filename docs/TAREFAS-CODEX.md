@@ -27,7 +27,9 @@ O usuário quer ações simples: **Criar site**, **Conectar GitHub**, **Escolher
 
 **Implementado no repositório:** `server/deploy-verification.mjs` consulta apenas dados dos quatro containers Softload pelo executor Docker, identifica a revisão real da imagem em execução e separa workflow concluído, imagem ativa, outra versão em execução e revisão não confirmada. A aba Publicações deixa de classificar como “NÃO ATIVO” apenas porque o SHA do GitHub difere de `SOFTLOAD_IMAGE_TAG`. Um `.env` isolado nunca confirma ativação. Docker API sem acesso direto pela API do Painel; o executor permanece isolado.
 
-**Ainda pendente:** atualizar a API na VPS real e conferir imagens/SHAs atuais após backup e preflight, sem reiniciar serviços Softload; testar revisão Docker versus `/health` público; criar diagnóstico adicional de revisão por digest caso o ambiente passe a usar referências sem tags Git SHA. O frontend anterior pode estar publicado enquanto o backend ainda retorna apenas `currentSha`; nesse caso deve mostrar “ativação não confirmada”. Ver [guia de status](STATUS-DEPLOYS.md).
+**Evolução no código:** o endpoint `/deploys` agora compara a imagem Docker com o SHA entregue pelo `/health` público, exibindo confirmação independente ou divergência sem atribuir sucesso fictício. Testes unitários e smoke Docker isolado foram acrescentados; o resultado público não garante o bundle React inteiro. Há cache de 25 segundos e consulta HTTPS limitada.
+
+**Ainda pendente:** atualizar a API na VPS real e conferir imagens/SHAs atuais após backup e preflight, sem reiniciar serviços Softload; validar a comparação Docker versus `/health` público em produção; criar diagnóstico adicional de revisão por digest caso o ambiente passe a usar referências sem tags Git SHA. O frontend anterior pode estar publicado enquanto o backend ainda retorna apenas `currentSha`; nesse caso deve mostrar “ativação não confirmada”. Ver [guia de status](STATUS-DEPLOYS.md).
 
 ## P0 — Resolver antes de vender hospedagem
 
