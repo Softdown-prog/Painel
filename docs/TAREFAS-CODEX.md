@@ -108,7 +108,11 @@ O usuário quer ações simples: **Criar site**, **Conectar GitHub**, **Escolher
 Mostrar nome, endereço, status **confirmado**, consumo, GitHub conectado, último deploy e ações `Abrir site`, `Atualizar`, `Reiniciar`, `Ver registros`, `Backup`. Ajustar `index.html`, `apps-ui.ts` e backend necessário. Fazer pesquisa e filtros para dezenas/centenas de sites; **não** carregar todos os logs de uma vez. Aceite: administrar um site frequente sem passar por várias telas.
 
 ### C06 · Arquivos, variáveis e bancos de dados
-Volumes persistentes com backup e restauração, quotas de disco por aplicação, variáveis de ambiente e segredos criptografados com redação em logs. Nunca armazenar chaves GitHub em HTML/localStorage ou imagens. Suportar conexão a banco por projeto com limites, sem compartilhar credenciais. Aceite: reiniciar/atualizar um site sem perder dados.
+**Primeira parte implementada no código (26/10/2026):** nova aba **Chaves e acessos** (`#secrets`), API autenticada em `server/secrets.ts` e overlay opcional `server/compose.secrets.yaml`. O administrador pode cadastrar, substituir e excluir valores de credenciais guardados como arquivos de permissão 0600 na pasta privada da VPS, com revalidação de senha, listagem sem expor valores e logs somente de ação/nome. Há teste de armazenamento, proteção de pasta, traversal/symlink e autenticação. O módulo fica **desligado por padrão** e **ainda requer instalação e teste real na VPS**.
+
+**Falta para ficar realmente prático:** selecionar um serviço ou uma aplicação e **conectar** a chave cadastrada à configuração desse serviço por mount somente leitura, recarregar apenas o serviço indicado e verificar funcionamento, com opção de rollback. Os arquivos criados no repositório não fazem esse vínculo automaticamente. Não alterar a conexão SSH/root que o Codex configurou sem conferir o estado atual. Consulte `docs/CHAVES-NA-VPS.md`.
+
+**Restante de C06:** volumes persistentes com backup e restauração, quotas por aplicação, variáveis de ambiente, arquivos de configuração específicos, um cofre criptografado ou KMS para multiusuário, bancos de dados por projeto e rotinas de rotação. **Nunca** armazenar chaves em HTML/localStorage, commits, logs ou imagens Docker. Aceite: administrar configurações e reiniciar/atualizar um site sem perder dados ou expor credenciais de outro cliente.
 
 ### C07 · Escalar para mais clientes e mais VPS
 Remover a suposição fixa de 8 apps por meio de capacidade configurável com teto por host; não retirar limites de segurança indiscriminadamente. Criar inventário de servidores, CPU/RAM/disco disponíveis, tags, agendamento de aplicação, migração segura, grupos/ambientes (dev/homologação/produção) e estratégia de distribuição, sem misturar serviços internos da Softload com hospedagem de clientes. Começar com uma VPS pequena, permitir outra VPS sem reescrever todo o painel. Aceite: acrescentar um segundo servidor em homologação e administrar duas aplicações em hosts diferentes sem exposição de credenciais.
@@ -118,6 +122,22 @@ Backups automáticos e testados (restauração periódica), snapshots apenas qua
 
 ### C09 · Monitoramento e orçamento da VPS
 Painel simples de consumo por aplicação (memória, CPU, armazenamento, tráfego), alertas de disco/RAM e de indisponibilidade, limites de custo por cliente e estimativas sem inventar cobrança exata. Métricas amostradas sem sobrecarregar VPS pequena. Aceite: alerta antecipado antes de esgotar disco/memória e visão agregada por host.
+
+### C15 · Painel de controle do host (facilitar administração da VPS)
+
+O Terminal SSH/root oferece operações manuais na VPS, mas a experiência principal deve oferecer botões e telas que **não exijam saber comandos Linux**. O Painel não deve executar comandos genéricos vindos de formulários de clientes.
+
+**Prioridades que ainda faltam no frontend/backend:**
+1. **Serviços do Linux (systemd):** listar estados, iniciar/reiniciar/parar somente serviços autorizados, ver falhas e logs.
+2. **Arquivos e configuração:** navegador de arquivos dentro de pastas administrativas aprovadas (sem traversal), editor com prévia de diff, backup antes de salvar e restauração; nunca expor chaves por leitura genérica.
+3. **Tarefas e agendamentos:** listar, criar e pausar tarefas agendadas aprovadas; acompanhar execução e erros.
+4. **Armazenamento:** visão separada de partições, volumes Docker, diretórios grandes e espaço em disco com alerta prévio; volumes de sites com backup e restauração antes da exclusão.
+5. **Rede e portas:** estado de portas publicadas, proxy reverso, TLS, DNS e regras de firewall com validações, sem liberar porta publicamente por engano.
+6. **Saúde e manutenção:** atualizações de segurança do host, uso de CPU/RAM/disco/tráfego, histórico de incidentes, reinício controlado da VPS e recuperação após reboot.
+7. **Bancos de dados:** criar usuário/banco por aplicação, limitar armazenamento, programar backup e restaurar, sem expor senhas em telas de histórico.
+8. **Várias VPS:** inventário de hosts, operações por servidor e permissões isoladas, como C07.
+
+**Critério de aceite:** cada operação tem estado real confirmado pela VPS, confirmação antes de ações destrutivas, histórico sem credenciais e comportamento testado numa VPS de homologação. Evitar falsa sensação de recurso pronto apenas por adicionar um botão.
 
 ## P2 — Operação de hospedagem
 
