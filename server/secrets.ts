@@ -15,7 +15,8 @@ const NAME=/^[a-z][a-z0-9-]{1,47}$/;
 const INDEX='.panel-secret-index.json';
 const LIMIT=80;
 class SecretError extends Error {
-  constructor(readonly status:number,message:string){super(message);}
+  readonly status:number;
+  constructor(status:number,message:string){super(message);this.status=status;}
 }
 function configured(deps:Deps):boolean {
   return deps.enabled ?? process.env.PANEL_SECRETS_ENABLED==='1';
