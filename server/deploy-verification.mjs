@@ -16,14 +16,17 @@ export function revisionFromImage(image, service) {
   return repository === CORE_IMAGES[service]?.[1] ? parts[2] : null;
 }
 
-export function runDeploymentStatus(run, runtime) {
+export function runDeploymentStatus(run, runtime, publicHealth=null) {
   if (['queued','pending','waiting'].includes(run.status)) return 'queued';
   if (run.status === 'in_progress') return 'building';
   if (run.conclusion === 'cancelled') return 'cancelled';
   if (run.conclusion === 'failure') return 'failed';
   if (run.conclusion !== 'success' || run.status !== 'completed') return 'unknown';
   if (runtime?.app?.status !== 'verified') return 'unconfirmed';
-  return run.sha === runtime.app.revision ? 'active' : 'superseded';
+  if(run.sha !== runtime.app.revision)return 'superseded';
+  if(publicHealth?.status === 'matched')return 'published';
+  if(publicHealth?.status === 'different')return 'public-mismatch';
+  return 'active';
 }
 
 export async function inspectDeployedServices(request, configuredSha) {
