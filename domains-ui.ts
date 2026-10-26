@@ -34,6 +34,7 @@
         call('/domains/caddy') as Promise<{ content: string }>
       ]);
       domainZone = result.zone;
+      const publications = result.publications || {};
       const appPicker = get('domainApp') as HTMLSelectElement;
       appPicker.replaceChildren();
       const eligible = containers.applications.filter(app =>
@@ -83,7 +84,7 @@
         const detail = document.createElement('div'); detail.className = 'managed-domain-info';
         const title = document.createElement('strong'); title.textContent = route.host;
         const secondary = document.createElement('small');
-        const publication = result.publications[route.slug] || { state: 'reserved', updatedAt: '' };
+        const publication = publications[route.slug] || { state: 'reserved', updatedAt: '' };
         const labels: Record<Publication['state'], string> = {
           reserved: 'Reservado — ainda não publicado', dns_ready: 'DNS configurado — preparando HTTPS',
           certificate_pending: 'Certificado em andamento', published: 'Publicado e confirmado por HTTPS', failed: 'Publicação precisa de atenção'

@@ -32,6 +32,7 @@
                 call('/domains/caddy')
             ]);
             domainZone = result.zone;
+            const publications = result.publications || {};
             const appPicker = get('domainApp');
             appPicker.replaceChildren();
             const eligible = containers.applications.filter(app => app.network === result.network && !result.routes.some(route => route.slug === app.slug));
@@ -87,7 +88,7 @@
                 const title = document.createElement('strong');
                 title.textContent = route.host;
                 const secondary = document.createElement('small');
-                const publication = result.publications[route.slug] || { state: 'reserved', updatedAt: '' };
+                const publication = publications[route.slug] || { state: 'reserved', updatedAt: '' };
                 const labels = {
                     reserved: 'Reservado — ainda não publicado', dns_ready: 'DNS configurado — preparando HTTPS',
                     certificate_pending: 'Certificado em andamento', published: 'Publicado e confirmado por HTTPS', failed: 'Publicação precisa de atenção'
