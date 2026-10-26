@@ -118,6 +118,6 @@ test('production API and image include public HTTPS verification',()=>{
   const dockerfile=readFileSync(new URL('Dockerfile',import.meta.url),'utf8');
   const api=readFileSync(new URL('api.mjs',import.meta.url),'utf8');
   assert.ok(dockerfile.includes('deploy-public-health.mjs'));
-  assert.ok(api.includes('const publicHealth = await cachedPublicHealth('));
+  assert.ok(api.includes('cachedPublicHealth(runtime.app?.revision)'));
   assert.ok(api.includes('runDeploymentStatus(run, runtime, publicHealth)'));
 });
