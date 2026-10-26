@@ -135,7 +135,7 @@ async function loadOverview() {
 }
 const deployStatusLabels = Object.freeze({
   active: 'IMAGEM ATIVA · HTTPS NÃO CONFERIDO',
-  published: 'PUBLICADO · HTTPS CONFERIDO',
+  published: 'DOCKER + /HEALTH CONFERIDOS',
   'public-mismatch': 'IMAGEM ATIVA · SITE DIVERGENTE',
   superseded: 'CONCLUÍDO · OUTRA VERSÃO ATIVA',
   unconfirmed: 'CONCLUÍDO · ATIVAÇÃO NÃO CONFIRMADA',
@@ -203,6 +203,9 @@ function renderDeployRuntime(runtime, configuredSha, publicHealth = null) {
       'Isso não significa que o site esteja fora do ar.';
   }
   host.append(publicLine);
+  const publicScope = document.createElement('small');
+  publicScope.textContent = 'Verificação pública limitada ao /health. Arquivos JavaScript e outras rotas não foram testados nesta consulta.';
+  host.append(publicScope);
   if (!runtime?.services) return;
   const list = document.createElement('div');
   list.className = 'deploy-runtime-services';
@@ -269,7 +272,7 @@ async function loadDeploys() {
     renderDeployRuntime(runtime, data.currentSha, publicHealth);
     document.getElementById('deployTag').textContent = activeRun ? 'DEPLOY EM CURSO' :
       publicHealth?.status === 'different' ? 'SITE DIVERGENTE' :
-      publicHealth?.status === 'matched' ? 'PUBLICADO E CONFERIDO' :
+      publicHealth?.status === 'matched' ? '/HEALTH PÚBLICO CONFERIDO' :
       appSha ? 'IMAGEM VERIFICADA' : 'REVISÃO NÃO CONFIRMADA';
     document.getElementById('activityTag').textContent = 'GITHUB';
     const table = document.getElementById('deployTable');
