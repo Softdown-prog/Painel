@@ -161,6 +161,13 @@ function deployState(run, runtime, publicHealth = null) {
 function deployLabel(run, runtime, publicHealth = null) {
   return deployStatusLabels[deployState(run, runtime, publicHealth)];
 }
+function deployTrafficLabel(traffic) {
+  if (!traffic?.available) return traffic?.reason || 'Aguardando amostra de rede.';
+  const bytes = value => value >= 1024 ** 3 ? (value / 1024 ** 3).toFixed(2) + ' GB' :
+    value >= 1024 ** 2 ? (value / 1024 ** 2).toFixed(1) + ' MB' :
+    value >= 1024 ? (value / 1024).toFixed(1) + ' KB' : value + ' B';
+  return `Estimativa no intervalo: RX ${bytes(traffic.rx)} · TX ${bytes(traffic.tx)}`;
+}
 function renderDeployRuntime(runtime, configuredSha, publicHealth = null) {
   const host = document.getElementById('deployRuntimeDetails');
   host.replaceChildren();
@@ -248,7 +255,10 @@ function deployRow(run, runtime, publicHealth = null) {
   badge.className = 'status-badge';
   badge.textContent = deployLabel(run, runtime, publicHealth);
   if (deployState(run, runtime, publicHealth) === 'published') badge.classList.add('success-badge');
-  status.append(badge);
+  const traffic = document.createElement('small');
+  traffic.className = 'deploy-traffic';
+  traffic.textContent = deployTrafficLabel(run.traffic);
+  status.append(badge, traffic);
   const time = document.createElement('span');
   time.textContent = new Date(run.createdAt).toLocaleString('pt-BR');
   row.append(revision, origin, status, time);

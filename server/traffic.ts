@@ -53,9 +53,12 @@ function response(dataDir: string, source?: () => Counters) {
   return { available: Boolean(state.last), interface: state.interface, source: 'Contadores do Linux em /proc/net/dev', billingNote: 'Referência técnica RX + TX; a medição faturada da LocaCloud pode usar critério diferente.', historyStartsAt: state.days[0]?.date || null, lastSampleAt: state.last?.at || null, settings: state.settings, month, daily: state.days.slice(-31) };
 }
 export function startTrafficMonitor(dataDir: string) {
-  const source = () => { const state = read(dataDir); const counters = parseProcNetDev(readFileSync(process.env.PANEL_TRAFFIC_PROC_FILE || '/host/proc/net/dev', 'utf8'), state.interface); if (!counters) throw new Error('Interface externa indisponível'); return counters; };
+  const source = () => externalCounters(dataDir);
   const collect = () => { try { sample(dataDir, source); } catch (error) { console.error('Traffic monitor:', error instanceof Error ? error.message : 'unavailable'); } };
   collect(); const timer = setInterval(collect, 5 * 60_000); timer.unref();
+}
+export function externalCounters(dataDir: string): Counters {
+  const state = read(dataDir); const counters = parseProcNetDev(readFileSync(process.env.PANEL_TRAFFIC_PROC_FILE || '/host/proc/net/dev', 'utf8'), state.interface); if (!counters) throw new Error('Interface externa indisponível'); return counters;
 }
 export async function handleTrafficRoute(req: IncomingMessage, res: ServerResponse, deps: Deps): Promise<boolean> {
   if (new URL(req.url || '/', 'http://panel.local').pathname !== '/traffic') return false;

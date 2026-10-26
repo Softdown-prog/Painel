@@ -9,7 +9,8 @@ import { executeSshCommand, handleSshTerminalRoute } from './terminal-ssh.ts';
 import { handleRevisionRoute, startRevisionMonitor } from './revision-maintenance.ts';
 import { handlePublicationRoute, startPublicationWorker } from './publications.ts';
 import { handleSecretsRoute } from './secrets.ts';
-import { handleTrafficRoute, startTrafficMonitor } from './traffic.ts';
+import { externalCounters, handleTrafficRoute, startTrafficMonitor } from './traffic.ts';
+import { observeDeployRuns, startDeployTrafficMonitor } from './deploy-traffic.ts';
 import { inspectDeployedServices, runDeploymentStatus } from './deploy-verification.mjs';
 import { cachedPublicHealth } from './deploy-public-health.mjs';
 import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, existsSync, statfsSync } from 'node:fs';
@@ -116,6 +117,15 @@ function decodeDockerLogs(buffer) {
 function currentSha() {
   try { return /^SOFTLOAD_IMAGE_TAG=([0-9a-f]{40})$/m.exec(readFileSync(process.env.SOFTLOAD_ENV_FILE || '/host/softload.env', 'utf8'))?.[1] || null; }
   catch { return null; }
+}
+async function githubDeployRuns() {
+  try {
+    const response = await fetch('https://api.github.com/repos/Softdown-prog/Softloadv4/actions/workflows/deploy.yml/runs?per_page=20', {
+      headers: { 'user-agent': 'softload-panel-api', accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(8000)
+    });
+    if (!response.ok) return [];
+    return (await response.json()).workflow_runs?.map(run => ({ id: run.id, sha: run.head_sha, branch: run.head_branch, status: run.status, conclusion: run.conclusion, createdAt: run.created_at, url: run.html_url })) || [];
+  } catch { return []; }
 }
 async function handler(req, res) {
   if (!equal(req.headers['x-panel-edge-key'], edgeKey)) return send(res, 404, { error: 'Not found' });
@@ -245,29 +255,18 @@ async function handler(req, res) {
   if (path === '/deploys' && req.method === 'GET') {
     // GitHub and Docker are independent sources; start them together so
     // a slow GitHub request never adds to the Docker/public-health duration.
-    const runsPromise = (async () => {
-      try {
-        const response = await fetch('https://api.github.com/repos/Softdown-prog/Softloadv4/actions/workflows/deploy.yml/runs?per_page=8', {
-          headers: { 'user-agent': 'softload-panel-api', accept: 'application/vnd.github+json' },
-          signal: AbortSignal.timeout(8000)
-        });
-        if (!response.ok) return [];
-        return (await response.json()).workflow_runs?.map(run => ({
-          id: run.id, sha: run.head_sha, branch: run.head_branch, status: run.status,
-          conclusion: run.conclusion, createdAt: run.created_at, url: run.html_url
-        })) || [];
-      } catch { return []; }
-    })();
+    const runsPromise = githubDeployRuns();
     const runtime = await inspectDeployedServices(docker, currentSha());
     const [runs, publicHealth] = await Promise.all([
       runsPromise,
       cachedPublicHealth(runtime.app?.revision)
     ]);
+    const traffic = observeDeployRuns(dataDir, runs, (() => { try { return externalCounters(dataDir); } catch { return null; } })());
     return send(res, 200, {
       currentSha: runtime.configuredSha,
       runtime,
       publicHealth,
-      runs: runs.map(run => ({ ...run, deploymentStatus: runDeploymentStatus(run, runtime, publicHealth) }))
+      runs: runs.map(run => ({ ...run, deploymentStatus: runDeploymentStatus(run, runtime, publicHealth), traffic: traffic.get(run.id) }))
     });
   }
   return send(res, 404, { error: 'Rota não encontrada' });
@@ -284,3 +283,4 @@ startIdleMonitor(dataDir);
 startRevisionMonitor(dataDir);
 startPublicationWorker(dataDir);
 startTrafficMonitor(dataDir);
+startDeployTrafficMonitor(dataDir, () => externalCounters(dataDir), githubDeployRuns);
