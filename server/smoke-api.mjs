@@ -56,7 +56,9 @@ async function main() {
   const services = await call('/services','GET',undefined,cookie);
   assert.equal(services.status, 200, JSON.stringify(services.data));
   assert.ok(Array.isArray(services.data.services));
-  assert.equal(services.data.services.length, 6);
+  assert.deepEqual(services.data.services.map(service => service.id), ['app', 'agent', 'caddy']);
+  assert.equal(services.data.services.find(service => service.id === 'caddy')?.controllable, false);
+  assert.ok(services.data.services.every(service => !service.controllable), 'No missing Docker container can be controlled');
   const apps = await call('/apps','GET',undefined,cookie);
   assert.equal(apps.status, 200, JSON.stringify(apps.data));
   assert.ok(Array.isArray(apps.data.applications));
@@ -72,7 +74,7 @@ async function main() {
   assert.ok(revisions.data.hostInventory.total>=0);
   const overview = await call('/overview','GET',undefined,cookie);
   assert.equal(overview.status, 200, JSON.stringify(overview.data));
-  assert.equal(overview.data.services.length, 6);
+  assert.deepEqual(overview.data.services.map(service => service.id), ['app', 'agent', 'caddy']);
   // CI has Docker but no Softload containers and no external network. The UI must not invent an active release.
   const deploy = await call('/deploys','GET',undefined,cookie,18000);
   assert.equal(deploy.status,200,JSON.stringify(deploy.data));
@@ -81,6 +83,7 @@ async function main() {
   assert.equal(deploy.data.runtime?.app?.status,'unavailable');
   assert.equal(deploy.data.publicHealth?.status,'unavailable');
   assert.equal(deploy.data.runtime?.services?.app?.revision,null);
+  assert.deepEqual(Object.keys(deploy.data.runtime?.services || {}), ['app', 'agent']);
   const blocked = await call('/apps','POST',{slug:'blocked',image:'fake:1'},cookie);
   assert.equal(blocked.status, 403, 'New apps must remain disabled by default');
 
