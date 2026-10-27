@@ -34,51 +34,62 @@
         });
         return item;
     }
-  const publicationLabel = {
-    queued:'Na fila',importing:'Baixando imagem',staging:'Preparando versão',
-    health:'Testando versão',promoting:'Publicando',completed:'Publicado',
-    attention:'Precisa de revisão',failed:'Falhou'
-  };
-  const publishing = new Set();
-  const readyForDurable = new Set();
-  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-  async function publishSuccessfulBuild(project, run, host) {
-    const slug = project.slug;
-    if (publishing.has(slug)) { notice('A publicação já está sendo acompanhada.'); return; }
-    if (run.conclusion !== 'success' || run.status !== 'completed' || !/^[0-9a-f]{40}$/.test(run.sha)) {
-      notice('Selecione um build concluído com sucesso.'); return;
-    }
-    if (!confirm('Publicar '+ slug + ' na revisão ' + run.sha.slice(0,10) +
-      '?\n\nA VPS executará os passos e guardará o resultado mesmo se você fechar esta página. ' +
-      'A versão anterior continuará disponível para recuperação.')) return;
-    publishing.add(slug);
-    try {
-      const answer = await call('/projects/' + slug + '/publication', {
-        method:'POST', headers:{'content-type':'application/json'},
-        body:JSON.stringify({runId:run.id})
-      });
-      if (answer.job?.runId !== run.id) throw new Error('A API não confirmou o build solicitado.');
-      notice((answer.alreadyExists ? 'Publicação já registrada. ' : 'Publicação registrada. ') +
-        'A VPS continuará executando mesmo se você fechar o navegador.');
-      await showReleaseStatus(project, host);
-      // Polling is display-only. It is safe for this tab to close during a deployment.
-      for (let i=0;i<120;i++) {
-        await delay(3000);
-        const state = await call('/projects/' + slug + '/publication');
-        const job=state.history?.find((j)=>j.runId===run.id);
-        if (!job) throw new Error('A publicação não foi encontrada no servidor.');
-        notice('Publicação '+slug+': '+ (publicationLabel[job.phase] || job.phase) +' · '+job.detail);
-        if (['completed','failed','attention'].includes(job.phase)) {
-          await showReleaseStatus(project,host);
-          return;
+    const publicationLabel = {
+        queued: 'Na fila', importing: 'Baixando imagem', staging: 'Preparando versão',
+        health: 'Testando versão', promoting: 'Publicando', completed: 'Publicado',
+        attention: 'Precisa de revisão', failed: 'Falhou'
+    };
+    const publishing = new Set();
+    const readyForDurable = new Set();
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    async function publishSuccessfulBuild(project, run, host) {
+        const slug = project.slug;
+        if (publishing.has(slug)) {
+            notice('A publicação já está sendo acompanhada.');
+            return;
         }
-      }
-      notice('O trabalho continua na VPS. Atualize Projetos GitHub para conferir o andamento.');
-    } catch(error) {
-      notice(error instanceof Error?error.message:'Não foi possível acompanhar a publicação.');
-    } finally { publishing.delete(slug); }
-  }
-  async function loadRuns(slug, parent, releaseHost) {
+        if (run.conclusion !== 'success' || run.status !== 'completed' || !/^[0-9a-f]{40}$/.test(run.sha)) {
+            notice('Selecione um build concluído com sucesso.');
+            return;
+        }
+        if (!confirm('Publicar ' + slug + ' na revisão ' + run.sha.slice(0, 10) +
+            '?\n\nA VPS executará os passos e guardará o resultado mesmo se você fechar esta página. ' +
+            'A versão anterior continuará disponível para recuperação.'))
+            return;
+        publishing.add(slug);
+        try {
+            const answer = await call('/projects/' + slug + '/publication', {
+                method: 'POST', headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ runId: run.id })
+            });
+            if (answer.job?.runId !== run.id)
+                throw new Error('A API não confirmou o build solicitado.');
+            notice((answer.alreadyExists ? 'Publicação já registrada. ' : 'Publicação registrada. ') +
+                'A VPS continuará executando mesmo se você fechar o navegador.');
+            await showReleaseStatus(project, host);
+            // Polling is display-only. It is safe for this tab to close during a deployment.
+            for (let i = 0; i < 120; i++) {
+                await delay(3000);
+                const state = await call('/projects/' + slug + '/publication');
+                const job = state.history?.find((j) => j.runId === run.id);
+                if (!job)
+                    throw new Error('A publicação não foi encontrada no servidor.');
+                notice('Publicação ' + slug + ': ' + (publicationLabel[job.phase] || job.phase) + ' · ' + job.detail);
+                if (['completed', 'failed', 'attention'].includes(job.phase)) {
+                    await showReleaseStatus(project, host);
+                    return;
+                }
+            }
+            notice('O trabalho continua na VPS. Atualize Projetos GitHub para conferir o andamento.');
+        }
+        catch (error) {
+            notice(error instanceof Error ? error.message : 'Não foi possível acompanhar a publicação.');
+        }
+        finally {
+            publishing.delete(slug);
+        }
+    }
+    async function loadRuns(slug, parent, releaseHost) {
         parent.textContent = 'Carregando execuções...';
         try {
             const data = await call('/projects/' + encodeURIComponent(slug) + '/runs');
@@ -100,11 +111,11 @@
                 status.textContent = ' · ' + (run.conclusion || run.status) + ' · ' + new Date(run.createdAt).toLocaleString('pt-BR');
                 line.append(link, status);
                 if (run.conclusion === 'success' && run.status === 'completed' &&
-                importReady.has(slug) && releaseReady.has(slug) && readyForDurable.has(slug)) {
-                const project = projects.find(p => p.slug === slug);
-                line.append(button('Publicar revisão', () => publishSuccessfulBuild(project, run, releaseHost)));
-            }
-            if (run.conclusion === 'success' && importReady.has(slug)) {
+                    importReady.has(slug) && releaseReady.has(slug) && readyForDurable.has(slug)) {
+                    const project = projects.find(p => p.slug === slug);
+                    line.append(button('Publicar revisão', () => publishSuccessfulBuild(project, run, releaseHost)));
+                }
+                if (run.conclusion === 'success' && importReady.has(slug)) {
                     line.append(button('Importar do GHCR', async () => {
                         if (!confirm('Importar esta revisão do GHCR por digest SHA-256? A operação não altera containers em execução.'))
                             return;
@@ -167,23 +178,26 @@
                 (status.backup ? ' · Backup disponível' : '');
             host.append(info);
             try {
-        const running = await call('/projects/' + project.slug + '/publication');
-        if (running.enabled) readyForDurable.add(project.slug);
-        else readyForDurable.delete(project.slug);
-        const publication = document.createElement('small');
-        const job = running.current;
-        publication.textContent = !running.enabled ?
-          'Publicação pelo servidor ainda não habilitada na VPS.' :
-          job ? (publicationLabel[job.phase] || job.phase)+' · '+job.detail :
-          'Publicação pelo servidor pronta para receber um build.';
-        host.append(publication);
-      } catch {
-        readyForDurable.delete(project.slug);
-        const message=document.createElement('small');
-        message.textContent='Publicação persistente indisponível nesta versão da API da VPS.';
-        host.append(message);
-      }
-      const imageStatus = await call('/projects/' + project.slug + '/images/import');
+                const running = await call('/projects/' + project.slug + '/publication');
+                if (running.enabled)
+                    readyForDurable.add(project.slug);
+                else
+                    readyForDurable.delete(project.slug);
+                const publication = document.createElement('small');
+                const job = running.current;
+                publication.textContent = !running.enabled ?
+                    'Publicação pelo servidor ainda não habilitada na VPS.' :
+                    job ? (publicationLabel[job.phase] || job.phase) + ' · ' + job.detail :
+                        'Publicação pelo servidor pronta para receber um build.';
+                host.append(publication);
+            }
+            catch {
+                readyForDurable.delete(project.slug);
+                const message = document.createElement('small');
+                message.textContent = 'Publicação persistente indisponível nesta versão da API da VPS.';
+                host.append(message);
+            }
+            const imageStatus = await call('/projects/' + project.slug + '/images/import');
             if (imageStatus.enabled)
                 importReady.add(project.slug);
             else
@@ -315,15 +329,41 @@
                 label.textContent = project.slug;
                 const detail = document.createElement('small');
                 detail.textContent = project.repository +
-                    ' · ' + (project.branch || 'repositório desconectado') + ' · ' + (project.workflow || 'sem workflow');
+                    ' · ' + (project.branch || 'repositório desconectado') + ' · ' + (project.workflow || 'sem workflow') +
+                    ' · ' + project.services.length + (project.services.length === 1 ? ' serviço' : ' serviços');
                 info.append(label, detail);
+                const serviceEditor = document.createElement('details');
+                const serviceTitle = document.createElement('summary');
+                serviceTitle.textContent = 'Serviços deste projeto';
+                serviceEditor.append(serviceTitle);
+                const assignedElsewhere = new Set(projects.filter(item => item.slug !== project.slug).flatMap(item => item.services));
+                for (const app of services.applications.filter(item => !assignedElsewhere.has(item.slug))) {
+                    const line = document.createElement('label');
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.value = app.slug;
+                    checkbox.checked = project.services.includes(app.slug);
+                    line.append(checkbox, document.createTextNode(' ' + app.slug));
+                    serviceEditor.append(line);
+                }
+                serviceEditor.append(button('Salvar serviços', async () => {
+                    const selected = Array.from(serviceEditor.querySelectorAll('input:checked')).map(input => input.value);
+                    await call('/projects/' + project.slug + '/services', {
+                        method: 'PUT', headers: { 'content-type': 'application/json' },
+                        body: JSON.stringify({ services: selected })
+                    });
+                    notice('Serviços do projeto atualizados. Nenhum container foi removido.');
+                    await refreshManagedProjects();
+                }));
+                info.append(serviceEditor);
                 const actions = document.createElement('div');
                 actions.className = 'managed-project-actions';
                 const runs = document.createElement('div');
                 runs.className = 'managed-project-runs';
                 const releasePanel = document.createElement('div');
                 releasePanel.className = 'managed-project-releases';
-                const supported = project.workflow === linked.requiredWorkflow;
+                const supported = project.workflow === linked.requiredWorkflow &&
+                    project.services.length === 1 && project.services[0] === project.slug;
                 actions.append(button('Consultar builds', () => loadRuns(project.slug, runs, releasePanel), !supported));
                 actions.append(button('Executar build', async () => {
                     if (!confirm('Executar build de ' + project.repository + '? Isso publica uma imagem no GHCR, sem alterar o container da VPS.'))
@@ -351,7 +391,10 @@
                 }));
                 row.append(info, actions, releasePanel, runs);
                 list.append(row);
-                void showReleaseStatus(project, releasePanel);
+                if (supported)
+                    void showReleaseStatus(project, releasePanel);
+                else
+                    releasePanel.textContent = 'A publicação integrada está disponível para projetos com um serviço principal. Os demais serviços permanecem preservados.';
             }
             notice(buildsEnabled
                 ? 'Build habilitado. Somente o workflow panel-app-build.yml é aceito; nenhum container é substituído.'

@@ -8,6 +8,7 @@ export type ProjectBinding = {
   slug: string;
   repository: string;
   connectedAt: string;
+  services: string[];
 };
 type Dependencies = {
   dataDir: string;
@@ -20,6 +21,22 @@ type Dependencies = {
 };
 const BUILD_WORKFLOW = 'panel-app-build.yml';
 const MAX_PROJECTS = 8;
+const MAX_SERVICES_PER_PROJECT = 8;
+
+function validServices(value: unknown): value is string[] {
+  return Array.isArray(value) && value.length <= MAX_SERVICES_PER_PROJECT &&
+    value.every(validSlug) && new Set(value).size === value.length;
+}
+
+function servicesOf(value: Partial<ProjectBinding>): string[] {
+  // Existing projects.json entries linked one container named after the project.
+  return value.services === undefined ? [value.slug as string] : value.services;
+}
+
+function ownsServices(projects: ProjectBinding[], slug: string, services: string[]): boolean {
+  return projects.some(project => project.slug !== slug &&
+    services.some(service => project.services.includes(service)));
+}
 
 class ProjectError extends Error {
   readonly status: number;
@@ -38,10 +55,16 @@ export function readProjects(dataDir: string): ProjectBinding[] {
       validSlug((value as ProjectBinding).slug) &&
       typeof (value as ProjectBinding).repository === 'string' &&
       /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test((value as ProjectBinding).repository) &&
-      typeof (value as ProjectBinding).connectedAt === 'string')) {
+      typeof (value as ProjectBinding).connectedAt === 'string' &&
+      validServices(servicesOf(value as ProjectBinding)))) {
     throw new ProjectError(500, 'Dados de projetos inválidos.');
   }
-  return parsed;
+  const projects = (parsed as ProjectBinding[]).map(project => ({
+    ...project, services: servicesOf(project)
+  }));
+  if (projects.some(project => ownsServices(projects, project.slug, project.services)))
+    throw new ProjectError(500, 'Um serviço pertence a mais de um projeto.');
+  return projects;
 }
 function saveProjects(dataDir: string, items: ProjectBinding[]): void {
   const file = storeFile(dataDir);
@@ -81,19 +104,24 @@ export async function handleProjectRoute(req: IncomingMessage, res: ServerRespon
     }
     if (path === '/projects' && req.method === 'POST') {
       const input = await deps.body(req);
-      if (Object.keys(input).some(key => key !== 'slug' && key !== 'repository') ||
-          !validSlug(input.slug) || typeof input.repository !== 'string') {
+      if (Object.keys(input).some(key => !['slug', 'repository', 'services'].includes(key)) ||
+          !validSlug(input.slug) || typeof input.repository !== 'string' ||
+          (input.services !== undefined && !validServices(input.services))) {
         throw new ProjectError(400, 'Informe uma aplicação e um repositório válido.');
       }
-      await inspectOwned(docker, input.slug);
+      const services = input.services === undefined ? [input.slug as string] : input.services as string[];
+      for (const service of services) await inspectOwned(docker, service);
       const repo = repositories().find(item => item.fullName === input.repository);
       if (!repo) throw new ProjectError(404, 'Conecte primeiro o repositório na aba Deploys.');
       const project = await serialize(async () => {
         const current = readProjects(deps.dataDir);
         if (current.some(item => item.slug === input.slug)) throw new ProjectError(409, 'Aplicação já vinculada.');
+        if (ownsServices(current, input.slug as string, services))
+          throw new ProjectError(409, 'Serviço já vinculado a outro projeto.');
         if (current.length >= MAX_PROJECTS) throw new ProjectError(409, 'Limite de projetos atingido.');
         const newProject: ProjectBinding = {
-          slug: input.slug as string, repository: repo.fullName, connectedAt: new Date().toISOString()
+          slug: input.slug as string, repository: repo.fullName,
+          connectedAt: new Date().toISOString(), services
         };
         saveProjects(deps.dataDir, [...current, newProject]);
         return newProject;
@@ -102,11 +130,34 @@ export async function handleProjectRoute(req: IncomingMessage, res: ServerRespon
       send(201, { project });
       return true;
     }
-    const match = /^\/projects\/([a-z0-9-]+)(?:\/(build|runs))?$/.exec(path);
+    const match = /^\/projects\/([a-z0-9-]+)(?:\/(build|runs|services))?$/.exec(path);
     if (!match || !validSlug(match[1])) throw new ProjectError(404, 'Rota não encontrada.');
     const [, slug, action] = match;
     const project = readProjects(deps.dataDir).find(item => item.slug === slug);
     if (!project) throw new ProjectError(404, 'Projeto não encontrado.');
+    if (action === 'services' && req.method === 'PUT') {
+      const input = await deps.body(req);
+      if (Object.keys(input).join(',') !== 'services' || !validServices(input.services))
+        throw new ProjectError(400, 'Informe uma lista válida de serviços.');
+      const next = input.services as string[];
+      // A removed service is detached from the project registry only. It is never
+      // inspected, stopped or deleted, so retired images cannot block reconciliation.
+      const updated = await serialize(async () => {
+        const current = readProjects(deps.dataDir);
+        const live = current.find(item => item.slug === slug);
+        if (!live) throw new ProjectError(404, 'Projeto não encontrado.');
+        if (ownsServices(current, slug, next))
+          throw new ProjectError(409, 'Serviço já vinculado a outro projeto.');
+        for (const service of next.filter(item => !live.services.includes(item)))
+          await inspectOwned(docker, service);
+        const entry = { ...live, services: next };
+        saveProjects(deps.dataDir, current.map(item => item.slug === slug ? entry : item));
+        return entry;
+      });
+      console.log('Project services updated:', slug, updated.services.join(','));
+      send(200, { project: updated, message: 'Serviços vinculados; containers preservados.' });
+      return true;
+    }
     if (!action && req.method === 'DELETE') {
       await serialize(async () => {
         saveProjects(deps.dataDir, readProjects(deps.dataDir).filter(item => item.slug !== slug));
@@ -116,6 +167,8 @@ export async function handleProjectRoute(req: IncomingMessage, res: ServerRespon
       return true;
     }
     if (action !== 'runs' && action !== 'build') throw new ProjectError(405, 'Método não permitido.');
+    if (project.services.length !== 1 || project.services[0] !== slug)
+      throw new ProjectError(409, 'O publicador atual aceita um único serviço principal. Configure um fluxo por projeto antes de publicar vários serviços.');
     const repository = repositories().find(item => item.fullName === project.repository);
     if (!repository) throw new ProjectError(409, 'O repositório não está mais conectado.');
     if (repository.workflow !== BUILD_WORKFLOW) {

@@ -6,6 +6,10 @@
 
 **Limite atual de capacidade:** são permitidas até **8 aplicações gerenciadas** por instalação. Esse teto é uma proteção temporária do protótipo, não o desenho final de hospedagem de clientes. Aumentar o limite exige controle por servidor, cotas, separação de clientes e observabilidade (tarefa C07).
 
+### P0 · Migração multiprojetos iniciada (27/10/2026)
+
+**Código em branch:** o registro de projetos aceita vários serviços com posse exclusiva; cadastros antigos continuam legíveis; a interface permite ajustar os vínculos sem apagar containers. Os publicadores existentes continuam limitados a um serviço principal e recusam projetos com vários serviços. Ver [diagnóstico e etapas restantes](MIGRACAO-MULTIPROJETOS.md). Este código ainda precisa passar no CI Linux e ser implantado na VPS após backup do volume do Painel. O site em produção recebeu apenas a correção operacional de Caddy e do gateway de despertar descrita no diagnóstico.
+
 ## Regra principal de experiência
 
 O usuário quer ações simples: **Criar site**, **Conectar GitHub**, **Escolher domínio**, **Publicar**, **Ver se está funcionando**, **Reiniciar**, **Fazer backup** e **Excluir**. Nunca mostrar comandos, identificadores internos ou configurações do Caddy na tela principal. Explicar limitações em português do Brasil, sem fingir que algo está pronto.

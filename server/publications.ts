@@ -189,6 +189,8 @@ export async function handlePublicationRoute(req:IncomingMessage,res:ServerRespo
   if(!validSlug(slug))return send(404,{error:'Nome da aplicação inválido.'}),true;
   const project=readProjects(deps.dataDir).find(x=>x.slug===slug);
   if(!project)return send(404,{error:'Vincule a aplicação a um projeto GitHub primeiro.'}),true;
+  if(project.services.length!==1||project.services[0]!==slug)
+   return send(409,{error:'A publicação atual aceita somente o serviço principal deste projeto.'}),true;
   if(req.method==='GET'){
    const jobs=readJobs(deps.dataDir).filter(x=>x.slug===slug).reverse().slice(0,10);
    send(200,{enabled,current:jobs[0]||null,history:jobs});

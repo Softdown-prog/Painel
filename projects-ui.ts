@@ -1,5 +1,5 @@
 (() => {
-  interface ProjectLink { slug: string; repository: string; branch: string | null; workflow: string | null }
+  interface ProjectLink { slug: string; repository: string; branch: string | null; workflow: string | null; services: string[] }
   interface RepoLink { fullName: string; branch: string; workflow: string }
   interface AppLink { slug: string; image: string; state: string }
   interface RunItem { id: number; sha: string; status: string; conclusion: string | null; url: string; createdAt: string }
@@ -272,12 +272,37 @@
         const info = document.createElement('div'); info.className = 'managed-project-info';
         const label = document.createElement('strong'); label.textContent = project.slug;
         const detail = document.createElement('small'); detail.textContent = project.repository +
-          ' · ' + (project.branch || 'repositório desconectado') + ' · ' + (project.workflow || 'sem workflow');
+          ' · ' + (project.branch || 'repositório desconectado') + ' · ' + (project.workflow || 'sem workflow') +
+          ' · ' + project.services.length + (project.services.length === 1 ? ' serviço' : ' serviços');
         info.append(label, detail);
+        const serviceEditor = document.createElement('details');
+        const serviceTitle = document.createElement('summary');
+        serviceTitle.textContent = 'Serviços deste projeto';
+        serviceEditor.append(serviceTitle);
+        const assignedElsewhere = new Set(projects.filter(item => item.slug !== project.slug).flatMap(item => item.services));
+        for (const app of services.applications.filter(item => !assignedElsewhere.has(item.slug))) {
+          const line = document.createElement('label');
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox'; checkbox.value = app.slug;
+          checkbox.checked = project.services.includes(app.slug);
+          line.append(checkbox, document.createTextNode(' ' + app.slug));
+          serviceEditor.append(line);
+        }
+        serviceEditor.append(button('Salvar serviços', async () => {
+          const selected = Array.from(serviceEditor.querySelectorAll<HTMLInputElement>('input:checked')).map(input => input.value);
+          await call('/projects/' + project.slug + '/services', {
+            method: 'PUT', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ services: selected })
+          });
+          notice('Serviços do projeto atualizados. Nenhum container foi removido.');
+          await refreshManagedProjects();
+        }));
+        info.append(serviceEditor);
         const actions = document.createElement('div'); actions.className = 'managed-project-actions';
         const runs = document.createElement('div'); runs.className = 'managed-project-runs';
         const releasePanel = document.createElement('div'); releasePanel.className = 'managed-project-releases';
-        const supported = project.workflow === linked.requiredWorkflow;
+        const supported = project.workflow === linked.requiredWorkflow &&
+          project.services.length === 1 && project.services[0] === project.slug;
         actions.append(button('Consultar builds', () => loadRuns(project.slug, runs, releasePanel), !supported));
         actions.append(button('Executar build', async () => {
           if (!confirm('Executar build de ' + project.repository + '? Isso publica uma imagem no GHCR, sem alterar o container da VPS.')) return;
@@ -297,7 +322,8 @@
         }));
         row.append(info, actions, releasePanel, runs);
         list.append(row);
-        void showReleaseStatus(project, releasePanel);
+        if (supported) void showReleaseStatus(project, releasePanel);
+        else releasePanel.textContent = 'A publicação integrada está disponível para projetos com um serviço principal. Os demais serviços permanecem preservados.';
       }
       notice(buildsEnabled
         ? 'Build habilitado. Somente o workflow panel-app-build.yml é aceito; nenhum container é substituído.'

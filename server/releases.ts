@@ -144,6 +144,8 @@ export async function handleReleaseRoute(req: IncomingMessage, res: ServerRespon
     if (!validSlug(slug)) throw new ReleaseError(404, 'Projeto inválido.');
     const project = readProjects(deps.dataDir).find(value => value.slug === slug);
     if (!project) throw new ReleaseError(404, 'Projeto não vinculado.');
+    if (project.services.length !== 1 || project.services[0] !== slug)
+      throw new ReleaseError(409, 'O publicador atual aceita somente o serviço principal deste projeto.');
     const repo = (deps.repositories || (() => readRepositories(deps.dataDir)))()
       .find(item => item.fullName === project.repository);
     if (!repo || repo.workflow !== WORKFLOW) throw new ReleaseError(409, 'Workflow GitHub do projeto não autorizado.');

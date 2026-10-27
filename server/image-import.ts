@@ -181,6 +181,8 @@ export async function handleImageImportRoute(req: IncomingMessage, res: ServerRe
   try {
     const project = readProjects(deps.dataDir).find(v => v.slug === slug);
     if (!project) throw new ImportError(404, 'Projeto não encontrado.');
+    if (project.services.length !== 1 || project.services[0] !== slug)
+      throw new ImportError(409, 'A importação atual aceita somente o serviço principal deste projeto.');
     const repository = (deps.repositories || (() => readRepositories(deps.dataDir)))()
       .find(v => v.fullName === project.repository && v.workflow === WORKFLOW);
     if (!repository) throw new ImportError(409, 'Repositório/workflow não autorizado.');
