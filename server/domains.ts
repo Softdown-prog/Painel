@@ -77,7 +77,9 @@ export function renderManagedCaddy(routes: readonly DomainRoute[]): string {
     const matcher = route.slug.replaceAll('-', '_');
     lines.push('@panel_' + matcher + ' host ' + route.host);
     lines.push('handle @panel_' + matcher + ' {');
-    lines.push('    reverse_proxy ' + 'softload-app-' + route.slug + ':' + route.port);
+    lines.push('    reverse_proxy app-wake:8082 {');
+    lines.push('        flush_interval -1');
+    lines.push('    }');
     lines.push('}');
   }
   return lines.join('\n') + '\n';

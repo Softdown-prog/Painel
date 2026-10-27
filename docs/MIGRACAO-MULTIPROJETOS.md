@@ -88,7 +88,33 @@ imagem `sha256:03b5ae8ddd461b4f93a0b70bee62bd27f4fc1c7068b4cd91d84f04319a323ead`
 O backup do código e do volume fica em
 `/opt/softload-infra/backups/panel-inventory-20261027T221850Z`;
 as cópias têm SHA-256 registrado. A imagem anterior `multiproject-008b046`
-continua disponível para rollback. A interface depende do merge do PR #5.
+continua disponível para rollback. O PR #5 foi integrado na main.
+
+### Etapa 4 em branch: despertar de aplicações gerenciadas
+
+O Caddy interno deixa de encaminhar diretamente a containers que podem estar
+parados por inatividade e passa pelo serviço privado `app-wake`. Ele consulta
+somente os domínios registrados, confirma labels e identidade do container
+através do executor isolado, inicia apenas um container parado
+intencionalmente, aguarda a saúde e então encaminha a requisição. Requisições
+simultâneas do mesmo projeto compartilham a mesma operação. Falhas reais de
+container não disparam rebuild nem reinstalação. Não há porta publicada, Docker
+socket do host ou credencial de painel nesse gateway.
+
+Em 27/10/2026, `server/smoke-app-wake-vps.sh` passou na VPS com dois containers
+temporários e domínio apenas de teste, sem modificar Caddy ou DNS: uma
+requisição iniciou o aplicativo parado, esperou sua saúde e retornou HTTP 200.
+O script removeu os dois containers e a imagem temporária ao terminar; API,
+executor, Caddy, App e Agent existentes permaneceram ativos e saudáveis.
+
+**Rollout ainda pendente:** fazer backup do Compose e dos snippets Caddy,
+instalar o novo serviço, validar sua saúde, gerar novamente as rotas existentes
+e recarregar apenas o Caddy interno. Testar uma aplicação em homologação
+acordando após inatividade; confirmar SSE, HTTPS e que os demais projetos
+continuam ativos. Se falhar, restaurar snippets e Compose anteriores e
+recarregar o Caddy interno. A rede compartilhada `softload_panel_apps` ainda
+não oferece isolamento suficiente para clientes não confiáveis; C04 continua
+bloqueando hospedagem multiusuário.
 
 O CI Linux do PR #3 passou. A nova API foi construída e ativada na VPS em
 27/10/2026 com imagem `sha256:68fd9d55de6523fdee809bb2ae56649862be439de5418b988b18fb8919d733dc`.
@@ -98,4 +124,4 @@ Os arquivos também foram copiados para este computador, cifrados com AES-256-GC
 a chave está protegida por DPAPI da conta Windows atual. A imagem anterior ficou
 preservada como `softload-panel-api:rollback-20261027T215916Z`.
 A API ficou saudável, leu o cadastro existente e a Softload pública continuou
-respondendo HTTP 200. O frontend ainda depende da publicação do PR.
+respondendo HTTP 200. O frontend do PR #3 foi publicado.

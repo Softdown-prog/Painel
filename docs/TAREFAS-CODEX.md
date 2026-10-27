@@ -16,6 +16,8 @@
 
 **Etapa 3, commit `720971c`:** inventário autenticado `/hosted-projects` e cartões na Visão geral para Softload V4 e aplicações independentes. O CI Linux do PR #5 passou. A API foi instalada na VPS com backup local verificável do código e volume; a imagem `sha256:03b5ae8ddd46...` ficou saudável. A interface depende do merge/publicação do PR #5. O inventário é somente leitura e não altera deploy ou scale-to-zero.
 
+**Etapa 4 em branch separada:** gateway interno de despertar para aplicações gerenciadas com domínio, sem Docker socket direto e com verificação de posse antes de iniciar. Caddy interno passa a encaminhar por esse gateway. Testes focados passaram; CI Linux e homologação de sono/despertar ainda pendentes. Nenhuma rota de produção foi alterada por esta etapa.
+
 ## Regra principal de experiência
 
 O usuário quer ações simples: **Criar site**, **Conectar GitHub**, **Escolher domínio**, **Publicar**, **Ver se está funcionando**, **Reiniciar**, **Fazer backup** e **Excluir**. Nunca mostrar comandos, identificadores internos ou configurações do Caddy na tela principal. Explicar limitações em português do Brasil, sem fingir que algo está pronto.

@@ -47,7 +47,7 @@ test('zone and Caddy renderer reject wildcard and host injection', () => {
     slug: 'demo', host: 'demo.apps.example.com\nreverse_proxy evil:80', port: 3000, createdAt: ''
   }]));
   assert.match(renderManagedCaddy([{ slug: 'demo', host: 'demo.apps.analysepro.com', port: 3000, createdAt: '' }]),
-    /@panel_demo host demo\.apps\.analysepro\.com\nhandle @panel_demo \{\n    reverse_proxy softload-app-demo:3000/);
+    /@panel_demo host demo\.apps\.analysepro\.com\nhandle @panel_demo \{\n    reverse_proxy app-wake:8082/);
 });
 test('public gateway renderer accepts only stored routes and transports config without shell interpolation', () => {
   const route = { slug: 'demo', host: 'demo.apps.analysepro.com', port: 3000, createdAt: '' };
@@ -77,7 +77,7 @@ test('domains only register panel-owned apps on isolated network; removal update
     assert.equal((await request(dir, '/domains', 'POST', { slug: 'demo', port: 3100 })).status, 409);
     assert.equal(readDomainRoutes(dir).length, 1);
     const config = readFileSync(join(dir, 'caddy', 'managed-apps.caddy'), 'utf8');
-    assert.match(config, /reverse_proxy softload-app-demo:3000/);
+    assert.match(config, /reverse_proxy app-wake:8082/);
     assert.equal((await request(dir, '/domains/caddy')).data.content, config);
     const deleted = await request(dir, '/domains/demo', 'DELETE');
     assert.equal(deleted.status, 200);
