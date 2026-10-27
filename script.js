@@ -50,9 +50,9 @@ function showAuth(setup) {
 function serviceRow(service, allowActions = false) {
   const row = document.createElement('div');
   row.className = 'service-row';
-  const icon = document.createElement('span');
-  icon.className = 'service-symbol';
-  icon.textContent = labels[service.id]?.icon || '◫';
+  const symbol = document.createElement('span');
+  symbol.className = 'service-symbol';
+  symbol.textContent = labels[service.id]?.icon || '◫';
   const main = document.createElement('span');
   main.className = 'service-main';
   const name = document.createElement('strong');
@@ -65,41 +65,93 @@ function serviceRow(service, allowActions = false) {
   const dot = document.createElement('span');
   dot.className = 'dot';
   dot.style.background = service.state === 'running' ? '#65d6a4' : '#e4b077';
-  state.append(dot, authenticated ? (service.state === 'running' ? 'Ativo' : service.state) : 'Exemplo');
-  row.append(icon, main, state);
-  if (allowActions && authenticated) { const manage=document.createElement('button');manage.type='button';manage.textContent='Gerenciar';manage.addEventListener('click',()=>openService(service));row.append(manage); }
-  if (allowActions && authenticated && service.controllable) {
-    const actions = document.createElement('span');
-    actions.className = 'service-actions';
-    const options = service.state === 'running' ? [['restart', 'Reiniciar'], ['stop', 'Parar']] : [['start', 'Iniciar']];
-    for (const [action, title] of options) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = title;
-      button.addEventListener('click', async () => {
-        if (!confirm(`${title} ${name.textContent}? Essa ação afeta o serviço na VPS.`)) return;
-        button.disabled = true;
-        try {
-          await api(`/services/${service.id}/${action}`, { method: 'POST' });
-          toast(`${name.textContent}: ${title.toLowerCase()} solicitado.`);
-          setTimeout(loadOverview, 1500);
-        } catch (error) { toast(error.message); }
-        finally { button.disabled = false; }
-      });
-      actions.append(button);
-    }
-    row.append(actions);
+  const label = service.state === 'running' ? 'Ativo'
+    : service.state === 'missing' ? 'Ausente'
+    : service.state === 'exited' ? 'Parado'
+    : service.state || 'Não encontrado';
+  state.append(dot, authenticated ? label : 'Exemplo');
+  row.append(symbol, main, state);
+  if (allowActions && authenticated) {
+    const manage = document.createElement('button');
+    manage.type = 'button';
+    manage.textContent = 'Gerenciar';
+    manage.addEventListener('click', () => { void openService(service); });
+    row.append(manage);
   }
   return row;
 }
 let selectedService = null;
+
 async function openService(service) {
-  selectedService=service; location.hash='service-detail';
-  document.getElementById('serviceDetailName').textContent=labels[service.id]?.name||service.name;
-  document.getElementById('serviceDetailSummary').textContent=`${service.status} · ${service.image||'sem imagem'}`;
-  const actions=document.getElementById('serviceDetailActions'); actions.replaceChildren();
-  if(service.controllable){for(const [action,label] of (service.state==='running'?[['restart','Reiniciar'],['stop','Parar']]:[['start','Iniciar']])){const button=document.createElement('button');button.className='secondary-button';button.textContent=label;button.onclick=async()=>{if(!confirm(`${label} este container?`))return;await api(`/services/${service.id}/${action}`,{method:'POST'});toast('Ação solicitada.');await loadOverview();openService((await api('/services')).services.find(x=>x.id===service.id));};actions.append(button);}}
-  const logs=document.getElementById('serviceDetailLogs');logs.textContent='Carregando logs...';try{logs.textContent=(await api(`/services/${service.id}/logs?tail=200`)).lines||'Sem logs.';}catch(error){logs.textContent=error.message;}
+  if (!service?.id) {
+    toast('Serviço não encontrado. Atualize a lista.');
+    location.hash = 'services';
+    return;
+  }
+  selectedService = service;
+  location.hash = 'service-detail';
+  document.getElementById('serviceDetailName').textContent = labels[service.id]?.name || service.name;
+  document.getElementById('serviceDetailSummary').textContent =
+    `${service.status} · ${service.image || 'sem imagem'}`;
+  const actions = document.getElementById('serviceDetailActions');
+  const logs = document.getElementById('serviceDetailLogs');
+  actions.replaceChildren();
+
+  const refreshLogs = async () => {
+    logs.textContent = 'Carregando registros...';
+    try {
+      const data = await api(`/services/${service.id}/logs?tail=200`);
+      // Não exibir logs de um container anterior depois de trocar de aba.
+      if (selectedService?.id === service.id) logs.textContent = data.lines || 'Sem registros.';
+    } catch (error) {
+      if (selectedService?.id === service.id) logs.textContent = error.message;
+    }
+  };
+  const refreshButton = document.createElement('button');
+  refreshButton.type = 'button';
+  refreshButton.className = 'secondary-button';
+  refreshButton.textContent = '↻ Atualizar registros';
+  refreshButton.addEventListener('click', async () => {
+    refreshButton.disabled = true;
+    try { await refreshLogs(); }
+    finally { refreshButton.disabled = false; }
+  });
+  actions.append(refreshButton);
+
+  const options = service.controllable
+    ? service.state === 'running' ? [['restart', 'Reiniciar'], ['stop', 'Parar']]
+      : ['exited', 'created'].includes(service.state) ? [['start', 'Iniciar']] : []
+    : [];
+  for (const [action, label] of options) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'secondary-button';
+    button.textContent = label;
+    button.addEventListener('click', async () => {
+      if (!confirm(`${label} ${labels[service.id]?.name || service.name}? Isso afeta a VPS.`)) return;
+      const buttons = actions.querySelectorAll('button');
+      buttons.forEach(control => { control.disabled = true; });
+      try {
+        await api(`/services/${service.id}/${action}`, { method: 'POST' });
+        toast(`${label} solicitado. Conferindo estado...`);
+        await loadOverview();
+        const current = (await api('/services')).services?.find(item => item.id === service.id);
+        if (selectedService?.id === service.id) await openService(current);
+      } catch (error) {
+        toast(error.message);
+        buttons.forEach(control => { control.disabled = false; });
+      }
+    });
+    actions.append(button);
+  }
+  if (!service.controllable) {
+    const explanation = document.createElement('small');
+    explanation.textContent = service.state === 'missing'
+      ? 'Container não encontrado. Não é possível iniciá-lo por aqui.'
+      : 'Consulta de estado e registros disponível. Ações de alteração não permitidas.';
+    actions.append(explanation);
+  }
+  await refreshLogs();
 }
 function fillServices(services) {
   const overview = document.getElementById('overviewServices');
@@ -223,8 +275,8 @@ function renderDeployRuntime(runtime, configuredSha, publicHealth = null) {
   if (!runtime?.services) return;
   const list = document.createElement('div');
   list.className = 'deploy-runtime-services';
-  const titles = { app: 'Aplicação', agent: 'Agente', sandbox: 'Sandbox', embeddings: 'Embeddings' };
-  for (const id of ['app','agent','sandbox','embeddings']) {
+  const titles = { app: 'Aplicação', agent: 'Agente' };
+  for (const id of ['app', 'agent']) {
     const item = runtime.services[id];
     if (!item) continue;
     const line = document.createElement('div');
@@ -401,7 +453,7 @@ document.querySelectorAll('.demo-action').forEach(button => button.addEventListe
   else if (button.dataset.action === 'Abrir aplicações') location.hash = 'apps';
   else location.hash = 'settings';
 }));
-document.getElementById('infoButton').addEventListener('click', () => toast('O painel mostra dados da VPS somente após autenticação. Caddy e Portainer são apenas leitura.'));
+document.getElementById('infoButton').addEventListener('click', () => toast('O painel mostra dados da VPS somente após autenticação. Caddy é somente leitura.'));
 document.getElementById('bannerClose').addEventListener('click', () => document.getElementById('demoBanner').remove());
 document.getElementById('logFilter').addEventListener('change', loadLogs);
 document.getElementById('refreshLogs').addEventListener('click', loadLogs);

@@ -34,7 +34,7 @@ const managed = Object.freeze({
   agent: 'softload-vps-agent-1',
   caddy: 'softload-caddy'
 });
-const controllable = new Set(['app', 'agent', 'sandbox', 'embeddings']);
+const controllable = new Set(['app', 'agent']);
 
 function equal(a, b) {
   const x = Buffer.from(String(a ?? ''));
@@ -97,7 +97,7 @@ async function containers() {
   const list = await dockerJson('/containers/json?all=1');
   return Object.entries(managed).map(([id, name]) => {
     const c = list.find(item => item.Names?.includes(`/${name}`));
-    return { id, name, state: c?.State || 'missing', status: c?.Status || 'Não encontrado', image: c?.Image || null, controllable: controllable.has(id) };
+    return { id, name, state: c?.State || 'missing', status: c?.Status || 'Não encontrado', image: c?.Image || null, controllable: Boolean(c) && controllable.has(id) };
   });
 }
 function decodeDockerLogs(buffer) {
@@ -241,7 +241,7 @@ async function handler(req, res) {
     if (r.status >= 400) return send(res, 502, { error: `Não foi possível ler os logs (${r.status})` });
     return send(res, 200, { service: logs[1], lines: decodeDockerLogs(r.buffer).slice(-100_000) });
   }
-  const operation = /^\/services\/(app|agent|sandbox|embeddings)\/(start|stop|restart)$/.exec(path);
+  const operation = /^\/services\/(app|agent)\/(start|stop|restart)$/.exec(path);
   if (operation && req.method === 'POST') {
     const [, id, action] = operation;
     const r = await docker(`/containers/${encodeURIComponent(managed[id])}/${action}?t=15`, 'POST');

@@ -16,7 +16,7 @@ O painel foi pensado para criar e administrar sites rapidamente. Use [Guia rápi
 
 Cloudflare Pages -> Function TypeScript -> Cloudflare Access -> Cloudflare Tunnel -> API privada da VPS -> Docker.
 
-A API mantém senha administrativa com scrypt, sessão em cookie HttpOnly/Secure/SameSite=Strict e segredo de borda. A interface consulta seis containers existentes, uso da máquina, imagens e logs. Apenas App, Agent, Sandbox e Embeddings podem ser iniciados, parados ou reiniciados; Caddy e Portainer são somente leitura.
+A API mantém senha administrativa com scrypt, sessão em cookie HttpOnly/Secure/SameSite=Strict e segredo de borda. A interface acompanha **App**, **Agent** e **Caddy**, além do uso da máquina, imagens e logs. Apenas App e Agent podem ser iniciados, parados ou reiniciados; Caddy é somente leitura. Sandbox, Embeddings e Portainer foram retirados da lista operacional do painel. A aba **Revisões e espaço** permanece conservadora e não apaga automaticamente imagens antigas da Softload destinadas a rollback.
 
 ## Nova integração GitHub
 

@@ -1,8 +1,8 @@
 export type Inspect = { Id?: string; Name?: string; Config?: { Labels?: Record<string,string> }; State?: { Running?: boolean; Status?: string } };
 export type Decision = { ok: boolean; reason: string; filterList?: boolean; name?: string; targetId?: string };
 const owner='com.softload.panel.managed', slugLabel='com.softload.panel.slug';
-const services=new Set(['softload-vps-app-1','softload-vps-agent-1','softload-vps-sandbox-1','softload-vps-embeddings-1']);
-const monitor=new Set(['softload-caddy','softload-portainer']);
+const services=new Set(['softload-vps-app-1','softload-vps-agent-1']);
+const monitor=new Set(['softload-caddy']);
 const slots=/^softload-(app|candidate|backup)-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 const ram=new Set([128,256,512,768,1024].map(x=>x*1048576));
 const cpus=new Set([250000000,500000000,1000000000,2000000000]);

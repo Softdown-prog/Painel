@@ -11,6 +11,7 @@ const inspect=async id=>{
   if(id==='softload-app-demo'||id===fake.Id)return fake;
   if(id==='softload-vps-app-1')return {...fake,Name:'/softload-vps-app-1',Config:{Labels:{}}};
   if(id==='softload-caddy')return {...fake,Name:'/softload-caddy',Config:{Labels:{}}};
+  if(['softload-vps-sandbox-1','softload-vps-embeddings-1','softload-portainer'].includes(id))return {...fake,Name:'/'+id,Config:{Labels:{}}};
   if(id==='softload-candidate-demo')return {...fake,Id:'abc124',Name:'/softload-candidate-demo',
     Config:{Labels:{...labels,'com.softload.panel.release-role':'candidate'}}};
   if(id==='softload-backup-demo')return {...fake,Id:'abc125',Name:'/softload-backup-demo',Config:{Labels:{...labels}}};
@@ -62,6 +63,9 @@ test('read API supports only bounded allowlisted requests and filters nonowned c
   {Names:['/softload-app-demo'],Labels:labels},
   {Names:['/softload-app-demo'],Labels:{}},
   {Names:['/softload-vps-app-1'],Labels:{}},
+  {Names:['/softload-vps-sandbox-1'],Labels:{}},
+  {Names:['/softload-vps-embeddings-1'],Labels:{}},
+  {Names:['/softload-portainer'],Labels:{}},
   {Names:['/other'],Labels:{}}
  ]);
  assert.equal(listed.length,2);
@@ -69,6 +73,12 @@ test('read API supports only bounded allowlisted requests and filters nonowned c
 test('mutations only affect authorized targets and reject rename between unrelated applications',async()=>{
  assert.equal((await check('POST','/v1.45/containers/softload-vps-app-1/restart?t=15')).ok,true);
  assert.equal((await check('POST','/v1.45/containers/softload-caddy/restart?t=15')).ok,false);
+ for(const retired of ['softload-vps-sandbox-1','softload-vps-embeddings-1','softload-portainer']){
+  assert.equal((await check('POST','/v1.45/containers/'+retired+'/start')).ok,false,'retired service cannot start: '+retired);
+  assert.equal((await check('POST','/v1.45/containers/'+retired+'/restart?t=15')).ok,false,'retired service cannot restart: '+retired);
+  assert.equal((await check('GET','/v1.45/containers/'+retired+'/logs?tail=100')).ok,false,'retired service no longer exposed: '+retired);
+ }
+
  assert.equal((await check('POST','/v1.45/containers/other/stop?t=10')).ok,false);
  assert.equal((await check('DELETE','/v1.45/containers/softload-app-demo?force=0&v=0')).ok,false);
  assert.equal((await check('POST','/v1.45/containers/softload-app-demo/update',

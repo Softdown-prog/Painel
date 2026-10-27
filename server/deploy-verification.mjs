@@ -2,9 +2,7 @@
 // Do not use the deployment .env file as proof that a container was updated.
 export const CORE_IMAGES = Object.freeze({
   app: ['softload-vps-app-1', 'softload-app'],
-  agent: ['softload-vps-agent-1', 'softload-agent'],
-  sandbox: ['softload-vps-sandbox-1', 'softload-sandbox'],
-  embeddings: ['softload-vps-embeddings-1', 'softload-embeddings']
+  agent: ['softload-vps-agent-1', 'softload-agent']
 });
 const SHA = /^[a-f0-9]{40}$/;
 

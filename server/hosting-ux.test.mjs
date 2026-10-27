@@ -45,3 +45,23 @@ test('Codex backlog records scaling and the production blockers without overstat
   assert.match(agent, /docs\/TAREFAS-CODEX\.md/);
   assert.match(guide, /Preparar ou reservar não significa colocar na internet/);
 });
+
+test('Serviços Softload mostra somente os dois containers centrais com ações seguras', () => {
+  const api = file('server/api.mjs');
+  const ui = file('script.js');
+  const deploy = file('server/deploy-verification.mjs');
+  const executor = file('server/executor-policy.ts');
+
+  assert.match(api, /const controllable = new Set\(\['app', 'agent'\]\)/);
+  assert.match(api, /controllable: Boolean\(c\) && controllable\.has\(id\)/);
+  assert.match(api, /const operation = .*\(app\|agent\).*start\|stop\|restart/);
+  assert.doesNotMatch(deploy, /sandbox:|embeddings:/);
+  assert.doesNotMatch(executor, /softload-vps-sandbox-1|softload-vps-embeddings-1|softload-portainer/);
+
+  // Reiniciar/Parar ocorre somente na tela Gerenciar; container inexistente não tem Iniciar.
+  assert.match(ui, /manage\.addEventListener\('click'/);
+  assert.match(ui, /service\.state === 'running' \? \[\['restart'/);
+  assert.match(ui, /\['exited', 'created'\]\.includes\(service\.state\)/);
+  assert.match(ui, /Atualizar registros/);
+  assert.match(ui, /buttons\.forEach\(control => \{ control\.disabled = true;/);
+});
