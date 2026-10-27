@@ -8,7 +8,11 @@
 
 ### P0 · Migração multiprojetos iniciada (27/10/2026)
 
-**Etapa 1, commit `008b046`:** o registro de projetos aceita vários serviços com posse exclusiva; cadastros antigos continuam legíveis; a interface permite ajustar os vínculos sem apagar containers. Os publicadores existentes continuam limitados a um serviço principal e recusam projetos com vários serviços. O CI Linux do PR #3 passou. A API foi instalada na VPS após backup verificável do código e do volume; a imagem `sha256:68fd9d55de65...` ficou saudável e leu o cadastro atual. O frontend ainda aguarda merge/publicação. Ver [diagnóstico e etapas restantes](MIGRACAO-MULTIPROJETOS.md).
+**Etapa 1, commit `008b046`:** o registro de projetos aceita vários serviços com posse exclusiva; cadastros antigos continuam legíveis; a interface permite ajustar os vínculos sem apagar containers. Os publicadores existentes continuam limitados a um serviço principal e recusam projetos com vários serviços. O CI Linux do PR #3 passou. A API foi instalada na VPS após backup verificável do código e do volume; a imagem `sha256:68fd9d55de65...` ficou saudável e leu o cadastro atual. Ver [diagnóstico e etapas restantes](MIGRACAO-MULTIPROJETOS.md).
+
+**Publicação da etapa 1:** PR #3 integrado na main `e640db4`; workflow Pages `40592074991` aprovado. `https://panel.analysepro.com` e `projects-ui.js` responderam HTTP 200 com os novos controles. A API na VPS permanece saudável.
+
+**Etapa 2, commit `d1686ab`, em branch:** os identificadores legados de App, Agent e Caddy foram isolados em `server/legacy-softload-profile.ts`. O perfil pode ser desabilitado em instalações sem Softload V4; a VPS atual mantém o padrão habilitado. TypeScript, sintaxe JS e 18 testes focados passaram localmente. CI Linux e instalação na VPS ainda pendentes.
 
 ## Regra principal de experiência
 

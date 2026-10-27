@@ -52,9 +52,13 @@ test('Serviços Softload mostra somente os dois containers centrais com ações 
   const deploy = file('server/deploy-verification.mjs');
   const executor = file('server/executor-policy.ts');
 
-  assert.match(api, /const controllable = new Set\(\['app', 'agent'\]\)/);
+  assert.match(api, /const controllable = new Set\(legacyEntries\.filter/);
   assert.match(api, /controllable: Boolean\(c\) && controllable\.has\(id\)/);
   assert.match(api, /const operation = .*\(app\|agent\).*start\|stop\|restart/);
+  assert.match(api, /Serviço não cadastrado neste host/);
+  const profile = file('server/legacy-softload-profile.ts');
+  assert.match(profile, /softload-vps-app-1/);
+  assert.match(profile, /softload-vps-agent-1/);
   assert.doesNotMatch(deploy, /sandbox:|embeddings:/);
   assert.doesNotMatch(executor, /softload-vps-sandbox-1|softload-vps-embeddings-1|softload-portainer/);
 

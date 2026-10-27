@@ -1,8 +1,10 @@
+import { LEGACY_SOFTLOAD_SERVICES } from './legacy-softload-profile.ts';
+
 // Read-only verification of the running Softload images.
 // Do not use the deployment .env file as proof that a container was updated.
 export const CORE_IMAGES = Object.freeze({
-  app: ['softload-vps-app-1', 'softload-app'],
-  agent: ['softload-vps-agent-1', 'softload-agent']
+  app: [LEGACY_SOFTLOAD_SERVICES.app.container, LEGACY_SOFTLOAD_SERVICES.app.image],
+  agent: [LEGACY_SOFTLOAD_SERVICES.agent.container, LEGACY_SOFTLOAD_SERVICES.agent.image]
 });
 const SHA = /^[a-f0-9]{40}$/;
 

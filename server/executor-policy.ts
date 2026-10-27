@@ -1,8 +1,9 @@
 export type Inspect = { Id?: string; Name?: string; Config?: { Labels?: Record<string,string> }; State?: { Running?: boolean; Status?: string } };
 export type Decision = { ok: boolean; reason: string; filterList?: boolean; name?: string; targetId?: string };
+import { LEGACY_SOFTLOAD_SERVICES } from './legacy-softload-profile.ts';
 const owner='com.softload.panel.managed', slugLabel='com.softload.panel.slug';
-const services=new Set(['softload-vps-app-1','softload-vps-agent-1']);
-const monitor=new Set(['softload-caddy']);
+const services=new Set(Object.values(LEGACY_SOFTLOAD_SERVICES).filter(service=>service.controllable).map(service=>service.container));
+const monitor=new Set(Object.values(LEGACY_SOFTLOAD_SERVICES).filter(service=>!service.controllable).map(service=>service.container));
 const slots=/^softload-(app|candidate|backup)-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 const ram=new Set([128,256,512,768,1024].map(x=>x*1048576));
 const cpus=new Set([250000000,500000000,1000000000,2000000000]);
