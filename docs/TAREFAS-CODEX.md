@@ -14,6 +14,8 @@
 
 **Etapa 2, commit `d1686ab`, em branch:** os identificadores legados de App, Agent e Caddy foram isolados em `server/legacy-softload-profile.ts`. O perfil pode ser desabilitado em instalações sem Softload V4; a VPS atual mantém o padrão habilitado. TypeScript, sintaxe JS e 18 testes focados passaram localmente. CI Linux e instalação na VPS ainda pendentes.
 
+**Etapa 3 em branch separada:** inventário autenticado `/hosted-projects` e cartões na Visão geral para Softload V4 e aplicações independentes. É somente leitura e não altera deploy ou scale-to-zero; ainda precisa do CI Linux e de instalação da API na VPS.
+
 ## Regra principal de experiência
 
 O usuário quer ações simples: **Criar site**, **Conectar GitHub**, **Escolher domínio**, **Publicar**, **Ver se está funcionando**, **Reiniciar**, **Fazer backup** e **Excluir**. Nunca mostrar comandos, identificadores internos ou configurações do Caddy na tela principal. Explicar limitações em português do Brasil, sem fingir que algo está pronto.

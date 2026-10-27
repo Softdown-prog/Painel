@@ -162,7 +162,7 @@ function item(container: DockerContainer, details?: DockerInspect, idleMinutes =
     diskUsedBytes: container.SizeRw ?? null, idleMinutes,
     network: details?.HostConfig?.NetworkMode || 'unknown' };
 }
-async function listManaged(docker: DockerRequest, includeSize = false): Promise<DockerContainer[]> {
+export async function listManaged(docker: DockerRequest, includeSize = false): Promise<DockerContainer[]> {
   const filters = encodeURIComponent(JSON.stringify({ label: [OWNER_LABEL + '=true'] }));
   const all = await json<DockerContainer[]>(docker, '/containers/json?all=1&filters=' + filters + (includeSize ? '&size=1' : ''));
   return all.filter(safeContainer);

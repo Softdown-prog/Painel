@@ -73,6 +73,16 @@ V4 não precisa existir para que o registro de outros projetos funcione.
    hospedado. Validar no CI Linux e depois homologar na VPS com backup de
    dados e rollback do Painel antes de atualizar sua API.
 
+### Etapa 3 em branch: inventário unificado
+
+`GET /hosted-projects` reúne, em modo somente leitura, os projetos GitHub,
+aplicações ainda sem repositório e a Softload V4 quando os containers legados
+existem. A tela inicial apresenta cada projeto e seu estado. Um serviço
+retirado é mostrado como ausente; outro projeto não é afetado. Um container
+parado aparece como parado, sem disparar build ou reinstalação. O Caddy é
+infraestrutura compartilhada e não entra na lista de serviços da Softload V4.
+Esse inventário ainda não executa deploy multiprojetos nem altera o gateway.
+
 O CI Linux do PR #3 passou. A nova API foi construída e ativada na VPS em
 27/10/2026 com imagem `sha256:68fd9d55de6523fdee809bb2ae56649862be439de5418b988b18fb8919d733dc`.
 O volume de dados e os cinco arquivos de fonte receberam backup local em
