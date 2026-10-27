@@ -54,7 +54,7 @@ test('Serviços Softload mostra somente os dois containers centrais com ações 
 
   assert.match(api, /const controllable = new Set\(\['app', 'agent'\]\)/);
   assert.match(api, /controllable: Boolean\(c\) && controllable\.has\(id\)/);
-  assert.match(api, /\/services\\\/\(app\|agent\)/);
+  assert.match(api, /const operation = .*\(app\|agent\).*start\|stop\|restart/);
   assert.doesNotMatch(deploy, /sandbox:|embeddings:/);
   assert.doesNotMatch(executor, /softload-vps-sandbox-1|softload-vps-embeddings-1|softload-portainer/);
 
