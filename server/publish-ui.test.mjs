@@ -18,16 +18,18 @@ function harness(unhealthy=false){
       get options(){return this.children;},
       addEventListener(type,callback){this.handlers[type]=callback;},
       append(...items){this.children.push(...items);},
-      replaceChildren(...items){this.children=items;this._text='';this._value='';}
+      replaceChildren(...items){this.children=items;this._text='';this._value='';},
+      querySelectorAll(){return [];}
     };
     return item;
   }
   const document={
     getElementById(id){if(!elements.has(id))elements.set(id,make());return elements.get(id);},
-    createElement:make
+    createElement:make,
+    createTextNode(text){return make('text');}
   };
   const responses={
-    '/projects':{projects:[{slug:'demo',repository:'Softdown-prog/shop',branch:'main',workflow:'panel-app-build.yml'}],
+    '/projects':{projects:[{slug:'demo',repository:'Softdown-prog/shop',branch:'main',workflow:'panel-app-build.yml',services:['demo']}],
       buildsEnabled:true,requiredWorkflow:'panel-app-build.yml'},
     '/apps':{applications:[{slug:'demo',state:'running',image:'shop:old'}]},
     '/repositories':{repositories:[{fullName:'Softdown-prog/shop',branch:'main',workflow:'panel-app-build.yml'}]},
