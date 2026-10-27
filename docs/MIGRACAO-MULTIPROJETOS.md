@@ -129,6 +129,18 @@ hospedagem multiusuário. Para reverter, restaurar `compose.routing.yaml` e
 `app-wake` do Compose ativo e recriar API/gateway interno. O Caddy público não
 foi alterado.
 
+O executor também foi atualizado para usar o perfil legado. A política anterior
+e o Dockerfile foram guardados em
+`/opt/softload-infra/backups/panel-executor-profile-20261027T224200Z`, com
+checksums SHA-256; a imagem anterior recebeu a tag
+`softload-panel-executor:rollback-before-profile-20261027`. A imagem ativa é
+`sha256:4844acc3e81c97e8da11966f519aa37251e3243a5e8185e958652357fdc98a59`.
+O health check passou e o smoke isolado de despertar passou novamente após a
+troca. A política deixou de autorizar os nomes retirados de Sandbox,
+Embeddings e Portainer. Para reverter somente o executor, restaurar seus dois
+arquivos do backup, retaggear a imagem anterior como `softload-panel-executor:1`
+e recriar apenas o serviço `executor` com os mesmos overlays Compose.
+
 O CI Linux do PR #3 passou. A nova API foi construída e ativada na VPS em
 27/10/2026 com imagem `sha256:68fd9d55de6523fdee809bb2ae56649862be439de5418b988b18fb8919d733dc`.
 O volume de dados e os cinco arquivos de fonte receberam backup local em
