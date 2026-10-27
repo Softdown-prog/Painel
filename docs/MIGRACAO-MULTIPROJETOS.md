@@ -72,6 +72,12 @@ V4 não precisa existir para que o registro de outros projetos funcione.
    hospedado. Validar no CI Linux e depois homologar na VPS com backup de
    dados e rollback do Painel antes de atualizar sua API.
 
-Esta etapa não publica o novo modelo na VPS. O código do Painel continua em
-branch isolada até passar no CI Linux e ter uma migração do `projects.json`
-validada com backup.
+O CI Linux do PR #3 passou. A nova API foi construída e ativada na VPS em
+27/10/2026 com imagem `sha256:68fd9d55de6523fdee809bb2ae56649862be439de5418b988b18fb8919d733dc`.
+O volume de dados e os cinco arquivos de fonte receberam backup local em
+`/opt/softload-infra/backups/panel-multiproject-20261027T215916Z`.
+Os arquivos também foram copiados para este computador, cifrados com AES-256-GCM;
+a chave está protegida por DPAPI da conta Windows atual. A imagem anterior ficou
+preservada como `softload-panel-api:rollback-20261027T215916Z`.
+A API ficou saudável, leu o cadastro existente e a Softload pública continuou
+respondendo HTTP 200. O frontend ainda depende da publicação do PR.

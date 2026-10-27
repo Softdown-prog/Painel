@@ -8,7 +8,7 @@
 
 ### P0 · Migração multiprojetos iniciada (27/10/2026)
 
-**Código em branch:** o registro de projetos aceita vários serviços com posse exclusiva; cadastros antigos continuam legíveis; a interface permite ajustar os vínculos sem apagar containers. Os publicadores existentes continuam limitados a um serviço principal e recusam projetos com vários serviços. Ver [diagnóstico e etapas restantes](MIGRACAO-MULTIPROJETOS.md). Este código ainda precisa passar no CI Linux e ser implantado na VPS após backup do volume do Painel. O site em produção recebeu apenas a correção operacional de Caddy e do gateway de despertar descrita no diagnóstico.
+**Etapa 1, commit `008b046`:** o registro de projetos aceita vários serviços com posse exclusiva; cadastros antigos continuam legíveis; a interface permite ajustar os vínculos sem apagar containers. Os publicadores existentes continuam limitados a um serviço principal e recusam projetos com vários serviços. O CI Linux do PR #3 passou. A API foi instalada na VPS após backup verificável do código e do volume; a imagem `sha256:68fd9d55de65...` ficou saudável e leu o cadastro atual. O frontend ainda aguarda merge/publicação. Ver [diagnóstico e etapas restantes](MIGRACAO-MULTIPROJETOS.md).
 
 ## Regra principal de experiência
 
