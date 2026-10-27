@@ -101,6 +101,12 @@ simultâneas do mesmo projeto compartilham a mesma operação. Falhas reais de
 container não disparam rebuild nem reinstalação. Não há porta publicada, Docker
 socket do host ou credencial de painel nesse gateway.
 
+Em 27/10/2026, `server/smoke-app-wake-vps.sh` passou na VPS com dois containers
+temporários e domínio apenas de teste, sem modificar Caddy ou DNS: uma
+requisição iniciou o aplicativo parado, esperou sua saúde e retornou HTTP 200.
+O script removeu os dois containers e a imagem temporária ao terminar; API,
+executor, Caddy, App e Agent existentes permaneceram ativos e saudáveis.
+
 **Rollout ainda pendente:** fazer backup do Compose e dos snippets Caddy,
 instalar o novo serviço, validar sua saúde, gerar novamente as rotas existentes
 e recarregar apenas o Caddy interno. Testar uma aplicação em homologação
