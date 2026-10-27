@@ -12,11 +12,11 @@
 
 **Publicação da etapa 1:** PR #3 integrado na main `e640db4`; workflow Pages `40592074991` aprovado. `https://panel.analysepro.com` e `projects-ui.js` responderam HTTP 200 com os novos controles. A API na VPS permanece saudável.
 
-**Etapa 2, commit `d1686ab`, em branch:** os identificadores legados de App, Agent e Caddy foram isolados em `server/legacy-softload-profile.ts`. O perfil pode ser desabilitado em instalações sem Softload V4; a VPS atual mantém o padrão habilitado. TypeScript, sintaxe JS e 18 testes focados passaram localmente. CI Linux e instalação na VPS ainda pendentes.
+**Etapa 2, commit `d1686ab`, PR #4 integrado:** os identificadores legados de App, Agent e Caddy foram isolados em `server/legacy-softload-profile.ts`. O perfil pode ser desabilitado em instalações sem Softload V4; a VPS atual mantém o padrão habilitado. CI Linux e Pages passaram. A API recebeu o perfil na etapa 3; o executor da VPS ainda precisa ser atualizado e verificado separadamente.
 
-**Etapa 3, commit `720971c`:** inventário autenticado `/hosted-projects` e cartões na Visão geral para Softload V4 e aplicações independentes. O CI Linux do PR #5 passou. A API foi instalada na VPS com backup local verificável do código e volume; a imagem `sha256:03b5ae8ddd46...` ficou saudável. A interface depende do merge/publicação do PR #5. O inventário é somente leitura e não altera deploy ou scale-to-zero.
+**Etapa 3, commit `720971c`, PR #5 integrado:** inventário autenticado `/hosted-projects` e cartões na Visão geral para Softload V4 e aplicações independentes. CI Linux e Pages passaram. A API foi instalada na VPS com backup local verificável do código e volume; a imagem `sha256:03b5ae8ddd46...` ficou saudável. O inventário é somente leitura e não altera deploy ou scale-to-zero. O acesso autenticado ao endpoint ainda precisa de teste de interface na VPS.
 
-**Etapa 4 em branch separada:** gateway interno de despertar para aplicações gerenciadas com domínio, sem Docker socket direto e com verificação de posse antes de iniciar. Caddy interno passa a encaminhar por esse gateway. Testes focados passaram; CI Linux e homologação de sono/despertar ainda pendentes. Nenhuma rota de produção foi alterada por esta etapa.
+**Etapa 4, PR #6 integrado e instalado:** gateway interno de despertar para aplicações gerenciadas com domínio, sem Docker socket direto e com verificação de posse antes de iniciar. Testes focados, CI Linux e smoke isolado de sono/despertar na VPS passaram; API e gateway ficaram saudáveis. Nenhuma rota pública foi alterada porque não há domínio gerenciado cadastrado. Homologação com domínio HTTPS e SSE ainda pendente. Ver [backup, imagens e reversão](MIGRACAO-MULTIPROJETOS.md).
 
 ## Regra principal de experiência
 
