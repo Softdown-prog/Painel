@@ -23,9 +23,15 @@ O usuário quer ações simples: **Criar site**, **Conectar GitHub**, **Escolher
 | Deploy da API no host | **Não implantado por esta automação** | Acesso administrativo restrito específico para o Painel, backup e rollback |
 | CI | Testes de código, Compose, smoke com Docker real em runner temporário | E2E do usuário no navegador e smoke seguro na VPS |
 
+### Ajuste do painel após retirar Sandbox/Embeddings (27/10/2026)
+
+**Código proposto na branch `fix/core-services-after-retirement` (não equivale a deploy na VPS):** somente App e Agent ficam habilitados para iniciar/parar/reiniciar; Caddy continua apenas leitura. As antigas imagens/containers Sandbox, Embeddings e Portainer saem da lista autorizada no executor; histórico de publicações passa a consultar só os dois containers centrais. A tela Gerenciar concentra ações, bloqueia clique duplicado, permite atualizar logs e evita botão Iniciar para container inexistente. Testes de regressão de Docker e UI foram ampliados.
+
+**Aceite:** CI TypeScript/Node/Docker e frontend aprovado; confirmar que interface Cloudflare e API/executor da VPS foram atualizados **juntos** antes de marcar publicado; validar logs/autorização e endpoints `/services`/`/deploys` com acesso autenticado. Não alterar Compose da Softload, credenciais ou imagens antigas de rollback por esta mudança. Imagens Docker recuperáveis não são consideradas descartáveis automaticamente.
+
 ### Correção de diagnóstico · Publicações da Softload V4 (26/10/2026)
 
-**Implementado no repositório:** `server/deploy-verification.mjs` consulta apenas dados dos quatro containers Softload pelo executor Docker, identifica a revisão real da imagem em execução e separa workflow concluído, imagem ativa, outra versão em execução e revisão não confirmada. A aba Publicações deixa de classificar como “NÃO ATIVO” apenas porque o SHA do GitHub difere de `SOFTLOAD_IMAGE_TAG`. Um `.env` isolado nunca confirma ativação. Docker API sem acesso direto pela API do Painel; o executor permanece isolado.
+**Implementado no repositório:** `server/deploy-verification.mjs` consulta apenas dados dos dois containers principais Softload pelo executor Docker, identifica a revisão real da imagem em execução e separa workflow concluído, imagem ativa, outra versão em execução e revisão não confirmada. A aba Publicações deixa de classificar como “NÃO ATIVO” apenas porque o SHA do GitHub difere de `SOFTLOAD_IMAGE_TAG`. Um `.env` isolado nunca confirma ativação. Docker API sem acesso direto pela API do Painel; o executor permanece isolado.
 
 **Monitoramento de tráfego por deploy (2026-10-26):** o coletor de cinco minutos observa os runs do workflow de deploy e salva os contadores RX/TX da interface externa no começo e no fim de cada run. A tabela Publicações mostra a estimativa do intervalo; valores não são atribuídos quando o run terminou antes de ser observado ou se o contador reiniciar. A estimativa pode incluir tráfego simultâneo da VPS e não equivale à franquia faturada pela LocaCloud.
 
