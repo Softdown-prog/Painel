@@ -40,7 +40,11 @@ test('running app Docker image confirms deployment, not the environment variable
   assert.equal(runDeploymentStatus(run(current),runtime),'active');
   assert.equal(runDeploymentStatus(run(old),runtime),'superseded');
   assert.equal(runtime.services.agent.revision,old,'Other services may legitimately retain older images');
-  assert.equal(paths.length,4);
+  assert.deepEqual(paths, [
+    '/containers/softload-vps-app-1/json',
+    '/containers/softload-vps-agent-1/json'
+  ]);
+  assert.deepEqual(Object.keys(runtime.services), ['app', 'agent']);
   assert.ok(paths.every(p=>p.endsWith('/json')));
   assert.ok(!JSON.stringify(runtime).includes('SECRET_TOKEN'));
 });
