@@ -190,6 +190,7 @@ async function loadOverview() {
     document.querySelector('.connection-card strong').textContent = 'VPS conectada';
     document.querySelector('.connection-card small').textContent = 'API administrativa ativa';
     setBanner(`VPS conectada · Revisão configurada ${data.currentSha?.slice(0, 8) || 'não disponível'} · Confira a imagem em Publicações.`, true);
+    void window.refreshHostedProjects?.();
   } catch (error) { toast(`Não foi possível atualizar a VPS: ${error.message}`); }
 }
 const deployStatusLabels = Object.freeze({

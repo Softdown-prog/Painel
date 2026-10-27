@@ -1,7 +1,8 @@
 import http from 'node:http';
 import { handleGitHubRoute } from './github.ts';
-import { handleAppRoute, startIdleMonitor } from './apps.ts';
-import { handleProjectRoute } from './projects.ts';
+import { handleAppRoute, listManaged, startIdleMonitor } from './apps.ts';
+import { handleProjectRoute, readProjects } from './projects.ts';
+import { hostedProjects } from './hosted-projects.ts';
 import { handleReleaseRoute } from './releases.ts';
 import { handleImageImportRoute } from './image-import.ts';
 import { handleDomainRoute } from './domains.ts';
@@ -199,6 +200,10 @@ async function handler(req, res) {
   if (await handlePublicationRoute(req, res, { send, body, dataDir })) return;
   if (await handleReleaseRoute(req, res, { send, body, dataDir })) return;
   if (await handleProjectRoute(req, res, { send, body, dataDir })) return;
+  if (path === '/hosted-projects' && req.method === 'GET') {
+    const [apps, legacy] = await Promise.all([listManaged(docker), containers()]);
+    return send(res, 200, { projects: hostedProjects(readProjects(dataDir), apps, legacy) });
+  }
   if (path === '/password' && req.method === 'POST') {
     const input = await body(req);
     const admin = JSON.parse(readFileSync(adminFile, 'utf8'));

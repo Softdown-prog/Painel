@@ -32,3 +32,10 @@
 .managed-app-actions .app-shortcut:hover{background:#352941}
 @media(max-width:970px){.quick-start-grid{grid-template-columns:1fr 1fr}.hosting-steps{grid-template-columns:1fr}}
 @media(max-width:750px){.quick-start-grid{grid-template-columns:1fr}.quick-start-card{min-height:auto}.hosting-explainer{padding:15px}.domain-address-preview{margin:14px 12px 0}.hosting-help{padding:0 12px 12px}.domain-technical summary{padding:0 14px}.domain-technical>p{padding:12px 14px 0}}
+.hosted-projects-panel { margin: 0 0 24px; }
+.hosted-projects-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; padding: 18px; }
+.hosted-project-card { display: flex; flex-direction: column; gap: 8px; padding: 18px; border: 1px solid var(--border, #303344); border-radius: 14px; }
+.hosted-project-card strong { font-size: 1rem; }
+.hosted-project-card small { color: var(--text-muted, #b7bbc9); }
+.hosted-project-card p { margin: 0; overflow-wrap: anywhere; }
+.hosted-project-card .text-link { margin-top: auto; }

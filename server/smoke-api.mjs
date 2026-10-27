@@ -64,6 +64,9 @@ async function main() {
   assert.ok(Array.isArray(apps.data.applications));
   assert.deepEqual(apps.data.applications, []);
   assert.equal(apps.data.enabled, false);
+  const hosted = await call('/hosted-projects','GET',undefined,cookie);
+  assert.equal(hosted.status, 200, JSON.stringify(hosted.data));
+  assert.deepEqual(hosted.data.projects, [], 'A clean VPS must not invent a Softload project');
 
   const revisions = await call('/maintenance/revisions','GET',undefined,cookie);
   assert.equal(revisions.status,200,JSON.stringify(revisions.data));

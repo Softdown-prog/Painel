@@ -74,6 +74,10 @@
             </div>
             <p class="quick-start-note">Os serviços internos da Softload ficam separados dos projetos de hospedagem. Atualmente o limite experimental é de 8 aplicações gerenciadas. <a href="https://github.com/Softdown-prog/Painel/blob/main/docs/GUIA-RAPIDO.md" target="_blank" rel="noopener noreferrer">Entenda o passo a passo no guia rápido →</a></p>
           </section>
+          <section class="panel full-panel hosted-projects-panel" aria-labelledby="hostedProjectsHeading">
+            <div class="panel-head"><div><h2 id="hostedProjectsHeading">Projetos nesta VPS</h2><p>Aplicações e serviços registrados no servidor.</p></div><a class="text-link" href="#apps">Gerenciar sites →</a></div>
+            <div id="hostedProjects" class="hosted-projects-grid" role="status">Entre no painel para carregar os projetos.</div>
+          </section>
           <div class="section-heading"><h2>Infraestrutura</h2><span class="section-subtitle">Indicadores da VPS · autenticados</span></div>
           <div class="stats-grid">
             <article class="stat-card"><div class="stat-top"><span class="stat-icon purple">◫</span><span class="mini-pill live-label">EXEMPLO</span></div><div class="stat-value" id="serviceCount">6 <span>/ 6</span></div><div class="stat-name">Serviços em execução</div><div class="stat-foot" id="serviceFoot"><span class="dot green"></span> Estado demonstrativo</div></article>
@@ -313,6 +317,7 @@
   <script src="apps-ui.js" defer></script>
   <script src="site-detail-ui.js" defer></script>
   <script src="projects-ui.js" defer></script>
+  <script src="hosted-projects-ui.js" defer></script>
   <script src="domains-ui.js" defer></script>
   <script src="terminal-ui.js" defer></script>
   <script src="revisions-ui.js" defer></script>

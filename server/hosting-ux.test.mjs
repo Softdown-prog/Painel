@@ -19,6 +19,8 @@ test('simple hosting navigation preserves technical view identifiers', () => {
   assert.match(html, /Ligar ao GitHub/);
   assert.match(html, /Escolher um endereço/);
   assert.match(html, /<details class="panel full-panel domain-technical">/);
+  assert.match(html, /id="hostedProjects"/);
+  assert.match(html, /hosted-projects-ui\.js/);
   assert.match(html, /DNS E HTTPS GUIADOS/);
 });
 
