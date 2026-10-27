@@ -1,12 +1,7 @@
 const demoServices = [
   { id: 'app', name: 'Backend principal', detail: 'API e aplicação web', icon: 'S' },
   { id: 'agent', name: 'Agent Worker', detail: 'Processamento de tarefas', icon: '◇' },
-  { id: 'caddy', name: 'Caddy', detail: 'Proxy reverso', icon: '◈' },
-  { id: 'gateway', name: 'Gateway de apps', detail: 'Roteamento das aplicações', icon: '↗' },
-  { id: 'panel', name: 'API do Painel', detail: 'Administração da VPS', icon: '▦' },
-  { id: 'executor', name: 'Executor', detail: 'Ações Docker isoladas', icon: '◇' },
-  { id: 'tunnel', name: 'Cloudflare Tunnel', detail: 'Acesso privado', icon: '◎' },
-  { id: 'wake', name: 'Wake', detail: 'Ativação de aplicações', icon: '◌' }
+  { id: 'caddy', name: 'Caddy', detail: 'Proxy reverso', icon: '◈' }
 ];
 const labels = Object.fromEntries(demoServices.map(service => [service.id, service]));
 let authenticated = false;
