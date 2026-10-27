@@ -90,7 +90,7 @@ O backup do código e do volume fica em
 as cópias têm SHA-256 registrado. A imagem anterior `multiproject-008b046`
 continua disponível para rollback. O PR #5 foi integrado na main.
 
-### Etapa 4 em branch: despertar de aplicações gerenciadas
+### Etapa 4 instalada: despertar de aplicações gerenciadas
 
 O Caddy interno deixa de encaminhar diretamente a containers que podem estar
 parados por inatividade e passa pelo serviço privado `app-wake`. Ele consulta
@@ -107,14 +107,27 @@ requisição iniciou o aplicativo parado, esperou sua saúde e retornou HTTP 200
 O script removeu os dois containers e a imagem temporária ao terminar; API,
 executor, Caddy, App e Agent existentes permaneceram ativos e saudáveis.
 
-**Rollout ainda pendente:** fazer backup do Compose e dos snippets Caddy,
-instalar o novo serviço, validar sua saúde, gerar novamente as rotas existentes
-e recarregar apenas o Caddy interno. Testar uma aplicação em homologação
-acordando após inatividade; confirmar SSE, HTTPS e que os demais projetos
-continuam ativos. Se falhar, restaurar snippets e Compose anteriores e
-recarregar o Caddy interno. A rede compartilhada `softload_panel_apps` ainda
-não oferece isolamento suficiente para clientes não confiáveis; C04 continua
-bloqueando hospedagem multiusuário.
+O PR #6 entrou na `main` no merge `4683e078597fd9c40b1d5f013ecd3b2eb47a4e39`.
+CI e publicação Pages da `main` passaram. Na VPS, o backup anterior ao rollout
+está em `/opt/softload-infra/backups/panel-app-wake-20261027T223500Z`, com
+checksums SHA-256 do Compose, Caddyfile e `domains.ts`; a imagem antiga da API
+foi marcada `softload-panel-api:rollback-before-wake-20261027`. A imagem da
+API ativada é `sha256:c8933844f5c688053faa4756280a6f914dbd60d331d9017b32a27d67a9fe544a`
+e a do gateway é `sha256:93312eb148de16a7d835aa4419d9379e5952cc6a033eff22b4a8aeed85637518`.
+Ambos passaram no health check; o Caddy interno alcança `app-wake:8082`.
+Nenhum domínio gerenciado estava cadastrado, por isso não houve mudança de
+snippet ou rota pública. Painel e Softload permaneceram HTTP 200. A API
+pública rejeita acesso anônimo com 403 pela proteção de acesso; o endpoint
+autenticado ainda precisa de teste de interface com sessão administrativa.
+
+**Validação restante:** cadastrar uma aplicação de homologação, verificar
+despertar e SSE/HTTPS pelo domínio público e testar o fluxo de cadastro pelo
+Painel. A rede compartilhada `softload_panel_apps` ainda não oferece
+isolamento suficiente para clientes não confiáveis; C04 continua bloqueando
+hospedagem multiusuário. Para reverter, restaurar `compose.routing.yaml` e
+`domains.ts` do backup, retaggear a imagem anterior da API, remover somente
+`app-wake` do Compose ativo e recriar API/gateway interno. O Caddy público não
+foi alterado.
 
 O CI Linux do PR #3 passou. A nova API foi construída e ativada na VPS em
 27/10/2026 com imagem `sha256:68fd9d55de6523fdee809bb2ae56649862be439de5418b988b18fb8919d733dc`.
