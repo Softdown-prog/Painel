@@ -12,7 +12,7 @@
 
 **Publicação da etapa 1:** PR #3 integrado na main `e640db4`; workflow Pages `40592074991` aprovado. `https://panel.analysepro.com` e `projects-ui.js` responderam HTTP 200 com os novos controles. A API na VPS permanece saudável.
 
-**Etapa 2, commit `d1686ab`, PR #4 integrado:** os identificadores legados de App, Agent e Caddy foram isolados em `server/legacy-softload-profile.ts`. O perfil pode ser desabilitado em instalações sem Softload V4; a VPS atual mantém o padrão habilitado. CI Linux e Pages passaram. A API recebeu o perfil na etapa 3; o executor da VPS ainda precisa ser atualizado e verificado separadamente.
+**Etapa 2, commit `d1686ab`, PR #4 integrado:** os identificadores legados de App, Agent e Caddy foram isolados em `server/legacy-softload-profile.ts`. O perfil pode ser desabilitado em instalações sem Softload V4; a VPS atual mantém o padrão habilitado. CI Linux e Pages passaram. API e executor já receberam o perfil na VPS; após atualizar o executor, seu health check e o smoke isolado de despertar passaram.
 
 **Etapa 3, commit `720971c`, PR #5 integrado:** inventário autenticado `/hosted-projects` e cartões na Visão geral para Softload V4 e aplicações independentes. CI Linux e Pages passaram. A API foi instalada na VPS com backup local verificável do código e volume; a imagem `sha256:03b5ae8ddd46...` ficou saudável. O inventário é somente leitura e não altera deploy ou scale-to-zero. O acesso autenticado ao endpoint ainda precisa de teste de interface na VPS.
 
