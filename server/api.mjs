@@ -32,10 +32,12 @@ const failures = new Map();
 const managed = Object.freeze({
   app: 'softload-vps-app-1',
   agent: 'softload-vps-agent-1',
-  sandbox: 'softload-vps-sandbox-1',
-  embeddings: 'softload-vps-embeddings-1',
   caddy: 'softload-caddy',
-  portainer: 'softload-portainer'
+  gateway: 'softload-panel-app-gateway-1',
+  panel: 'softload-panel-api',
+  executor: 'softload-panel-executor',
+  tunnel: 'softload-panel-tunnel',
+  wake: 'softload-wake'
 });
 const controllable = new Set(['app', 'agent', 'sandbox', 'embeddings']);
 
@@ -237,7 +239,7 @@ async function handler(req, res) {
     return send(res, 200, { services: list, memory: { total, used: total - freemem() }, cpu: { load1: loadavg()[0], cores: cpus().length }, disk, imagesBytes: diskBytes, currentSha: currentSha(), updatedAt: new Date().toISOString() });
   }
   if (path === '/services' && req.method === 'GET') return send(res, 200, { services: await containers() });
-  const logs = /^\/services\/(app|agent|sandbox|embeddings|caddy|portainer)\/logs$/.exec(path);
+  const logs = /^\/services\/(app|agent|caddy|gateway|panel|executor|tunnel|wake)\/logs$/.exec(path);
   if (logs && req.method === 'GET') {
     const tail = Math.min(300, Math.max(1, Number(url.searchParams.get('tail') || 100) || 100));
     const r = await docker(`/containers/${encodeURIComponent(managed[logs[1]])}/logs?stdout=1&stderr=1&tail=${tail}&timestamps=1`);

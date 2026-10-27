@@ -32,7 +32,7 @@
       <nav class="nav" aria-label="Navegação principal">
         <div class="nav-group-title">GERENCIAR VPS</div>
         <a class="nav-item active" href="#overview" data-view="overview"><span class="nav-icon">▦</span> Visão geral</a>
-        <a class="nav-item" href="#services" data-view="services"><span class="nav-icon">◫</span> Serviços Softload <span class="nav-count">6</span></a>
+        <a class="nav-item" href="#services" data-view="services"><span class="nav-icon">◫</span> Serviços Softload</a>
         <a class="nav-item" href="#apps" data-view="apps"><span class="nav-icon">⬡</span> Sites e apps</a>
         <a class="nav-item" href="#terminal" data-view="terminal"><span class="nav-icon">›_</span> Terminal VPS</a>
         <a class="nav-item" href="#revisions" data-view="revisions"><span class="nav-icon">◴</span> Revisões e espaço</a>
@@ -99,7 +99,8 @@
           <p class="traffic-meta">Os dados vêm dos contadores do Linux da interface externa. Eles são uma referência técnica e podem divergir da medição faturada pela LocaCloud.</p>
         </section>
 
-        <section class="view" id="services" data-title="Serviços Softload"><div class="page-heading"><div><div class="eyebrow">CONTAINERS / PRODUÇÃO</div><h1>Serviços</h1><p>Visualize a saúde e os recursos de cada componente.</p></div><button class="primary-button demo-action" data-action="Atualizar serviços">↻ Atualizar</button></div><div class="panel full-panel"><div class="panel-head"><div><h2>Containers</h2><p>Serviços registrados no servidor</p></div><span class="outline-tag" id="servicesTag">EXEMPLO</span></div><div id="allServices"></div></div></section>
+        <section class="view" id="services" data-title="Serviços Softload"><div class="page-heading"><div><div class="eyebrow">CONTAINERS / PRODUÇÃO</div><h1>Serviços</h1><p>Clique em Gerenciar para ver estado, imagem, logs e ações disponíveis.</p></div><button class="primary-button demo-action" data-action="Atualizar serviços">↻ Atualizar</button></div><div class="panel full-panel"><div class="panel-head"><div><h2>Containers</h2><p>Serviços registrados no servidor</p></div><span class="outline-tag" id="servicesTag">EXEMPLO</span></div><div id="allServices"></div></div></section>
+        <section class="view" id="service-detail" data-title="Gerenciar container"><div class="page-heading"><div><div class="eyebrow">CONTAINER / ADMINISTRAÇÃO</div><h1 id="serviceDetailName">Container</h1><p id="serviceDetailSummary">Selecione um serviço na lista.</p></div><a class="secondary-button" href="#services">← Voltar aos serviços</a></div><section class="panel full-panel"><div id="serviceDetailActions" class="service-actions"></div><pre id="serviceDetailLogs" class="log-console">Selecione um container.</pre></section></section>
 
         <section class="view" id="apps" data-title="Sites e apps">
           <div class="page-heading"><div><div class="eyebrow">HOSPEDAGEM / APLICAÇÕES</div><h1>Sites e apps</h1><p>Crie e administre aplicações separadas dos serviços principais da Softload.</p></div><button class="primary-button" id="appsRefreshButton">↻ Atualizar</button></div>

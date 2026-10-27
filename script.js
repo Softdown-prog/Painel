@@ -1,10 +1,12 @@
 const demoServices = [
   { id: 'app', name: 'Backend principal', detail: 'API e aplicação web', icon: 'S' },
   { id: 'agent', name: 'Agent Worker', detail: 'Processamento de tarefas', icon: '◇' },
-  { id: 'sandbox', name: 'Sandbox', detail: 'Execução isolada', icon: '▣' },
-  { id: 'embeddings', name: 'Embeddings', detail: 'Busca semântica', icon: '⌁' },
   { id: 'caddy', name: 'Caddy', detail: 'Proxy reverso', icon: '◈' },
-  { id: 'portainer', name: 'Portainer', detail: 'Painel legado', icon: '◫' }
+  { id: 'gateway', name: 'Gateway de apps', detail: 'Roteamento das aplicações', icon: '↗' },
+  { id: 'panel', name: 'API do Painel', detail: 'Administração da VPS', icon: '▦' },
+  { id: 'executor', name: 'Executor', detail: 'Ações Docker isoladas', icon: '◇' },
+  { id: 'tunnel', name: 'Cloudflare Tunnel', detail: 'Acesso privado', icon: '◎' },
+  { id: 'wake', name: 'Wake', detail: 'Ativação de aplicações', icon: '◌' }
 ];
 const labels = Object.fromEntries(demoServices.map(service => [service.id, service]));
 let authenticated = false;
@@ -70,6 +72,7 @@ function serviceRow(service, allowActions = false) {
   dot.style.background = service.state === 'running' ? '#65d6a4' : '#e4b077';
   state.append(dot, authenticated ? (service.state === 'running' ? 'Ativo' : service.state) : 'Exemplo');
   row.append(icon, main, state);
+  if (allowActions && authenticated) { const manage=document.createElement('button');manage.type='button';manage.textContent='Gerenciar';manage.addEventListener('click',()=>openService(service));row.append(manage); }
   if (allowActions && authenticated && service.controllable) {
     const actions = document.createElement('span');
     actions.className = 'service-actions';
@@ -93,6 +96,15 @@ function serviceRow(service, allowActions = false) {
     row.append(actions);
   }
   return row;
+}
+let selectedService = null;
+async function openService(service) {
+  selectedService=service; location.hash='service-detail';
+  document.getElementById('serviceDetailName').textContent=labels[service.id]?.name||service.name;
+  document.getElementById('serviceDetailSummary').textContent=`${service.status} · ${service.image||'sem imagem'}`;
+  const actions=document.getElementById('serviceDetailActions'); actions.replaceChildren();
+  if(service.controllable){for(const [action,label] of (service.state==='running'?[['restart','Reiniciar'],['stop','Parar']]:[['start','Iniciar']])){const button=document.createElement('button');button.className='secondary-button';button.textContent=label;button.onclick=async()=>{if(!confirm(`${label} este container?`))return;await api(`/services/${service.id}/${action}`,{method:'POST'});toast('Ação solicitada.');await loadOverview();openService((await api('/services')).services.find(x=>x.id===service.id));};actions.append(button);}}
+  const logs=document.getElementById('serviceDetailLogs');logs.textContent='Carregando logs...';try{logs.textContent=(await api(`/services/${service.id}/logs?tail=200`)).lines||'Sem logs.';}catch(error){logs.textContent=error.message;}
 }
 function fillServices(services) {
   const overview = document.getElementById('overviewServices');
@@ -268,9 +280,9 @@ async function loadDeploys() {
   if (!authenticated) return;
   try {
     const [data, overview] = await Promise.all([api('/deploys'), api('/overview')]);
-    const runningServices = (overview.services || []).filter(service => ['app', 'agent', 'sandbox', 'embeddings'].includes(service.id) && service.state === 'running').length;
+    const runningServices = (overview.services || []).filter(service => ['app', 'agent'].includes(service.id) && service.state === 'running').length;
     const activeRun = (data.runs || []).find(run => ['queued', 'pending', 'waiting', 'in_progress'].includes(run.status));
-    const vpsState = runningServices === 0 ? 'Em repouso' : runningServices === 4 ? 'Ativa' : 'Inicializando ou parcialmente ativa';
+    const vpsState = runningServices === 0 ? 'Em repouso' : runningServices === 2 ? 'Ativa' : 'Inicializando ou parcialmente ativa';
     const runtime = data.runtime || null;
     const appSha = runtime?.app?.status === 'verified' ? runtime.app.revision : null;
     const githubState = activeRun ? (activeRun.status === 'in_progress' ? `GitHub executando ${activeRun.sha?.slice(0, 8)}` : `GitHub com ${activeRun.sha?.slice(0, 8)} na fila`) :
