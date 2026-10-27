@@ -17,6 +17,9 @@ services:
       - panel_data:/config/panel:ro
     networks:
       - panel_apps
+    depends_on:
+      app-wake:
+        condition: service_healthy
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777
@@ -30,6 +33,40 @@ services:
     # (`exec ... operation not permitted`), even though this gateway listens
     # only on 8081. It has no Docker socket, no published port and a read-only
     # filesystem; keep the container isolated by network and filesystem here.
+  app-wake:
+    build:
+      context: .
+      dockerfile: app-wake.Dockerfile
+    image: softload-panel-app-wake:1
+    container_name: softload-panel-app-wake
+    restart: unless-stopped
+    environment:
+      PORT: "8082"
+      PANEL_ROUTES_FILE: /config/panel/domain-routes.json
+      PANEL_EXECUTOR_SOCKET: /run/panel-executor/docker.sock
+    volumes:
+      - panel_data:/config/panel:ro
+      - panel_executor_socket:/run/panel-executor:ro
+    depends_on:
+      executor:
+        condition: service_healthy
+    networks:
+      - panel_apps
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    mem_limit: 96m
+    cpus: "0.25"
+    pids_limit: 64
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:8082/__wake_health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 networks:
   panel_apps:
     name: softload_panel_apps
