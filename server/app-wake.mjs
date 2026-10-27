@@ -84,18 +84,19 @@ function readRoute(host) {
   return routeForHost(host, routes);
 }
 
-export function createWakeServer() {
+export function createWakeServer({ getRoute = readRoute, wake = wakeOnce,
+  upstreamHost = slug => 'softload-app-' + slug } = {}) {
   const server = http.createServer(async (req, res) => {
     if (req.url === '/__wake_health') {
       res.writeHead(200, { 'content-type': 'text/plain' }); res.end('ok'); return;
     }
     let route;
-    try { route = readRoute(req.headers.host); }
+    try { route = getRoute(req.headers.host); }
     catch { res.writeHead(503); res.end('Routes unavailable'); return; }
     if (!route) { res.writeHead(404); res.end('Application not found'); return; }
     try {
-      await wakeOnce(route);
-      const upstream = http.request({ host: 'softload-app-' + route.slug, port: route.port,
+      await wake(route);
+      const upstream = http.request({ host: upstreamHost(route.slug), port: route.port,
         path: req.url, method: req.method, headers: req.headers }, response => {
         res.writeHead(response.statusCode, response.headers); response.pipe(res);
       });
@@ -113,12 +114,12 @@ export function createWakeServer() {
   });
   server.on('upgrade', async (req, socket, head) => {
     let route;
-    try { route = readRoute(req.headers.host); }
+    try { route = getRoute(req.headers.host); }
     catch { socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n'); return; }
     if (!route) { socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n'); return; }
     try {
-      await wakeOnce(route);
-      const upstream = net.connect(route.port, 'softload-app-' + route.slug);
+      await wake(route);
+      const upstream = net.connect(route.port, upstreamHost(route.slug));
       upstream.on('connect', () => {
         upstream.write(req.method + ' ' + req.url + ' HTTP/1.1\r\n' +
           req.rawHeaders.reduce((lines, value, index) => lines +
