@@ -18,6 +18,8 @@ Cloudflare Pages -> Function TypeScript -> Cloudflare Access -> Cloudflare Tunne
 
 A API mantém senha administrativa com scrypt, sessão em cookie HttpOnly/Secure/SameSite=Strict e segredo de borda. A interface acompanha **App**, **Agent** e **Caddy**, além do uso da máquina, imagens e logs. Apenas App e Agent podem ser iniciados, parados ou reiniciados; Caddy é somente leitura. Sandbox, Embeddings e Portainer foram retirados da lista operacional do painel. A aba **Revisões e espaço** permanece conservadora e não apaga automaticamente imagens antigas da Softload destinadas a rollback.
 
+Os nomes de App, Agent e Caddy pertencem ao perfil legado da Softload V4 em `server/legacy-softload-profile.ts`. Em uma instalação sem esse projeto, `PANEL_SOFTLOAD_LEGACY=0` oculta o perfil da API; aplicações gerenciadas e projetos GitHub continuam independentes. O perfil permanece habilitado por padrão para preservar a VPS atual.
+
 ## Nova integração GitHub
 
 Na aba **Deploys**, você pode conectar repositórios, escolher uma branch e um workflow YAML, acompanhar as últimas execuções, solicitar um deploy manual e desconectar o projeto sem apagar containers.

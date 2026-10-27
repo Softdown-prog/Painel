@@ -56,9 +56,10 @@ V4 não precisa existir para que o registro de outros projetos funcione.
 
 ## Próximas etapas antes de declarar a plataforma pronta
 
-1. Extrair os nomes, imagens e domínios da Softload V4 do núcleo da API e do
-   executor para um perfil legado versionado. Migrar o cadastro de produção
-   sem trocar nomes ou volumes existentes.
+1. Extrair os nomes e imagens da Softload V4 do núcleo da API e do executor
+   para um perfil legado versionado. Esta parte está implementada em uma
+   segunda branch, ainda sem deploy na VPS. Falta migrar os domínios e o
+   inventário de deploy sem trocar nomes ou volumes existentes.
 2. Implementar manifesto desejado por projeto, registry com digest, lock por
    projeto e ativação com health check e rollback de todos os serviços do
    projeto. Verificar a revisão servida publicamente.

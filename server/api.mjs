@@ -12,6 +12,7 @@ import { handleSecretsRoute } from './secrets.ts';
 import { externalCounters, handleTrafficRoute, startTrafficMonitor } from './traffic.ts';
 import { observeDeployRuns, startDeployTrafficMonitor } from './deploy-traffic.ts';
 import { inspectDeployedServices, runDeploymentStatus } from './deploy-verification.mjs';
+import { legacySoftloadEntries } from './legacy-softload-profile.ts';
 import { cachedPublicHealth } from './deploy-public-health.mjs';
 import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, existsSync, statfsSync } from 'node:fs';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
@@ -29,12 +30,9 @@ if (!existsSync(adminFile) && !existsSync(setupFile)) writeFileSync(setupFile, r
 
 const sessions = new Map();
 const failures = new Map();
-const managed = Object.freeze({
-  app: 'softload-vps-app-1',
-  agent: 'softload-vps-agent-1',
-  caddy: 'softload-caddy'
-});
-const controllable = new Set(['app', 'agent']);
+const legacyEntries = legacySoftloadEntries();
+const managed = Object.freeze(Object.fromEntries(legacyEntries.map(([id, service]) => [id, service.container])));
+const controllable = new Set(legacyEntries.filter(([, service]) => service.controllable).map(([id]) => id));
 
 function equal(a, b) {
   const x = Buffer.from(String(a ?? ''));
@@ -236,6 +234,7 @@ async function handler(req, res) {
   if (path === '/services' && req.method === 'GET') return send(res, 200, { services: await containers() });
   const logs = /^\/services\/(app|agent|caddy)\/logs$/.exec(path);
   if (logs && req.method === 'GET') {
+    if (!managed[logs[1]]) return send(res, 404, { error: 'Serviço não cadastrado neste host.' });
     const tail = Math.min(300, Math.max(1, Number(url.searchParams.get('tail') || 100) || 100));
     const r = await docker(`/containers/${encodeURIComponent(managed[logs[1]])}/logs?stdout=1&stderr=1&tail=${tail}&timestamps=1`);
     if (r.status >= 400) return send(res, 502, { error: `Não foi possível ler os logs (${r.status})` });
@@ -244,6 +243,7 @@ async function handler(req, res) {
   const operation = /^\/services\/(app|agent)\/(start|stop|restart)$/.exec(path);
   if (operation && req.method === 'POST') {
     const [, id, action] = operation;
+    if (!controllable.has(id)) return send(res, 404, { error: 'Serviço não cadastrado neste host.' });
     const r = await docker(`/containers/${encodeURIComponent(managed[id])}/${action}?t=15`, 'POST');
     if (r.status >= 400) return send(res, 502, { error: `Docker não executou a ação (${r.status})` });
     console.log(`Container action ${action} on ${managed[id]} from ${ip}`);
