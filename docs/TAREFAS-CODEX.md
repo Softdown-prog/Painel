@@ -14,7 +14,7 @@
 
 **Etapa 2, commit `d1686ab`, em branch:** os identificadores legados de App, Agent e Caddy foram isolados em `server/legacy-softload-profile.ts`. O perfil pode ser desabilitado em instalações sem Softload V4; a VPS atual mantém o padrão habilitado. TypeScript, sintaxe JS e 18 testes focados passaram localmente. CI Linux e instalação na VPS ainda pendentes.
 
-**Etapa 3 em branch separada:** inventário autenticado `/hosted-projects` e cartões na Visão geral para Softload V4 e aplicações independentes. É somente leitura e não altera deploy ou scale-to-zero; ainda precisa do CI Linux e de instalação da API na VPS.
+**Etapa 3, commit `720971c`:** inventário autenticado `/hosted-projects` e cartões na Visão geral para Softload V4 e aplicações independentes. O CI Linux do PR #5 passou. A API foi instalada na VPS com backup local verificável do código e volume; a imagem `sha256:03b5ae8ddd46...` ficou saudável. A interface depende do merge/publicação do PR #5. O inventário é somente leitura e não altera deploy ou scale-to-zero.
 
 ## Regra principal de experiência
 
