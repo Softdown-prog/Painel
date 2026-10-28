@@ -9,6 +9,7 @@ on:
       - server/executor-policy.ts
       - server/executor.Dockerfile
       - server/api.mjs
+      - server/host-metrics.ts
       - server/deploy-verification.mjs
       - server/deploy-public-health.mjs
       - server/deploy-public-health.test.mjs
@@ -19,6 +20,20 @@ on:
       - server/compose.revisions.yaml
       - server/compose.yaml
       - server/smoke-api.mjs
+  pull_request:
+    paths:
+      - .github/workflows/executor-smoke.yml
+      - server/Dockerfile
+      - server/host-metrics.ts
+      - server/api.mjs
+      - server/executor.Dockerfile
+      - server/executor.mjs
+      - server/executor-policy.ts
+      - server/smoke-api.mjs
+      - server/deploy-verification.mjs
+      - server/deploy-public-health.mjs
+      - server/compose.revisions.yaml
+      - server/compose.yaml
   workflow_dispatch:
 
 permissions:
