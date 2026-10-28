@@ -92,6 +92,15 @@
             <article class="stat-card"><div class="stat-top"><span class="stat-icon green-bg">▤</span><span class="mini-pill live-label">SEM DADOS</span></div><div class="stat-value" id="diskValue">—</div><div class="stat-name">Armazenamento</div><div class="progress green-progress"><span id="diskBar" style="width:0%"></span></div><small class="metric-help" id="diskDetail">Aguardando dados do sistema de arquivos</small></article>
           </div>
 
+          <section class="panel full-panel resource-history-panel" aria-labelledby="resourceHistoryHeading">
+            <div class="panel-head"><div><h2 id="resourceHistoryHeading">Evolução de recursos</h2><p>RAM e armazenamento da VPS · últimas 24 horas disponíveis</p></div><a class="text-link" href="#traffic">Ver tráfego de rede →</a></div>
+            <p id="resourceHistoryMeta" class="resource-history-meta" role="status">Consultando histórico da VPS...</p>
+            <div class="resource-history-grid">
+              <article class="resource-trend"><div class="resource-trend-head"><strong>Memória em uso</strong><span id="resourceRamSummary">—</span></div><div id="resourceRamChart" class="resource-chart ram">Aguardando leituras.</div></article>
+              <article class="resource-trend"><div class="resource-trend-head"><strong>Espaço ocupado</strong><span id="resourceDiskSummary">—</span></div><div id="resourceDiskChart" class="resource-chart disk">Aguardando leituras.</div></article>
+            </div>
+            <p class="resource-history-disclaimer">Os gráficos mostram medições reais e deixam lacunas quando a coleta esteve interrompida. Não representam consumo por aplicação, previsão de cobrança ou medições anteriores à instalação.</p>
+          </section>
           <div class="two-column">
             <section class="panel services-panel"><div class="panel-head"><div><h2>Serviços</h2><p>Containers da aplicação</p></div><a class="text-link" href="#services">Ver todos <span>→</span></a></div><div id="overviewServices"></div></section>
             <section class="panel activity-panel"><div class="panel-head"><div><h2>Atividade recente</h2><p>Publicações do GitHub Actions</p></div><span class="outline-tag" id="activityTag">DEMO</span></div><div class="timeline" id="activityList"><div class="timeline-item"><span class="timeline-symbol neutral">↗</span><div><strong>Aguardando API</strong><p>O histórico aparecerá após o login.</p></div></div></div><div class="activity-footer"><span class="pulse-dot"></span> GitHub Actions é a fonte dos deploys</div></section>
@@ -329,5 +338,6 @@
   <script src="revisions-ui.js" defer></script>
   <script src="secrets-ui.js" defer></script>
   <script src="traffic-ui.js" defer></script>
+  <script src="resource-history-ui.js" defer></script>
 </body>
 </html>
