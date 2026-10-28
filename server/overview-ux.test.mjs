@@ -19,4 +19,6 @@ test('dashboard does not display made-up values and offers manual refresh', () =
   assert.match(script, /Dados anteriores/);
   assert.match(script, /Falha ao consultar/);
   assert.match(script, /document.hidden/);
+  assert.match(script, /Sem serviços cadastrados no inventário/);
+  assert.doesNotMatch(script, /fillServices\(demoServices\)/);
 });
