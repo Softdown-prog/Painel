@@ -63,7 +63,13 @@
         <div class="demo-banner" id="demoBanner"><span class="demo-icon">✦</span><span id="bannerText"><strong>Prévia visual</strong> · Conectando à API da VPS...</span><button id="bannerClose" aria-label="Fechar aviso">×</button></div>
 
         <section class="view active" id="overview" data-title="Visão geral">
-          <div class="page-heading"><div><div class="eyebrow">CENTRAL DA VPS</div><h1>Visão geral <span class="heading-accent">✳</span></h1><p>Veja o que está funcionando e acesse rapidamente o que precisa administrar.</p></div><a class="primary-button" href="#apps"><span>＋</span> Criar aplicação</a></div>
+          <div class="page-heading"><div><div class="eyebrow">CENTRAL DA VPS</div><h1>Visão geral <span class="heading-accent">✳</span></h1><p>Entenda a situação do servidor, o que merece atenção e o próximo passo.</p></div><a class="primary-button" href="#apps"><span>＋</span> Criar aplicação</a></div>
+          <section class="overview-health" id="overviewHealth" data-state="unknown" aria-labelledby="overviewHealthTitle">
+            <span class="overview-health-icon" id="overviewHealthIcon" aria-hidden="true">?</span>
+            <div class="overview-health-copy"><h2 id="overviewHealthTitle">Aguardando dados da VPS</h2><p id="overviewHealthSummary">Entre no painel para consultar indicadores reais.</p><small id="overviewCheckedAt">Nenhuma leitura confirmada</small></div>
+            <button type="button" class="secondary-button" id="overviewRefresh">↻ Atualizar agora</button>
+          </section>
+          <div id="overviewAlerts" class="overview-alerts" role="status" aria-live="polite" hidden></div>
 
           <section class="quick-start" aria-label="Ações rápidas para hospedagem">
             <div class="quick-start-heading"><div><span class="eyebrow">COMECE POR AQUI</span><h2>O que você quer fazer?</h2><p>Três atalhos para hospedar e cuidar dos seus projetos.</p></div></div>
@@ -78,12 +84,12 @@
             <div class="panel-head"><div><h2 id="hostedProjectsHeading">Projetos nesta VPS</h2><p>Aplicações e serviços registrados no servidor.</p></div><a class="text-link" href="#apps">Gerenciar sites →</a></div>
             <div id="hostedProjects" class="hosted-projects-grid" role="status">Entre no painel para carregar os projetos.</div>
           </section>
-          <div class="section-heading"><h2>Infraestrutura</h2><span class="section-subtitle">Indicadores da VPS · autenticados</span></div>
+          <div class="section-heading"><h2>Infraestrutura</h2><span class="section-subtitle">Medições do servidor · sem valores de demonstração</span></div>
           <div class="stats-grid">
-            <article class="stat-card"><div class="stat-top"><span class="stat-icon purple">◫</span><span class="mini-pill live-label">EXEMPLO</span></div><div class="stat-value" id="serviceCount">6 <span>/ 6</span></div><div class="stat-name">Serviços em execução</div><div class="stat-foot" id="serviceFoot"><span class="dot green"></span> Estado demonstrativo</div></article>
-            <article class="stat-card"><div class="stat-top"><span class="stat-icon orange">◴</span><span class="mini-pill live-label">EXEMPLO</span></div><div class="stat-value" id="memoryValue">1.8 <span>GB / 4 GB</span></div><div class="stat-name">Memória utilizada</div><div class="progress"><span id="memoryBar" style="width:45%"></span></div></article>
-            <article class="stat-card"><div class="stat-top"><span class="stat-icon blue">⌁</span><span class="mini-pill live-label">EXEMPLO</span></div><div class="stat-value" id="cpuValue">12<span>%</span></div><div class="stat-name">Carga de CPU</div><div class="sparkline">▁▂▂▁▃▂▂▄▃▂▁▂▃▂▁</div></article>
-            <article class="stat-card"><div class="stat-top"><span class="stat-icon green-bg">▤</span><span class="mini-pill live-label">EXEMPLO</span></div><div class="stat-value" id="diskValue">—</div><div class="stat-name">Disco da VPS</div><div class="progress green-progress"><span id="diskBar" style="width:0%"></span></div><small id="diskDetail">Aguardando dados do servidor</small></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon purple">◫</span><span class="mini-pill live-label">SEM DADOS</span></div><div class="stat-value" id="serviceCount">—</div><div class="stat-name">Serviços em execução</div><div class="stat-foot" id="serviceFoot">Aguardando resposta da VPS</div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon orange">◴</span><span class="mini-pill live-label">SEM DADOS</span></div><div class="stat-value" id="memoryValue">—</div><div class="stat-name">Memória em uso</div><div class="progress"><span id="memoryBar" style="width:0%"></span></div><small class="metric-help" id="memoryDetail">Considera memória disponível, inclusive cache recuperável, quando informada pelo servidor.</small></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon blue">⌁</span><span class="mini-pill live-label">SEM DADOS</span></div><div class="stat-value" id="cpuValue">—</div><div class="stat-name">Carga do processador · 1 min</div><small class="metric-help">Média de tarefas em execução ou espera por CPU, dividida pelos núcleos. Não é porcentagem de uso.</small></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon green-bg">▤</span><span class="mini-pill live-label">SEM DADOS</span></div><div class="stat-value" id="diskValue">—</div><div class="stat-name">Armazenamento</div><div class="progress green-progress"><span id="diskBar" style="width:0%"></span></div><small class="metric-help" id="diskDetail">Aguardando dados do sistema de arquivos</small></article>
           </div>
 
           <div class="two-column">
