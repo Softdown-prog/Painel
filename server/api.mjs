@@ -18,6 +18,7 @@ import { cachedPublicHealth } from './deploy-public-health.mjs';
 import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, existsSync, statfsSync } from 'node:fs';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { totalmem, freemem, loadavg, cpus } from 'node:os';
+import { memorySnapshot } from './host-metrics.ts';
 import { join } from 'node:path';
 
 const port = Number(process.env.PORT || 8080);
@@ -221,6 +222,8 @@ async function handler(req, res) {
   if (path === '/overview' && req.method === 'GET') {
     const list = await containers();
     const total = totalmem();
+    let meminfo = '';
+    try { meminfo = readFileSync('/proc/meminfo', 'utf8'); } catch { /* Sem /proc/meminfo, manter fallback identificado */ }
     let disk = null;
     try {
       const fs = statfsSync(dataDir);
@@ -234,7 +237,7 @@ async function handler(req, res) {
       const dockerDisk = await dockerJson('/system/df?type=images');
       diskBytes = dockerDisk?.Images?.reduce((sum, image) => sum + (image.Size || 0), 0) || 0;
     } catch { /* Docker disk accounting is optional */ }
-    return send(res, 200, { services: list, memory: { total, used: total - freemem() }, cpu: { load1: loadavg()[0], cores: cpus().length }, disk, imagesBytes: diskBytes, currentSha: currentSha(), updatedAt: new Date().toISOString() });
+    return send(res, 200, { services: list, memory: memorySnapshot(total, freemem(), meminfo), cpu: { load1: loadavg()[0], cores: cpus().length }, disk, imagesBytes: diskBytes, currentSha: currentSha(), updatedAt: new Date().toISOString() });
   }
   if (path === '/services' && req.method === 'GET') return send(res, 200, { services: await containers() });
   const logs = /^\/services\/(app|agent|caddy)\/logs$/.exec(path);

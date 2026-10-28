@@ -214,3 +214,10 @@ Guia de uso: [GUIA-RAPIDO.md](GUIA-RAPIDO.md). Domínios técnicos: [domain-rout
 **Próximo complemento:** evoluir a execução SSH de comando único para uma sessão PTY/WebSocket com entrada/saída ao vivo, controle de sessões e auditoria durável. O serviço precisa funcionar sem chamadas ao Codex/GitHub durante o uso. Não abrir SSH público adicional nem disponibilizar esse modo a contas de clientes.
 
 **Aceite parcial validado:** administrador entra no painel, executa um comando Linux real na própria VPS, recebe a saída e repete sem Codex. A sessão PTY/WebSocket ainda não existe; o acesso atual é um comando por vez, com limite de tempo e tamanho de saída.
+
+
+### Monitoramento compreensível da VPS · proposta em revisão (27/10/2026)
+
+**Implementado no código da branch de revisão, ainda não publicado nem validado na VPS:** tela de saúde com hora da coleta, atualização manual e alertas claros para serviços parados, disco >= 85%, RAM >= 85% (somente com MemAvailable) e carga média por núcleo >= 1. Os indicadores começam em "sem dados"; resposta antiga ou falha é sinalizada como "dados anteriores". A antiga carga de CPU apresentada como percentual foi substituída pela média de 1 minuto dividida pelo total de núcleos, identificada como métrica de carga, não de uso instantâneo. O backend tenta MemAvailable do Linux para descontar cache recuperável e sinaliza fallback para a API antiga. A tela não declara site público nem deployment concluído.
+
+**Validação de código:** commit de implementação `a2c096a`, Console CI [execução 40616802327](https://github.com/Softdown-prog/Painel/actions/runs/40616802327) **aprovada** em 27/10/2026 (Node/TypeScript, testes, verificação de JS, build de frontend e validações Compose). **Frontend publicado:** não. **API/executor atualizados e VPS validada:** não. Ainda faltam visual mobile, navegador autenticado e homologação das leituras com os serviços reais. Sem alterações de Docker/Caddy/Cloudflare, comandos de VPS ou deploy de produção por esta etapa.

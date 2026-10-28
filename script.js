@@ -34,6 +34,7 @@ function setBanner(message, live = false) {
 function showAuth(setup) {
   authenticated = false;
   setupMode = setup;
+  markOverviewUnavailable('Entre novamente para consultar indicadores reais da VPS.');
   document.getElementById('authOverlay').hidden = false;
   document.getElementById('logoutButton').hidden = true;
   document.getElementById('setupLabel').hidden = !setup;
@@ -156,43 +157,180 @@ async function openService(service) {
 function fillServices(services) {
   const overview = document.getElementById('overviewServices');
   const all = document.getElementById('allServices');
-  overview.replaceChildren(...services.slice(0, 4).map(service => serviceRow(service)));
-  all.replaceChildren(...services.map(service => serviceRow(service, true)));
+  const empty = () => {
+    const element = document.createElement('p');
+    element.className = 'service-empty';
+    element.textContent = authenticated ? 'Nenhum serviço foi informado pela VPS.' : 'Faça login para consultar os serviços da VPS.';
+    return element;
+  };
+  overview.replaceChildren(...(services.length ? services.slice(0, 4).map(service => serviceRow(service)) : [empty()]));
+  all.replaceChildren(...(services.length ? services.map(service => serviceRow(service, true)) : [empty()]));
 }
-function gb(value) { return (value / 1073741824).toFixed(1); }
+function gb(value) { return (value / 1073741824).toFixed(1).replace('.', ','); }
+let lastOverviewTime = null;
+let overviewLoading = false;
+function writeMetric(id, value, extra = '') {
+  const element = document.getElementById(id);
+  element.textContent = value;
+  if (extra) {
+    const units = document.createElement('span');
+    units.textContent = extra;
+    element.append(units);
+  }
+}
+function ratio(used, total) {
+  return Number.isFinite(used) && Number.isFinite(total) && total > 0
+    ? Math.max(0, Math.min(100, Math.round(used / total * 100))) : null;
+}
+function setOverviewHealth(kind, title, message, issues = []) {
+  document.getElementById('overviewHealth').dataset.state = kind;
+  document.getElementById('overviewHealthIcon').textContent = kind === 'ok' ? '✓' : kind === 'attention' ? '!' : '?';
+  document.getElementById('overviewHealthTitle').textContent = title;
+  document.getElementById('overviewHealthSummary').textContent = message;
+  const list = document.getElementById('overviewAlerts');
+  list.replaceChildren();
+  for (const issue of issues) {
+    const item = document.createElement('div');
+    item.className = 'overview-alert' + (issue.critical ? ' critical' : '');
+    const copy = document.createElement('div');
+    const name = document.createElement('strong');
+    name.textContent = issue.title;
+    const help = document.createElement('p');
+    help.textContent = issue.detail;
+    copy.append(name, help);
+    const link = document.createElement('a');
+    link.href = issue.href;
+    link.textContent = 'Ver detalhes';
+    item.append(copy, link);
+    list.append(item);
+  }
+  list.hidden = issues.length === 0;
+}
+function markOverviewUnavailable(message) {
+  document.getElementById('overviewCheckedAt').textContent = lastOverviewTime
+    ? 'Dados anteriores · ' + lastOverviewTime.toLocaleString('pt-BR') : 'Nenhuma leitura confirmada';
+  document.querySelectorAll('.live-label').forEach(el => {
+    el.textContent = lastOverviewTime ? 'ANTERIOR' : 'SEM DADOS';
+  });
+  document.getElementById('servicesTag').textContent = lastOverviewTime ? 'ANTERIOR' : 'SEM DADOS';
+  document.getElementById('topStatus').lastChild.textContent = ' Sem atualização';
+  document.querySelector('.connection-card strong').textContent = 'Não foi possível conferir a VPS';
+  document.querySelector('.connection-card small').textContent = 'Confira o acesso e atualize';
+  setOverviewHealth('unknown', 'Estado da VPS não confirmado', message);
+  setBanner('Sem confirmação recente da VPS. Os números, se visíveis, são da última leitura.', false);
+}
 async function loadOverview() {
-  if (!authenticated) return;
+  if (!authenticated || overviewLoading) return;
+  overviewLoading = true;
+  const refreshButton = document.getElementById('overviewRefresh');
+  refreshButton.disabled = true;
+  refreshButton.textContent = 'Consultando...';
   try {
     const data = await api('/overview');
-    const services = data.services || [];
+    const services = Array.isArray(data.services) ? data.services : [];
     fillServices(services);
     const running = services.filter(service => service.state === 'running').length;
-    document.getElementById('serviceCount').innerHTML = `${running} <span>/ ${services.length}</span>`;
-    document.getElementById('serviceFoot').textContent = `Atualizado ${new Date(data.updatedAt).toLocaleTimeString('pt-BR')}`;
-    document.getElementById('memoryValue').innerHTML = `${gb(data.memory.used)} <span>GB / ${gb(data.memory.total)} GB</span>`;
-    document.getElementById('memoryBar').style.width = `${Math.min(100, Math.round(data.memory.used / data.memory.total * 100))}%`;
-    const loadPercent = Math.round(data.cpu.load1 / data.cpu.cores * 100);
-    document.getElementById('cpuValue').innerHTML = `${loadPercent}<span>%</span>`;
-    if (data.disk?.total > 0) {
-      document.getElementById('diskValue').innerHTML = `${gb(data.disk.used)} <span>GB / ${gb(data.disk.total)} GB</span>`;
-      document.getElementById('diskBar').style.width = `${Math.min(100, Math.round(data.disk.used / data.disk.total * 100))}%`;
-      document.getElementById('diskDetail').textContent = `${gb(data.disk.available)} GB livres · imagens Docker: ${gb(data.imagesBytes)} GB`;
+    writeMetric('serviceCount', String(running), ' / ' + services.length);
+    const readAt = new Date(data.updatedAt);
+    const timestamp = readAt.getTime();
+    const fresh = Number.isFinite(timestamp) && timestamp <= Date.now() + 30000 && Date.now() - timestamp <= 120000;
+    if (Number.isFinite(timestamp)) lastOverviewTime = readAt;
+    document.getElementById('serviceFoot').textContent = Number.isFinite(timestamp)
+      ? 'Coletado às ' + readAt.toLocaleTimeString('pt-BR') : 'Horário da leitura não informado';
+    document.getElementById('overviewCheckedAt').textContent = Number.isFinite(timestamp)
+      ? 'Última leitura: ' + readAt.toLocaleString('pt-BR') + ' · dados da API da VPS'
+      : 'Horário da leitura não confirmado';
+
+    const memory = data.memory || {};
+    const memoryPercent = ratio(memory.used, memory.total);
+    if (memoryPercent === null) {
+      writeMetric('memoryValue', 'Indisponível');
+      document.getElementById('memoryBar').style.width = '0%';
     } else {
-      document.getElementById('diskValue').textContent = 'Indisponível';
-      document.getElementById('diskBar').style.width = '0%';
-      document.getElementById('diskDetail').textContent = 'O servidor não informou a capacidade do disco';
+      writeMetric('memoryValue', gb(memory.used), ' GB / ' + gb(memory.total) + ' GB');
+      document.getElementById('memoryBar').style.width = memoryPercent + '%';
     }
-    document.querySelectorAll('.live-label').forEach(el => el.textContent = 'AO VIVO');
-    document.getElementById('topStatus').lastChild.textContent = ' VPS conectada';
-    document.getElementById('apiStatus').textContent = '● API conectada';
-    document.getElementById('authStatus').textContent = '● Sessão ativa';
-    document.getElementById('servicesTag').textContent = 'AO VIVO';
-    document.querySelector('.connection-card strong').textContent = 'VPS conectada';
-    document.querySelector('.connection-card small').textContent = 'API administrativa ativa';
-    setBanner(`VPS conectada · Revisão configurada ${data.currentSha?.slice(0, 8) || 'não disponível'} · Confira a imagem em Publicações.`, true);
+    document.getElementById('memoryDetail').textContent = memory.source === 'memavailable'
+      ? (memoryPercent ?? '—') + '% ocupados · cache recuperável descontado'
+      : 'Estimativa da API antiga: pode incluir cache do Linux; não usar como alerta de RAM.';
+
+    const cpuLoad = Number(data.cpu?.load1);
+    const cores = Number(data.cpu?.cores);
+    const normalizedLoad = Number.isFinite(cpuLoad) && Number.isFinite(cores) && cores > 0 && cpuLoad >= 0
+      ? cpuLoad / cores : null;
+    if (normalizedLoad === null) {
+      writeMetric('cpuValue', 'Indisponível');
+    } else {
+      writeMetric('cpuValue', cpuLoad.toLocaleString('pt-BR', { maximumFractionDigits: 2 }), ' / ' + cores + ' núcleos');
+    }
+    const diskPercent = ratio(data.disk?.used, data.disk?.total);
+    if (diskPercent !== null) {
+      writeMetric('diskValue', gb(data.disk.used), ' GB / ' + gb(data.disk.total) + ' GB');
+      document.getElementById('diskBar').style.width = diskPercent + '%';
+      const images = Number.isFinite(data.imagesBytes) ? ' · imagens Docker (estimativa): ' + gb(data.imagesBytes) + ' GB' : '';
+      document.getElementById('diskDetail').textContent =
+        diskPercent + '% ocupados · ' + gb(data.disk.available) + ' GB livres' + images;
+    } else {
+      writeMetric('diskValue', 'Indisponível');
+      document.getElementById('diskBar').style.width = '0%';
+      document.getElementById('diskDetail').textContent = 'O sistema de arquivos não informou sua capacidade.';
+    }
+    const issues = [];
+    if (services.length && running < services.length) {
+      issues.push({ title: services.length - running + ' serviço(s) fora de execução',
+        detail: 'Confira se a parada foi planejada. Consulte o estado de cada serviço antes de agir.', href: '#services' });
+    }
+    if (memory.source === 'memavailable' && memoryPercent !== null && memoryPercent >= 85) {
+      issues.push({ title: 'Memória com ' + memoryPercent + '% de ocupação',
+        detail: 'A RAM disponível está baixa; confira os serviços antes de aumentar limites.',
+        href: '#services', critical: memoryPercent >= 95 });
+    }
+    if (diskPercent !== null && diskPercent >= 85) {
+      issues.push({ title: 'Armazenamento com ' + diskPercent + '% de ocupação',
+        detail: 'Confira revisões e espaço. Nunca apague imagens de recuperação sem verificar o rollback.',
+        href: '#revisions', critical: diskPercent >= 95 });
+    }
+    if (normalizedLoad !== null && normalizedLoad >= 1) {
+      issues.push({ title: 'Carga elevada na média de 1 minuto',
+        detail: 'A demanda alcançou a quantidade de núcleos disponíveis. Isso não significa 100% de uso instantâneo.',
+        href: '#terminal' });
+    }
+    const label = fresh ? 'ATUAL' : 'ANTERIOR';
+    document.querySelectorAll('.live-label').forEach(el => { el.textContent = label; });
+    document.getElementById('servicesTag').textContent = label;
+    if (!fresh) {
+      markOverviewUnavailable('A API respondeu, mas o horário da coleta está ausente ou antigo. Atualize para confirmar.');
+    } else {
+      const noServices = services.length === 0;
+      setOverviewHealth(issues.length ? 'attention' : noServices ? 'unknown' : 'ok',
+        issues.length ? issues.length + ' ponto(s) merecem atenção'
+          : noServices ? 'Sem serviços cadastrados no inventário' : 'Sem alertas nos indicadores disponíveis',
+        issues.length ? 'Veja os sinais abaixo e confira os detalhes antes de tomar alguma ação.'
+          : noServices ? 'A API não informou serviços. Confirme se esta VPS possui serviços configurados.'
+          : 'Serviços, memória e armazenamento foram consultados. Isso não substitui testes de acesso aos sites.',
+        issues);
+      document.getElementById('topStatus').lastChild.textContent = ' VPS conectada';
+      document.getElementById('apiStatus').textContent = '● API conectada';
+      document.getElementById('authStatus').textContent = '● Sessão ativa';
+      document.querySelector('.connection-card strong').textContent = 'VPS conectada';
+      document.querySelector('.connection-card small').textContent = 'Leitura confirmada agora';
+      setBanner('Dados da VPS atualizados. Revisão configurada ' +
+        (data.currentSha?.slice(0, 8) || 'não disponível') + '. Confira a ativação em Publicações.', true);
+    }
     void window.refreshHostedProjects?.();
-  } catch (error) { toast(`Não foi possível atualizar a VPS: ${error.message}`); }
+  } catch (error) {
+    markOverviewUnavailable('Falha ao consultar a VPS: ' + (error.message || 'sem resposta') +
+      '. Verifique sua conexão ou tente atualizar.');
+  } finally {
+    overviewLoading = false;
+    refreshButton.disabled = false;
+    refreshButton.textContent = '↻ Atualizar agora';
+  }
 }
+document.getElementById('overviewRefresh').addEventListener('click', () => void loadOverview());
+setInterval(() => {
+  if (authenticated && !document.hidden && (!location.hash || location.hash === '#overview')) void loadOverview();
+}, 90000);
 const deployStatusLabels = Object.freeze({
   active: 'IMAGEM ATIVA · HTTPS NÃO CONFERIDO',
   published: 'DOCKER + /HEALTH CONFERIDOS',
@@ -392,6 +530,7 @@ function showView(name) {
   menu.classList.remove('open');
   menuButton.setAttribute('aria-expanded', 'false');
   document.title = `${view.dataset.title} — Softload Console`;
+  if (view.id === 'overview' && authenticated) void loadOverview();
   if (view.id === 'logs') loadLogs();
   if (view.id === 'deploys') loadDeploys();
   if (view.id === 'apps' && authenticated) window.refreshManagedApplications?.();
@@ -471,7 +610,7 @@ document.getElementById('passwordForm').addEventListener('submit', async event =
   } catch (error) { toast(error.message); }
   finally { button.disabled = false; }
 });
-fillServices(demoServices);
+fillServices([]);
 api('/session').then(data => {
   document.getElementById('apiStatus').textContent = '● API conectada';
   if (data.authenticated) {
@@ -487,8 +626,8 @@ api('/session').then(data => {
     if (location.hash === '#traffic') window.refreshTraffic?.();
   } else showAuth(data.setupRequired);
 }).catch(() => {
-  setBanner('API indisponível. Os valores exibidos são apenas exemplos; nenhuma ação alcança a VPS.');
+  markOverviewUnavailable('A API do painel não respondeu. Tente novamente após confirmar a conexão.');
   document.getElementById('apiStatus').textContent = '○ API indisponível';
-  document.querySelector('.connection-card strong').textContent = 'Modo de demonstração';
+  document.querySelector('.connection-card strong').textContent = 'Sem conexão';
   document.querySelector('.connection-card small').textContent = 'API indisponível';
 });

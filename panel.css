@@ -4,3 +4,22 @@
 .auth-overlay[hidden], [hidden]{display:none!important}
 
 .github-panel{margin-top:20px}.github-manager{padding:4px 22px 22px}.github-connect-form,.github-toolbar{display:flex;align-items:end;gap:12px;flex-wrap:wrap}.github-connect-form label,.github-toolbar label{display:flex;flex-direction:column;gap:7px;color:#b8b9c7;font-size:12px;flex:1;min-width:150px}.github-connect-form label:first-child{flex:2;min-width:230px}.github-manager input,.github-manager select{width:100%;min-width:0;border:1px solid #3c4050;background:#141720;border-radius:8px;color:#eee;padding:10px;font-size:13px;font-family:inherit}.github-manager button{min-height:38px}.github-manager button:disabled{opacity:.5;cursor:not-allowed}.github-notice{color:#b2b2c4;font-size:12px;margin:17px 0}.github-hint{font-size:11px;color:#9499a9;margin:17px 0}.github-runs{display:flex;flex-direction:column;gap:8px}.github-run{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid #343847;border-radius:8px;color:#bdc1d1;font-size:12px}.github-run a{color:#c9aaf5;word-break:break-word}.github-run small{color:#9297a6}.github-connect-form{margin-bottom:10px}@media(max-width:750px){.github-manager{padding:4px 14px 17px}.github-connect-form label,.github-connect-form label:first-child,.github-toolbar label{flex-basis:100%;min-width:0}.github-toolbar button{flex:1}.github-run{flex-direction:column;align-items:flex-start}}
+
+
+/* Primeira tela: leitura clara e honesta em desktop e dispositivos móveis. */
+.overview-health{display:flex;align-items:center;gap:17px;padding:19px 22px;margin:-16px 0 25px;border:1px solid #414653;background:#1b212c;border-radius:13px}
+.overview-health-icon{display:grid;place-items:center;flex:none;width:42px;height:42px;border-radius:11px;background:#323b4d;color:#c9d3e4;font-size:20px;font-weight:700}
+.overview-health-copy{flex:1;min-width:0}.overview-health h2{font-size:17px;margin:0 0 5px}.overview-health p{font-size:12px;color:#c0c7d3;margin:0 0 6px;line-height:1.5}.overview-health small{color:#939fac;font-size:11px}
+.overview-health[data-state="ok"]{background:#172b27;border-color:#376454}.overview-health[data-state="ok"] .overview-health-icon{background:#265441;color:#94e7bc}
+.overview-health[data-state="attention"]{background:#30291d;border-color:#725b37}.overview-health[data-state="attention"] .overview-health-icon{background:#594026;color:#ffce8b}
+.overview-health[data-state="unknown"]{background:#20232d;border-color:#464b5c}
+.overview-health .secondary-button{margin-left:12px}
+.overview-alerts{display:grid;gap:9px;margin:-10px 0 25px}.overview-alerts[hidden]{display:none}
+.overview-alert{display:flex;align-items:center;gap:14px;border:1px solid #554531;background:#29231e;border-radius:9px;padding:12px 16px}
+.overview-alert strong{font-size:12px;color:#ffdfae}.overview-alert p{font-size:11px;color:#d2c5b5;margin:4px 0 0;line-height:1.5}
+.overview-alert a{margin-left:auto;font-size:11px;white-space:nowrap;color:#e6c99f;text-decoration:underline}
+.overview-alert.critical{border-color:#85514d;background:#312020}.overview-alert.critical strong{color:#ffb6a9}
+.metric-help{display:block;margin-top:10px;font-size:10px;line-height:1.5;color:#929ba9}
+@media(max-width:750px){.overview-health{align-items:flex-start;flex-wrap:wrap;padding:16px;margin:0 0 20px;gap:12px}.overview-health .secondary-button{width:100%;margin:0}.overview-alert{align-items:flex-start;flex-wrap:wrap}.overview-alert a{margin:0}}
+
+.service-empty{margin:0;padding:18px 22px;border-top:1px solid #272b37;color:#adb2c1;font-size:12px;line-height:1.6}
