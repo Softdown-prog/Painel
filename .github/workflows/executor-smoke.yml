@@ -10,6 +10,7 @@ on:
       - server/executor.Dockerfile
       - server/api.mjs
       - server/host-metrics.ts
+      - server/resource-history.ts
       - server/deploy-verification.mjs
       - server/deploy-public-health.mjs
       - server/deploy-public-health.test.mjs
@@ -25,6 +26,7 @@ on:
       - .github/workflows/executor-smoke.yml
       - server/Dockerfile
       - server/host-metrics.ts
+      - server/resource-history.ts
       - server/api.mjs
       - server/executor.Dockerfile
       - server/executor.mjs
