@@ -50,6 +50,7 @@ test('setup, login, session and logout require the edge key', async () => {
     assert.match(login.response.headers.get('set-cookie'), /HttpOnly; Secure; SameSite=Strict/);
     assert.equal((await request('/session', 'GET', undefined, key, cookie)).data.authenticated, true);
     assert.equal((await request('/services')).response.status, 401);
+    assert.equal((await request('/terminal/ssh/exec', 'POST', { command:'whoami' })).response.status, 401);
     assert.equal((await request('/secrets')).response.status, 401);
     const secrets = await request('/secrets', 'GET', undefined, key, cookie);
     assert.equal(secrets.response.status, 200);

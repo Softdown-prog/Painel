@@ -11,7 +11,6 @@
   const history: string[] = [];
   let historyIndex = 0;
   let busy = false;
-  let sshToken: string | null = null;
   const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
   const SERVICES = ['app', 'agent', 'sandbox', 'embeddings', 'caddy', 'portainer'];
   const ACTIONS: Record<string, string> = { iniciar: 'start', parar: 'stop', reiniciar: 'restart' };
@@ -42,18 +41,32 @@
     '  revisoes auto ligar|desligar     altera a limpeza automática no painel',
     '  historico                        mostra comandos desta sessão',
     '  <comando Linux>                  executa na VPS via SSH como administrador',
-    '  linux travar                     bloqueia o acesso Linux novamente',
     '',
-    'SHELL ADMINISTRATIVO: depois de confirmar a senha do painel, qualquer comando Linux é executado como root.',
+    'SHELL ADMINISTRATIVO: com a sessão do painel ativa, comandos Linux são executados como root.',
     'Exemplo: docker ps, systemctl status ssh ou curl https://exemplo.com.',
-    'Digite linux travar para encerrar o desbloqueio. Cada comando tem limite de 18 segundos e 24 KB de saída.',
+    'Saia do painel para encerrar a sessão. Cada comando tem limite de 18 segundos e 24 KB de saída.',
     'Chaves coladas em comandos são mascaradas na tela e no histórico.'
   ].join('\n');
 
   function line(message: string, kind: LineKind = 'response'): void {
     const div = document.createElement('div');
     div.className = 'terminal-line terminal-' + kind;
-    div.textContent = message.slice(0, 30000);
+    const visible = message.slice(0, 30000);
+    div.textContent = visible;
+    if (kind === 'response' || kind === 'error') {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'terminal-copy-button';
+      button.textContent = 'Copiar saída';
+      button.setAttribute('aria-label', 'Copiar esta saída do terminal');
+      button.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(visible);
+          button.textContent = 'Copiado';
+        } catch { button.textContent = 'Cópia indisponível'; }
+      });
+      div.append(button);
+    }
     output.append(div);
     while (output.childElementCount > 100) output.firstElementChild?.remove();
     output.scrollTop = output.scrollHeight;
@@ -95,34 +108,15 @@
   }
   async function runLinux(shellCommand: string): Promise<string> {
     if (!shellCommand) throw new Error('Digite um comando Linux. Exemplo: uptime');
-    if (shellCommand === 'travar') {
-      if (sshToken) {
-        try { await api('/terminal/ssh/lock', { method: 'POST' }); } finally { sshToken = null; }
-      }
-      return 'Terminal Linux bloqueado. A próxima operação exigirá sua senha administrativa.';
-    }
     const state = await api('/terminal/ssh/status');
     if (!state.enabled) throw new Error('Terminal Linux ainda não foi ativado na VPS.');
     if (!state.configured) throw new Error('O acesso SSH ainda precisa ser configurado na VPS.');
-    if (!sshToken || !state.unlocked) {
-      sshToken = null;
-      const password = prompt('Confirme a senha do painel para desbloquear o shell da VPS por 10 minutos:');
-      if (!password) return 'Operação cancelada.';
-      const auth = await api('/terminal/ssh/unlock', { method: 'POST',
-        headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password }) });
-      sshToken = auth.token;
-    }
-    try {
-      const result = await api('/terminal/ssh/exec', { method: 'POST',
-        headers: { 'content-type': 'application/json' }, body: JSON.stringify({ command: shellCommand, token: sshToken }) });
-      return 'SHELL DA VPS · código de saída ' + result.exitCode +
-        (result.timedOut ? ' · tempo limite atingido' : '') +
-        (result.truncated ? ' · saída limitada' : '') + '\n' +
-        (result.output || '(comando concluído sem saída)');
-    } catch (error) {
-      if (error instanceof Error && /bloqueado|desbloqueie/i.test(error.message)) sshToken = null;
-      throw error;
-    }
+    const result = await api('/terminal/ssh/exec', { method: 'POST',
+      headers: { 'content-type': 'application/json' }, body: JSON.stringify({ command: shellCommand }) });
+    return 'SHELL DA VPS · código de saída ' + result.exitCode +
+      (result.timedOut ? ' · tempo limite atingido' : '') +
+      (result.truncated ? ' · saída limitada' : '') + '\n' +
+      (result.output || '(comando concluído sem saída)');
   }
   async function runCommand(command: string): Promise<string> {
     const args = command.trim().split(/\s+/);
@@ -339,7 +333,6 @@
   });
   document.getElementById('terminalHelpButton')?.addEventListener('click', () => void execute('ajuda'));
   document.getElementById('terminalClearButton')?.addEventListener('click', () => { output.replaceChildren(); input.focus(); });
-  window.addEventListener('beforeunload', () => { sshToken = null; });
   document.querySelectorAll<HTMLButtonElement>('[data-terminal-command]').forEach(button =>
     button.addEventListener('click', () => void execute(button.dataset.terminalCommand || 'ajuda')));
 

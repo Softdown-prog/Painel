@@ -8,6 +8,7 @@ function mount(responses = {}) {
   const elements = new Map();
   const requested = [];
   const confirms = [];
+  const copied = [];
   function element(id) {
     if (!elements.has(id)) {
       const item = {
@@ -33,11 +34,13 @@ function mount(responses = {}) {
   };
   const document = {
     getElementById:element,
-    createElement:()=>({className:'',textContent:'',remove(){},classList:{toggle(){}},addEventListener(){}}),
+    createElement:()=>({className:'',textContent:'',children:[],handlers:{},remove(){},classList:{toggle(){}},
+      setAttribute(){},append(child){this.children.push(child);},addEventListener(event,cb){this.handlers[event]=cb;}}),
     querySelectorAll:()=>[]
   };
   const window={ addEventListener(){} };
-  runInNewContext(source,{document,window,fetch:api,location:{hash:'#overview'},confirm:message=>{confirms.push(message);return true;}, prompt:()=> 'secret-test-password', console,Number,String,Boolean,Array,Object,Date,Reflect,Math,RegExp,Error,encodeURIComponent});
+  const navigator={clipboard:{writeText:async text=>{copied.push(text);}}};
+  runInNewContext(source,{document,window,navigator,fetch:api,location:{hash:'#overview'},confirm:message=>{confirms.push(message);return true;}, prompt:()=>{throw new Error('Unexpected password prompt');}, console,Number,String,Boolean,Array,Object,Date,Reflect,Math,RegExp,Error,encodeURIComponent});
   async function command(text) {
     const form=element('terminalForm');
     element('terminalInput').value=text;
@@ -46,7 +49,7 @@ function mount(responses = {}) {
     await new Promise(r=>setImmediate(r));
     return element('terminalOutput').children.map(x=>x.textContent).join('\n');
   }
-  return {elements,requested,confirms,command};
+  return {elements,requested,confirms,copied,command};
 }
 test('CLI consults authenticated VPS API rather than simulating service state',async()=>{
   const cli=mount({
@@ -72,8 +75,7 @@ test('CLI confirms mutations and sends correct method to existing protected API'
 test('CLI forwards direct shell commands through the SSH backend and masks tokens on screen',async()=>{
   const token='cfut_'+ 'a'.repeat(48);
   const cli=mount({
-    '/api/terminal/ssh/status':{enabled:true,configured:true,unlocked:false},
-    'POST /api/terminal/ssh/unlock':{token:'a'.repeat(64),expiresInSeconds:600},
+    '/api/terminal/ssh/status':{enabled:true,configured:true},
     'POST /api/terminal/ssh/exec':{exitCode:0,output:'ok',timedOut:false,truncated:false}
   });
   const output=await cli.command('curl -H "Authorization: Bearer '+token+'" https://api.cloudflare.com/client/v4/user/tokens/verify');
@@ -92,19 +94,29 @@ test('CLI creates a domain via the actual API and reports it as only reserved',a
   assert.equal(JSON.parse(request.options.body).port,3000);
 });
 
-test('opt-in Linux commands unlock with password and use SSH backend rather than browser shell', async()=>{
+test('Linux commands use the authenticated panel session without a second password', async()=>{
   const cli=mount({
-    '/api/terminal/ssh/status':{enabled:true,configured:true,unlocked:false},
-    'POST /api/terminal/ssh/unlock':{token:'a'.repeat(64),expiresInSeconds:600},
+    '/api/terminal/ssh/status':{enabled:true,configured:true},
     'POST /api/terminal/ssh/exec':{exitCode:0,output:'vps online',timedOut:false,truncated:false}
   });
   const output=await cli.command('linux uptime');
   assert.match(output,/SHELL DA VPS/);
   assert.match(output,/vps online/);
-  const unlock=cli.requested.find(x=>x.url==='/api/terminal/ssh/unlock');
-  assert.equal(unlock?.options.method,'POST');
-  assert.equal(JSON.parse(unlock.options.body).password,'secret-test-password');
+  assert.equal(cli.requested.some(x=>x.url==='/api/terminal/ssh/unlock'),false);
   const execution=cli.requested.find(x=>x.url==='/api/terminal/ssh/exec');
-  assert.equal(JSON.parse(execution.options.body).command,'uptime');
-  assert.ok(!output.includes('secret-test-password'), 'Never expose password in terminal history');
+  assert.deepEqual(JSON.parse(execution.options.body),{command:'uptime'});
+});
+test('each terminal response has a mobile copy button that copies only that response',async()=>{
+  const cli=mount({
+    '/api/terminal/ssh/status':{enabled:true,configured:true},
+    'POST /api/terminal/ssh/exec':{exitCode:0,output:'linha 1\nlinha 2',timedOut:false,truncated:false}
+  });
+  await cli.command('linux uptime');
+  const lines=cli.elements.get('terminalOutput').children;
+  const response=lines.find(line=>line.className==='terminal-line terminal-response');
+  const button=response.children[0];
+  assert.equal(button.textContent,'Copiar saída');
+  await button.handlers.click();
+  assert.equal(button.textContent,'Copiado');
+  assert.deepEqual(cli.copied,[response.textContent]);
 });
