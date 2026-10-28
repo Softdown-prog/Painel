@@ -19,6 +19,7 @@ import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, existsS
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { totalmem, freemem, loadavg, cpus } from 'node:os';
 import { memorySnapshot } from './host-metrics.ts';
+import { readResourceHistory, startResourceHistoryMonitor } from './resource-history.ts';
 import { join } from 'node:path';
 
 const port = Number(process.env.PORT || 8080);
@@ -237,7 +238,7 @@ async function handler(req, res) {
       const dockerDisk = await dockerJson('/system/df?type=images');
       diskBytes = dockerDisk?.Images?.reduce((sum, image) => sum + (image.Size || 0), 0) || 0;
     } catch { /* Docker disk accounting is optional */ }
-    return send(res, 200, { services: list, memory: memorySnapshot(total, freemem(), meminfo), cpu: { load1: loadavg()[0], cores: cpus().length }, disk, imagesBytes: diskBytes, currentSha: currentSha(), updatedAt: new Date().toISOString() });
+    return send(res, 200, { services: list, memory: memorySnapshot(total, freemem(), meminfo), cpu: { load1: loadavg()[0], cores: cpus().length }, disk, imagesBytes: diskBytes, currentSha: currentSha(), updatedAt: new Date().toISOString(), resourceHistory: readResourceHistory(dataDir) });
   }
   if (path === '/services' && req.method === 'GET') return send(res, 200, { services: await containers() });
   const logs = /^\/services\/(app|agent|caddy)\/logs$/.exec(path);
@@ -288,4 +289,5 @@ startIdleMonitor(dataDir);
 startRevisionMonitor(dataDir);
 startPublicationWorker(dataDir);
 startTrafficMonitor(dataDir);
+startResourceHistoryMonitor(dataDir);
 startDeployTrafficMonitor(dataDir, () => externalCounters(dataDir), githubDeployRuns);
