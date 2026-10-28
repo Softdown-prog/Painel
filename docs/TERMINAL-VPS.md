@@ -41,7 +41,7 @@ Também implementei o comando `linux <comando>`. Exemplo: `linux uptime`, `linux
 
 **Estado em 25/10/2026:** instalado e validado na VPS `softloadeng`. O painel usa uma chave SSH exclusiva, verificação de identidade do host e a conta `root` local da VPS; `linux <comando>` portanto aceita comandos administrativos e `sudo`. A chave privada fica em `/etc/softload-panel/terminal-ssh-key` com modo 0600 e não é enviada ao frontend, ao Cloudflare Pages ou ao GitHub. Não há dependência do Codex para executar comandos depois da instalação.
 
-O funcionamento é simples: o administrador ativa o modo SSH, você digita `linux uptime`, confirma a senha do painel uma vez e tem dez minutos para executar outros comandos. Use `linux travar` para encerrar o desbloqueio. O resultado inclui o código de saída da operação.
+O funcionamento é simples: o administrador ativa o modo SSH, você entra no Painel e digita `linux uptime`. O terminal usa a sessão administrativa já autenticada, sem pedir a senha novamente nem aplicar um desbloqueio de dez minutos. A sessão do Painel dura até 12 horas; sair do Painel encerra o acesso. Cada resposta tem um botão **Copiar saída**, inclusive no celular. O resultado inclui o código de saída da operação.
 
 Esse primeiro modo SSH **executa um comando por vez**, espera até 18 segundos e devolve até 24 KB de saída. Ainda não é uma sessão interativa do tipo `vim`, `htop` ou `nano`, nem mantém o diretório entre comandos `cd`. Para operações demoradas use ferramentas apropriadas (por exemplo `systemctl`, `docker compose` ou um job no host), com os privilégios que a conta SSH realmente possui.
 
@@ -56,7 +56,7 @@ Estas instruções foram executadas na VPS `softloadeng` em 25/10/2026 e permane
 5. Adicione o overlay `server/compose.ssh-terminal.yaml` ao seu conjunto Compose **atual**. Configure `PANEL_TERMINAL_SSH_ENABLED=1`, `PANEL_TERMINAL_SSH_HOST`, `PANEL_TERMINAL_SSH_PORT` e `PANEL_TERMINAL_SSH_USER` conforme o host. Confira previamente a configuração mesclada com `docker compose ... config` (sem imprimir segredos no chat ou em logs compartilhados). Atualize somente a API quando tiver backup e janela de manutenção.
 6. Teste primeiro `linux whoami` e `linux uptime`. Depois confira os comandos administrativos que a conta possui. `sudo` só funcionará se a **sua** configuração de permissões no host permitir; o Painel não concede privilégios adicionais escondidos.
 
-O serviço SSH usa a senha administrativa do Painel para desbloqueio temporário, exige sua sessão autenticada, não grava a senha fornecida em logs e não registra o comando completo no log do servidor (somente um hash resumido, duração e código de saída). Não abre nenhuma nova porta pública, e a chave privada fica montada somente na API. Um comando demorado ou saída muito grande é interrompido por limite.
+O serviço SSH exige a sessão autenticada do Painel e não registra o comando completo no log do servidor (somente um hash resumido, duração e código de saída). Não abre nenhuma nova porta pública, e a chave privada fica montada somente na API. Um comando demorado ou saída muito grande é interrompido por limite.
 
 Se você preferir uma experiência de shell interativo como a do PuTTY, com `vim` e entrada contínua, ainda faltará uma segunda etapa: PTY/WebSocket com controle de sessões. Ela está anotada para depois em [TAREFAS-CODEX.md](TAREFAS-CODEX.md), mas **não é necessária para usar `linux <comando>`**.
 

@@ -167,16 +167,7 @@ async function handler(req, res) {
   }
   if (!session(req)) return send(res, 401, { error: 'Sessão necessária' });
   if (await handleSshTerminalRoute(req, res, {
-    send, body,
-    sessionId: /(?:^|;\s*)panel_session=([a-f0-9]{64})(?:;|$)/.exec(req.headers.cookie || '')?.[1] || '',
-    verifyPassword: (password) => {
-      if (blocked(ip) || !existsSync(adminFile)) return false;
-      const admin = JSON.parse(readFileSync(adminFile, 'utf8'));
-      const candidate = password.length <= 256 ? hashPassword(password, admin.salt).hash : '';
-      const valid = equal(candidate, admin.hash);
-      if (!valid) failed(ip); else failures.delete(ip);
-      return valid;
-    }
+    send, body
   })) return;
   if (await handleSecretsRoute(req, res, {
     send, body,

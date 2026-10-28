@@ -209,6 +209,8 @@ Guia de uso: [GUIA-RAPIDO.md](GUIA-RAPIDO.md). Domínios técnicos: [domain-rout
 
 **Implantado e validado na VPS em 25/10/2026:** execução real de um comando Linux por SSH com `linux <comando>`, desbloqueio de 10 minutos por senha administrativa, timeout, auditoria resumida e overlay `server/compose.ssh-terminal.yaml`. A API usa uma chave dedicada com permissões 0600 e verificação de host, conectando-se internamente à própria VPS como `root`; comandos administrativos e `sudo` funcionam. Foram validados pelo domínio público `linux whoami` e `linux sudo -n whoami`, ambos com saída `root`. O executor separado está saudável e a API não monta o socket Docker do host. **Não depende do Codex em cada comando.**
 
+**Alteração em validação (28/10/2026):** o terminal passará a usar somente a sessão administrativa já autenticada do Painel, sem senha por comando e sem o desbloqueio adicional de dez minutos. A sessão geral de 12 horas, o limite por comando de 18 segundos/24 KB, a chave SSH privada no servidor e a auditoria resumida permanecem. Cada resposta terá botão **Copiar saída**. TypeScript, testes de terminal/autenticação e compilação do frontend passaram localmente; CI, Pages e VPS devem ser registrados separadamente antes de marcar a mudança publicada.
+
 **Onde olhar:** `terminal-ui.ts`, `terminal-ui.js`, `docs/TERMINAL-VPS.md`, `server/api.mjs`, `server/executor.mjs`, `functions/api/[[path]].ts`.
 
 **Próximo complemento:** evoluir a execução SSH de comando único para uma sessão PTY/WebSocket com entrada/saída ao vivo, controle de sessões e auditoria durável. O serviço precisa funcionar sem chamadas ao Codex/GitHub durante o uso. Não abrir SSH público adicional nem disponibilizar esse modo a contas de clientes.
