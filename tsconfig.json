@@ -26,6 +26,7 @@
     "terminal-ui.ts",
     "revisions-ui.ts",
     "site-detail-ui.ts",
-    "secrets-ui.ts"
+    "secrets-ui.ts",
+    "resource-history-ui.ts"
   ]
 }

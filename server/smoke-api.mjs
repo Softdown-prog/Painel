@@ -78,6 +78,9 @@ async function main() {
   const overview = await call('/overview','GET',undefined,cookie);
   assert.equal(overview.status, 200, JSON.stringify(overview.data));
   assert.deepEqual(overview.data.services.map(service => service.id), ['app', 'agent', 'caddy']);
+  assert.equal(overview.data.resourceHistory?.available, true);
+  assert.ok(Array.isArray(overview.data.resourceHistory.samples));
+  assert.ok(overview.data.resourceHistory.samples.length > 0, 'Resource sampling starts with the API');
   // CI has Docker but no Softload containers and no external network. The UI must not invent an active release.
   const deploy = await call('/deploys','GET',undefined,cookie,18000);
   assert.equal(deploy.status,200,JSON.stringify(deploy.data));
