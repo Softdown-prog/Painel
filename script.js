@@ -207,6 +207,7 @@ function setOverviewHealth(kind, title, message, issues = []) {
   list.hidden = issues.length === 0;
 }
 function markOverviewUnavailable(message) {
+  window.renderResourceHistory?.(null);
   document.getElementById('overviewCheckedAt').textContent = lastOverviewTime
     ? 'Dados anteriores · ' + lastOverviewTime.toLocaleString('pt-BR') : 'Nenhuma leitura confirmada';
   document.querySelectorAll('.live-label').forEach(el => {
@@ -227,6 +228,7 @@ async function loadOverview() {
   refreshButton.textContent = 'Consultando...';
   try {
     const data = await api('/overview');
+    window.renderResourceHistory?.(data.resourceHistory);
     const services = Array.isArray(data.services) ? data.services : [];
     fillServices(services);
     const running = services.filter(service => service.state === 'running').length;
