@@ -21,3 +21,5 @@
 .overview-alert.critical{border-color:#85514d;background:#312020}.overview-alert.critical strong{color:#ffb6a9}
 .metric-help{display:block;margin-top:10px;font-size:10px;line-height:1.5;color:#929ba9}
 @media(max-width:750px){.overview-health{align-items:flex-start;flex-wrap:wrap;padding:16px;margin:0 0 20px;gap:12px}.overview-health .secondary-button{width:100%;margin:0}.overview-alert{align-items:flex-start;flex-wrap:wrap}.overview-alert a{margin:0}}
+
+.service-empty{margin:0;padding:18px 22px;border-top:1px solid #272b37;color:#adb2c1;font-size:12px;line-height:1.6}
