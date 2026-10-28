@@ -76,7 +76,8 @@ export function collectResourcePoint(dir: string, now = new Date()): ResourcePoi
 export function sampleResourceHistory(dir: string, next: ResourcePoint, now = new Date()) {
   const current = load(dir);
   const updated = appendResourceSample(current.samples, next, now);
-  if (updated.length === current.samples.length) return false;
+  if (updated.length === current.samples.length &&
+    updated.every((point, index) => point.at === current.samples[index]?.at)) return false;
   const temp = file(dir) + '.' + process.pid + '.tmp';
   writeFileSync(temp, JSON.stringify({ version: 1, samples: updated }) + '\n', { mode: 0o600 });
   renameSync(temp, file(dir));
