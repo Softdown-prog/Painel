@@ -1,5 +1,5 @@
 export type Inspect = { Id?: string; Name?: string; Config?: { Labels?: Record<string,string> }; State?: { Running?: boolean; Status?: string } };
-export type Decision = { ok: boolean; reason: string; filterList?: boolean; name?: string; targetId?: string };
+export type Decision = { ok: boolean; reason: string; filterList?: boolean; inventoryList?: boolean; name?: string; targetId?: string };
 import { LEGACY_SOFTLOAD_SERVICES } from './legacy-softload-profile.ts';
 const owner='com.softload.panel.managed', slugLabel='com.softload.panel.slug';
 const services=new Set(Object.values(LEGACY_SOFTLOAD_SERVICES).filter(service=>service.controllable).map(service=>service.container));
@@ -55,6 +55,11 @@ export async function authorize(input:{method:string;url:string;payload?:unknown
  if(!u.pathname.startsWith('/v1.45/'))return denied('Unsupported Docker version');
  const path=u.pathname.slice('/v1.45'.length),q=u.searchParams;
  if(method==='GET'){
+  // Explicit inventory-only request. Executor returns a sanitized projection,
+  // never unfiltered Docker container data or new write permissions.
+  if(path==='/containers/json' && q.get('all')==='1' && q.get('view')==='inventory' &&
+     [...q.keys()].sort().join(',')==='all,view')
+    return {...approved(),inventoryList:true};
   if(path==='/containers/json'&&q.get('all')==='1'&&[...q.keys()].every(k=>['all','filters','size'].includes(k))&&
     (!q.has('size')||q.get('size')==='1')){
    if(q.has('filters')){
