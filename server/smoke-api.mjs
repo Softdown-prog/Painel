@@ -39,6 +39,8 @@ async function main() {
   }
   assert.ok(ready, 'Panel API did not start in clean CI sandbox');
 
+  const inventoryUnauthorized = await call('/containers');
+  assert.equal(inventoryUnauthorized.status, 401, 'Host inventory requires an admin session');
   const protectedResponse = await call('/services');
   assert.equal(protectedResponse.status, 401, 'Service data must require an admin session');
   const badEdge = await new Promise((resolve, reject) => {
@@ -59,6 +61,16 @@ async function main() {
   assert.deepEqual(services.data.services.map(service => service.id), ['app', 'agent', 'caddy']);
   assert.equal(services.data.services.find(service => service.id === 'caddy')?.controllable, false);
   assert.ok(services.data.services.every(service => !service.controllable), 'No missing Docker container can be controlled');
+  const inventory = await call('/containers','GET',undefined,cookie);
+  assert.equal(inventory.status, 200, JSON.stringify(inventory.data));
+  assert.equal(inventory.data.readOnly, true);
+  assert.ok(Array.isArray(inventory.data.containers));
+  assert.ok(inventory.data.containers.some(item => item.name.startsWith('panel-smoke-executor-')));
+  assert.ok(inventory.data.containers.some(item => item.name.startsWith('panel-smoke-api-')));
+  assert.ok(inventory.data.containers.every(item => !('id' in item) &&
+    !('Labels' in item) && !('controllable' in item)));
+  assert.equal((await call('/containers','POST',{},cookie)).status, 404,
+    'Inventory cannot accept write operations');
   const apps = await call('/apps','GET',undefined,cookie);
   assert.equal(apps.status, 200, JSON.stringify(apps.data));
   assert.ok(Array.isArray(apps.data.applications));
