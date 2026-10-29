@@ -12,6 +12,14 @@ O painel foi pensado para criar e administrar sites rapidamente. Use [Guia rápi
 
 **Aviso importante:** neste protótipo o máximo atual é **8 aplicações gerenciadas**. O código já possui publicação guiada de DNS/HTTPS para aplicações do Painel, mas ela só fica disponível depois da configuração explícita e da validação na VPS; o painel nunca mostra um endereço como público sem teste HTTPS. A ampliação para clientes e muitas VPS é uma tarefa planejada, não algo concluído.
 
+## Inventário de todos os containers da VPS
+
+Em **Containers da VPS**, o administrador vê todos os containers existentes no Docker, inclusive serviços criados fora do painel com Docker Compose, como `terrania-origins-multiplayer-1`. A tela **Visão geral** também mostra uma prévia, com quantidade de containers ativos e parados. A informação vem do Docker em tempo real, após o login; não é prova de saúde HTTP, prontidão do serviço ou disponibilidade do site.
+
+A API privada oferece `GET /containers` somente para sessões autenticadas. O executor isola esse inventário: encaminha somente `GET /containers/json?all=1` ao Docker, elimina labels não aprovadas e outros dados internos e devolve apenas nome, imagem, status, projeto Compose e classificação. A lista é limitada a 500 itens, com aviso caso exceda. **Nenhuma ação de controle** foi concedida a containers de outros projetos. Softload V4 e aplicações gerenciadas preservam as políticas de acesso anteriores.
+
+**Publicação:** como essa melhoria altera `server/api.mjs`, `server/executor.mjs` e a interface, a publicação do frontend no Cloudflare Pages **não atualiza sozinha** os containers da API/executor na VPS. Após validação e autorização, a atualização da VPS precisa reconstruir e recriar **somente** `api` e `executor` com os overlays Compose vigentes e teste de regressão. Não reiniciar a Softload, Caddy ou Terrania. Antes da atualização, a tela explicará que o inventário está indisponível.
+
 ## Arquitetura atual
 
 Cloudflare Pages -> Function TypeScript -> Cloudflare Access -> Cloudflare Tunnel -> API privada da VPS -> Docker.

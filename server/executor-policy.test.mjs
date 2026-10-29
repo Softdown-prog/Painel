@@ -114,3 +114,20 @@ test('image cleanup allows only verified GHCR digests unused by ALL containers',
  assert.equal((await authorize({...base,inspectImage:undefined})).ok,false);
  assert.equal((await authorize({...base,imageUsed:undefined})).ok,false);
 });
+
+test('host inventory is explicitly read only and does not allow foreign inspect or mutations', async () => {
+  const inventory = await check('GET', '/v1.45/containers/json?all=1&view=inventory');
+  assert.equal(inventory.ok, true);
+  assert.equal(inventory.inventoryList, true);
+  assert.equal(inventory.filterList, undefined);
+  for (const uri of [
+    '/v1.45/containers/json?all=1&view=inventory&size=1',
+    '/v1.45/containers/json?all=1&view=inventory&filters=%7B%7D',
+    '/v1.45/containers/json?all=0&view=inventory',
+    '/v1.45/containers/json?all=1&view=all',
+  ]) assert.equal((await check('GET', uri)).ok, false, uri);
+  assert.equal((await check('POST', '/v1.45/containers/json?all=1&view=inventory')).ok, false);
+  assert.equal((await check('GET', '/v1.45/containers/other/json')).ok, false);
+  assert.equal((await check('GET', '/v1.45/containers/other/logs?tail=100')).ok, false);
+  assert.equal((await check('POST', '/v1.45/containers/other/restart?t=15')).ok, false);
+});

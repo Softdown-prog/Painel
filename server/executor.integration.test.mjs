@@ -38,6 +38,10 @@ test('Unix executor rejects forbidden Docker calls and forwards authorized mutat
       return reply(200,[
         {Names:['/softload-app-demo'],Labels:labels,ImageID:usedImage},
         {Names:['/another-project'],Labels:{},ImageID:'sha256:'+'b'.repeat(64)},
+        {Names:['/terrania-origins-multiplayer-1'],Labels:{
+          'com.docker.compose.project':'terrania-origins',
+          PRIVATE_TOKEN:'topsecret'},Image:'terrania-multiplayer:latest',
+          State:'running',Status:'Up 40 min',ImageID:'sha256:'+'7'.repeat(64)},
         {Names:['/softload-vps-app-1'],Labels:{},ImageID:'sha256:'+'a'.repeat(64)}
       ]);
     const image=/^\/v1\.45\/images\/([^?]+)(?:\/json|\?force=0&noprune=1)$/.exec(req.url||'');
@@ -73,6 +77,20 @@ test('Unix executor rejects forbidden Docker calls and forwards authorized mutat
     assert.equal(list.status,200);
     assert.equal(list.data.length,2);
     assert.equal(list.data.some(c=>c.Names.includes('/another-project')),false);
+    const inventory=await exchange(executorSocket,'/v1.45/containers/json?all=1&view=inventory');
+    assert.equal(inventory.status,200);
+    const terrania=inventory.data.containers.find(c=>c.name==='terrania-origins-multiplayer-1');
+    assert.equal(terrania.project,'terrania-origins');
+    assert.equal(terrania.ownership,'external');
+    assert.equal(terrania.state,'running');
+    assert.equal(inventory.data.containers.some(c=>c.name==='another-project'),true);
+    assert.doesNotMatch(JSON.stringify(inventory.data),/topsecret|PRIVATE_TOKEN|ImageID/);
+    assert.equal(requests.some(r=>r.path.includes('view=inventory')),false,
+      'Virtual inventory parameter must never reach Docker daemon');
+    assert.equal((await exchange(executorSocket,
+      '/v1.45/containers/terrania-origins-multiplayer-1/json')).status,403);
+    assert.equal((await exchange(executorSocket,
+      '/v1.45/containers/terrania-origins-multiplayer-1/restart?t=15','POST')).status,403);
     const forbidden=await exchange(executorSocket,'/v1.45/containers/prune','POST',{});
     assert.equal(forbidden.status,403);
     const badCreate=await exchange(executorSocket,'/v1.45/containers/create?name=softload-app-demo','POST',{

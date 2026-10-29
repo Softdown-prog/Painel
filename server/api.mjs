@@ -231,6 +231,13 @@ async function handler(req, res) {
     } catch { /* Docker disk accounting is optional */ }
     return send(res, 200, { services: list, memory: memorySnapshot(total, freemem(), meminfo), cpu: { load1: loadavg()[0], cores: cpus().length }, disk, imagesBytes: diskBytes, currentSha: currentSha(), updatedAt: new Date().toISOString(), resourceHistory: readResourceHistory(dataDir) });
   }
+  if (path === '/containers' && req.method === 'GET') {
+    // The isolated executor strips labels and metadata before returning the list.
+    const inventory = await dockerJson('/containers/json?all=1&view=inventory');
+    if (!inventory || !Array.isArray(inventory.containers))
+      return send(res, 502, { error: 'Inventário Docker indisponível.' });
+    return send(res, 200, { ...inventory, updatedAt: new Date().toISOString(), readOnly: true });
+  }
   if (path === '/services' && req.method === 'GET') return send(res, 200, { services: await containers() });
   const logs = /^\/services\/(app|agent|caddy)\/logs$/.exec(path);
   if (logs && req.method === 'GET') {

@@ -22,3 +22,18 @@ test('dashboard does not display made-up values and offers manual refresh', () =
   assert.match(script, /Sem serviços cadastrados no inventário/);
   assert.doesNotMatch(script, /fillServices\(demoServices\)/);
 });
+
+test('inventory displays every Docker container separately from legacy Softload and never creates management controls', () => {
+  const html = file('index.html');
+  const script = file('script.js');
+  assert.match(html, /data-view="containers"/);
+  for (const id of ['overviewHostContainers', 'allHostContainers', 'hostContainersRefresh',
+    'hostContainersNotice', 'overviewHostCount']) {
+    assert.match(html, new RegExp('id="' + id + '"'));
+  }
+  assert.match(script, /api\('\/containers'\)/);
+  assert.match(script, /Somente consulta/);
+  assert.match(script, /function clearHostContainers/);
+  assert.match(script, /if \(view.id === 'containers'/);
+  assert.doesNotMatch(script, /\/containers\/[^'"]*(start|stop|restart|delete)/);
+});
