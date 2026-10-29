@@ -7,6 +7,7 @@ on:
       - .github/workflows/executor-smoke.yml
       - server/executor.mjs
       - server/executor-policy.ts
+      - server/container-inventory.ts
       - server/executor.Dockerfile
       - server/api.mjs
       - server/host-metrics.ts
