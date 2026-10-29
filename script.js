@@ -35,6 +35,7 @@ function showAuth(setup) {
   authenticated = false;
   setupMode = setup;
   markOverviewUnavailable('Entre novamente para consultar indicadores reais da VPS.');
+  clearHostContainers('Faça login para consultar os containers da VPS.');
   document.getElementById('authOverlay').hidden = false;
   document.getElementById('logoutButton').hidden = true;
   document.getElementById('setupLabel').hidden = !setup;
@@ -167,6 +168,83 @@ function fillServices(services) {
   all.replaceChildren(...(services.length ? services.map(service => serviceRow(service, true)) : [empty()]));
 }
 function gb(value) { return (value / 1073741824).toFixed(1).replace('.', ','); }
+// Um inventário do host é apenas consulta: estes itens NÃO herdam controles do Painel.
+let hostContainersLoading = false;
+function hostContainerRow(container) {
+  const row = document.createElement('div');
+  row.className = 'service-row';
+  const symbol = document.createElement('span');
+  symbol.className = 'service-symbol';
+  symbol.textContent = container.ownership === 'softload' ? 'S' :
+    container.ownership === 'managed' ? '⬡' : '▣';
+  const main = document.createElement('span');
+  main.className = 'service-main';
+  const name = document.createElement('strong');
+  name.textContent = container.name || 'Container sem nome';
+  const detail = document.createElement('small');
+  const origin = container.project ? 'Projeto: ' + container.project + ' · ' : '';
+  detail.textContent = origin + (container.image || 'Imagem desconhecida') +
+    ' · ' + (container.ownership === 'external' ? 'Somente consulta' :
+      container.ownership === 'managed' ? 'Aplicação do Painel' : 'Softload V4');
+  main.append(name, detail);
+  const state = document.createElement('span');
+  state.className = 'service-state';
+  const dot = document.createElement('span');
+  dot.className = 'dot';
+  dot.style.background = container.state === 'running' ? '#65d6a4' : '#e4b077';
+  state.append(dot, (container.state === 'running' ? 'Ativo' :
+    container.state === 'exited' ? 'Parado' : container.state || 'Desconhecido') +
+    ' · ' + (container.status || 'Estado não informado'));
+  row.append(symbol, main, state);
+  return row;
+}
+function clearHostContainers(message) {
+  document.getElementById('overviewHostCount').textContent = message;
+  document.getElementById('overviewHostContainers').replaceChildren();
+  document.getElementById('allHostContainers').replaceChildren();
+  document.getElementById('hostContainersTag').textContent = 'SEM DADOS';
+  document.getElementById('hostContainersNotice').textContent = message;
+}
+async function loadHostContainers() {
+  if (!authenticated || hostContainersLoading) return;
+  hostContainersLoading = true;
+  const refresh = document.getElementById('hostContainersRefresh');
+  refresh.disabled = true;
+  try {
+    const data = await api('/containers');
+    if (!authenticated) return;
+    if (!Array.isArray(data.containers) || data.readOnly !== true)
+      throw new Error('Resposta inválida do inventário.');
+    const items = data.containers;
+    const running = items.filter(item => item.state === 'running').length;
+    const message = running + ' em execução de ' + items.length + ' containers encontrados' +
+      (data.truncated ? ' · lista limitada a 500 itens' : '');
+    document.getElementById('overviewHostCount').textContent = message;
+    document.getElementById('hostContainersTag').textContent = running + ' / ' + items.length + ' ATIVOS';
+    document.getElementById('hostContainersNotice').textContent = message +
+      ' · Atualizado às ' + new Date(data.updatedAt).toLocaleTimeString('pt-BR') +
+      ' · Inventário somente leitura.';
+    const empty = () => {
+      const p = document.createElement('p');
+      p.className = 'service-empty';
+      p.textContent = 'O Docker não informou containers nesta VPS.';
+      return p;
+    };
+    document.getElementById('overviewHostContainers').replaceChildren(
+      ...(items.length ? items.slice(0, 5).map(hostContainerRow) : [empty()])
+    );
+    document.getElementById('allHostContainers').replaceChildren(
+      ...(items.length ? items.map(hostContainerRow) : [empty()])
+    );
+  } catch (error) {
+    if (authenticated) clearHostContainers('Não foi possível consultar os containers: ' +
+      (error.message || 'API indisponível') + '. Confira se a API e o executor do Painel estão atualizados.');
+  } finally {
+    hostContainersLoading = false;
+    refresh.disabled = false;
+  }
+}
+document.getElementById('hostContainersRefresh').addEventListener('click', () => void loadHostContainers());
 let lastOverviewTime = null;
 let overviewLoading = false;
 function writeMetric(id, value, extra = '') {
@@ -320,6 +398,7 @@ async function loadOverview() {
         (data.currentSha?.slice(0, 8) || 'não disponível') + '. Confira a ativação em Publicações.', true);
     }
     void window.refreshHostedProjects?.();
+    void loadHostContainers();
   } catch (error) {
     markOverviewUnavailable('Falha ao consultar a VPS: ' + (error.message || 'sem resposta') +
       '. Verifique sua conexão ou tente atualizar.');
@@ -533,6 +612,7 @@ function showView(name) {
   menuButton.setAttribute('aria-expanded', 'false');
   document.title = `${view.dataset.title} — Softload Console`;
   if (view.id === 'overview' && authenticated) void loadOverview();
+  if (view.id === 'containers' && authenticated) void loadHostContainers();
   if (view.id === 'logs') loadLogs();
   if (view.id === 'deploys') loadDeploys();
   if (view.id === 'apps' && authenticated) window.refreshManagedApplications?.();
@@ -573,6 +653,8 @@ document.getElementById('authForm').addEventListener('submit', async event => {
       await Promise.all([loadOverview(), loadDeploys()]);
       if (location.hash === '#logs') loadLogs();
       if (location.hash === '#apps') window.refreshManagedApplications?.();
+    if (location.hash === '#containers') void loadHostContainers();
+      if (location.hash === '#containers') void loadHostContainers();
       if (location.hash.startsWith('#site?')) window.refreshSiteDetail?.();
       if (location.hash === '#projects') window.refreshManagedProjects?.();
       if (location.hash === '#domains') window.refreshManagedDomains?.();
@@ -613,6 +695,7 @@ document.getElementById('passwordForm').addEventListener('submit', async event =
   finally { button.disabled = false; }
 });
 fillServices([]);
+clearHostContainers('Faça login para consultar os containers da VPS.');
 api('/session').then(data => {
   document.getElementById('apiStatus').textContent = '● API conectada';
   if (data.authenticated) {
