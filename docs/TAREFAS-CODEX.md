@@ -18,6 +18,14 @@
 
 **Etapa 4, PR #6 integrado e instalado:** gateway interno de despertar para aplicações gerenciadas com domínio, sem Docker socket direto e com verificação de posse antes de iniciar. Testes focados, CI Linux e smoke isolado de sono/despertar na VPS passaram; API e gateway ficaram saudáveis. Nenhuma rota pública foi alterada porque não há domínio gerenciado cadastrado. Homologação com domínio HTTPS e SSE ainda pendente. Ver [backup, imagens e reversão](MIGRACAO-MULTIPROJETOS.md).
 
+### Inventário de todos os containers da VPS (nova etapa, código sob validação)
+
+**Problema:** o endpoint legado `/services` só mostrava App, Agent e Caddy, e `/apps` só listava serviços com labels do painel. Um container externo, como `terrania-origins-multiplayer-1`, não era exibido embora rodasse no mesmo Docker.
+
+**Implementação:** nova consulta administrativa `GET /containers`, inventário mínimo filtrado pelo executor e aba **Containers da VPS**, com prévia na Visão geral. O painel mostra novos containers automaticamente, sem editar cadastros; os externos continuam **somente leitura**, sem expandir direitos de logs, restart, stop, remove, inspeção detalhada nem acesso ao Docker socket. Testes de política, proxy Unix, projeção de dados e interface cobrem o caso do Terrania.
+
+**Estado:** implementação de código proposta para GitHub; **implantação de API e executor na VPS ainda não confirmada**. O deploy de Cloudflare Pages sozinho não basta. Após CI, validar `/containers` autenticado, o nome real do container multiplayer, containers desligados e a preservação de permissões e recursos na VPS, com rollback isolado de API e executor.
+
 ## Regra principal de experiência
 
 O usuário quer ações simples: **Criar site**, **Conectar GitHub**, **Escolher domínio**, **Publicar**, **Ver se está funcionando**, **Reiniciar**, **Fazer backup** e **Excluir**. Nunca mostrar comandos, identificadores internos ou configurações do Caddy na tela principal. Explicar limitações em português do Brasil, sem fingir que algo está pronto.
