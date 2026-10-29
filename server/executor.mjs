@@ -3,6 +3,7 @@ import net from 'node:net';
 import { chmodSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { authorize, visibleContainers } from './executor-policy.ts';
+import { hostContainerInventory } from './container-inventory.ts';
 
 const socket = process.env.PANEL_EXECUTOR_SOCKET || '/run/panel-executor/docker.sock';
 const dockerSocket = process.env.NODE_ENV === 'test' && process.env.PANEL_TEST_DOCKER_SOCKET
@@ -82,19 +83,19 @@ function proxy(req,res,payload,decision) {
     headers['x-registry-auth']=req.headers['x-registry-auth'];
   }
   // Forward by the immutable Docker ID resolved by the policy, never by a mutable alias.
-  const upstreamPath=decision.targetId
+  const upstreamPath=decision.inventoryList ? '/v1.45/containers/json?all=1' : decision.targetId
     ? (req.url||'').replace(/^\/v1\.45\/containers\/[^/?]+/, '/v1.45/containers/'+encodeURIComponent(decision.targetId))
     : req.url;
   const upstream=http.request({socketPath:dockerSocket,path:upstreamPath,method:req.method,headers,
     timeout:isPull?600000:25000},response=>{
     const responseHeaders={'content-type':response.headers['content-type']||'application/json','cache-control':'no-store'};
-    if(decision.filterList&&response.statusCode===200){
+    if((decision.filterList||decision.inventoryList)&&response.statusCode===200){
       let chunks=[],size=0;
       response.on('data',part=>{size+=part.length;if(size>2000000)response.destroy(new Error('Container list too large'));else chunks.push(part);});
       response.on('end',()=>{try{
         const result=JSON.parse(Buffer.concat(chunks).toString('utf8'));
         if(!Array.isArray(result))throw new Error('Bad list');
-        json(res,200,visibleContainers(result));
+        json(res,200,decision.inventoryList ? hostContainerInventory(result) : visibleContainers(result));
       }catch{if(!res.headersSent)json(res,502,{error:'Docker list malformed'});}});
       response.on('error',()=>{if(!res.headersSent)json(res,502,{error:'Docker list failed'});});
     }else{
