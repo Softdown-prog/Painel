@@ -34,6 +34,7 @@
         <a class="nav-item active" href="#overview" data-view="overview"><span class="nav-icon">▦</span> Visão geral</a>
         <a class="nav-item" href="#apps" data-view="apps"><span class="nav-icon">⬡</span> Sites e apps</a>
         <a class="nav-item" href="#projects" data-view="projects"><span class="nav-icon">⌘</span> Projetos GitHub</a>
+        <a class="nav-item" href="#containers" data-view="containers"><span class="nav-icon">▣</span> Containers da VPS</a>
         <a class="nav-item" href="#services" data-view="services"><span class="nav-icon">◫</span> Softload V4</a>
         <a class="nav-item" href="#terminal" data-view="terminal"><span class="nav-icon">›_</span> Terminal VPS</a>
         <a class="nav-item" href="#revisions" data-view="revisions"><span class="nav-icon">◴</span> Revisões e espaço</a>
@@ -86,7 +87,7 @@
           </section>
           <div class="section-heading"><h2>Infraestrutura</h2><span class="section-subtitle">Medições do servidor · sem valores de demonstração</span></div>
           <div class="stats-grid">
-            <article class="stat-card"><div class="stat-top"><span class="stat-icon purple">◫</span><span class="mini-pill live-label">SEM DADOS</span></div><div class="stat-value" id="serviceCount">—</div><div class="stat-name">Serviços em execução</div><div class="stat-foot" id="serviceFoot">Aguardando resposta da VPS</div></article>
+            <article class="stat-card"><div class="stat-top"><span class="stat-icon purple">◫</span><span class="mini-pill live-label">SEM DADOS</span></div><div class="stat-value" id="serviceCount">—</div><div class="stat-name">Serviços Softload em execução</div><div class="stat-foot" id="serviceFoot">Aguardando resposta da VPS</div></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-icon orange">◴</span><span class="mini-pill live-label">SEM DADOS</span></div><div class="stat-value" id="memoryValue">—</div><div class="stat-name">Memória em uso</div><div class="progress"><span id="memoryBar" style="width:0%"></span></div><small class="metric-help" id="memoryDetail">Considera memória disponível, inclusive cache recuperável, quando informada pelo servidor.</small></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-icon blue">⌁</span><span class="mini-pill live-label">SEM DADOS</span></div><div class="stat-value" id="cpuValue">—</div><div class="stat-name">Carga do processador · 1 min</div><small class="metric-help">Média de tarefas em execução ou espera por CPU, dividida pelos núcleos. Não é porcentagem de uso.</small></article>
             <article class="stat-card"><div class="stat-top"><span class="stat-icon green-bg">▤</span><span class="mini-pill live-label">SEM DADOS</span></div><div class="stat-value" id="diskValue">—</div><div class="stat-name">Armazenamento</div><div class="progress green-progress"><span id="diskBar" style="width:0%"></span></div><small class="metric-help" id="diskDetail">Aguardando dados do sistema de arquivos</small></article>
@@ -102,10 +103,16 @@
             <p class="resource-history-disclaimer">Os gráficos mostram medições reais e deixam lacunas quando a coleta esteve interrompida. Não representam consumo por aplicação, previsão de cobrança ou medições anteriores à instalação.</p>
           </section>
           <div class="two-column">
-            <section class="panel services-panel"><div class="panel-head"><div><h2>Serviços</h2><p>Containers da aplicação</p></div><a class="text-link" href="#services">Ver todos <span>→</span></a></div><div id="overviewServices"></div></section>
+            <section class="panel services-panel"><div class="panel-head"><div><h2>Softload V4</h2><p>Serviços principais da Softload</p></div><a class="text-link" href="#services">Ver todos <span>→</span></a></div><div id="overviewServices"></div></section>
             <section class="panel activity-panel"><div class="panel-head"><div><h2>Atividade recente</h2><p>Publicações do GitHub Actions</p></div><span class="outline-tag" id="activityTag">DEMO</span></div><div class="timeline" id="activityList"><div class="timeline-item"><span class="timeline-symbol neutral">↗</span><div><strong>Aguardando API</strong><p>O histórico aparecerá após o login.</p></div></div></div><div class="activity-footer"><span class="pulse-dot"></span> GitHub Actions é a fonte dos deploys</div></section>
           </div>
 
+          <section class="panel full-panel" aria-labelledby="overviewHostHeading">
+            <div class="panel-head"><div><h2 id="overviewHostHeading">Containers da VPS</h2>
+              <p id="overviewHostCount">Inclui Terrania, Painel, Softload e serviços adicionados fora deste painel.</p></div>
+              <a class="text-link" href="#containers">Ver todos <span>→</span></a></div>
+            <div id="overviewHostContainers" aria-live="polite">Entre para consultar os containers.</div>
+          </section>
           <section class="bottom-callout"><div class="callout-icon">⌘</div><div><strong>Gerencie seus próprios containers</strong><p>Crie, inicie, pare e acompanhe aplicações independentes dos serviços da Softload.</p></div><button class="secondary-button demo-action" data-action="Abrir aplicações">Aplicações <span>↗</span></button></section>
         </section>
 
@@ -118,6 +125,17 @@
           <p class="traffic-meta">Os dados vêm dos contadores do Linux da interface externa. Eles são uma referência técnica e podem divergir da medição faturada pela LocaCloud.</p>
         </section>
 
+        <section class="view" id="containers" data-title="Containers da VPS">
+          <div class="page-heading"><div><div class="eyebrow">DOCKER / INVENTÁRIO DO HOST</div>
+            <h1>Containers da VPS</h1><p>Acompanhe todos os containers, inclusive os criados diretamente com Docker Compose. Serviços externos são apenas para consulta.</p></div>
+            <button type="button" class="primary-button" id="hostContainersRefresh">↻ Atualizar</button></div>
+          <p class="github-notice" id="hostContainersNotice" role="status">Entre no painel para consultar a VPS.</p>
+          <section class="panel full-panel"><div class="panel-head"><div><h2>Inventário completo</h2>
+            <p>Nome, projeto, imagem e situação informados pelo Docker. Não são testes de disponibilidade do site.</p></div>
+            <span class="outline-tag" id="hostContainersTag">SEM DADOS</span></div>
+            <div id="allHostContainers"></div></section>
+          <p class="github-notice">Os containers que não foram criados pelo painel não podem ser iniciados, parados, reiniciados ou removidos nesta tela. Essa proteção inclui o multiplayer do Terrania.</p>
+        </section>
         <section class="view" id="services" data-title="Serviços Softload"><div class="page-heading"><div><div class="eyebrow">CONTAINERS / PRODUÇÃO</div><h1>Serviços</h1><p>Clique em Gerenciar para ver estado, imagem, logs e ações disponíveis.</p></div><button class="primary-button demo-action" data-action="Atualizar serviços">↻ Atualizar</button></div><div class="panel full-panel"><div class="panel-head"><div><h2>Containers</h2><p>Serviços registrados no servidor</p></div><span class="outline-tag" id="servicesTag">EXEMPLO</span></div><div id="allServices"></div></div></section>
         <section class="view" id="service-detail" data-title="Gerenciar container"><div class="page-heading"><div><div class="eyebrow">CONTAINER / ADMINISTRAÇÃO</div><h1 id="serviceDetailName">Container</h1><p id="serviceDetailSummary">Selecione um serviço na lista.</p></div><a class="secondary-button" href="#services">← Voltar aos serviços</a></div><section class="panel full-panel"><div id="serviceDetailActions" class="service-actions"></div><pre id="serviceDetailLogs" class="log-console">Selecione um container.</pre></section></section>
 
