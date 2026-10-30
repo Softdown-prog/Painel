@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { runInNewContext } from 'node:vm';
+import { runPanelUi } from './ui-fixture.mjs';
 const ui = readFileSync(new URL('../site-detail-ui.js',import.meta.url),'utf8');
 
 function makeDom() {
@@ -43,7 +43,7 @@ test('site dashboard reads real API state and labels unverified domain as reserv
   const window={};
   const location={hash:'#site?slug=loja'};
   const confirm=()=>true;
-  runInNewContext(ui,{document,window,location,fetch,confirm,Object,Promise,URLSearchParams,Error,Number});
+  runPanelUi(ui,{document,window,location,fetch,confirm,Object,Promise,URLSearchParams,Error,Number});
   await window.refreshSiteDetail();
   assert.equal(document.getElementById('siteTitle').textContent,'Aplicação: loja');
   assert.equal(document.getElementById('siteRepo').textContent,'Softdown-prog/Shop');
@@ -57,7 +57,7 @@ test('site dashboard reads real API state and labels unverified domain as reserv
 test('site dashboard refuses invalid application slugs without API requests',async()=>{
   const document=makeDom(),window={},requests=[];
   const fetch=async url=>{requests.push(url);throw Error('Must not call API');};
-  runInNewContext(ui,{document,window,fetch,location:{hash:'#site?slug=..%2Fetc'},confirm:()=>true,
+  runPanelUi(ui,{document,window,fetch,location:{hash:'#site?slug=..%2Fetc'},confirm:()=>true,
     Object,Promise,URLSearchParams,Error,Number});
   await window.refreshSiteDetail();
   assert.equal(requests.length,0);

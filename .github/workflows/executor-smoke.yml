@@ -22,6 +22,7 @@ on:
       - server/compose.revisions.yaml
       - server/compose.yaml
       - server/smoke-api.mjs
+      - server/check-api-connection.mjs
   pull_request:
     paths:
       - .github/workflows/executor-smoke.yml
@@ -34,6 +35,7 @@ on:
       - server/executor-policy.ts
       - server/container-inventory.ts
       - server/smoke-api.mjs
+      - server/check-api-connection.mjs
       - server/deploy-verification.mjs
       - server/deploy-public-health.mjs
       - server/compose.revisions.yaml
@@ -106,4 +108,5 @@ jobs:
           docker inspect "$api" -f '{{json .Mounts}}' | \
             python3 -c 'import json,sys; m=json.load(sys.stdin); assert all(v.get("Destination") != "/var/run/docker.sock" for v in m)'
           docker exec "$api" node /run/panel-smoke.mjs
+          docker exec "$api" node /app/check-api-connection.mjs --check-panel-connection
           echo 'PASS: real Docker daemon reached only through the executor in isolated CI'

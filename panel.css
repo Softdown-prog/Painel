@@ -37,3 +37,5 @@
 .resource-chart.ram{color:#bca4f8}.resource-chart.disk{color:#76d7b4}
 .resource-history-disclaimer{margin:0;padding:0 23px 19px;color:#929baa;font-size:10px;line-height:1.6}
 @media(max-width:750px){.resource-history-grid{grid-template-columns:1fr;padding:0 15px 15px}.resource-history-meta{padding:0 15px}.resource-history-disclaimer{padding:0 15px 16px}}
+
+#authRetryConnection{width:100%;margin-top:12px;min-height:44px}

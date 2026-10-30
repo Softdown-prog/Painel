@@ -9,16 +9,13 @@ let setupMode = false;
 let toastTimer;
 
 async function api(path, options = {}) {
-  const response = await fetch(`/api${path}`, { credentials: 'same-origin', cache: 'no-store', ...options });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    if (response.status === 401 && path !== '/login') showAuth(false);
-    const error = new Error(data.error || `HTTP ${response.status}`);
-    error.status = response.status;
+  try { return await window.panelApi.request(path, options); }
+  catch (error) {
+    if (error.status === 401 && path !== '/login') showAuth(false);
     throw error;
   }
-  return data;
 }
+
 function toast(message) {
   const el = document.getElementById('toast');
   el.textContent = message;
@@ -28,6 +25,7 @@ function toast(message) {
 }
 function setBanner(message, live = false) {
   const banner = document.getElementById('demoBanner');
+  if (!banner) return;
   banner.classList.toggle('live', live);
   document.getElementById('bannerText').textContent = message;
 }
@@ -653,7 +651,6 @@ document.getElementById('authForm').addEventListener('submit', async event => {
       await Promise.all([loadOverview(), loadDeploys()]);
       if (location.hash === '#logs') loadLogs();
       if (location.hash === '#apps') window.refreshManagedApplications?.();
-    if (location.hash === '#containers') void loadHostContainers();
       if (location.hash === '#containers') void loadHostContainers();
       if (location.hash.startsWith('#site?')) window.refreshSiteDetail?.();
       if (location.hash === '#projects') window.refreshManagedProjects?.();
@@ -696,23 +693,49 @@ document.getElementById('passwordForm').addEventListener('submit', async event =
 });
 fillServices([]);
 clearHostContainers('Faça login para consultar os containers da VPS.');
-api('/session').then(data => {
-  document.getElementById('apiStatus').textContent = '● API conectada';
-  if (data.authenticated) {
-    authenticated = true;
-    document.getElementById('logoutButton').hidden = false;
-    Promise.all([loadOverview(), loadDeploys()]);
-    if (location.hash === '#apps') window.refreshManagedApplications?.();
-    if (location.hash.startsWith('#site?')) window.refreshSiteDetail?.();
-    if (location.hash === '#projects') window.refreshManagedProjects?.();
-    if (location.hash === '#domains') window.refreshManagedDomains?.();
-    if (location.hash === '#terminal') window.refreshTerminalConnection?.();
-    if (location.hash === '#secrets') window.refreshPanelSecrets?.();
-    if (location.hash === '#traffic') window.refreshTraffic?.();
-  } else showAuth(data.setupRequired);
-}).catch(() => {
-  markOverviewUnavailable('A API do painel não respondeu. Tente novamente após confirmar a conexão.');
-  document.getElementById('apiStatus').textContent = '○ API indisponível';
-  document.querySelector('.connection-card strong').textContent = 'Sem conexão';
-  document.querySelector('.connection-card small').textContent = 'API indisponível';
-});
+let connectionCheck = null;
+function checkPanelConnection() {
+  if (connectionCheck) return connectionCheck;
+  const buttons = ['apiRetryButton', 'authRetryConnection'].map(id => document.getElementById(id)).filter(Boolean);
+  buttons.forEach(button => { button.disabled = true; });
+  document.getElementById('apiStatus').textContent = '○ Verificando conexão';
+  document.getElementById('apiConnectionMessage').textContent = 'Consultando a API da VPS...';
+  connectionCheck = (async () => {
+    try {
+      const data = await api('/session');
+      if (typeof data.authenticated !== 'boolean' || typeof data.setupRequired !== 'boolean')
+        throw new Error('A resposta recebida não confirmou a API do painel. Confira o encaminhamento para a VPS.');
+      document.getElementById('apiStatus').textContent = '● API conectada';
+      document.getElementById('apiConnectionMessage').textContent = 'Conexão confirmada com a API. Isso não confirma a saúde dos sites hospedados.';
+      document.querySelector('.connection-card strong').textContent = 'API acessível';
+      document.querySelector('.connection-card small').textContent = 'Conexão confirmada';
+      if (data.authenticated) {
+        authenticated = true;
+        document.getElementById('authOverlay').hidden = true;
+        document.getElementById('logoutButton').hidden = false;
+        await Promise.all([loadOverview(), loadDeploys()]);
+        if (location.hash === '#apps') window.refreshManagedApplications?.();
+        if (location.hash === '#containers') void loadHostContainers();
+        if (location.hash.startsWith('#site?')) window.refreshSiteDetail?.();
+        if (location.hash === '#projects') window.refreshManagedProjects?.();
+        if (location.hash === '#domains') window.refreshManagedDomains?.();
+        if (location.hash === '#terminal') window.refreshTerminalConnection?.();
+        if (location.hash === '#secrets') window.refreshPanelSecrets?.();
+        if (location.hash === '#traffic') window.refreshTraffic?.();
+        if (location.hash === '#revisions') window.refreshManagedRevisions?.();
+      } else showAuth(data.setupRequired);
+    } catch (error) {
+      markOverviewUnavailable('A API do painel não respondeu. Tente novamente após confirmar a conexão.');
+      document.getElementById('apiStatus').textContent = '○ API indisponível';
+      document.getElementById('apiConnectionMessage').textContent = error.message;
+      document.getElementById('authError').textContent = error.message;
+      document.querySelector('.connection-card strong').textContent = 'Sem conexão';
+      document.querySelector('.connection-card small').textContent = 'API indisponível';
+      setBanner(error.message);
+    } finally { buttons.forEach(button => { button.disabled = false; }); }
+  })().finally(() => { connectionCheck = null; });
+  return connectionCheck;
+}
+for (const id of ['apiRetryButton', 'authRetryConnection'])
+  document.getElementById(id).addEventListener('click', () => void checkPanelConnection());
+void checkPanelConnection();

@@ -12,6 +12,10 @@ O painel foi pensado para criar e administrar sites rapidamente. Use [Guia rápi
 
 **Aviso importante:** neste protótipo o máximo atual é **8 aplicações gerenciadas**. O código já possui publicação guiada de DNS/HTTPS para aplicações do Painel, mas ela só fica disponível depois da configuração explícita e da validação na VPS; o painel nunca mostra um endereço como público sem teste HTTPS. A ampliação para clientes e muitas VPS é uma tarefa planejada, não algo concluído.
 
+## Quando o painel não conecta à VPS
+
+Abra **Configurações → API da VPS → Testar conexão**, ou use o mesmo botão no login. O painel diferencia sessão expirada de falhas na conexão e não repete comandos automaticamente. Para HTTP 502, autorização privada ou resposta inesperada, consulte [Diagnóstico da conexão](docs/CONEXAO-API.md). O procedimento no console da VPS é somente leitura e não mostra credenciais. Publicar no Pages não atualiza os containers na VPS.
+
 ## Inventário de todos os containers da VPS
 
 Em **Containers da VPS**, o administrador vê todos os containers existentes no Docker, inclusive serviços criados fora do painel com Docker Compose, como `terrania-origins-multiplayer-1`. A tela **Visão geral** também mostra uma prévia, com quantidade de containers ativos e parados. A informação vem do Docker em tempo real, após o login; não é prova de saúde HTTP, prontidão do serviço ou disponibilidade do site.

@@ -18,10 +18,7 @@
     antiga:'Antiga · pode limpar',ausente:'Não encontrada na VPS'
   };
   async function call(path:string,options:RequestInit={}):Promise<any>{
-    const response=await fetch('/api'+path,{credentials:'same-origin',cache:'no-store',...options});
-    const value=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(value.error||'Erro '+response.status);
-    return value;
+    return window.panelApi.request(path, options);
   }
   function info(text:string):void{get('revisionsNotice').textContent=text;}
   function cell(tag:string,value:string):HTMLElement{

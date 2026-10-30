@@ -78,20 +78,14 @@
         connection.textContent = message;
     }
     async function api(path, options = {}) {
-        const response = await fetch('/api' + path, { ...options, cache: 'no-store', credentials: 'same-origin' });
-        let result;
         try {
-            result = await response.json();
+            return await window.panelApi.request(path, options);
         }
-        catch {
-            throw new Error('A VPS respondeu em formato inesperado.');
-        }
-        if (!response.ok) {
-            if (response.status === 401)
+        catch (error) {
+            if (error instanceof Error && 'status' in error && error.status === 401)
                 setConnection(false, 'Entre novamente no painel');
-            throw new Error(result.error || 'Erro HTTP ' + response.status);
+            throw error;
         }
-        return result;
     }
     const fmt = (bytes) => Number.isFinite(bytes) ? (bytes / 1073741824).toFixed(1) + ' GB' : 'indisponível';
     const symbol = (state) => state === 'running' ? '● ativo' : state === 'exited' ? '○ parado' : '◌ ' + (state || 'desconhecido');

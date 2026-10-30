@@ -4,10 +4,7 @@
         if (!host)
             return;
         try {
-            const response = await fetch('/api/hosted-projects', { credentials: 'same-origin', cache: 'no-store' });
-            if (!response.ok)
-                throw new Error('Não foi possível consultar os projetos.');
-            const data = await response.json();
+            const data = await window.panelApi.request("/hosted-projects");
             host.replaceChildren();
             if (!data.projects.length) {
                 host.textContent = 'Nenhum projeto cadastrado nesta VPS.';

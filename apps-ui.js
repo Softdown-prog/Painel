@@ -9,11 +9,7 @@
     function input(id) { return element(id); }
     function info(message) { element('appsNotice').textContent = message; }
     async function request(path, options = {}) {
-        const response = await fetch('/api' + path, { credentials: 'same-origin', cache: 'no-store', ...options });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok)
-            throw new Error(data.error || 'Falha HTTP ' + response.status);
-        return data;
+        return window.panelApi.request(path, options);
     }
     async function action(app, operation) {
         if (operation === 'logs') {

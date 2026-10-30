@@ -8,11 +8,7 @@ function ge(id) {
 }
 function gn(message) { ge('githubNotice').textContent = message; }
 async function ga(path, options = {}) {
-    const response = await fetch('/api' + path, { credentials: 'same-origin', cache: 'no-store', ...options });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok)
-        throw new Error(data.error || 'GitHub HTTP ' + response.status);
-    return data;
+    return window.panelApi.request(path, options);
 }
 function selected() {
     return githubRepos.find(item => item.fullName === ge('githubRepoSelect').value);

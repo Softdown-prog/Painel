@@ -6,9 +6,7 @@
     const host = document.getElementById('hostedProjects');
     if (!host) return;
     try {
-      const response = await fetch('/api/hosted-projects', { credentials: 'same-origin', cache: 'no-store' });
-      if (!response.ok) throw new Error('Não foi possível consultar os projetos.');
-      const data = await response.json() as { projects: Project[] };
+      const data = await window.panelApi.request<{ projects: Project[] }>("/hosted-projects");
       host.replaceChildren();
       if (!data.projects.length) { host.textContent = 'Nenhum projeto cadastrado nesta VPS.'; return; }
       for (const project of data.projects) {

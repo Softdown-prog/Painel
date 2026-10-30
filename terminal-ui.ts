@@ -76,14 +76,11 @@
     connection.textContent = message;
   }
   async function api(path: string, options: RequestInit = {}): Promise<any> {
-    const response = await fetch('/api' + path, { ...options, cache: 'no-store', credentials: 'same-origin' });
-    let result: any;
-    try { result = await response.json(); } catch { throw new Error('A VPS respondeu em formato inesperado.'); }
-    if (!response.ok) {
-      if (response.status === 401) setConnection(false, 'Entre novamente no painel');
-      throw new Error(result.error || 'Erro HTTP ' + response.status);
+    try { return await window.panelApi.request(path, options); }
+    catch (error) {
+      if (error instanceof Error && 'status' in error && error.status === 401) setConnection(false, 'Entre novamente no painel');
+      throw error;
     }
-    return result;
   }
   const fmt = (bytes: number) => Number.isFinite(bytes) ? (bytes / 1073741824).toFixed(1) + ' GB' : 'indisponível';
   const symbol = (state: string) => state === 'running' ? '● ativo' : state === 'exited' ? '○ parado' : '◌ ' + (state || 'desconhecido');
