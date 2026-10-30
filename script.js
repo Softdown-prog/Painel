@@ -647,6 +647,7 @@ function showView(name) {
   if (view.id === 'terminal') window.refreshTerminalConnection?.();
   if (view.id === 'revisions' && authenticated) window.refreshManagedRevisions?.();
   if (view.id === 'secrets' && authenticated) window.refreshPanelSecrets?.();
+  if (view.id === 'database' && authenticated) window.refreshDatabasePanel?.();
   if (view.id === 'traffic' && authenticated) window.refreshTraffic?.();
 }
 window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
@@ -749,6 +750,7 @@ function checkPanelConnection() {
         if (location.hash.startsWith('#site?')) window.refreshSiteDetail?.();
         if (location.hash === '#projects') window.refreshManagedProjects?.();
         if (location.hash === '#domains') window.refreshManagedDomains?.();
+       if (location.hash === '#database') window.refreshDatabasePanel?.();
         if (location.hash === '#terminal') window.refreshTerminalConnection?.();
         if (location.hash === '#secrets') window.refreshPanelSecrets?.();
         if (location.hash === '#traffic') window.refreshTraffic?.();

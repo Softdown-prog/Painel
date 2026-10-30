@@ -42,12 +42,22 @@ test('generic API boots, authenticates and preserves projects without Softload f
   try {
     assert.deepEqual((await api.call('/session')).data, {authenticated: false, setupRequired: true, legacySoftload: false});
     assert.equal((await api.call('/publications')).status, 401);
+    assert.equal((await api.call('/database/status')).status, 401, 'O status administrativo exige sessão');
     const setupToken = readFileSync(join(dir, 'setup-token'), 'utf8').trim();
     assert.equal((await api.call('/setup', 'POST', {setupToken, password})).status, 201);
     const login = await api.call('/login', 'POST', {username: 'admin', password});
     assert.equal(login.status, 200);assert.equal(login.data.legacySoftload, false);
     const cookie = login.headers.get('set-cookie').split(';')[0];
     assert.deepEqual((await api.call('/services', 'GET', undefined, cookie)).data.services, []);
+    const database = await api.call('/database/status', 'GET', undefined, cookie);
+    assert.equal(database.status, 200);
+    assert.equal(database.data.integration, 'not_configured');
+    assert.equal(database.data.enabled, false);
+    assert.equal(database.data.instance, null);
+    assert.equal(database.data.databases, null);
+    assert.equal((await api.call('/database/status','POST',{},cookie)).status, 405);
+    assert.equal((await api.call('/database/create','POST',{name:'unsafe'},cookie)).status, 503);
+    assert.equal((await api.call('/database/query','GET',undefined,cookie)).status, 503);
     assert.deepEqual((await api.call('/repositories', 'GET', undefined, cookie)).data.repositories, []);
     assert.equal((await api.call('/services/app/restart', 'POST', {}, cookie)).status, 404);
     const overview = await api.call('/overview', 'GET', undefined, cookie);

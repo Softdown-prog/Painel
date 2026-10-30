@@ -1,0 +1,49 @@
+/* Banco de dados: preparado para várias aplicações, sem estado simulado. */
+.database-heading {margin-bottom:24px}
+.database-heading .secondary-button {margin-left:auto}
+.database-intro {display:flex;gap:15px;align-items:flex-start;background:#242533;border:1px solid #594b65;border-radius:12px;padding:20px 23px;margin-bottom:20px}
+.database-state-icon {font-size:27px;color:#dbc4a2;line-height:1}
+.database-intro strong {display:block;font-size:15px;color:#eee1c6;margin-bottom:6px}
+.database-intro p {font-size:12px;line-height:1.65;color:#bcb9c6;margin:0 0 7px}
+.database-intro small {color:#9194a7;font-size:10px}
+.database-intro[data-state="unknown"] {border-color:#6e4c4e;background:#2d242a}
+.database-metrics {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin-bottom:26px}
+.database-metric {padding:19px 18px;min-height:120px}
+.database-metric small,.database-metric span {display:block;font-size:11px;color:#9da3b1}
+.database-metric strong {display:block;margin:10px 0 5px;color:#e6e1ee;font:700 22px 'Space Grotesk',sans-serif}
+.database-metric span {font-size:10px;line-height:1.4}
+.database-tabs {display:flex;gap:7px;flex-wrap:wrap;margin-bottom:17px;border-bottom:1px solid #343744;padding-bottom:10px}
+.database-tabs button {border:1px solid transparent;background:transparent;color:#abb1c1;font:600 11px/1.4 inherit;padding:10px 12px;border-radius:8px;cursor:pointer}
+.database-tabs button:hover {background:#292d3b;color:#eee}
+.database-tabs button[aria-selected="true"] {background:#332a46;border-color:#695386;color:#d7c4fc}
+.database-tabs button:focus-visible {outline:2px solid #b49af6;outline-offset:2px}
+.database-tab-panel[hidden] {display:none}
+.database-two-column {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.database-block {padding:22px;min-width:0}
+.database-block h2 {font-size:16px;margin-bottom:9px}
+.database-block > p,.database-panel-heading p {font-size:12px;line-height:1.65;color:#a9afbe}
+.database-detail-row {display:flex;gap:12px;justify-content:space-between;align-items:baseline;border-top:1px solid #343746;padding:13px 0;font-size:12px}
+.database-detail-row span {color:#9da3b0}
+.database-detail-row strong {font-size:11px;color:#e2deeb;text-align:right;overflow-wrap:anywhere}
+.database-steps {padding-left:20px;color:#b4b9c9;font-size:12px;line-height:1.8}
+.database-steps li {margin:7px 0}
+.database-note,.database-footnote {font-size:11px!important;color:#99a2b4!important;line-height:1.6;margin-top:17px!important}
+.database-footnote {margin-bottom:0;padding-top:15px}
+.database-panel-heading {display:flex;gap:20px;align-items:flex-start;justify-content:space-between;margin-bottom:18px}
+.database-panel-heading h2 {margin:0 0 6px}
+.database-panel-heading p {margin:0}
+.database-panel-heading button:disabled,.database-actions button:disabled,.database-fields button:disabled {cursor:not-allowed;opacity:.48;box-shadow:none}
+.database-table-wrap {width:100%;overflow-x:auto}
+.database-table {width:100%;border-collapse:collapse;font-size:11px;text-align:left}
+.database-table th {color:#9a9eae;font-weight:700;white-space:nowrap;background:#191c26}
+.database-table th,.database-table td {padding:15px 13px;border-bottom:1px solid #343746}
+.database-empty {padding:22px!important;text-align:center;color:#adb5c6;font-size:12px;line-height:1.6;background:#191d28;border:1px dashed #3c4455;border-radius:8px}
+.database-fields {display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.database-fields label {display:grid;gap:7px;flex:1 1 180px;color:#afb5c5;font-size:11px}
+.database-fields select {width:100%;min-height:38px}
+.database-data-empty {margin-top:6px}
+.database-actions {display:flex;gap:12px;flex-wrap:wrap;margin-top:16px}
+.database-actions .secondary-button {margin:0}
+.database-settings-shortcut {margin:18px 0;min-height:auto}
+@media(max-width:1050px){.database-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.database-heading{align-items:flex-start;flex-direction:column}.database-heading .secondary-button{margin-left:0}.database-metrics,.database-two-column{grid-template-columns:1fr}.database-tabs{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-inline:contain}.database-tabs button{white-space:nowrap;flex-shrink:0}.database-block{padding:16px}.database-panel-heading{flex-direction:column;gap:10px}.database-panel-heading button{margin:0}.database-detail-row{flex-wrap:wrap}.database-intro{padding:16px}}

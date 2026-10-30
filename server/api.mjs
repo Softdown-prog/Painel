@@ -10,6 +10,7 @@ import { executeSshCommand, handleSshTerminalRoute } from './terminal-ssh.ts';
 import { handleRevisionRoute, startRevisionMonitor } from './revision-maintenance.ts';
 import { handlePublicationRoute, readPublicationHistory, startPublicationWorker } from './publications.ts';
 import { handleSecretsRoute } from './secrets.ts';
+import { handleDatabaseRoute } from './database.ts';
 import { externalCounters, handleTrafficRoute, startTrafficMonitor } from './traffic.ts';
 import { observeDeployRuns, startDeployTrafficMonitor } from './deploy-traffic.ts';
 import { inspectDeployedServices, runDeploymentStatus } from './deploy-verification.mjs';
@@ -179,6 +180,7 @@ async function handler(req, res) {
       return valid;
     }
   })) return;
+  if (await handleDatabaseRoute(req, res, { send })) return;
   if (await handleRevisionRoute(req, res, { send, body, dataDir })) return;
   if (await handleTrafficRoute(req, res, { send, body, dataDir })) return;
   if (await handleGitHubRoute(req, res, { send, body, dataDir })) return;

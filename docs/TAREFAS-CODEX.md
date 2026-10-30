@@ -6,6 +6,11 @@
 
 **Limite atual de capacidade:** são permitidas até **8 aplicações gerenciadas** por instalação. Esse teto é uma proteção temporária do protótipo, não o desenho final de hospedagem de clientes. Aumentar o limite exige controle por servidor, cotas, separação de clientes e observabilidade (tarefa C07).
 
+### Banco de Dados (interface preparada; implantação proibida nesta etapa)
+**Código proposto em branch/PR dedicado:** seção Sistema → Banco de Dados, com abas de visão geral, projetos, acessos, tabelas/consulta, recuperação e monitoramento; indicadores indisponíveis quando não consultados, botões mutáveis desligados, status autenticado `GET /database/status`, negação explícita das demais rotas e testes. Documentação de implantação futura: [BANCO-DE-DADOS.md](BANCO-DE-DADOS.md).
+
+**PostgreSQL instalado:** não. **pgAdmin/Adminer instalado:** não. **VPS, containers, DNS, Caddy, volumes, rede e credenciais alterados:** não. **Banco e contas reais:** nenhum cadastrado por esta mudança. **CI, Pages e VPS:** pendentes de verificação da revisão proposta. Não chamar o módulo de operacional até o adaptador e a instalação serem autorizados e testados.
+
 ### Recuperação real da API e instalação do painel genérico
 
 **Código implementado:** PR #18, revisão `5fdcc96a167b17ccf3c422d51ec9e522b0de66bb`,
