@@ -33,7 +33,7 @@ services:
     cap_drop:
       - ALL
     healthcheck:
-      test: ["CMD", "node", "-e", "require('net').connect(8080,'127.0.0.1').on('connect',function(){this.end();process.exit(0)}).on('error',()=>process.exit(1))"]
+      test: ["CMD", "node", "check-api-connection.mjs", "--check-panel-connection"]
       interval: 30s
       timeout: 5s
       retries: 3

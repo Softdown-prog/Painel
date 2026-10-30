@@ -21,10 +21,7 @@
     return /^(?=.{2,40}$)[a-z0-9]+(?:-[a-z0-9]+)*$/.test(requested) ? requested : null;
   };
   async function call(path: string, options: RequestInit = {}): Promise<any> {
-    const response = await fetch('/api' + path, { credentials: 'same-origin', cache: 'no-store', ...options });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || 'Erro HTTP ' + response.status);
-    return data;
+    return window.panelApi.request(path, options);
   }
   function choices(id: string, values: number[], selectedValue: number, formatter: (n: number) => string): void {
     const select = asSelect(id);

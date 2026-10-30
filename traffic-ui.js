@@ -1,8 +1,9 @@
 (() => {
     const get = (id) => document.getElementById(id);
     const fmt = (value) => value >= 1024 ** 4 ? (value / 1024 ** 4).toFixed(2) + ' TB' : value >= 1024 ** 3 ? (value / 1024 ** 3).toFixed(2) + ' GB' : value >= 1024 ** 2 ? (value / 1024 ** 2).toFixed(1) + ' MB' : value + ' B';
-    async function call(path, options = {}) { const response = await fetch('/api' + path, { credentials: 'same-origin', cache: 'no-store', ...options }); const data = await response.json().catch(() => ({})); if (!response.ok)
-        throw new Error(data.error || 'Falha na VPS.'); return data; }
+    async function call(path, options = {}) {
+        return window.panelApi.request(path, options);
+    }
     function draw(items) { const chart = get('trafficChart'); chart.replaceChildren(); const max = Math.max(1, ...(items || []).map(x => x.rx + x.tx)); for (const item of items || []) {
         const bar = document.createElement('div');
         bar.className = 'traffic-day';

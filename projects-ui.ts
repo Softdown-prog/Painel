@@ -16,10 +16,7 @@
   const field = (id: string): HTMLInputElement => get(id) as HTMLInputElement;
   const notice = (message: string): void => { get('projectsNotice').textContent = message; };
   async function call(path: string, options: RequestInit = {}): Promise<any> {
-    const response = await fetch('/api' + path, { credentials: 'same-origin', cache: 'no-store', ...options });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || 'HTTP ' + response.status);
-    return data;
+    return window.panelApi.request(path, options);
   }
   function button(label: string, callback: () => Promise<void>, disabled = false): HTMLButtonElement {
     const item = document.createElement('button');

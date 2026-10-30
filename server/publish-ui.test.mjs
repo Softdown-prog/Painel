@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { runInNewContext } from 'node:vm';
+import { runPanelUi } from './ui-fixture.mjs';
 const script = readFileSync(new URL('../projects-ui.js',import.meta.url),'utf8');
 const revision='a'.repeat(40);
 function harness(unhealthy=false){
@@ -61,7 +61,7 @@ function harness(unhealthy=false){
     return {ok:!!data,status:data?200:404,json:async()=>data||{error:'not found'}};
   }
   const window={};
-  runInNewContext(script,{
+  runPanelUi(script,{
     document,window,fetch,confirm:(question)=>{confirmations.push(question);return true;},
     setTimeout:(cb)=>{Promise.resolve().then(cb);return 1;},
     clearTimeout:()=>{},

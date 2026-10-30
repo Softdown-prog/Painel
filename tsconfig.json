@@ -27,6 +27,10 @@
     "revisions-ui.ts",
     "site-detail-ui.ts",
     "secrets-ui.ts",
-    "resource-history-ui.ts"
+    "resource-history-ui.ts",
+    "api-client.ts",
+    "panel-api.d.ts",
+    "hosted-projects-ui.ts",
+    "traffic-ui.ts"
   ]
 }

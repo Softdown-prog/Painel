@@ -16,11 +16,7 @@
     }
     const notice = (message) => { get('domainsNotice').textContent = message; };
     async function call(path, options = {}) {
-        const response = await fetch('/api' + path, { credentials: 'same-origin', cache: 'no-store', ...options });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok)
-            throw new Error(data.error || 'Falha HTTP ' + response.status);
-        return data;
+        return window.panelApi.request(path, options);
     }
     async function refreshManagedDomains() {
         const list = get('managedDomains');

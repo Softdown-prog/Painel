@@ -10,10 +10,7 @@
   function input(id: string): HTMLInputElement { return element(id) as HTMLInputElement; }
   function info(message: string): void { element('appsNotice').textContent = message; }
   async function request(path: string, options: RequestInit = {}): Promise<any> {
-    const response = await fetch('/api' + path, { credentials: 'same-origin', cache: 'no-store', ...options });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || 'Falha HTTP ' + response.status);
-    return data;
+    return window.panelApi.request(path, options);
   }
   async function action(app: ManagedApp, operation: 'start' | 'stop' | 'restart' | 'remove' | 'logs'): Promise<void> {
     if (operation === 'logs') {

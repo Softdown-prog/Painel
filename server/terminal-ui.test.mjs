@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { runInNewContext } from 'node:vm';
+import { runPanelUi } from './ui-fixture.mjs';
 const source = readFileSync(new URL('../terminal-ui.js', import.meta.url), 'utf8');
 
 function mount(responses = {}) {
@@ -40,7 +40,7 @@ function mount(responses = {}) {
   };
   const window={ addEventListener(){} };
   const navigator={clipboard:{writeText:async text=>{copied.push(text);}}};
-  runInNewContext(source,{document,window,navigator,fetch:api,location:{hash:'#overview'},confirm:message=>{confirms.push(message);return true;}, prompt:()=>{throw new Error('Unexpected password prompt');}, console,Number,String,Boolean,Array,Object,Date,Reflect,Math,RegExp,Error,encodeURIComponent});
+  runPanelUi(source,{document,window,navigator,fetch:api,location:{hash:'#overview'},confirm:message=>{confirms.push(message);return true;}, prompt:()=>{throw new Error('Unexpected password prompt');}, console,Number,String,Boolean,Array,Object,Date,Reflect,Math,RegExp,Error,encodeURIComponent});
   async function command(text) {
     const form=element('terminalForm');
     element('terminalInput').value=text;

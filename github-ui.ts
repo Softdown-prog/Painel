@@ -9,11 +9,8 @@ function ge(id: string): HTMLInputElement {
 }
 function gn(message: string): void { ge('githubNotice').textContent = message; }
 async function ga(path: string, options: RequestInit = {}): Promise<any> {
-  const response = await fetch('/api' + path, { credentials: 'same-origin', cache: 'no-store', ...options });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || 'GitHub HTTP ' + response.status);
-  return data;
-}
+    return window.panelApi.request(path, options);
+  }
 function selected(): Repo | undefined {
   return githubRepos.find(item => item.fullName === ge('githubRepoSelect').value);
 }

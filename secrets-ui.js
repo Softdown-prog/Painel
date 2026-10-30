@@ -9,11 +9,7 @@
         return node;
     };
     async function request(path, options = {}) {
-        const result = await fetch('/api' + path, { credentials: 'same-origin', cache: 'no-store', ...options });
-        const data = await result.json().catch(() => ({}));
-        if (!result.ok)
-            throw new Error(data.error || 'Falha na VPS (' + result.status + ').');
-        return data;
+        return window.panelApi.request(path, options);
     }
     const date = (value) => value ? new Date(value).toLocaleString('pt-BR') : '—';
     async function refreshPanelSecrets() {
