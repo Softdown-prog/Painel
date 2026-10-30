@@ -14,7 +14,7 @@
 
 **Validação local:** TypeScript, build, sintaxe JS/shell e diff aprovados. Suíte completa: **136 testes, 135 aprovados, uma falha, zero ignorados**. A falha é a mesma da linha de base: `listen EPERM` no teste do socket Unix do executor neste ambiente; o teste permanece ativo no CI Linux. Os **30 testes novos** passaram. Chromium isolado, com a página real e a Function ligada a uma API simulada: seis cenários em desktop 1440×1000 e os mesmos seis em mobile/touch 390×844, zero erros de JavaScript, uma única escrita mesmo após falha e recuperação manual confirmada.
 
-**CI:** aguardando os workflows do PR. **Frontend publicado:** não, a branch ainda precisa de integração na `main` e deploy Pages. **VPS validada:** não; falta executar o diagnóstico no console autorizado da VPS e resolver a causa indicada antes de confirmar conexão e login em produção. O CI não substitui essa verificação.
+**CI aprovado no [PR #17](https://github.com/Softdown-prog/Painel/pull/17), revisão `0d63ca6`:** [Console CI](https://github.com/Softdown-prog/Painel/actions/runs/41031454389) com **136 testes aprovados, zero falhas e zero ignorados**, incluindo o socket Unix, TypeScript, build/sintaxe e os cinco conjuntos de overlays Compose; [Docker executor integration smoke](https://github.com/Softdown-prog/Painel/actions/runs/41031454434) com API/executor reais isolados e o novo verificador HTTP aprovados. **Frontend publicado:** não, a branch ainda precisa de integração na `main` e deploy Pages. **VPS validada:** não; falta executar o diagnóstico no console autorizado da VPS e resolver a causa indicada antes de confirmar conexão e login em produção. O CI não substitui essa verificação.
 
 ### P0 · Migração multiprojetos iniciada (27/10/2026)
 
