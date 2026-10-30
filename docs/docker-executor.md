@@ -10,9 +10,12 @@ O socket Docker original é montado **somente** no serviço `executor` do `serve
 
 O executor usa `server/executor.mjs`, que carrega a política TypeScript `server/executor-policy.ts`. O processo registra no stdout método, endpoint truncado, permissão ou rejeição e horário, sem serializar credenciais ou corpo da requisição.
 
+A autenticação da API não espera a prontidão do executor. Falha no socket não bloqueia login nem métricas da máquina; as operações Docker continuam recusadas ou indisponíveis até o executor se recuperar. API e túnel usam a rede administrativa própria `vps_panel_control`, sem depender de redes ou arquivos de projetos hospedados. Ver [arquitetura independente e atualização coordenada](PAINEL-GENERICO.md).
+
 ## Política de autorização
 
-- Contêineres antigos App/Agent/Sandbox/Embeddings: apenas leitura, início, parada e reinício. Caddy e Portainer: somente leitura.
+- Modo genérico padrão: nenhuma permissão implícita sobre containers de projetos existentes. O inventário de todos os containers é somente leitura e não concede ações de controle.
+- Compatibilidade explicitamente habilitada na API e no executor: App/Agent antigos permitem leitura, início, parada e reinício; Caddy é somente leitura. Sandbox, Embeddings e Portainer não são reabilitados.
 - Contêineres gerenciados: a política verifica `com.softload.panel.managed=true`, slug e nome do slot. O executor resolve e encaminha comandos ao Docker usando o ID imutável que acabou de inspecionar.
 - Criação: apenas nomes gerenciados, imagens permitidas e payload igual ao perfil de recursos limitado; não aceita bind mounts, modo privileged, usuário root, extra hosts, modo host network, novas portas ou capacidades adicionais.
 - Renomeação: somente entre slot principal, candidata e backup de uma mesma aplicação; nunca entre projetos.
@@ -67,7 +70,7 @@ Se o novo executor falhar, mantenha os serviços de produção intactos e diagno
 
 ## Verificação adicional em Docker real no GitHub
 
-O workflow `.github/workflows/executor-smoke.yml` constrói a API e o executor em uma máquina efêmera hospedada no GitHub e inicia ambos com os limites de CPU, RAM, filesystem somente leitura e capacidades removidas. Não usa o Docker daemon da VPS. O teste executa inicialização administrativa de dados descartáveis, valida a autenticação por segredo de borda e sessão, consulta `/services`, `/apps` e `/overview`, e confirma que operações de criação continuam proibidas por padrão.
+O workflow `.github/workflows/executor-smoke.yml` constrói a API e o executor em uma máquina efêmera hospedada no GitHub e inicia ambos com limites de CPU, RAM, filesystem somente leitura e capacidades removidas. O executor permanece sem rede; a API e um cliente de teste usam uma rede administrativa interna descartável, sem acesso externo. O cliente confirma DNS e HTTP pelo alias da API. Não usa o Docker daemon da VPS. O teste valida inicialização administrativa, autenticação, projetos, inventário, histórico e a manutenção das permissões sem nenhum serviço Softload instalado.
 
 Esse teste revelou um problema real de permissão: a imagem original criava `/data` sob o UID `node`, enquanto o processo efetivo da API usava UID 0 sem `CAP_DAC_OVERRIDE`. Em volumes iniciais com UID 1000 e modo 0755, a API não conseguia criar `/data/setup-token`. O Dockerfile foi alinhado ao UID efetivo, e o smoke test agora inicializa e testa explicitamente o volume descartável com as capacidades removidas. Em instalações existentes, é necessário verificar a propriedade real do volume e corrigir somente após backup e inspeção autorizada.
 

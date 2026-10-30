@@ -1,10 +1,12 @@
-# Softload Console — Painel da VPS
+# Painel VPS — projetos, aplicações e monitoramento
 
 Painel: https://panel.analysepro.com (alternativo: https://softload-vps-panel.pages.dev)
 
 Cada push na `main` executa `.github/workflows/deploy-pages.yml`: testes, build do frontend e publicação no projeto Cloudflare Pages `softload-vps-panel`. O workflow usa um token exclusivo `Pages Write` armazenado em `CLOUDFLARE_API_TOKEN` nos segredos GitHub. `CLOUDFLARE_ACCOUNT_ID` está no mesmo local. As credenciais da API privada da VPS permanecem nos segredos do Cloudflare Pages.
 
 ## Comece aqui — sem conhecer Docker
+
+O painel é genérico: nenhum projeto hospedado precisa existir para a API iniciar ou para o administrador entrar. A configuração base possui rede administrativa própria e não monta arquivos da Softload. Os dados e identificadores técnicos existentes foram preservados. Leia [Painel independente dos projetos](docs/PAINEL-GENERICO.md) para a arquitetura, compatibilidade opcional e implantação coordenada de API/túnel.
 
 O painel foi pensado para criar e administrar sites rapidamente. Use [Guia rápido do painel](docs/GUIA-RAPIDO.md) para entender as telas: **Sites e apps**, **Projetos GitHub** e **Endereços**. Configurações internas do servidor ficam em **Avançado**.
 
@@ -28,9 +30,9 @@ A API privada oferece `GET /containers` somente para sessões autenticadas. O ex
 
 Cloudflare Pages -> Function TypeScript -> Cloudflare Access -> Cloudflare Tunnel -> API privada da VPS -> Docker.
 
-A API mantém senha administrativa com scrypt, sessão em cookie HttpOnly/Secure/SameSite=Strict e segredo de borda. A interface acompanha **App**, **Agent** e **Caddy**, além do uso da máquina, imagens e logs. Apenas App e Agent podem ser iniciados, parados ou reiniciados; Caddy é somente leitura. Sandbox, Embeddings e Portainer foram retirados da lista operacional do painel. A aba **Revisões e espaço** permanece conservadora e não apaga automaticamente imagens antigas da Softload destinadas a rollback.
+A API mantém senha administrativa com scrypt, sessão em cookie HttpOnly/Secure/SameSite=Strict e segredo de borda. A interface apresenta projetos, inventário de todos os containers, uso da máquina, imagens e registros. O histórico geral reúne as publicações por projeto, sem atribuir a saúde da VPS a uma aplicação específica. A aba **Revisões e espaço** preserva imagens utilizadas e as permissões existentes.
 
-Os nomes de App, Agent e Caddy pertencem ao perfil legado da Softload V4 em `server/legacy-softload-profile.ts`. Em uma instalação sem esse projeto, `PANEL_SOFTLOAD_LEGACY=0` oculta o perfil da API; aplicações gerenciadas e projetos GitHub continuam independentes. O perfil permanece habilitado por padrão para preservar a VPS atual.
+Os nomes antigos de App, Agent e Caddy pertencem ao perfil de compatibilidade em `server/legacy-softload-profile.ts`, desligado por padrão. O overlay `server/compose.legacy-softload.yaml` o habilita explicitamente na API e no executor. Apenas App/Agent recebem os controles antigos; Caddy é somente leitura, e os serviços retirados não são reabilitados. Aplicações gerenciadas e projetos GitHub são independentes desse perfil.
 
 ## Nova integração GitHub
 
@@ -44,7 +46,7 @@ Na aba **Deploys**, você pode conectar repositórios, escolher uma branch e um 
 | GET | /repositories/:owner/:repo/runs | Consultar execuções |
 | POST | /repositories/:owner/:repo/deploy | Disparar workflow_dispatch |
 
-O repositório Softdown-prog/Softloadv4 já aparece como opção inicial; seu deploy.yml aceita push em main e workflow_dispatch. O painel **não cria automaticamente o workflow e não faz deploy de projetos genéricos sem pipeline previamente configurado**. Para publicar a cada commit, o workflow precisa também estar configurado para push na branch.
+Instalações novas começam sem repositórios pré-cadastrados; conexões já salvas são preservadas. O painel **não cria automaticamente o workflow e não faz deploy de projetos genéricos sem pipeline previamente configurado**. Para publicar a cada commit, o workflow precisa também estar configurado para push na branch.
 
 ### Ativar na VPS
 

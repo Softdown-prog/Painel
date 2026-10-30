@@ -2,6 +2,8 @@
 
 A aba Domínios prepara subdomínios para aplicações Docker gerenciadas. Os arquivos são server/domains.ts, server/router/Caddyfile e server/compose.routing.yaml.
 
+Para publicação automática, cada instalação configura explicitamente `PANEL_FRONT_PROXY_CONTAINER` (o Caddy frontal) e `PANEL_FRONT_PROXY_SITES_DIR` (sua pasta de sites no host). O Caddy precisa importar essa pasta e usar o caminho de configuração esperado `/etc/caddy/Caddyfile`. Sem configuração válida, a publicação fica indisponível, mas login e consultas do painel continuam funcionando. O modo genérico não escolhe o Caddy da Softload. O perfil de compatibilidade explícito mantém os valores antigos, se necessário. Ver [Painel genérico](PAINEL-GENERICO.md).
+
 ## Escopo e limites
 
 - O operador configura PANEL_APPS_DOMAIN_ZONE em uma zona dedicada como apps.analysepro.com; o hostname de cada aplicação é derivado exclusivamente de seu identificador (exemplo: loja.apps.analysepro.com). Não há entrada para domínios arbitrários.
@@ -14,7 +16,7 @@ A aba Domínios prepara subdomínios para aplicações Docker gerenciadas. Os ar
 
 1. Revise sua configuração existente e crie um registro DNS curinga para a zona dos aplicativos, apontando para a entrada pública apropriada da VPS.
 2. Configure HTTPS para a zona no Caddy existente. Certificados wildcard exigem DNS-01 ou um certificado wildcard previamente emitido; apenas cadastrar o DNS não basta.
-3. Após instalar o overlay, conecte manualmente o container Caddy frontal identificado na VPS à rede softload_panel_apps (no projeto original, o nome esperado é softload-caddy): docker network connect softload_panel_apps softload-caddy. Confira o nome real e o estado dos serviços antes de executar. Acrescente à configuração do Caddy existente uma regra estritamente limitada à zona de aplicativos, encaminhando as requisições para app-gateway:8081, preservando Host. Não capture os domínios da Softload. O gateway fica somente na rede dedicada, não na rede proxy de produção.
+3. Após instalar o overlay, conecte à rede `softload_panel_apps` o Caddy frontal escolhido para esta instalação. Por exemplo, `docker network connect softload_panel_apps public-caddy`, substituindo `public-caddy` pelo nome configurado em `PANEL_FRONT_PROXY_CONTAINER`. A pasta configurada em `PANEL_FRONT_PROXY_SITES_DIR` precisa estar montada e importada pelo Caddy. A rota deve ser limitada à zona de aplicativos e encaminhar para `app-gateway:8081`, preservando Host. A configuração de projetos hospedados permanece independente.
 4. Habilite o overlay apenas após revisar todos os overlays e dependências usados na VPS:
 
     cd /caminho/real/do/Painel/server
