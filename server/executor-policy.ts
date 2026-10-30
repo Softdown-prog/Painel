@@ -1,6 +1,6 @@
 export type Inspect = { Id?: string; Name?: string; Config?: { Labels?: Record<string,string> }; State?: { Running?: boolean; Status?: string } };
 export type Decision = { ok: boolean; reason: string; filterList?: boolean; inventoryList?: boolean; name?: string; targetId?: string };
-import { LEGACY_SOFTLOAD_SERVICES } from './legacy-softload-profile.ts';
+import { LEGACY_SOFTLOAD_SERVICES, legacySoftloadEnabled } from './legacy-softload-profile.ts';
 const owner='com.softload.panel.managed', slugLabel='com.softload.panel.slug';
 const services=new Set(Object.values(LEGACY_SOFTLOAD_SERVICES).filter(service=>service.controllable).map(service=>service.container));
 const monitor=new Set(Object.values(LEGACY_SOFTLOAD_SERVICES).filter(service=>!service.controllable).map(service=>service.container));
@@ -35,20 +35,20 @@ export function validLimits(input:unknown):boolean{
  return object(input)&&keys(input,['Memory','MemorySwap','NanoCpus'])&&ram.has(input.Memory as number)&&
   cpus.has(input.NanoCpus as number)&&input.MemorySwap===(input.Memory as number)*2;
 }
-async function authorizedContainer(id:string,inspect:(id:string)=>Promise<Inspect|null>,operation:string):Promise<Decision>{
+async function authorizedContainer(id:string,inspect:(id:string)=>Promise<Inspect|null>,operation:string,legacyEnabled:boolean):Promise<Decision>{
  const item=await inspect(id);
  if(!item?.Id||!item.Name?.startsWith('/'))return denied('Container does not exist');
  const name=item.Name.slice(1);
  if(id!==name&&id!==item.Id)return denied('Inspect target mismatch');
- if(services.has(name))return ['read','start','stop','restart'].includes(operation)?{...approved(name),targetId:item.Id}:denied('Protected service');
- if(monitor.has(name))return operation==='read'?{...approved(name),targetId:item.Id}:denied('Read-only system service');
+ if(legacyEnabled&&services.has(name))return ['read','start','stop','restart'].includes(operation)?{...approved(name),targetId:item.Id}:denied('Protected service');
+ if(legacyEnabled&&monitor.has(name))return operation==='read'?{...approved(name),targetId:item.Id}:denied('Read-only system service');
  const slot=slots.exec(name);
  if(!slot||slot[2].length>40||item.Config?.Labels?.[owner]!=='true'||item.Config.Labels[slugLabel]!==slot[2])return denied('Unmanaged container');
  if(slot[1]==='candidate'&&item.Config.Labels['com.softload.panel.release-role']!=='candidate')return denied('Untrusted release slot');
  if(operation==='delete'&&(item.State?.Running||item.State?.Status==='running'))return denied('Must stop container before removal');
  return {...approved(name),targetId:item.Id};
 }
-export async function authorize(input:{method:string;url:string;payload?:unknown;inspect:(id:string)=>Promise<Inspect|null>;inspectImage?: (ref:string)=>Promise<{Id?:string;RepoDigests?:string[]}|null>;imageUsed?: (id:string)=>Promise<boolean>;images?:string[];ghcrOwner?:string}):Promise<Decision>{
+export async function authorize(input:{method:string;url:string;payload?:unknown;inspect:(id:string)=>Promise<Inspect|null>;inspectImage?: (ref:string)=>Promise<{Id?:string;RepoDigests?:string[]}|null>;imageUsed?: (id:string)=>Promise<boolean>;images?:string[];ghcrOwner?:string;legacyEnabled?:boolean}):Promise<Decision>{
  const {method,payload,inspect}=input;
  let u:URL;
  try{u=new URL(input.url,'http://docker.internal')}catch{return denied('Malformed URI')}
@@ -117,7 +117,7 @@ export async function authorize(input:{method:string;url:string;payload?:unknown
  else if(['start','stop','restart'].includes(action)&&method==='POST'&&[...q.keys()].every(k=>k==='t')&&
    (!q.has('t')||['10','15'].includes(q.get('t')||''))){}
  else return denied('Invalid operation parameters');
- const target=await authorizedContainer(id,inspect,['json','logs','stats'].includes(action)?'read':action);
+ const target=await authorizedContainer(id,inspect,['json','logs','stats'].includes(action)?'read':action,input.legacyEnabled??legacySoftloadEnabled());
  if(!target.ok)return target;
  if(action==='rename'){
   const from=slots.exec(target.name||''),to=slots.exec(q.get('name')||'');
@@ -126,10 +126,10 @@ export async function authorize(input:{method:string;url:string;payload?:unknown
  }
  return target;
 }
-export function visibleContainers<T extends {Names?:string[];Labels?:Record<string,string>}>(list:T[]):T[]{
+export function visibleContainers<T extends {Names?:string[];Labels?:Record<string,string>}>(list:T[],legacyEnabled=legacySoftloadEnabled()):T[]{
  return list.filter(c=>(c.Names||[]).some(n=>{
   const name=n.replace(/^\//,'');const slot=slots.exec(name);
-  return services.has(name)||monitor.has(name)||
+  return (legacyEnabled&&(services.has(name)||monitor.has(name)))||
     (Boolean(slot)&&slot![2].length<=40&&c.Labels?.[owner]==='true'&&c.Labels[slugLabel]===slot![2]);
  }));
 }

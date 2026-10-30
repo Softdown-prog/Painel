@@ -18,7 +18,7 @@ const inspect=async id=>{
   if(id==='other')return {...fake,Id:'other',Name:'/other',Config:{Labels:{}}};
   return null;
 };
-const check=(method,url,payload,options={})=>authorize({method,url,payload,inspect,images:['example:1'],...options});
+const check=(method,url,payload,options={})=>authorize({method,url,payload,inspect,images:['example:1'],legacyEnabled:true,...options});
 test('create policy forbids privilege escalation, mounts, custom networks, extra env and CPU abuse',()=>{
  const safe=managedContainerSpec('demo','example:1');
  assert.equal(validCreate('softload-app-demo',safe,['example:1']),true);
@@ -67,8 +67,17 @@ test('read API supports only bounded allowlisted requests and filters nonowned c
   {Names:['/softload-vps-embeddings-1'],Labels:{}},
   {Names:['/softload-portainer'],Labels:{}},
   {Names:['/other'],Labels:{}}
- ]);
+ ],true);
  assert.equal(listed.length,2);
+});
+test('generic executor denies controls and inspection of legacy projects while preserving managed apps', async () => {
+ for(const name of ['softload-vps-app-1','softload-caddy']) {
+  for(const [method,suffix] of [['GET','json'],['POST','restart?t=15']])
+   assert.equal((await check(method,'/v1.45/containers/'+name+'/'+suffix,undefined,{legacyEnabled:false})).ok,false);
+ }
+ assert.equal((await check('POST','/v1.45/containers/softload-app-demo/restart',undefined,{legacyEnabled:false})).ok,true);
+ const managedSummary={Names:['/softload-app-demo'],Labels:labels};
+ assert.deepEqual(visibleContainers([{Names:['/softload-vps-app-1'],Labels:{}},managedSummary],false),[managedSummary]);
 });
 test('mutations only affect authorized targets and reject rename between unrelated applications',async()=>{
  assert.equal((await check('POST','/v1.45/containers/softload-vps-app-1/restart?t=15')).ok,true);

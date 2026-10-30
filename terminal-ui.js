@@ -11,14 +11,15 @@
     let historyIndex = 0;
     let busy = false;
     const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-    const SERVICES = ['app', 'agent', 'sandbox', 'embeddings', 'caddy', 'portainer'];
+    const SERVICES = ['app', 'agent', 'caddy'];
     const ACTIONS = { iniciar: 'start', parar: 'stop', reiniciar: 'restart' };
     const HELP = [
         'COMANDOS DA VPS',
         '  ajuda                            mostra esta lista',
         '  status                           situação geral da VPS',
         '  recursos                         memória, CPU e espaço em disco',
-        '  servicos                         componentes da Softload',
+        '  containers                       inventário da VPS (somente consulta)',
+        '  servicos                         alias de containers',
         '  apps                             seus containers de hospedagem',
         '  dominios                         endereços reservados (não garante publicação)',
         '  repos                            repositórios GitHub conectados',
@@ -174,24 +175,22 @@
                 throw new Error('Uso: ' + cmd);
             const d = await api('/overview');
             setConnection(true, 'API da VPS conectada');
-            const services = d.services || [];
-            const running = services.filter((x) => x.state === 'running').length;
+            const inventory = d.containerSummary;
             const lines = [
-                'VPS SOFTLOAD — dados informados pela API',
-                '  Serviços Softload: ' + running + '/' + services.length + ' ativos',
+                'VPS — dados informados pela API',
+                '  Containers: ' + (inventory?.available ? inventory.running + '/' + inventory.total + ' em execução' : 'inventário não confirmado'),
                 '  Memória: ' + fmt(d.memory?.used) + ' / ' + fmt(d.memory?.total),
                 '  CPU (carga 1 min): ' + (d.cpu?.load1 ?? '—') + ' em ' + (d.cpu?.cores ?? '—') + ' núcleos',
                 '  Disco reportado: ' + (d.disk ? fmt(d.disk.used) + ' / ' + fmt(d.disk.total) : 'não disponível'),
-                '  Versão Softload: ' + (d.currentSha?.slice(0, 12) || 'não informada'),
                 '  Atualizado: ' + (d.updatedAt ? new Date(d.updatedAt).toLocaleString('pt-BR') : 'agora')
             ];
             return lines.join('\n');
         }
-        if (cmd === 'servicos') {
+        if (cmd === 'servicos' || cmd === 'containers') {
             if (args.length !== 1)
-                throw new Error('Uso: servicos');
-            const data = await api('/services');
-            return 'SERVIÇOS SOFTLOAD\n' + (data.services || []).map((s) => '  ' + String(s.id).padEnd(12) + symbol(s.state) + '  ' + (s.status || '')).join('\n');
+                throw new Error('Uso: containers');
+            const data = await api('/containers');
+            return 'CONTAINERS DA VPS · SOMENTE CONSULTA\n' + (data.containers || []).map((s) => '  ' + s.name.padEnd(24) + symbol(s.state) + '  ' + s.status).join('\n');
         }
         if (cmd === 'apps') {
             if (args.length !== 1)

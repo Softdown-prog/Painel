@@ -16,10 +16,12 @@ A correção de código melhora o transporte e permite localizar o problema. Res
 | --- | --- |
 | Navegador → Pages Function | `/api/*`, na mesma origem, sessão em cookie HttpOnly |
 | Function → API privada | Origem fixa `https://panel-api.analysepro.com`, credenciais de serviço do Access e chave de borda somente no servidor |
-| Túnel → API | `http://softload-panel-api:8080`, pela rede Docker compartilhada `softload_proxy` |
+| Túnel → API | `http://softload-panel-api:8080`, pela rede administrativa `vps_panel_control` |
 | API → executor | Socket Unix privado; o executor continua sem rede e com a política Docker existente |
 
 O destino do túnel deve usar o nome do serviço, não `localhost` dentro do container do túnel nem um IP antigo de container. O endereço privado permanece protegido pelo Access. Não liberar a API publicamente nem desativar a autorização para resolver um 502.
+
+Instalações anteriores usavam `softload_proxy`. A mudança para uma rede própria exige coordenar API e túnel; leia [Painel independente dos projetos](PAINEL-GENERICO.md) antes de atualizar a VPS. O script de diagnóstico detecta a rede compartilhada existente sem alterá-la. Quando o painel é o único acesso e sua API está indisponível, o terminal dele também fica indisponível: recuperar a conexão exige um canal administrativo independente ou corrigir o encaminhamento pelo Cloudflare, conforme a causa confirmada.
 
 ## Diagnóstico no console da VPS
 
@@ -45,6 +47,8 @@ A etapa 2 consulta o nome Docker a partir da própria API; não comprova sozinha
 ## Credenciais e publicação
 
 Os bindings secretos `PANEL_EDGE_KEY`, `CF_ACCESS_CLIENT_ID` e `CF_ACCESS_CLIENT_SECRET` ficam no ambiente **Production** do projeto Cloudflare Pages `softload-vps-panel`. Não são a senha administrativa, não entram em JavaScript estático e não devem ser enviados em capturas, logs ou issues. A Function remove espaços acidentais nas extremidades, recusa redirecionamentos e normaliza falhas do provedor sem expor seu conteúdo.
+
+`PANEL_API_ORIGIN` é um binding opcional para escolher a origem privada HTTPS de outra instalação. Não aceita caminhos, parâmetros, credenciais na URL nem um destino escolhido pelo navegador. Sem esse binding, a origem privada atual é preservada.
 
 Após integrar a correção, o workflow Pages publica a interface e a Function. Isso **não atualiza** a API/executor na VPS. O novo healthcheck HTTP só é instalado quando a imagem da API e o Compose forem atualizados pelo operador, preservando os overlays e volumes existentes. O script de diagnóstico pode ser usado antes dessa atualização. Não há necessidade de recriar o executor apenas para instalar o healthcheck HTTP.
 

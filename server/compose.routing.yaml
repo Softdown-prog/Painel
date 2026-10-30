@@ -8,6 +8,8 @@ services:
       PANEL_DOMAINS_ENABLED: "${PANEL_DOMAINS_ENABLED:-0}"
       PANEL_APPS_DOMAIN_ZONE: "${PANEL_APPS_DOMAIN_ZONE:-}"
       PANEL_APPS_NETWORK: softload_panel_apps
+      PANEL_FRONT_PROXY_CONTAINER: "${PANEL_FRONT_PROXY_CONTAINER:-}"
+      PANEL_FRONT_PROXY_SITES_DIR: "${PANEL_FRONT_PROXY_SITES_DIR:-}"
   app-gateway:
     image: caddy:2.10.2-alpine
     restart: unless-stopped

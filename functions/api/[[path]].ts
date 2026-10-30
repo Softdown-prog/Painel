@@ -1,10 +1,19 @@
 type PanelEnv = {
+  PANEL_API_ORIGIN?: string;
   PANEL_EDGE_KEY?: string;
   CF_ACCESS_CLIENT_ID?: string;
   CF_ACCESS_CLIENT_SECRET?: string;
 };
 type PanelContext = { request: Request; env: PanelEnv };
 const API_ORIGIN = 'https://panel-api.analysepro.com';
+function apiOrigin(value = API_ORIGIN): URL | null {
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== 'https:' || url.username || url.password || url.port || url.pathname !== '/' || url.search || url.hash ||
+        !/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}$/i.test(url.hostname)) return null;
+    return url;
+  } catch { return null; }
+}
 function failure(status: number, code: string, error: string, upstreamStatus?: number) {
   return Response.json({ error, code, ...(upstreamStatus === undefined ? {} : { upstreamStatus }) }, {
     status, headers: { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }
@@ -23,7 +32,10 @@ export async function proxyPanelRequest(context: PanelContext, fetcher: typeof f
   if (incoming.pathname !== '/api' && !incoming.pathname.startsWith('/api/')) return failure(400, 'INVALID_PATH', 'Endereço da API inválido.');
   const path = incoming.pathname.slice('/api'.length) || '/';
   if (path.startsWith('//') || /%2f|%5c/i.test(path)) return failure(400, 'INVALID_PATH', 'Endereço da API inválido.');
-  const target = new URL(API_ORIGIN); target.pathname = path; target.search = incoming.search;
+  // Only a trusted Pages binding can select a different installation. Never use browser input.
+  const target = apiOrigin(context.env.PANEL_API_ORIGIN);
+  if (!target) return failure(503, 'EDGE_NOT_CONFIGURED', 'O endereço privado da API está inválido. Confira a configuração do painel.');
+  target.pathname = path; target.search = incoming.search;
   const headers = new Headers({ accept: 'application/json' });
   for (const name of ['content-type', 'cookie']) {
     const value = request.headers.get(name); if (value) headers.set(name, value);

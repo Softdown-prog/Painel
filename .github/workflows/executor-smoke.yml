@@ -23,6 +23,12 @@ on:
       - server/compose.yaml
       - server/smoke-api.mjs
       - server/check-api-connection.mjs
+      - server/legacy-softload-profile.ts
+      - server/compose.legacy-softload.yaml
+      - server/tunnel.compose.yaml
+      - server/github.ts
+      - server/publications.ts
+      - server/domain-publish.ts
   pull_request:
     paths:
       - .github/workflows/executor-smoke.yml
@@ -36,6 +42,12 @@ on:
       - server/container-inventory.ts
       - server/smoke-api.mjs
       - server/check-api-connection.mjs
+      - server/legacy-softload-profile.ts
+      - server/compose.legacy-softload.yaml
+      - server/tunnel.compose.yaml
+      - server/github.ts
+      - server/publications.ts
+      - server/domain-publish.ts
       - server/deploy-verification.mjs
       - server/deploy-public-health.mjs
       - server/compose.revisions.yaml
@@ -60,6 +72,7 @@ jobs:
           api="panel-smoke-api-$GITHUB_RUN_ID"
           sock="panel_smoke_sock_$GITHUB_RUN_ID"
           data="panel_smoke_data_$GITHUB_RUN_ID"
+          control="panel_smoke_control_$GITHUB_RUN_ID"
           tmp="$(mktemp -d)"
           cleanup() {
             rc=$?
@@ -69,6 +82,7 @@ jobs:
             fi
             docker rm -f "$api" "$ex" >/dev/null 2>&1 || true
             docker volume rm "$data" "$sock" >/dev/null 2>&1 || true
+            docker network rm "$control" >/dev/null 2>&1 || true
             rm -rf "$tmp"
             exit "$rc"
           }
@@ -77,6 +91,7 @@ jobs:
           docker build -t panel-api-smoke:ci -f server/Dockerfile server
           docker volume create "$sock" >/dev/null
           docker volume create "$data" >/dev/null
+          docker network create --internal "$control" >/dev/null
           # The CI sandbox starts with an empty named volume. Initialize ownership before starting the unprivileged API.
           docker run --rm --user 0 --mount type=volume,src="$data",dst=/data \
             --entrypoint chown panel-api-smoke:ci 0:0 /data
@@ -92,7 +107,7 @@ jobs:
             --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
             --mount type=volume,src="$sock",dst=/run/panel-executor \
             panel-executor-smoke:ci >/dev/null
-          docker run -d --name "$api" --network none --read-only --cap-drop ALL \
+          docker run -d --name "$api" --network "$control" --network-alias softload-panel-api --read-only --cap-drop ALL \
             --security-opt no-new-privileges --pids-limit 64 --memory 160m --cpus 0.5 \
             -e PANEL_DOCKER_SOCKET_PATH=/run/panel-executor/docker.sock \
             -e PANEL_EDGE_KEY_FILE=/run/secrets/panel-edge-key \
@@ -104,9 +119,15 @@ jobs:
             --mount type=bind,src="$GITHUB_WORKSPACE/server/smoke-api.mjs",dst=/run/panel-smoke.mjs,readonly \
             panel-api-smoke:ci >/dev/null
           test "$(docker inspect "$ex" -f '{{.HostConfig.NetworkMode}}')" = none
-          test "$(docker inspect "$api" -f '{{.HostConfig.NetworkMode}}')" = none
+          test "$(docker inspect "$api" -f '{{.HostConfig.NetworkMode}}')" = "$control"
+          test "$(docker network inspect "$control" -f '{{.Internal}}')" = true
           docker inspect "$api" -f '{{json .Mounts}}' | \
             python3 -c 'import json,sys; m=json.load(sys.stdin); assert all(v.get("Destination") != "/var/run/docker.sock" for v in m)'
           docker exec "$api" node /run/panel-smoke.mjs
           docker exec "$api" node /app/check-api-connection.mjs --check-panel-connection
+          # A separate client reaches the API by DNS on its own administrative network.
+          docker run --rm --network "$control" --read-only --cap-drop ALL \
+            --memory 64m --pids-limit 32 --security-opt no-new-privileges \
+            --mount type=bind,src="$tmp/edge-key",dst=/run/secrets/panel-edge-key,readonly \
+            --entrypoint node panel-api-smoke:ci /app/check-api-connection.mjs --check-panel-connection --network
           echo 'PASS: real Docker daemon reached only through the executor in isolated CI'

@@ -31,6 +31,7 @@
     "api-client.ts",
     "panel-api.d.ts",
     "hosted-projects-ui.ts",
-    "traffic-ui.ts"
+    "traffic-ui.ts",
+    "publication-history-ui.ts"
   ]
 }

@@ -27,7 +27,7 @@ def mounts(s): return [v for v in s.get("volumes",[]) if isinstance(v,dict)]
 def target(v): return v.get("target","")
 am=mounts(api); em=mounts(ex)
 assert ex.get("network_mode")=="none", "Executor must have network_mode none"
-assert api.get("depends_on",{}).get("executor",{}).get("condition")=="service_healthy", "Missing health dependency"
+assert not api.get("depends_on"), "Authentication API must not wait for a hosted service or Docker executor"
 assert all(target(v)!="/var/run/docker.sock" for v in am), "API must not mount Docker host socket"
 assert sum(target(v)=="/var/run/docker.sock" for v in em)==1, "Executor must have one Docker socket"
 assert sum(target(v)=="/run/panel-executor" for v in am)==1, "API must have executor volume"
@@ -37,7 +37,7 @@ assert api.get("environment",{}).get("PANEL_DOCKER_SOCKET_PATH")=="/run/panel-ex
 print("PASS: effective Compose isolates Docker socket in networkless executor")
 '
 
-for path in /etc/softload-panel/edge-key /opt/softload-infra/softload/.env; do
+for path in /etc/softload-panel/edge-key; do
   if [[ -r "$path" ]]; then echo "PASS: Required host file available: $path"
   else echo "ERROR: Required host file inaccessible: $path" >&2; exit 2; fi
 done
@@ -62,7 +62,7 @@ if docker container inspect softload-panel-api >/dev/null 2>&1; then
 else
   echo 'NOTICE: Existing Panel API container was not found.'
 fi
-for name in softload-vps-app-1 softload-vps-agent-1 softload-vps-sandbox-1 softload-vps-embeddings-1 softload-caddy; do
+for name in softload-panel-api softload-panel-executor softload-panel-tunnel; do
   if docker container inspect "$name" >/dev/null 2>&1; then
     echo "PASS: Production container exists: $name"
   else

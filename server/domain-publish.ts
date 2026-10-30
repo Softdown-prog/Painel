@@ -12,17 +12,27 @@ const ipv4 = /^(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}
 const zoneId = /^[a-f0-9]{32}$/i;
 const safeSecretFile = (file: string) => file.startsWith('/run/secrets/') || file.startsWith('/run/panel-managed-secrets/');
 
+export function frontProxyConfig(env: NodeJS.ProcessEnv = process.env): { container: string; sitesDir: string } | null {
+  const legacy = env.PANEL_SOFTLOAD_LEGACY === '1';
+  const container = env.PANEL_FRONT_PROXY_CONTAINER || (legacy ? 'softload-caddy' : '');
+  const sitesDir = env.PANEL_FRONT_PROXY_SITES_DIR || (legacy ? '/opt/softload-infra/caddy/sites' : '');
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$/.test(container) || container.startsWith('softload-panel-') ||
+      !/^\/(?:[a-zA-Z0-9_.-]+\/)*[a-zA-Z0-9_.-]+$/.test(sitesDir) ||
+      sitesDir.length > 200 || sitesDir.split('/').some(part => part === '.' || part === '..')) return null;
+  return { container, sitesDir };
+}
+
 export function publishConfig(env: NodeJS.ProcessEnv = process.env): PublishConfig | null {
   const file = env.PANEL_CLOUDFLARE_DNS_TOKEN_FILE || '';
   const id = env.PANEL_CLOUDFLARE_ZONE_ID || '';
   const origin = env.PANEL_DOMAIN_ORIGIN_IPV4 || '';
-  if (!safeSecretFile(file) || !existsSync(file) || !zoneId.test(id) || !ipv4.test(origin)) return null;
+  if (!frontProxyConfig(env) || !safeSecretFile(file) || !existsSync(file) || !zoneId.test(id) || !ipv4.test(origin)) return null;
   const token = readFileSync(file, 'utf8').trim();
   return token.length >= 20 ? { token, zoneId: id, origin } : null;
 }
 
 export function renderPublicCaddy(routes: readonly DomainRoute[]): string {
-  const lines = ['# Gerado pelo Softload Painel. Não editar manualmente.', '# Encaminha apenas endereços de apps administrados para o gateway isolado.'];
+  const lines = ['# Gerado pelo Painel VPS. Não editar manualmente.', '# Encaminha apenas endereços de apps administrados para o gateway isolado.'];
   for (const route of [...routes].sort((a, b) => a.host.localeCompare(b.host))) {
     lines.push('http://' + route.host + ' {');
     lines.push('    redir https://' + route.host + '{uri} 308');
@@ -38,7 +48,9 @@ export function renderPublicCaddy(routes: readonly DomainRoute[]): string {
   return lines.join('\n') + '\n';
 }
 
-export function renderCaddyInstallCommand(content: string): string {
+export function renderCaddyInstallCommand(content: string, proxy = frontProxyConfig()): string {
+  if (!proxy || frontProxyConfig({ PANEL_FRONT_PROXY_CONTAINER: proxy.container, PANEL_FRONT_PROXY_SITES_DIR: proxy.sitesDir }) === null)
+    throw new Error('Configure o proxy frontal e a pasta de sites desta VPS antes de publicar.');
   const encoded = Buffer.from(content, 'utf8').toString('base64');
   // All values in `content` originate from strict domain/slug validation. The
   // base64 transport avoids shell interpolation and protects the Caddyfile.
@@ -46,16 +58,16 @@ export function renderCaddyInstallCommand(content: string): string {
     'set -eu',
     'test -S /var/run/docker.sock',
     'docker network inspect softload_panel_apps >/dev/null',
-    'docker inspect -f "{{.State.Running}}" softload-caddy | grep -qx true',
+    'docker inspect -f "{{.State.Running}}" ' + proxy.container + ' | grep -qx true',
     'docker inspect -f "{{.State.Running}}" softload-panel-app-gateway-1 2>/dev/null | grep -qx true || docker inspect -f "{{.State.Running}}" softload-panel-app-gateway | grep -qx true',
-    'docker network connect softload_panel_apps softload-caddy 2>/dev/null || true',
-    'd=/opt/softload-infra/caddy/sites; f="$d/panel-managed-apps.caddy"; b="$f.panel-backup"; t="$f.tmp"',
+    'docker network connect softload_panel_apps ' + proxy.container + ' 2>/dev/null || true',
+    'd=' + proxy.sitesDir + '; f="$d/panel-managed-apps.caddy"; b="$f.panel-backup"; t="$f.tmp"',
     'install -d -m 700 "$d"',
     'test ! -e "$f" || cp -p "$f" "$b"',
     'printf %s "' + encoded + '" | base64 -d > "$t"',
     'chmod 600 "$t"; mv "$t" "$f"',
-    'if ! docker exec softload-caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; then test ! -e "$b" || mv "$b" "$f"; exit 1; fi',
-    'if ! docker exec softload-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile; then test ! -e "$b" || mv "$b" "$f"; docker exec softload-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile || true; exit 1; fi',
+    'if ! docker exec ' + proxy.container + ' caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile; then test ! -e "$b" || mv "$b" "$f"; exit 1; fi',
+    'if ! docker exec ' + proxy.container + ' caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile; then test ! -e "$b" || mv "$b" "$f"; docker exec ' + proxy.container + ' caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile || true; exit 1; fi',
     'rm -f "$b"'
   ].join('\n');
 }

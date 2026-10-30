@@ -6,7 +6,17 @@ const demoServices = [
 const labels = Object.fromEntries(demoServices.map(service => [service.id, service]));
 let authenticated = false;
 let setupMode = false;
+let legacySoftload = false;
 let toastTimer;
+
+function applyHostProfile(data) {
+  legacySoftload = data.legacySoftload === true;
+  document.querySelectorAll('[data-legacy-softload]').forEach(element => { element.hidden = !legacySoftload; });
+  const columns = document.getElementById('overviewColumns');
+  if (columns) columns.style.gridTemplateColumns = legacySoftload ? '' : '1fr';
+  if (!legacySoftload) selectedService = null;
+  if (['services', 'service-detail', 'logs'].includes(location.hash.slice(1))) showView(location.hash.slice(1));
+}
 
 async function api(path, options = {}) {
   try { return await window.panelApi.request(path, options); }
@@ -167,14 +177,13 @@ function fillServices(services) {
 }
 function gb(value) { return (value / 1073741824).toFixed(1).replace('.', ','); }
 // Um inventário do host é apenas consulta: estes itens NÃO herdam controles do Painel.
-let hostContainersLoading = false;
+let hostContainersLoading = null;
 function hostContainerRow(container) {
   const row = document.createElement('div');
   row.className = 'service-row';
   const symbol = document.createElement('span');
   symbol.className = 'service-symbol';
-  symbol.textContent = container.ownership === 'softload' ? 'S' :
-    container.ownership === 'managed' ? '⬡' : '▣';
+  symbol.textContent = container.ownership === 'managed' ? '⬡' : '▣';
   const main = document.createElement('span');
   main.className = 'service-main';
   const name = document.createElement('strong');
@@ -183,7 +192,7 @@ function hostContainerRow(container) {
   const origin = container.project ? 'Projeto: ' + container.project + ' · ' : '';
   detail.textContent = origin + (container.image || 'Imagem desconhecida') +
     ' · ' + (container.ownership === 'external' ? 'Somente consulta' :
-      container.ownership === 'managed' ? 'Aplicação do Painel' : 'Softload V4');
+      container.ownership === 'managed' ? 'Aplicação do Painel' : 'Projeto existente');
   main.append(name, detail);
   const state = document.createElement('span');
   state.className = 'service-state';
@@ -203,11 +212,12 @@ function clearHostContainers(message) {
   document.getElementById('hostContainersTag').textContent = 'SEM DADOS';
   document.getElementById('hostContainersNotice').textContent = message;
 }
-async function loadHostContainers() {
-  if (!authenticated || hostContainersLoading) return;
-  hostContainersLoading = true;
+function loadHostContainers() {
+  if (!authenticated) return Promise.resolve(null);
+  if (hostContainersLoading) return hostContainersLoading;
   const refresh = document.getElementById('hostContainersRefresh');
   refresh.disabled = true;
+  hostContainersLoading = (async () => {
   try {
     const data = await api('/containers');
     if (!authenticated) return;
@@ -234,13 +244,15 @@ async function loadHostContainers() {
     document.getElementById('allHostContainers').replaceChildren(
       ...(items.length ? items.map(hostContainerRow) : [empty()])
     );
+    return data;
   } catch (error) {
     if (authenticated) clearHostContainers('Não foi possível consultar os containers: ' +
       (error.message || 'API indisponível') + '. Confira se a API e o executor do Painel estão atualizados.');
   } finally {
-    hostContainersLoading = false;
     refresh.disabled = false;
   }
+  })().finally(() => { hostContainersLoading = null; });
+  return hostContainersLoading;
 }
 document.getElementById('hostContainersRefresh').addEventListener('click', () => void loadHostContainers());
 let lastOverviewTime = null;
@@ -303,12 +315,18 @@ async function loadOverview() {
   refreshButton.disabled = true;
   refreshButton.textContent = 'Consultando...';
   try {
-    const data = await api('/overview');
+    const [data, inventory] = await Promise.all([api('/overview'), loadHostContainers()]);
     window.renderResourceHistory?.(data.resourceHistory);
     const services = Array.isArray(data.services) ? data.services : [];
     fillServices(services);
     const running = services.filter(service => service.state === 'running').length;
-    writeMetric('serviceCount', String(running), ' / ' + services.length);
+    const summary = data.containerSummary || (inventory && { available: true,
+      running: inventory.containers.filter(item => item.state === 'running').length,
+      total: inventory.containers.length, truncated: inventory.truncated });
+    const inventoryAvailable = summary?.available === true && Number.isInteger(summary.running) &&
+      Number.isInteger(summary.total) && summary.running >= 0 && summary.total >= summary.running;
+    writeMetric('serviceCount', inventoryAvailable ? String(summary.running) : 'Indisponível',
+      inventoryAvailable ? ' / ' + summary.total + (summary.truncated ? ' (parcial)' : '') : '');
     const readAt = new Date(data.updatedAt);
     const timestamp = readAt.getTime();
     const fresh = Number.isFinite(timestamp) && timestamp <= Date.now() + 30000 && Date.now() - timestamp <= 120000;
@@ -354,14 +372,14 @@ async function loadOverview() {
       document.getElementById('diskDetail').textContent = 'O sistema de arquivos não informou sua capacidade.';
     }
     const issues = [];
-    if (services.length && running < services.length) {
+    if (legacySoftload && services.length && running < services.length) {
       issues.push({ title: services.length - running + ' serviço(s) fora de execução',
         detail: 'Confira se a parada foi planejada. Consulte o estado de cada serviço antes de agir.', href: '#services' });
     }
     if (memory.source === 'memavailable' && memoryPercent !== null && memoryPercent >= 85) {
       issues.push({ title: 'Memória com ' + memoryPercent + '% de ocupação',
         detail: 'A RAM disponível está baixa; confira os serviços antes de aumentar limites.',
-        href: '#services', critical: memoryPercent >= 95 });
+        href: '#containers', critical: memoryPercent >= 95 });
     }
     if (diskPercent !== null && diskPercent >= 85) {
       issues.push({ title: 'Armazenamento com ' + diskPercent + '% de ocupação',
@@ -379,24 +397,22 @@ async function loadOverview() {
     if (!fresh) {
       markOverviewUnavailable('A API respondeu, mas o horário da coleta está ausente ou antigo. Atualize para confirmar.');
     } else {
-      const noServices = services.length === 0;
+      const noServices = !inventoryAvailable;
       setOverviewHealth(issues.length ? 'attention' : noServices ? 'unknown' : 'ok',
         issues.length ? issues.length + ' ponto(s) merecem atenção'
-          : noServices ? 'Sem serviços cadastrados no inventário' : 'Sem alertas nos indicadores disponíveis',
+          : noServices ? 'Inventário de containers não confirmado' : 'Sem alertas nos indicadores disponíveis',
         issues.length ? 'Veja os sinais abaixo e confira os detalhes antes de tomar alguma ação.'
-          : noServices ? 'A API não informou serviços. Confirme se esta VPS possui serviços configurados.'
-          : 'Serviços, memória e armazenamento foram consultados. Isso não substitui testes de acesso aos sites.',
+          : noServices ? 'As métricas da máquina foram consultadas. Atualize o inventário para conferir os containers.'
+          : 'Containers, memória e armazenamento foram consultados. Isso não substitui testes de acesso aos sites.',
         issues);
       document.getElementById('topStatus').lastChild.textContent = ' VPS conectada';
       document.getElementById('apiStatus').textContent = '● API conectada';
       document.getElementById('authStatus').textContent = '● Sessão ativa';
       document.querySelector('.connection-card strong').textContent = 'VPS conectada';
       document.querySelector('.connection-card small').textContent = 'Leitura confirmada agora';
-      setBanner('Dados da VPS atualizados. Revisão configurada ' +
-        (data.currentSha?.slice(0, 8) || 'não disponível') + '. Confira a ativação em Publicações.', true);
+      setBanner('Dados da VPS atualizados. Consulte cada projeto para conferir sua versão e disponibilidade.', true);
     }
     void window.refreshHostedProjects?.();
-    void loadHostContainers();
   } catch (error) {
     markOverviewUnavailable('Falha ao consultar a VPS: ' + (error.message || 'sem resposta') +
       '. Verifique sua conexão ou tente atualizar.');
@@ -466,9 +482,7 @@ function renderDeployRuntime(runtime, configuredSha, publicHealth = null) {
     host.append(message);
   }
   const configured = document.createElement('small');
-  configured.textContent = 'Referência em /host/softload.env: ' +
-    (runtime?.configuredSha || configuredSha || 'não disponível') +
-    ' · Validação do site público: não incluída nesta verificação';
+  configured.textContent = 'Compatibilidade opcional: a versão em execução é consultada no Docker, sem exigir arquivos do projeto.';
   host.append(configured);
   const publicLine = document.createElement('p');
   publicLine.className = 'deploy-public-health';
@@ -543,6 +557,16 @@ function deployRow(run, runtime, publicHealth = null) {
 }
 async function loadDeploys() {
   if (!authenticated) return;
+  if (!legacySoftload) {
+    try {
+      const data = await api('/publications');
+      window.renderProjectPublicationHistory?.(Array.isArray(data.history) ? data.history : []);
+      window.refreshGitHubRepositories?.();
+    } catch (error) { window.renderProjectPublicationHistory?.([], error.status === 404
+      ? 'O histórico geral ainda não está instalado na API desta VPS. Consulte cada aplicação em Projetos GitHub enquanto o servidor recebe a atualização.'
+      : error.message); }
+    return;
+  }
   try {
     const [data, overview] = await Promise.all([api('/deploys'), api('/overview')]);
     const runningServices = (overview.services || []).filter(service => ['app', 'agent'].includes(service.id) && service.state === 'running').length;
@@ -590,6 +614,7 @@ async function loadDeploys() {
 }
 async function loadLogs() {
   if (!authenticated) return;
+  if (!legacySoftload) { location.hash = 'apps'; return; }
   const area = document.getElementById('logConsole');
   area.textContent = 'Carregando logs...';
   try {
@@ -601,14 +626,16 @@ async function loadLogs() {
 const menu = document.getElementById('sidebar');
 const menuButton = document.getElementById('menuButton');
 function showView(name) {
-  const viewName = name.split('?')[0];
+  const requested = name.split('?')[0];
+  const viewName = !legacySoftload && ['services', 'service-detail'].includes(requested) ? 'containers'
+    : !legacySoftload && requested === 'logs' ? 'apps' : requested;
   const view = document.getElementById(viewName) || document.getElementById('overview');
   document.querySelectorAll('.view').forEach(el => el.classList.toggle('active', el === view));
   document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === view.id));
   document.getElementById('currentCrumb').textContent = view.dataset.title;
   menu.classList.remove('open');
   menuButton.setAttribute('aria-expanded', 'false');
-  document.title = `${view.dataset.title} — Softload Console`;
+  document.title = `${view.dataset.title} — Painel VPS`;
   if (view.id === 'overview' && authenticated) void loadOverview();
   if (view.id === 'containers' && authenticated) void loadHostContainers();
   if (view.id === 'logs') loadLogs();
@@ -643,7 +670,8 @@ document.getElementById('authForm').addEventListener('submit', async event => {
       showAuth(false);
       toast('Senha criada. Entre como admin.');
     } else {
-      await api('/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: document.getElementById('username').value.trim(), password }) });
+      const session = await api('/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: document.getElementById('username').value.trim(), password }) });
+      applyHostProfile(session);
       authenticated = true;
       document.getElementById('authOverlay').hidden = true;
       document.getElementById('logoutButton').hidden = false;
@@ -705,6 +733,7 @@ function checkPanelConnection() {
       const data = await api('/session');
       if (typeof data.authenticated !== 'boolean' || typeof data.setupRequired !== 'boolean')
         throw new Error('A resposta recebida não confirmou a API do painel. Confira o encaminhamento para a VPS.');
+      applyHostProfile(data);
       document.getElementById('apiStatus').textContent = '● API conectada';
       document.getElementById('apiConnectionMessage').textContent = 'Conexão confirmada com a API. Isso não confirma a saúde dos sites hospedados.';
       document.querySelector('.connection-card strong').textContent = 'API acessível';
@@ -714,6 +743,7 @@ function checkPanelConnection() {
         document.getElementById('authOverlay').hidden = true;
         document.getElementById('logoutButton').hidden = false;
         await Promise.all([loadOverview(), loadDeploys()]);
+        if (location.hash === '#logs') void loadLogs();
         if (location.hash === '#apps') window.refreshManagedApplications?.();
         if (location.hash === '#containers') void loadHostContainers();
         if (location.hash.startsWith('#site?')) window.refreshSiteDetail?.();

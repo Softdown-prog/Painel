@@ -1,10 +1,10 @@
-# Painel Softload — guia rápido, sem termos técnicos
+# Painel VPS — guia rápido, sem termos técnicos
 
 O objetivo do painel é permitir administrar uma VPS pequena hoje e vários sites, clientes e servidores no futuro. A interface deve falar a linguagem de quem quer colocar um site no ar, e deixar os detalhes técnicos para o administrador ou para o Codex.
 
 ## O que posso fazer hoje
 
-**Visão geral:** acompanhar os serviços da Softload e a utilização da VPS.
+**Visão geral:** acompanhar a utilização da VPS, os projetos e os containers de todo o servidor. Um projeto parado não impede o acesso ao painel.
 
 **Sites e apps:** criar uma aplicação a partir de uma imagem já autorizada na VPS, definir limites de memória e processamento, iniciar, parar, reiniciar e ver registros. A aplicação começa **desligada**, sem domínio público. Neste protótipo há um limite de **8 aplicações**; ele ainda não é um gerenciador de clientes em larga escala.
 
@@ -12,7 +12,7 @@ O objetivo do painel é permitir administrar uma VPS pequena hoje e vários site
 
 **Endereços:** preparar um endereço como `loja.apps.analysepro.com`, a partir do nome da aplicação e da zona liberada pelo administrador. **Preparar ou reservar não significa colocar na internet**. Por enquanto, o administrador precisa configurar DNS, HTTPS e atualização do servidor de endereços.
 
-**Publicações:** acompanhar workflows do GitHub. **Serviços Softload:** administrar separadamente os componentes existentes da Softload, sem misturá-los com sites de clientes.
+**Publicações:** acompanhar o histórico das aplicações por projeto. Para conferir a imagem atual ou os registros, abra a aplicação em **Sites e apps**. Os controles de compatibilidade de instalações antigas só aparecem quando habilitados pelo administrador.
 
 ## Exemplo: quero hospedar o site de uma loja
 

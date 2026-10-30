@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { handleDomainRoute, renderManagedCaddy, validDomainZone, readDomainRoutes } from './domains.ts';
-import { renderCaddyInstallCommand, renderPublicCaddy } from './domain-publish.ts';
+import { renderCaddyInstallCommand, renderPublicCaddy, frontProxyConfig } from './domain-publish.ts';
 
 const managed = {
   Id: 'abc123', Name: '/softload-app-demo',
@@ -54,10 +54,18 @@ test('public gateway renderer accepts only stored routes and transports config w
   const publicConfig = renderPublicCaddy([route]);
   assert.match(publicConfig, /https:\/\/demo\.apps\.analysepro\.com/);
   assert.match(publicConfig, /reverse_proxy app-gateway:8081/);
-  const command = renderCaddyInstallCommand(publicConfig);
-  assert.match(command, /docker network connect softload_panel_apps softload-caddy/);
+  const command = renderCaddyInstallCommand(publicConfig, {container: 'public-caddy', sitesDir: '/etc/vps-panel/sites'});
+  assert.match(command, /docker network connect softload_panel_apps public-caddy/);
+  assert.doesNotMatch(command, /softload-caddy|\/opt\/softload-infra/);
   assert.match(command, /caddy validate/);
   assert.doesNotMatch(command, /demo\.apps\.analysepro\.com/);
+});
+test('publishing requires an explicit front proxy and rejects command/path injection and control-plane targets', () => {
+  assert.equal(frontProxyConfig({}), null);
+  assert.equal(frontProxyConfig({PANEL_SOFTLOAD_LEGACY: '1'}).container, 'softload-caddy');
+  for(const container of ['caddy;reboot','$(id)','softload-panel-api'])
+    assert.equal(frontProxyConfig({PANEL_FRONT_PROXY_CONTAINER: container, PANEL_FRONT_PROXY_SITES_DIR: '/etc/vps-panel/sites'}), null);
+  assert.throws(() => renderCaddyInstallCommand('valid config', {container:'caddy', sitesDir:'/etc/../root'}));
 });
 test('domains only register panel-owned apps on isolated network; removal updates Caddy snippet', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'panel-domains-'));

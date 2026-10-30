@@ -6,6 +6,10 @@ export const LEGACY_SOFTLOAD_SERVICES = Object.freeze({
   caddy: { container: 'softload-caddy', image: null, controllable: false }
 });
 
-export function legacySoftloadEntries(enabled = process.env.PANEL_SOFTLOAD_LEGACY !== '0') {
+export function legacySoftloadEnabled(env: { PANEL_SOFTLOAD_LEGACY?: string } = process.env) {
+  return env.PANEL_SOFTLOAD_LEGACY === '1';
+}
+
+export function legacySoftloadEntries(enabled = legacySoftloadEnabled()) {
   return enabled ? Object.entries(LEGACY_SOFTLOAD_SERVICES) : [];
 }

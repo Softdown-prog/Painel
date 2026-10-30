@@ -45,6 +45,10 @@ function store(dir:string,items:Publication[]):void{
  writeFileSync(tmp,JSON.stringify(items.slice(-50),null,2)+'\n',{mode:0o600});
  renameSync(tmp,path);
 }
+/** Read-only history across projects; does not start or advance publication jobs. */
+export function readPublicationHistory(dir:string):Publication[]{
+ return readJobs(dir).slice().reverse();
+}
 function record(dir:string,job:Publication,now:number):Publication{
  job.updatedAt=new Date(now).toISOString();
  const jobs=readJobs(dir),index=jobs.findIndex(item=>item.id===job.id);
@@ -180,6 +184,12 @@ export function startPublicationWorker(dataDir:string):void{
 }
 export async function handlePublicationRoute(req:IncomingMessage,res:ServerResponse,deps:Dependencies):Promise<boolean>{
  const path=new URL(req.url||'/','http://panel.local').pathname;
+ if(path==='/publications'){
+  if(req.method!=='GET'){deps.send(res,405,{error:'Método não permitido.'});return true;}
+  try{deps.send(res,200,{history:readPublicationHistory(deps.dataDir)});}
+  catch{deps.send(res,503,{error:'Histórico de publicações indisponível.'});}
+  return true;
+ }
  const match=/^\/projects\/([a-z0-9-]+)\/publication$/.exec(path);
  if(!match)return false;
  const slug=match[1];

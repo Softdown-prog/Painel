@@ -75,7 +75,9 @@ test('Unix executor rejects forbidden Docker calls and forwards authorized mutat
     assert.ok(ready,'Executor did not start: '+stderr);
     const list=await exchange(executorSocket,'/v1.45/containers/json?all=1');
     assert.equal(list.status,200);
-    assert.equal(list.data.length,2);
+    assert.equal(list.data.length,1);
+    assert.equal(list.data.some(c=>c.Names.includes('/softload-vps-app-1')),false,
+      'Generic executor does not implicitly grant legacy project access');
     assert.equal(list.data.some(c=>c.Names.includes('/another-project')),false);
     const inventory=await exchange(executorSocket,'/v1.45/containers/json?all=1&view=inventory');
     assert.equal(inventory.status,200);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { validRepository, validRef, validWorkflow, handleGitHubRoute } from './github.ts';
+import { validRepository, validRef, validWorkflow, handleGitHubRoute, readRepositories } from './github.ts';
 
 test('repository inputs reject foreign owners, routes and unsafe workflows', () => {
   assert.equal(validRepository('Softdown-prog/Painel'), true);
@@ -47,7 +47,7 @@ test('GitHub linking and dispatch use a server-side token and registered workflo
   try {
     const first = await invoke('/repositories');
     assert.equal(first.status, 200);
-    assert.equal(first.data.repositories[0].fullName, 'Softdown-prog/Softloadv4');
+    assert.deepEqual(first.data.repositories, []);
     assert.equal(first.data.tokenConfigured, true);
 
     const forbidden = await invoke('/repositories', 'POST', { fullName: 'outside/Demo', branch: 'main', workflow: 'deploy.yml' });
@@ -56,7 +56,7 @@ test('GitHub linking and dispatch use a server-side token and registered workflo
 
     const connected = await invoke('/repositories', 'POST', { fullName: 'Softdown-prog/Demo', branch: 'main', workflow: 'deploy.yml' });
     assert.equal(connected.status, 201);
-    assert.equal((await invoke('/repositories')).data.repositories.length, 2);
+    assert.equal((await invoke('/repositories')).data.repositories.length, 1);
     assert.equal((await invoke('/repositories', 'POST', { fullName: 'Softdown-prog/Demo' })).status, 409);
 
     const dispatch = await invoke('/repositories/Softdown-prog/Demo/deploy', 'POST');
@@ -75,4 +75,12 @@ test('GitHub linking and dispatch use a server-side token and registered workflo
     else process.env.PANEL_GITHUB_TOKEN_FILE = beforeTokenFile;
     rmSync(dataDir, { recursive: true, force: true });
   }
+});
+test('only explicit compatibility supplies an initial legacy repository; saved projects always survive', t => {
+  const dir = mkdtempSync(join(tmpdir(), 'panel-repository-profile-'));t.after(() => rmSync(dir, {recursive: true, force: true}));
+  assert.deepEqual(readRepositories(dir, false), []);
+  assert.equal(readRepositories(dir, true)[0].fullName, 'Softdown-prog/Softloadv4');
+  const saved = [{fullName: 'Softdown-prog/OutroProjeto', branch: 'main', workflow: 'build.yml'}];
+  writeFileSync(join(dir, 'github-repositories.json'), JSON.stringify(saved));
+  assert.deepEqual(readRepositories(dir, true), saved);assert.deepEqual(readRepositories(dir, false), saved);
 });
