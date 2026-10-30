@@ -27,6 +27,10 @@ negativa 401 sem login, probes internos, API/executor saudáveis e túnel conect
 Login administrativo e demais operações reais são registrados separadamente no
 [relatório de recuperação](RECUPERACAO-PRODUCAO.md), com versões, reversão e limites.
 Não confundir os resultados históricos abaixo com o estado final instalado.
+**Verificações internas adicionais:** inventário real do executor com dez
+containers e consulta `uptime` pelo módulo SSH da API aprovada (exit code 0).
+Navegador real desktop e login mobile/touch sem erros JS ou overflow. A sessão
+autenticada do navegador permanece pendente de confirmação; não foi simulado login.
 
 ### Painel independente dos projetos hospedados (30/10/2026, código implementado)
 

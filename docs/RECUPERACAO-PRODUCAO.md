@@ -106,6 +106,24 @@ confirmados no Microsoft Edge. A sessão autenticada e os testes de inventário,
 indicadores, registros e terminal serão registrados abaixo somente após o login
 na janela de validação, sem obter ou gravar a senha.
 
+O navegador real também foi ensaiado em viewport mobile/touch 390×844: largura
+do documento e do corpo de 390 px, sem overflow horizontal nem erros JavaScript.
+A observação foi da tela de login, não de uma sessão autenticada.
+
+Separadamente, o canal administrativo SSH confirmou os componentes reais:
+inventário filtrado do executor HTTP 200 com dez containers, incluindo Terrania,
+e `executeSshCommand('uptime')` dentro da API retornou exit code 0, sem timeout ou
+truncamento. Isso comprova o backend do terminal e sua chave configurada na rede
+nova; não substitui a requisição autenticada do navegador. Não foi necessário
+obter a senha administrativa para executar essa consulta inofensiva pelo acesso
+independente já autorizado.
+
+No volume do Painel antes da migração havia a conta e os históricos de manutenção,
+tráfego e recursos; não existiam arquivos de projetos, repositórios ou rotas
+cadastradas. A instalação não apagou esses cadastros: não havia registros salvos
+nesses arquivos. O repositório Softload sugerido automaticamente pelo modo legado
+não é um cadastro persistido e deixa de ser presumido no modo genérico.
+
 ## Reversão restrita ao Painel
 
 Referências anteriores preservadas:
