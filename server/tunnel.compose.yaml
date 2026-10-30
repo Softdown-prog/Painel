@@ -3,6 +3,9 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: softload-panel-tunnel
+    # Keep the credential's read-only service group stable across image updates.
+    # Host token: root:65532, mode 0440; never world-readable.
+    user: "65532:65532"
     command: tunnel --no-autoupdate run --token-file /run/secrets/tunnel-token
     restart: unless-stopped
     volumes:

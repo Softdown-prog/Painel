@@ -6,6 +6,32 @@
 
 **Limite atual de capacidade:** são permitidas até **8 aplicações gerenciadas** por instalação. Esse teto é uma proteção temporária do protótipo, não o desenho final de hospedagem de clientes. Aumentar o limite exige controle por servidor, cotas, separação de clientes e observabilidade (tarefa C07).
 
+### Recuperação real da API e instalação do painel genérico
+
+**Código implementado:** PR #18, revisão `5fdcc96a167b17ccf3c422d51ec9e522b0de66bb`,
+integrado com autorização no merge `e09a22c1be1a5ec124b1b39bc1169d464926edd7`.
+**CI aprovado:** 143 testes Linux e Docker real do PR; Console CI, Docker e Pages
+do merge aprovados. **Frontend publicado:** confirmado no Pages pelo SHA do merge,
+no domínio principal e alternativo. **Backend instalado:** API/executor versionados
+pela revisão do PR, mantendo os 12 overlays; API e túnel em `vps_panel_control`,
+executor sem rede, `PANEL_SOFTLOAD_LEGACY=0` e nenhuma montagem de projeto hospedado.
+
+**Causa comprovada do incidente:** API em estado `Created`, sem execução, com o
+túnel registrando ausência do nome de destino. Iniciar somente a API restaurou
+HTTP 200/JSON de sessão, com a conta existente, sem trocar segredos nem DNS/Access.
+Durante a instalação coordenada foram tratados a criação explícita da rede antes
+de ligar o túnel e a leitura do token pelo UID/GID não root do cloudflared; o token
+foi preservado, não exposto. A conta manteve seu hash e os outros projetos não foram
+reiniciados. **Produção validada até aqui:** sessão pública nos dois domínios,
+negativa 401 sem login, probes internos, API/executor saudáveis e túnel conectado.
+Login administrativo e demais operações reais são registrados separadamente no
+[relatório de recuperação](RECUPERACAO-PRODUCAO.md), com versões, reversão e limites.
+Não confundir os resultados históricos abaixo com o estado final instalado.
+**Verificações internas adicionais:** inventário real do executor com dez
+containers e consulta `uptime` pelo módulo SSH da API aprovada (exit code 0).
+Navegador real desktop e login mobile/touch sem erros JS ou overflow. A sessão
+autenticada do navegador permanece pendente de confirmação; não foi simulado login.
+
 ### Painel independente dos projetos hospedados (30/10/2026, código implementado)
 
 **Contexto confirmado:** o usuário tem apenas o terminal do próprio painel, sem console direto da provedora. Esse terminal depende da API; não pode ser usado como canal de recuperação quando ela está inacessível. O PR #17 foi integrado e o Pages publicou os novos arquivos, mas a consulta pública da sessão ainda retornou HTTP 502.

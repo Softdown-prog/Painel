@@ -12,6 +12,36 @@ A correção de código melhora o transporte e permite localizar o problema. Res
 
 ## Caminho esperado
 
+### Recuperação e instalação genérica em produção
+
+A intervenção administrativa posterior confirmou a causa inicial: `softload-panel-api`
+estava em **Created**, sem PID nem execução anterior, enquanto executor e túnel
+estavam ativos. O túnel registrava falha de resolução de `softload-panel-api`.
+Iniciar somente a API restabeleceu `/api/session` com HTTP 200 e JSON válido, sem
+alterar DNS, Access ou credenciais. Isso distingue a falha real das dependências
+arquiteturais encontradas no código.
+
+O PR #18 foi instalado na VPS pela revisão `5fdcc96a167b17ccf3c422d51ec9e522b0de66bb`
+e integrado na `main` em `e09a22c1be1a5ec124b1b39bc1169d464926edd7`. A API e o túnel
+agora usam `vps_panel_control`; a linha `softload_proxy` na tabela abaixo descreve
+a instalação anterior. Não é mais necessário montar o arquivo `.env` da Softload.
+
+Dois cuidados comprovados durante a migração:
+
+- Iniciar apenas o executor, que usa `network_mode: none`, não cria a rede da API.
+  Crie/valide a rede administrativa com os labels corretos do projeto Compose
+  antes de conectar o túnel, ou deixe a criação da API preparar essa rede durante
+  uma janela coordenada. Não desconecte o túnel da rede funcional antecipadamente.
+- A imagem `cloudflared` usa UID/GID `65532:65532`. Um token montado como
+  `root:root` com modo `0600` produz `Failed to read token file: permission denied`
+  após recriar o container. Nesta instalação, o arquivo do token permanece de
+  propriedade de root, com grupo dedicado `65532` e modo `0440`, montado somente
+  leitura. O valor foi preservado e conferido por hash sem ser exibido. Não use
+  `chmod 644`, não copie o token para a imagem e não desative o Access.
+
+Consulte [registro da recuperação e reversão](RECUPERACAO-PRODUCAO.md) antes de
+atualizar novamente os componentes administrativos.
+
 | Trecho | Contrato |
 | --- | --- |
 | Navegador → Pages Function | `/api/*`, na mesma origem, sessão em cookie HttpOnly |
