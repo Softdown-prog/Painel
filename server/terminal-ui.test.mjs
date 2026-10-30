@@ -53,15 +53,16 @@ function mount(responses = {}) {
 }
 test('CLI consults authenticated VPS API rather than simulating service state',async()=>{
   const cli=mount({
-    '/api/services':{services:[{id:'app',state:'running',status:'Up 2 hours'},{id:'agent',state:'exited',status:'Stopped'}]},
+    '/api/containers':{containers:[{name:'loja-api',state:'running',status:'Up 2 hours'},{name:'jogo-server',state:'exited',status:'Stopped'}]},
     '/api/apps':{enabled:true,maxApps:8,applications:[{slug:'loja',state:'running',ramMb:256}]}
   });
   const services=await cli.command('servicos');
-  assert.match(services,/app\s+● ativo/);
-  assert.match(services,/agent\s+○ parado/);
+  assert.match(services,/loja-api\s+● ativo/);
+  assert.match(services,/jogo-server\s+○ parado/);
+  assert.match(services,/SOMENTE CONSULTA/);
   const apps=await cli.command('apps');
   assert.match(apps,/loja/);
-  assert.ok(cli.requested.some(x=>x.url==='/api/services'));
+  assert.ok(cli.requested.some(x=>x.url==='/api/containers'));
   assert.ok(cli.requested.some(x=>x.url==='/api/apps'));
 });
 test('CLI confirms mutations and sends correct method to existing protected API',async()=>{

@@ -8,7 +8,7 @@ import { handleImageImportRoute } from './image-import.ts';
 import { handleDomainRoute } from './domains.ts';
 import { executeSshCommand, handleSshTerminalRoute } from './terminal-ssh.ts';
 import { handleRevisionRoute, startRevisionMonitor } from './revision-maintenance.ts';
-import { handlePublicationRoute, startPublicationWorker } from './publications.ts';
+import { handlePublicationRoute, readPublicationHistory, startPublicationWorker } from './publications.ts';
 import { handleSecretsRoute } from './secrets.ts';
 import { externalCounters, handleTrafficRoute, startTrafficMonitor } from './traffic.ts';
 import { observeDeployRuns, startDeployTrafficMonitor } from './deploy-traffic.ts';
@@ -95,6 +95,7 @@ async function dockerJson(path, method) {
   return r.buffer.length ? JSON.parse(r.buffer.toString('utf8')) : null;
 }
 async function containers() {
+  if (!legacyEntries.length) return [];
   const list = await dockerJson('/containers/json?all=1');
   return Object.entries(managed).map(([id, name]) => {
     const c = list.find(item => item.Names?.includes(`/${name}`));
@@ -112,11 +113,8 @@ function decodeDockerLogs(buffer) {
   }
   return offset ? result : buffer.toString('utf8');
 }
-function currentSha() {
-  try { return /^SOFTLOAD_IMAGE_TAG=([0-9a-f]{40})$/m.exec(readFileSync(process.env.SOFTLOAD_ENV_FILE || '/host/softload.env', 'utf8'))?.[1] || null; }
-  catch { return null; }
-}
 async function githubDeployRuns() {
+  if (!legacyEntries.length) return [];
   try {
     const response = await fetch('https://api.github.com/repos/Softdown-prog/Softloadv4/actions/workflows/deploy.yml/runs?per_page=20', {
       headers: { 'user-agent': 'softload-panel-api', accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(8000)
@@ -130,7 +128,7 @@ async function handler(req, res) {
   const url = new URL(req.url, 'http://panel-api.local');
   const path = url.pathname;
   const ip = clientIp(req);
-  if (path === '/session' && req.method === 'GET') return send(res, 200, { authenticated: session(req), setupRequired: !existsSync(adminFile) });
+  if (path === '/session' && req.method === 'GET') return send(res, 200, { authenticated: session(req), setupRequired: !existsSync(adminFile), legacySoftload: legacyEntries.length > 0 });
   if (path === '/setup' && req.method === 'POST') {
     if (existsSync(adminFile)) return send(res, 409, { error: 'Já configurado' });
     if (blocked(ip)) return send(res, 429, { error: 'Tente mais tarde' });
@@ -159,7 +157,7 @@ async function handler(req, res) {
     failures.delete(ip);
     const token = randomBytes(32).toString('hex');
     sessions.set(token, Date.now() + 12 * 60 * 60_000);
-    return send(res, 200, { ok: true }, { 'set-cookie': cookie(token, 43200) });
+    return send(res, 200, { ok: true, legacySoftload: legacyEntries.length > 0 }, { 'set-cookie': cookie(token, 43200) });
   }
   if (path === '/logout' && req.method === 'POST') {
     const token = /(?:^|;\s*)panel_session=([a-f0-9]{64})(?:;|$)/.exec(req.headers.cookie || '')?.[1];
@@ -212,7 +210,15 @@ async function handler(req, res) {
     return send(res, 200, { ok: true }, { 'set-cookie': cookie('', 0) });
   }
   if (path === '/overview' && req.method === 'GET') {
-    const list = await containers();
+    const list = await containers().catch(() => []);
+    let containerSummary = { available: false, running: null, total: null };
+    try {
+      const inventory = await dockerJson('/containers/json?all=1&view=inventory');
+      if (inventory && Array.isArray(inventory.containers)) containerSummary = {
+        available: true, running: inventory.containers.filter(item => item.state === 'running').length,
+        total: inventory.containers.length, truncated: inventory.truncated === true
+      };
+    } catch { /* Host metrics and login remain available when Docker is unavailable. */ }
     const total = totalmem();
     let meminfo = '';
     try { meminfo = readFileSync('/proc/meminfo', 'utf8'); } catch { /* Sem /proc/meminfo, manter fallback identificado */ }
@@ -224,12 +230,12 @@ async function handler(req, res) {
       if (Number.isFinite(size) && Number.isFinite(available) && size > 0)
         disk = { total: size, used: size - available, available };
     } catch { /* Filesystem capacity is optional when the volume cannot be inspected */ }
-    let diskBytes = 0;
+    let diskBytes = null;
     try {
       const dockerDisk = await dockerJson('/system/df?type=images');
       diskBytes = dockerDisk?.Images?.reduce((sum, image) => sum + (image.Size || 0), 0) || 0;
     } catch { /* Docker disk accounting is optional */ }
-    return send(res, 200, { services: list, memory: memorySnapshot(total, freemem(), meminfo), cpu: { load1: loadavg()[0], cores: cpus().length }, disk, imagesBytes: diskBytes, currentSha: currentSha(), updatedAt: new Date().toISOString(), resourceHistory: readResourceHistory(dataDir) });
+    return send(res, 200, { services: list, containerSummary, memory: memorySnapshot(total, freemem(), meminfo), cpu: { load1: loadavg()[0], cores: cpus().length }, disk, imagesBytes: diskBytes, currentSha: null, updatedAt: new Date().toISOString(), resourceHistory: readResourceHistory(dataDir) });
   }
   if (path === '/containers' && req.method === 'GET') {
     // The isolated executor strips labels and metadata before returning the list.
@@ -257,10 +263,13 @@ async function handler(req, res) {
     return send(res, 200, { ok: true, service: id, action });
   }
   if (path === '/deploys' && req.method === 'GET') {
+    if (!legacyEntries.length) return send(res, 200, {
+      scope: 'projects', history: readPublicationHistory(dataDir), runs: [], currentSha: null, runtime: null, publicHealth: null
+    });
     // GitHub and Docker are independent sources; start them together so
     // a slow GitHub request never adds to the Docker/public-health duration.
     const runsPromise = githubDeployRuns();
-    const runtime = await inspectDeployedServices(docker, currentSha());
+    const runtime = await inspectDeployedServices(docker, null);
     const [runs, publicHealth] = await Promise.all([
       runsPromise,
       cachedPublicHealth(runtime.app?.revision)
@@ -288,4 +297,4 @@ startRevisionMonitor(dataDir);
 startPublicationWorker(dataDir);
 startTrafficMonitor(dataDir);
 startResourceHistoryMonitor(dataDir);
-startDeployTrafficMonitor(dataDir, () => externalCounters(dataDir), githubDeployRuns);
+if (legacyEntries.length) startDeployTrafficMonitor(dataDir, () => externalCounters(dataDir), githubDeployRuns);

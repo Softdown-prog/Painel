@@ -58,8 +58,7 @@ async function main() {
   const services = await call('/services','GET',undefined,cookie);
   assert.equal(services.status, 200, JSON.stringify(services.data));
   assert.ok(Array.isArray(services.data.services));
-  assert.deepEqual(services.data.services.map(service => service.id), ['app', 'agent', 'caddy']);
-  assert.equal(services.data.services.find(service => service.id === 'caddy')?.controllable, false);
+  assert.deepEqual(services.data.services, [], 'Generic VPS does not require another project');
   assert.ok(services.data.services.every(service => !service.controllable), 'No missing Docker container can be controlled');
   const inventory = await call('/containers','GET',undefined,cookie);
   assert.equal(inventory.status, 200, JSON.stringify(inventory.data));
@@ -89,19 +88,22 @@ async function main() {
   assert.ok(revisions.data.hostInventory.total>=0);
   const overview = await call('/overview','GET',undefined,cookie);
   assert.equal(overview.status, 200, JSON.stringify(overview.data));
-  assert.deepEqual(overview.data.services.map(service => service.id), ['app', 'agent', 'caddy']);
+  assert.deepEqual(overview.data.services, []);
+  assert.equal(overview.data.containerSummary.available,true);
+  assert.ok(overview.data.containerSummary.total>=2);
+  assert.ok(overview.data.containerSummary.running>=2);
   assert.equal(overview.data.resourceHistory?.available, true);
   assert.ok(Array.isArray(overview.data.resourceHistory.samples));
   assert.ok(overview.data.resourceHistory.samples.length > 0, 'Resource sampling starts with the API');
-  // CI has Docker but no Softload containers and no external network. The UI must not invent an active release.
+  // No Softload project, file, network or external HTTP is needed for administration.
   const deploy = await call('/deploys','GET',undefined,cookie,18000);
   assert.equal(deploy.status,200,JSON.stringify(deploy.data));
-  // The executor rejects introspection of a nonexistent allowlisted container (403).
-  // This must remain inconclusive; it is not proof of a running or inactive version.
-  assert.equal(deploy.data.runtime?.app?.status,'unavailable');
-  assert.equal(deploy.data.publicHealth?.status,'unavailable');
-  assert.equal(deploy.data.runtime?.services?.app?.revision,null);
-  assert.deepEqual(Object.keys(deploy.data.runtime?.services || {}), ['app', 'agent']);
+  assert.equal(deploy.data.scope,'projects');
+  assert.equal(deploy.data.runtime,null);
+  assert.equal(deploy.data.publicHealth,null);
+  assert.deepEqual(deploy.data.history,[]);
+  const publications=await call('/publications','GET',undefined,cookie);
+  assert.equal(publications.status,200);assert.deepEqual(publications.data.history,[]);
   const blocked = await call('/apps','POST',{slug:'blocked',image:'fake:1'},cookie);
   assert.equal(blocked.status, 403, 'New apps must remain disabled by default');
 

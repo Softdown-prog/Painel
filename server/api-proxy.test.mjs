@@ -15,6 +15,21 @@ test('proxy keeps the fixed private origin, path, query, cookie and private cred
   });
   assert.deepEqual(await result.json(), {lines: 'log real'}); assert.equal(result.headers.get('cache-control'), 'no-store');
 });
+test('only a validated server binding can configure another installation origin', async () => {
+  const result = await proxyPanelRequest(context(request('/session', {headers: {'x-api-origin': 'https://untrusted.invalid'}}),
+    {...env, PANEL_API_ORIGIN: 'https://api.other-example.com/'}), async url => {
+    assert.equal(url.origin, 'https://api.other-example.com');assert.equal(url.pathname, '/session');
+    return Response.json({authenticated: false, setupRequired: false});
+  });
+  assert.equal(result.status, 200);
+  let calls = 0;
+  for(const origin of ['http://api.example.com','https://user:password@api.example.com','https://api.example.com/path',
+    'https://api.example.com/?token=secret','https://localhost','https://127.0.0.1','https://api.example.com:8080']) {
+    const failure = await proxyPanelRequest(context(request(), {...env, PANEL_API_ORIGIN: origin}), () => {calls++;throw Error('Must not send credentials');});
+    assert.equal(failure.status, 503);assert.equal((await failure.json()).code, 'EDGE_NOT_CONFIGURED');
+  }
+  assert.equal(calls, 0);
+});
 test('same-origin POST preserves its body without redirecting or replaying the operation', async () => {
   let calls = 0;
   const result = await proxyPanelRequest(context(request('/terminal/ssh/exec', {method: 'POST', headers: {origin: 'https://panel.test', 'content-type': 'application/json'}, body: '{"command":"uptime"}'})), async (_url, options) => {

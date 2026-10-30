@@ -20,4 +20,4 @@ services:
 networks:
   proxy:
     external: true
-    name: softload_proxy
+    name: vps_panel_control

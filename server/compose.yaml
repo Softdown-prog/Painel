@@ -10,16 +10,14 @@ services:
       PANEL_EDGE_KEY_FILE: /run/secrets/panel-edge-key
       PANEL_DATA_DIR: /data
       PANEL_DOCKER_SOCKET_PATH: /run/panel-executor/docker.sock
-      SOFTLOAD_ENV_FILE: /host/softload.env
+      PANEL_SOFTLOAD_LEGACY: "${PANEL_SOFTLOAD_LEGACY:-0}"
     volumes:
       - panel_data:/data
       - panel_executor_socket:/run/panel-executor:ro
       - /etc/softload-panel/edge-key:/run/secrets/panel-edge-key:ro
-      - /opt/softload-infra/softload/.env:/host/softload.env:ro
       - /proc/net/dev:/host/proc/net/dev:ro
-    depends_on:
-      executor:
-        condition: service_healthy
+    # Login and host diagnostics stay available while the executor recovers.
+    # The shared socket volume can exist before the executor starts listening.
     networks:
       - proxy
     read_only: true
@@ -47,6 +45,7 @@ services:
     network_mode: none
     environment:
       PANEL_EXECUTOR_SOCKET: /run/panel-executor/docker.sock
+      PANEL_SOFTLOAD_LEGACY: "${PANEL_SOFTLOAD_LEGACY:-0}"
       PANEL_APPS_ALLOWED_IMAGES: "${PANEL_APPS_ALLOWED_IMAGES:-}"
       PANEL_GHCR_ALLOWED_OWNER: "${PANEL_GHCR_ALLOWED_OWNER:-Softdown-prog}"
     volumes:
@@ -74,5 +73,4 @@ volumes:
     name: softload_panel_data
 networks:
   proxy:
-    external: true
-    name: softload_proxy
+    name: vps_panel_control

@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { legacySoftloadEnabled } from './legacy-softload-profile.ts';
 
 export type LinkedRepository = {
   fullName: string;
@@ -39,9 +40,9 @@ export function validWorkflow(value: unknown): value is string {
   return typeof value === 'string' && /^[A-Za-z0-9_.-]{1,80}\.ya?ml$/.test(value);
 }
 function repositoryFile(dataDir: string): string { return join(dataDir, 'github-repositories.json'); }
-export function readRepositories(dataDir: string): LinkedRepository[] {
+export function readRepositories(dataDir: string, legacy = legacySoftloadEnabled()): LinkedRepository[] {
   const path = repositoryFile(dataDir);
-  if (!existsSync(path)) return [initial];
+  if (!existsSync(path)) return legacy ? [{...initial}] : [];
   const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
   if (!Array.isArray(parsed) || !parsed.every((r: unknown) => typeof r === 'object' && r !== null &&
     validRepository((r as LinkedRepository).fullName) && validRef((r as LinkedRepository).branch) &&

@@ -1,0 +1,8 @@
+# Optional compatibility for existing Softload services. No project files or networks.
+services:
+  api:
+    environment:
+      PANEL_SOFTLOAD_LEGACY: "1"
+  executor:
+    environment:
+      PANEL_SOFTLOAD_LEGACY: "1"
