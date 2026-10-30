@@ -11,19 +11,19 @@
       const active = tab.dataset.dbTab === name;
       tab.setAttribute("aria-selected", String(active));
       tab.tabIndex = active ? 0 : -1;
-      byId(tab.getAttribute("aria-controls")).hidden = !active;
+      byId(tab.getAttribute("aria-controls")!).hidden = !active;
       if (active && focus) tab.focus();
     }
   }
   for (const tab of tabs) {
-    tab.addEventListener("click", () => selectTab(tab.dataset.dbTab));
+    tab.addEventListener("click", () => selectTab(tab.dataset.dbTab!));
     tab.addEventListener("keydown", (event) => {
       if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
       event.preventDefault();
       const idx = tabs.indexOf(tab);
       const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1
         : (idx + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
-      selectTab(tabs[next].dataset.dbTab, true);
+      selectTab(tabs[next].dataset.dbTab!, true);
     });
   }
   function setUnavailable(title: string, message: string, reason: string, state = "unconfigured"): void {
