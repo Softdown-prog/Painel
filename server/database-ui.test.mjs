@@ -26,7 +26,7 @@ test('new database controls do not contain an install, a database credential or 
   assert.match(view, /disabled[^>]*>\+ Criar banco/);
   assert.match(view, /disabled[^>]*>\+ Criar usuário/);
   assert.match(view, /disabled[^>]*>Restaurar banco/);
-  assert.equal(file('database-ui.ts'), file('database-ui.js'));
+  assert.match(file('database-ui.ts'), /request<DatabaseStatus>/);
   const client = file('database-ui.js');
   assert.match(client, /panelApi\.request\("\/database\/status"\)/);
   assert.doesNotMatch(client, /method\s*:\s*["'](?:POST|DELETE|PUT|PATCH)/);

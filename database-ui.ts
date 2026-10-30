@@ -1,8 +1,12 @@
 (() => {
-  const byId = (id) => document.getElementById(id);
-  const tabs = Array.from(document.querySelectorAll("[data-db-tab]"));
+  type DatabaseStatus = {
+    engine: "postgresql"; integration: "not_configured"; enabled: false;
+    instance: null; databases: null; checkedAt: string;
+  };
+  const byId = (id: string): HTMLElement => document.getElementById(id)!;
+  const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-db-tab]"));
   let inFlight = false;
-  function selectTab(name, focus = false) {
+  function selectTab(name: string, focus = false): void {
     for (const tab of tabs) {
       const active = tab.dataset.dbTab === name;
       tab.setAttribute("aria-selected", String(active));
@@ -22,7 +26,7 @@
       selectTab(tabs[next].dataset.dbTab, true);
     });
   }
-  function setUnavailable(title, message, reason, state = "unconfigured") {
+  function setUnavailable(title: string, message: string, reason: string, state = "unconfigured"): void {
     byId("dbStatusCard").dataset.state = state;
     byId("dbStatus").textContent = title;
     byId("dbMessage").textContent = message;
@@ -32,15 +36,15 @@
     byId("dbConnections").textContent = "—";
     byId("dbOperations").textContent = "Desativadas";
   }
-  async function refreshDatabasePanel() {
+  async function refreshDatabasePanel(): Promise<void> {
     if (inFlight) return;
     inFlight = true;
-    const refresh = byId("dbRefresh");
+    const refresh = byId("dbRefresh") as HTMLButtonElement;
     refresh.disabled = true;
     setUnavailable("Consultando API da VPS…", "Verificando se a integração foi configurada.", "Verificando");
     byId("dbLastCheck").textContent = "Consulta em andamento";
     try {
-      const data = await window.panelApi.request("/database/status");
+      const data = await window.panelApi.request<DatabaseStatus>("/database/status");
       if (!data || data.engine !== "postgresql" || data.integration !== "not_configured"
         || data.enabled !== false || data.instance !== null || data.databases !== null
         || !Number.isFinite(Date.parse(data.checkedAt))) {
