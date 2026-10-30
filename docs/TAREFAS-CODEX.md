@@ -9,7 +9,7 @@
 ### Banco de Dados (interface preparada; implantação proibida nesta etapa)
 **Código proposto em branch/PR dedicado:** seção Sistema → Banco de Dados, com abas de visão geral, projetos, acessos, tabelas/consulta, recuperação e monitoramento; indicadores indisponíveis quando não consultados, botões mutáveis desligados, status autenticado `GET /database/status`, negação explícita das demais rotas e testes. Documentação de implantação futura: [BANCO-DE-DADOS.md](BANCO-DE-DADOS.md).
 
-**PostgreSQL instalado:** não. **pgAdmin/Adminer instalado:** não. **VPS, containers, DNS, Caddy, volumes, rede e credenciais alterados:** não. **Banco e contas reais:** nenhum cadastrado por esta mudança. **CI, Pages e VPS:** pendentes de verificação da revisão proposta. Não chamar o módulo de operacional até o adaptador e a instalação serem autorizados e testados.
+**PostgreSQL instalado:** não. **pgAdmin/Adminer instalado:** não. **VPS, containers, DNS, Caddy, volumes, rede e credenciais alterados:** não. **Banco e contas reais:** nenhum cadastrado por esta mudança. **CI:** aprovado na revisão `131048dadeb12b00bd17e050122456f7e23df55d`, [Console CI](https://github.com/Softdown-prog/Painel/actions/runs/41135121146) e [Docker executor integration smoke](https://github.com/Softdown-prog/Painel/actions/runs/41135121102). **PR:** [#20](https://github.com/Softdown-prog/Painel/pull/20), preparado para revisão, sem merge. **Frontend publicado e VPS validada:** não; instalação não autorizada nesta etapa. Não chamar o módulo de operacional até o adaptador e a instalação serem autorizados e testados.
 
 ### Recuperação real da API e instalação do painel genérico
 
