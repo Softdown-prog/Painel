@@ -8,6 +8,7 @@
     <nav aria-label="Navegação Angular">
       <button type="button" [class.active]="page() === 'overview'" (click)="selectPage('overview')">▦ &nbsp; Visão geral</button>
       <button type="button" [class.active]="page() === 'containers'" (click)="selectPage('containers')">▣ &nbsp; Containers</button>
+      <button type="button" [class.active]="page() === 'deployments'" (click)="selectPage('deployments')">⇅ &nbsp; Publicações</button>
     </nav>
     <p class="group-label">OUTRAS FERRAMENTAS</p>
     <nav aria-label="Ferramentas do painel anterior">
@@ -21,7 +22,7 @@
   </aside>
   <main class="main">
     <header class="topbar">
-      <span class="breadcrumb">Workspace / <strong>{{page() === 'overview' ? 'Visão geral' : 'Containers'}}</strong></span>
+      <span class="breadcrumb">Workspace / <strong>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers' : 'Publicações'}}</strong></span>
       <div class="actions">
         <span class="mode">Angular 22</span>
         @if (signedIn()) { <button type="button" class="secondary" (click)="logout()">Sair</button> }
@@ -29,9 +30,9 @@
     </header>
     <div class="content">
       <div class="heading">
-        <div><small>GERENCIAMENTO MULTIPROJETOS</small><h1>{{page() === 'overview' ? 'Visão geral' : 'Containers da VPS'}}</h1>
+        <div><small>GERENCIAMENTO MULTIPROJETOS</small><h1>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers da VPS' : 'Publicações'}}</h1>
           <p>Interface Angular em migração incremental, utilizando a mesma API protegida do painel.</p></div>
-        @if (signedIn()) { <button type="button" class="primary" [disabled]="loading()" (click)="refresh()">{{loading() ? 'Consultando…' : '↻ Atualizar dados'}}</button> }
+        @if (signedIn() && page() !== 'deployments') { <button type="button" class="primary" [disabled]="loading()" (click)="refresh()">{{loading() ? 'Consultando…' : '↻ Atualizar dados'}}</button> }
       </div>
       @if (error()) { <div role="alert" class="alert error">{{error()}}</div> }
       @if (notice() && signedIn()) { <div role="status" class="alert">{{notice()}}</div> }
@@ -66,7 +67,7 @@
             <p class="hint">Os valores vêm do backend existente. Nenhum número de demonstração é exibido.</p>
             <button type="button" class="secondary" (click)="selectPage('containers')">Ver inventário de containers</button>
           </section>
-        } @else {
+        } @else if (page() === 'containers') {
           <section class="panel">
             <h2>Inventário Docker <span class="tag">SOMENTE LEITURA</span></h2>
             <p>{{inventory()?.containers?.length ?? '—'}} containers encontrados · {{activeContainers()}} ativos</p>
@@ -81,6 +82,8 @@
               } @empty { <p>Nenhum container informado pela VPS.</p> }
             </div>
           </section>
+        } @else {
+          <panel-deployments />
         }
       }
       <footer>Frontend Angular isolado · Backend Node.js/TypeScript existente · <a href="/#overview">Voltar à interface completa</a></footer>

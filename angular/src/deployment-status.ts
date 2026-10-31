@@ -22,8 +22,11 @@ const activePhase: Record<string,string> = {
   queued:'Na fila da VPS',importing:'Importando imagem',staging:'Preparando container',
   health:'Testando saúde',promoting:'Ativando versão'
 };
-export function validRun(run: WorkflowRun): boolean {
-  return Number.isSafeInteger(run.id) && run.id > 0 && SHA.test(run.sha) &&
+export function validRun(value: unknown): value is WorkflowRun {
+  if (!value || typeof value !== 'object') return false;
+  const run=value as Partial<WorkflowRun>;
+  return typeof run.id === 'number' && Number.isSafeInteger(run.id) && run.id > 0 &&
+    typeof run.sha === 'string' && SHA.test(run.sha) &&
     typeof run.status === 'string';
 }
 export function ciStatus(run: WorkflowRun): Stage {
