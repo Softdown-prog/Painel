@@ -20,14 +20,15 @@ export function parseOverview(raw:unknown):HostOverview{
      typeof raw.containerSummary.available!=='boolean')
     throw Error('A API não confirmou as métricas da VPS.');
   const summary=raw.containerSummary;
-  if(summary.available&&(!integer(summary.running)||!integer(summary.total)||summary.running>summary.total))
+  const available=summary.available===true;
+  if(available&&(!integer(summary.running)||!integer(summary.total)||summary.running>summary.total))
     throw Error('A contagem de containers recebida é inválida.');
   const result:HostOverview={
     updatedAt:raw.updatedAt,
     containerSummary:{
-      available:summary.available,
-      running:summary.available?summary.running as number:null,
-      total:summary.available?summary.total as number:null,
+      available,
+      running:available?summary.running as number:null,
+      total:available?summary.total as number:null,
       truncated:summary.truncated===true
     }
   };
