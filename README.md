@@ -315,3 +315,12 @@ O workflow de [manutenção aprovada do `vpsops`](docs/VPSOPS-MANUTENCAO-APROVAD
 ### Interface Angular principal e acompanhamento de deploys
 
 A rota inicial do painel abre `/angular/` automaticamente, exceto links explícitos da interface clássica (`/#...`). A tela Publicações usa consultas periódicas do GitHub Actions e distingue resultado do workflow, entrega e revisão realmente informada pela VPS. Consulte os estados nos cartões; abra **Ver etapas** para conferir os jobs. A API ainda precisa de deploy bem-sucedido para disponibilizar novas rotas como `/repositories/{owner}/{repo}/runs-all` e `/panel-version`.
+
+
+### Administração pelo celular — interface Angular canônica
+
+Use **[panel.analysepro.com](https://panel.analysepro.com/)**: a entrada principal redireciona ao Angular. Em telas estreitas, a navegação diária fica na **barra inferior** (Início, Containers, Apps e Deploys) e o botão **☰** abre as ferramentas avançadas. O layout respeita a área segura de telas mobile, permite rolagem vertical de cartões e inclui alvos de toque maiores.
+
+As ferramentas ainda não migradas continuam na interface de compatibilidade, acessível pelo próprio menu Angular ou por `/?interface=classica#terminal`, `#database`, `#projects` etc. Isso evita perder controles enquanto seus equivalentes Angular são implementados. O uso direto de `/#overview` e outros atalhos antigos vai para o Angular, não para um segundo dashboard.
+
+A verificação de produção exige SHA no Cloudflare Pages e teste do bundle Angular, além de CI. Essas mudanças não habilitam comandos root extras e não afetam outros containers.

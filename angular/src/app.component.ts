@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, signal } from '@angular/core';
+import { Component, HostListener, OnInit, computed, signal } from '@angular/core';
 import { DeploymentsComponent } from './deployments.component';
 import { AppsComponent } from './apps.component';
 
@@ -26,6 +26,7 @@ type Inventory = {containers?: ManagedContainer[]; readOnly?: boolean; updatedAt
 })
 export class AppComponent implements OnInit {
   readonly page = signal<'overview' | 'containers' | 'deployments' | 'apps'>('overview');
+  readonly menuOpen = signal(false);
   readonly session = signal<Session | null>(null);
   readonly overview = signal<Overview | null>(null);
   readonly inventory = signal<Inventory | null>(null);
@@ -39,7 +40,30 @@ export class AppComponent implements OnInit {
     (this.inventory()?.containers ?? []).filter(c => c.state === 'running').length);
   readonly signedIn = computed(() => this.session()?.authenticated === true);
 
-  async ngOnInit(): Promise<void> { await this.checkSession(); }
+  async ngOnInit(): Promise<void> {
+    this.syncPageFromLocation();
+    await this.checkSession();
+  }
+
+  @HostListener('window:hashchange')
+  onRouteChange(): void {
+    this.syncPageFromLocation();
+    this.menuOpen.set(false);
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void { this.menuOpen.set(false); }
+
+  private syncPageFromLocation(): void {
+    const hash = window.location.hash.replace(/^#\/?/, '');
+    if (hash === 'overview' || hash === 'containers' ||
+        hash === 'deployments' || hash === 'apps') this.page.set(hash);
+    else this.page.set('overview');
+  }
+
+  toggleMenu(): void { this.menuOpen.update(open => !open); }
+  closeMenu(): void { this.menuOpen.set(false); }
+
 
   async request<T>(path: string, method = 'GET', payload?: object): Promise<T> {
     // The VPS web gateway keeps x-panel-edge-key only on the server. Never store it here.
@@ -92,6 +116,7 @@ export class AppComponent implements OnInit {
     this.overview.set(null);
     this.inventory.set(null);
     this.password.set('');
+    this.menuOpen.set(false);
   }
 
   async refresh(): Promise<void> {
@@ -113,7 +138,12 @@ export class AppComponent implements OnInit {
     } finally { this.loading.set(false); }
   }
 
-  selectPage(page: 'overview' | 'containers' | 'deployments' | 'apps'): void { this.page.set(page); }
+  selectPage(page: 'overview' | 'containers' | 'deployments' | 'apps'): void {
+    this.page.set(page);
+    this.menuOpen.set(false);
+    if (window.location.hash !== '#' + page) window.location.hash = page;
+    window.scrollTo(0, 0);
+  }
   formatDate(value?: string): string {
     if (!value) return 'Sem leitura confirmada';
     const d = new Date(value);

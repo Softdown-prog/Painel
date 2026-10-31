@@ -1,37 +1,48 @@
 <div class="layout">
-  <aside class="sidebar">
-    <a href="/angular/" class="brand" aria-label="Ir para início do painel Angular">
-      <span class="brand-icon">V✦</span>
-      <span><strong>Painel VPS</strong><small>CENTRAL ANGULAR 22</small></span>
-    </a>
-    <p class="group-label">PAINEL DE CONTROLE</p>
-    <nav aria-label="Navegação Angular">
-      <button type="button" [class.active]="page() === 'overview'" (click)="selectPage('overview')">▦ &nbsp; Visão geral</button>
-      <button type="button" [class.active]="page() === 'containers'" (click)="selectPage('containers')">▣ &nbsp; Containers</button>
-      <button type="button" [class.active]="page() === 'apps'" (click)="selectPage('apps')">⬡ &nbsp; Sites e apps</button>
-      <button type="button" [class.active]="page() === 'deployments'" (click)="selectPage('deployments')">⇅ &nbsp; Publicações</button>
+  @if (menuOpen()) {
+    <button type="button" class="menu-backdrop" aria-label="Fechar menu" (click)="closeMenu()"></button>
+  }
+  <aside id="navigationPanel" class="sidebar" [class.open]="menuOpen()" aria-label="Navegação e ferramentas">
+    <div class="sidebar-head">
+      <a href="/angular/#overview" class="brand" aria-label="Início do painel" (click)="closeMenu()">
+        <span class="brand-icon">V✦</span>
+        <span><strong>Painel VPS</strong><small>ADMINISTRAÇÃO</small></span>
+      </a>
+      <button type="button" class="menu-close" aria-label="Fechar menu" (click)="closeMenu()">×</button>
+    </div>
+    <p class="group-label">PAINEL PRINCIPAL</p>
+    <nav aria-label="Navegação principal">
+      <button type="button" [class.active]="page() === 'overview'" [attr.aria-current]="page() === 'overview' ? 'page' : null" (click)="selectPage('overview')"><span aria-hidden="true">▦</span> Visão geral</button>
+      <button type="button" [class.active]="page() === 'containers'" [attr.aria-current]="page() === 'containers' ? 'page' : null" (click)="selectPage('containers')"><span aria-hidden="true">▣</span> Containers</button>
+      <button type="button" [class.active]="page() === 'apps'" [attr.aria-current]="page() === 'apps' ? 'page' : null" (click)="selectPage('apps')"><span aria-hidden="true">⬡</span> Sites e apps</button>
+      <button type="button" [class.active]="page() === 'deployments'" [attr.aria-current]="page() === 'deployments' ? 'page' : null" (click)="selectPage('deployments')"><span aria-hidden="true">⇅</span> Publicações</button>
     </nav>
-    <p class="group-label">MÓDULOS CLÁSSICOS</p>
-    <nav aria-label="Ferramentas do painel anterior">
-      <a href="/#projects">⌘ &nbsp; GitHub</a>
-      <a href="/#terminal">›_ &nbsp; Terminal</a>
-      <a href="/#database">▤ &nbsp; PostgreSQL</a>
-      <a href="/#revisions">◴ &nbsp; Revisões</a>
+    <p class="group-label">FERRAMENTAS AVANÇADAS</p>
+    <nav aria-label="Ferramentas de manutenção ainda não migradas">
+      <a href="/?interface=classica#projects">⌘ &nbsp; Projetos GitHub</a>
+      <a href="/?interface=classica#terminal">›_ &nbsp; Terminal VPS</a>
+      <a href="/?interface=classica#database">▤ &nbsp; PostgreSQL</a>
+      <a href="/?interface=classica#revisions">◴ &nbsp; Revisões e espaço</a>
+      <a href="/?interface=classica#domains">◎ &nbsp; Domínios</a>
+      <a href="/?interface=classica#traffic">↕ &nbsp; Tráfego</a>
+      <a href="/?interface=classica#secrets">⚿ &nbsp; Chaves</a>
+      <a href="/?interface=classica#settings">⚙ &nbsp; Configurações</a>
     </nav>
-    <p class="note">Ferramentas ainda não migradas continuam disponíveis no painel anterior. Os estados de publicação são verificados separadamente no GitHub e na VPS.</p>
+    <p class="note">Interface única para o uso diário. As ferramentas ainda não migradas permanecem acessíveis apenas pelo modo de compatibilidade.</p>
   </aside>
-  <main class="main">
+  <main class="main" id="mainContent">
     <header class="topbar">
-      <span class="breadcrumb">Workspace / <strong>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers' : page() === 'apps' ? 'Sites e apps' : 'Publicações'}}</strong></span>
+      <button type="button" class="menu-toggle" aria-label="Abrir ferramentas e navegação" aria-controls="navigationPanel" [attr.aria-expanded]="menuOpen()" (click)="toggleMenu()">☰</button>
+      <span class="breadcrumb">Minha VPS <span aria-hidden="true">/</span> <strong>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers' : page() === 'apps' ? 'Sites e apps' : 'Publicações'}}</strong></span>
       <div class="actions">
-        <span class="mode">● Angular 22 · central ativa</span>
-        @if (signedIn()) { <button type="button" class="secondary" (click)="logout()">Sair</button> }
+        <span class="mode">{{signedIn() ? '● Sessão ativa' : '● Acesso protegido'}}</span>
+        @if (signedIn()) { <button type="button" class="secondary logout" (click)="logout()">Sair</button> }
       </div>
     </header>
     <div class="content">
       <div class="heading">
         <div><small>GERENCIAMENTO MULTIPROJETOS</small><h1>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers da VPS' : page() === 'apps' ? 'Sites e apps' : 'Publicações'}}</h1>
-          <p>Interface principal Angular · administração multiprojetos · status consultados na API e no GitHub.</p></div>
+          <p>Gerencie seus projetos e acompanhe a VPS pelo celular ou computador.</p></div>
         @if (signedIn() && (page() === 'overview' || page() === 'containers')) { <button type="button" class="primary" [disabled]="loading()" (click)="refresh()">{{loading() ? 'Consultando…' : '↻ Atualizar dados'}}</button> }
       </div>
       @if (error()) { <div role="alert" class="alert error">{{error()}}</div> }
@@ -43,7 +54,7 @@
         <section class="panel login">
           <h2>Acesso administrativo</h2>
           @if (session()?.setupRequired) {
-            <p>O administrador ainda não foi configurado. Abra o <a href="/#settings">painel atual</a> para concluir a configuração inicial.</p>
+            <p>O administrador ainda não foi configurado. Abra as <a href="/?interface=classica#settings">configurações avançadas</a> para concluir a configuração inicial.</p>
           } @else {
             <p>Use suas credenciais existentes. A senha não fica armazenada no Angular.</p>
             <form (submit)="login($event)">
@@ -89,7 +100,13 @@
           <panel-deployments />
         }
       }
-      <footer>Angular 22 · API Node.js/TypeScript existente · <a href="/#overview">Abrir interface clássica</a></footer>
+      <footer>Central Angular · API Node.js/TypeScript · <a href="/?interface=classica#settings">Configurações avançadas</a></footer>
     </div>
   </main>
+  <nav class="mobile-tabs" aria-label="Navegação rápida">
+    <button type="button" [class.active]="page() === 'overview'" [attr.aria-current]="page() === 'overview' ? 'page' : null" (click)="selectPage('overview')"><span aria-hidden="true">▦</span><small>Início</small></button>
+    <button type="button" [class.active]="page() === 'containers'" [attr.aria-current]="page() === 'containers' ? 'page' : null" (click)="selectPage('containers')"><span aria-hidden="true">▣</span><small>Containers</small></button>
+    <button type="button" [class.active]="page() === 'apps'" [attr.aria-current]="page() === 'apps' ? 'page' : null" (click)="selectPage('apps')"><span aria-hidden="true">⬡</span><small>Apps</small></button>
+    <button type="button" [class.active]="page() === 'deployments'" [attr.aria-current]="page() === 'deployments' ? 'page' : null" (click)="selectPage('deployments')"><span aria-hidden="true">⇅</span><small>Deploys</small></button>
+  </nav>
 </div>
