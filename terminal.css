@@ -19,8 +19,8 @@
 .terminal-muted{color:#a0a9ba}
 .terminal-form{display:flex;align-items:center;gap:12px;padding:13px 16px;background:#1b1e2b}
 .terminal-prompt{font:700 13px ui-monospace,SFMono-Regular,Consolas,monospace;color:#b9edcc;white-space:nowrap}
-.terminal-form input{background:#10131b;border:1px solid #3c4255;border-radius:7px;padding:12px 10px;color:#f1edf8;min-width:0;flex:1;font:13px ui-monospace,SFMono-Regular,Consolas,monospace}
-.terminal-form input:focus{border-color:#ad92ed;outline:2px solid #ad92ed22}
+.terminal-form textarea{background:#10131b;border:1px solid #3c4255;border-radius:7px;padding:12px 10px;color:#f1edf8;min-width:0;flex:1;font:13px ui-monospace,SFMono-Regular,Consolas,monospace}
+.terminal-form textarea:focus{border-color:#ad92ed;outline:2px solid #ad92ed22}
 .terminal-form button:disabled{opacity:.5;cursor:wait}
 .terminal-footnote{padding:0 18px 13px;margin:0;background:#1b1e2b;color:#aeb8c6;font-size:11px;line-height:1.6}
 .terminal-shortcuts{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
@@ -29,4 +29,7 @@
 .terminal-shortcuts button:disabled{opacity:.5}
 .terminal-guide{font-size:12px;line-height:1.55;color:#b6becd}
 .terminal-guide a{color:#c9adff;text-decoration:underline}
-@media(max-width:750px){.terminal-toolbar{padding:11px;flex-wrap:wrap}.terminal-toolbar>span:nth-of-type(2){margin-left:0;flex:1}.terminal-output{min-height:300px;max-height:50vh;padding:15px}.terminal-form{gap:7px;padding:10px}.terminal-form input{font-size:12px}.terminal-form button{padding:11px}.terminal-footnote{padding:0 12px 14px}}
+@media(max-width:750px){.terminal-toolbar{padding:11px;flex-wrap:wrap}.terminal-toolbar>span:nth-of-type(2){margin-left:0;flex:1}.terminal-output{min-height:300px;max-height:50vh;padding:15px}.terminal-form{gap:7px;padding:10px}.terminal-form textarea{font-size:12px}.terminal-form button{padding:11px}.terminal-footnote{padding:0 12px 14px}}
+
+.terminal-form textarea{min-height:68px;max-height:45vh;resize:vertical;line-height:1.5;box-sizing:border-box}
+.terminal-form .primary-button{align-self:flex-end}

@@ -48,12 +48,21 @@ function send(res, status, data, extra = {}) {
   res.end(JSON.stringify(data));
 }
 async function body(req) {
-  let raw = '';
+  // Only authenticated SSH execution accepts bigger multi-line JSON bodies.
+  const terminal = new URL(req.url || '/', 'http://panel.local').pathname === '/terminal/ssh/exec';
+  const maxBytes = terminal ? 8 * 1024 * 1024 + 65536 : 65536;
+  let bytes = 0;
+  const chunks = [];
   for await (const part of req) {
-    raw += part;
-    if (raw.length > 65536) throw new Error('Request too large');
+    bytes += part.length;
+    if (bytes > maxBytes) {
+      const error = new Error('Request too large');
+      error.statusCode = 413;
+      throw error;
+    }
+    chunks.push(part);
   }
-  return JSON.parse(raw || '{}');
+  return JSON.parse(chunks.length ? Buffer.concat(chunks).toString('utf8') : '{}');
 }
 function hashPassword(password, salt = randomBytes(24).toString('hex')) {
   return { salt, hash: scryptSync(password, salt, 64).toString('hex') };
@@ -289,6 +298,11 @@ async function handler(req, res) {
 
 http.createServer((req, res) => {
   Promise.resolve(handler(req, res)).catch(error => {
+    if (error?.statusCode === 413) {
+      if (!res.headersSent) send(res, 413, { error: 'Envio excedeu o limite técnico de 4 MB de script.' });
+      else res.end();
+      return;
+    }
     console.error('Request failed:', error.message);
     if (!res.headersSent) send(res, 500, { error: 'Erro interno' });
     else res.end();

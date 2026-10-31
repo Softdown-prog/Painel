@@ -10,7 +10,8 @@ type Deps = {
   execute?: (command: string) => Promise<SSHResult>;
   enabled?: boolean;
 };
-const MAX_COMMAND = 600;
+// Send multi-line scripts via SSH stdin; bound the per-request memory use.
+const MAX_COMMAND_BYTES = 4 * 1024 * 1024;
 const MAX_OUTPUT = 24 * 1024;
 let executing = false;
 function config() {
@@ -91,10 +92,10 @@ export async function handleSshTerminalRoute(req: IncomingMessage, res: ServerRe
   }
   if (path === '/terminal/ssh/exec' && req.method === 'POST') {
     const data = await deps.body(req);
-    if (typeof data.command !== 'string' || data.command.length < 1 || data.command.length > MAX_COMMAND ||
+    if (typeof data.command !== 'string' || !data.command.trim() || Buffer.byteLength(data.command, 'utf8') > MAX_COMMAND_BYTES ||
       /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(data.command) ||
-      data.command.trim() !== data.command || Object.keys(data).join(',') !== 'command') {
-      deps.send(res, 400, { error: 'Comando inválido (até 600 caracteres, sem caracteres de controle).' }); return true;
+      Object.keys(data).join(',') !== 'command') {
+      deps.send(res, 400, { error: 'Comando inválido. Scripts até 4 MB; caracteres de controle inválidos não são aceitos.' }); return true;
     }
     if (executing) { deps.send(res, 429, { error: 'Já existe um comando Linux em execução. Tente novamente após concluí-lo.' }); return true; }
     executing = true;

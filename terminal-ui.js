@@ -44,7 +44,8 @@
         '',
         'SHELL ADMINISTRATIVO: com a sessão do painel ativa, comandos Linux são executados como root.',
         'Exemplo: docker ps, systemctl status ssh ou curl https://exemplo.com.',
-        'Saia do painel para encerrar a sessão. Cada comando tem limite de 18 segundos e 24 KB de saída.',
+        'Cole comandos ou scripts com várias linhas. Ctrl+Enter executa, ou use o botão no celular.',
+        'Até 4 MB por script; o tempo continua limitado a 18 segundos e a saída a 24 KB.',
         'Chaves coladas em comandos são mascaradas na tela e no histórico.'
     ].join('\n');
     function line(message, kind = 'response') {
@@ -332,17 +333,18 @@
         const command = text.trim();
         if (!command)
             return;
-        if (command.length > 600) {
-            line('Comando muito longo.', 'error');
-            return;
-        }
         busy = true;
         runButton.disabled = true;
         input.disabled = true;
-        const visibleCommand = redactShell(command);
-        history.push(visibleCommand);
-        if (history.length > 50)
-            history.shift();
+        const longScript = command.length > 2000;
+        const visibleCommand = longScript
+            ? '[Script longo (' + command.length.toLocaleString('pt-BR') + ' caracteres), não exibido nem salvo no histórico]'
+            : redactShell(command);
+        if (!longScript) {
+            history.push(visibleCommand);
+            if (history.length > 50)
+                history.shift();
+        }
         historyIndex = history.length;
         line('vps > ' + visibleCommand, 'command');
         try {
@@ -362,6 +364,13 @@
     }
     form.addEventListener('submit', event => { event.preventDefault(); void execute(input.value); });
     input.addEventListener('keydown', event => {
+        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+            event.preventDefault();
+            void execute(input.value);
+            return;
+        }
+        if (input.value.includes('\n'))
+            return;
         if (event.key === 'ArrowUp' && history.length) {
             event.preventDefault();
             historyIndex = Math.max(0, historyIndex - 1);
