@@ -1,0 +1,69 @@
+<section class="revisions" aria-label="Revisões e espaço da VPS">
+  <div class="head"><div><h2>Revisões e espaço</h2>
+    <p>Imagens importadas pelo Painel, versões protegidas e histórico de limpeza.</p></div>
+    <button type="button" (click)="refresh()" [disabled]="loading()||working()">↻ Atualizar</button></div>
+  @if(error()){<p class="error" role="alert">{{error()}}</p>}
+  @if(notice()){<p class="notice" role="status">{{notice()}}</p>}
+  @if(loading()){<p role="status">Verificando as imagens na VPS…</p>}
+  @if(report();as r){
+    <div class="stats">
+      <div><small>REVISÕES IMPORTADAS</small><strong>{{r.totalImports}}</strong></div>
+      <div><small>ELEGÍVEIS PARA LIMPAR</small><strong>{{r.oldCount}}</strong></div>
+      <div><small>ESPAÇO ESTIMADO</small><strong>{{bytes(r.oldBytesEstimate)}}</strong></div>
+      <div><small>LIMPEZA AUTOMÁTICA</small><strong>{{r.enabled?(r.automatic?'Ativada':'Pausada'):'Desabilitada'}}</strong></div>
+    </div>
+    <p class="tip">Última leitura: {{date(r.checkedAt)}}. Mantém pelo menos {{r.keepPerApp}} revisões por aplicação e protege importações recentes por {{r.ageDays}} dias. Espaço estimado sem deduplicação de camadas Docker.</p>
+    <div class="actions">
+      <button type="button" (click)="request('toggle')" [disabled]="working()||!r.enabled">
+        {{r.automatic?'Pausar limpeza automática':'Ativar limpeza automática'}}</button>
+      <button type="button" class="remove" (click)="request('cleanup')"
+        [disabled]="working()||!r.enabled||r.oldCount===0">Limpar imagens antigas elegíveis</button>
+    </div>
+    @if(!r.enabled){<p class="tip">Limpeza desabilitada na VPS. Nenhum botão acima executará remoções sem a configuração do servidor.</p>}
+    @if(confirmAction();as action){
+      <div class="confirmation" role="group" aria-label="Confirmar alteração de revisões">
+        @if(action==='toggle'){
+          <strong>{{r.automatic?'Pausar':'Ativar'}} limpeza automática?</strong>
+          <p>A configuração será aplicada à rotina de limpeza da VPS, que verifica apenas revisões gerenciadas pelo Painel.</p>
+        }@else{
+          <strong>Confirmar remoção das {{r.oldCount}} imagens elegíveis?</strong>
+          <p>A API protege versões ativas, de rollback e recentes. A remoção de imagens é irreversível; os tamanhos são estimados.</p>
+          <label>Digite LIMPAR para confirmar
+            <input [value]="confirmText()" (input)="confirmText.set($any($event.target).value)" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
+        }
+        <div class="actions"><button type="button" (click)="cancel()" [disabled]="working()">Cancelar</button>
+          <button type="button" class="remove" (click)="confirm()" [disabled]="working()||(action==='cleanup'&&confirmText()!=='LIMPAR')">
+            {{working()?'Processando…':'Confirmar alteração'}}</button></div>
+      </div>
+    }
+    <section class="group">
+      <h3>Revisões gerenciadas</h3>
+      @for(entry of r.entries;track entry.slug+'/'+entry.revision){
+        <article class="entry"><div><strong>{{entry.slug}}</strong><small>{{entry.revision.slice(0,12)}} · {{date(entry.importedAt)}}</small>
+          <p>{{entry.reason}}</p></div>
+          <div class="side"><span [class.stale]="entry.status==='antiga'">{{statusLabel[entry.status]}}</span>
+            <small>{{bytes(entry.sizeBytes)}}</small></div></article>
+      }@empty{<p>Nenhuma revisão importada pelo painel.</p>}
+    </section>
+    <section class="group">
+      <h3>Inventário Docker da VPS</h3>
+      @if(r.hostInventory.available){
+        <p>{{r.hostInventory.total}} imagens, {{r.hostInventory.untagged}} sem tag.
+          Tamanho bruto: {{bytes(r.hostInventory.totalBytesEstimate)}}.</p>
+        <button type="button" (click)="showImages.update(v=>!v)">{{showImages()?'Ocultar imagens':'Ver imagens (até 50)'}}</button>
+        @if(showImages()){
+          @for(image of r.hostInventory.images.slice(0,50);track image.id){
+            <div class="image-row"><strong>{{image.tags.join(', ')||'(sem tag)'}}</strong>
+              <small>{{image.id.slice(0,18)}} · {{bytes(image.sizeBytes)}}</small></div>
+          }@empty{<p>Sem imagens na consulta.</p>}
+        }
+      }@else{<p>O inventário completo não está disponível nesta leitura.</p>}
+    </section>
+    <section class="group"><h3>Histórico de limpeza</h3>
+      @for(item of r.history.slice(-12).reverse();track item.at){
+        <div class="history"><strong>{{date(item.at)}} · {{item.source==='automatic'?'Automática':'Manual'}}</strong>
+          <small>{{item.removed}} removidas · {{item.failed}} falhas · {{bytes(item.bytesEstimate)}}</small></div>
+      }@empty{<p>Nenhuma limpeza registrada.</p>}
+    </section>
+  }
+</section>

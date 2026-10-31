@@ -20,9 +20,9 @@
     <p class="group-label">FERRAMENTAS AVANÇADAS</p>
     <nav aria-label="Ferramentas de manutenção ainda não migradas">
       <button type="button" [class.active]="page() === 'projects'" [attr.aria-current]="page() === 'projects' ? 'page' : null" (click)="selectPage('projects')">⌘ &nbsp; Projetos GitHub</button>
-      <a href="/?interface=classica#terminal">›_ &nbsp; Terminal VPS</a>
+      <button type="button" [class.active]="page() === 'terminal'" (click)="selectPage('terminal')">›_ &nbsp; Terminal VPS</button>
       <a href="/?interface=classica#database">▤ &nbsp; PostgreSQL</a>
-      <a href="/?interface=classica#revisions">◴ &nbsp; Revisões e espaço</a>
+      <button type="button" [class.active]="page() === 'revisions'" (click)="selectPage('revisions')">◴ &nbsp; Revisões e espaço</button>
       <a href="/?interface=classica#domains">◎ &nbsp; Domínios</a>
       <a href="/?interface=classica#traffic">↕ &nbsp; Tráfego</a>
       <a href="/?interface=classica#secrets">⚿ &nbsp; Chaves</a>
@@ -33,7 +33,7 @@
   <main class="main" id="mainContent">
     <header class="topbar">
       <button type="button" class="menu-toggle" aria-label="Abrir ferramentas e navegação" aria-controls="navigationPanel" [attr.aria-expanded]="menuOpen()" (click)="toggleMenu()">☰</button>
-      <span class="breadcrumb">Minha VPS <span aria-hidden="true">/</span> <strong>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers' : page() === 'apps' ? 'Sites e apps' : page() === 'projects' ? 'GitHub' : 'Publicações'}}</strong></span>
+      <span class="breadcrumb">Minha VPS <span aria-hidden="true">/</span> <strong>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers' : page() === 'apps' ? 'Sites e apps' : page() === 'projects' ? 'GitHub' : page() === 'terminal' ? 'Terminal' : page() === 'revisions' ? 'Revisões' : 'Publicações'}}</strong></span>
       <div class="actions">
         <span class="mode">{{signedIn() ? '● Sessão ativa' : '● Acesso protegido'}}</span>
         @if (signedIn()) { <button type="button" class="secondary logout" (click)="logout()">Sair</button> }
@@ -41,7 +41,7 @@
     </header>
     <div class="content">
       <div class="heading">
-        <div><small>GERENCIAMENTO MULTIPROJETOS</small><h1>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers da VPS' : page() === 'apps' ? 'Sites e apps' : page() === 'projects' ? 'Projetos GitHub' : 'Publicações'}}</h1>
+        <div><small>GERENCIAMENTO MULTIPROJETOS</small><h1>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers da VPS' : page() === 'apps' ? 'Sites e apps' : page() === 'projects' ? 'Projetos GitHub' : page() === 'terminal' ? 'Terminal VPS' : page() === 'revisions' ? 'Revisões e espaço' : 'Publicações'}}</h1>
           <p>Gerencie seus projetos e acompanhe a VPS pelo celular ou computador.</p></div>
         @if (signedIn() && (page() === 'overview' || page() === 'containers')) { <button type="button" class="primary" [disabled]="loading()" (click)="refresh()">{{loading() ? 'Consultando…' : '↻ Atualizar dados'}}</button> }
       </div>
@@ -98,6 +98,10 @@
           <panel-managed-apps />
         } @else if (page() === 'projects') {
           <panel-github-projects />
+        } @else if (page() === 'terminal') {
+          <panel-vps-terminal />
+        } @else if (page() === 'revisions') {
+          <panel-revisions />
         } @else {
           <panel-deployments />
         }

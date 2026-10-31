@@ -1,0 +1,41 @@
+<section class="terminal" aria-label="Terminal da VPS">
+  <div class="head"><div><h2>Terminal VPS</h2>
+    <p>Execução pelo SSH já configurado na API do painel. Nenhum comando é enviado automaticamente.</p></div>
+    <button type="button" (click)="refresh()" [disabled]="checking()||busy()">↻ Verificar conexão</button></div>
+  @if(error()){<p role="alert" class="error">{{error()}}</p>}
+  <p class="connection" role="status">
+    @if(checking()){Verificando conexão…}
+    @else if(status()?.enabled && status()?.configured){<span class="good">●</span> Terminal SSH habilitado e configurado}
+    @else {<span class="warn">●</span> Terminal SSH indisponível na configuração do servidor}
+  </p>
+  <div class="presets" aria-label="Exemplos de comandos somente leitura">
+    @for(example of snippets; track example){<button type="button" [disabled]="busy()" (click)="choose(example)">{{example}}</button>}
+  </div>
+  <form (submit)="prepare($event)">
+    <label for="sshCommand">Comando ou script Bash</label>
+    <textarea id="sshCommand" [value]="command()" (input)="command.set($any($event.target).value);pending.set(false)"
+      rows="6" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Digite seu comando. Scripts longos não ficam salvos no navegador."
+      [disabled]="busy()" aria-describedby="sshWarning"></textarea>
+    <p id="sshWarning" class="warning">O comando pode modificar a VPS e outros projetos. Revise antes de executar. Não cole senhas nem tokens. A saída pode conter dados sensíveis.</p>
+    <div class="actions"><button type="submit" [disabled]="busy()||!command().trim()||!status()?.configured||!status()?.enabled">Preparar execução</button>
+      <button type="button" (click)="clear()" [disabled]="busy()">Limpar resultado</button></div>
+  </form>
+  @if(pending()){
+    <div class="confirmation" role="group" aria-label="Confirmar execução na VPS">
+      <strong>Executar este comando na VPS?</strong>
+      <p>Confira o texto digitado acima. O painel transmitirá o comando somente após confirmação.</p>
+      <div class="actions"><button type="button" (click)="cancel()">Cancelar</button>
+        <button type="button" class="danger" (click)="execute()">Confirmar execução</button></div>
+    </div>
+  }
+  @if(busy()){<p role="status" class="waiting">Executando na VPS… Aguarde o resultado, sem reenviar o comando.</p>}
+  @if(result();as r){
+    <section class="result" aria-label="Resultado do terminal">
+      <div class="result-bar"><strong [class.failed]="r.exitCode!==0">Saída · código {{r.exitCode}}</strong>
+        <small>{{executedAt()}}</small></div>
+      @if(r.timedOut){<p class="error">Tempo limite atingido; a execução foi interrompida.</p>}
+      @if(r.truncated){<p class="warning">Saída limitada pelo servidor. Alguns dados foram omitidos.</p>}
+      <pre tabindex="0">{{output()||'(nenhuma saída)'}}</pre>
+    </section>
+  }
+</section>

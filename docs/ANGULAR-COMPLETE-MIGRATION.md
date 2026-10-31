@@ -1,0 +1,38 @@
+# Migração integral do painel para Angular — branch de desenvolvimento
+
+**Branch exclusiva:** `feat/angular-complete-migration` (originada em `main`, SHA `467bcadcad2ab9f3811fdcbf03912aec93539311`).
+
+## Regra de liberação (congelamento de produção)
+
+- Trabalhar **somente nesta branch** até conclusão integral da migração. Não abrir PR, não fazer merge, não atualizar `main`, não acionar `workflow_dispatch` de deploy e não criar issues que ativem bridges VPS.
+- Executar testes de Node, TypeScript, Angular, broker e Docker exclusivamente em GitHub runners efêmeros. O workflow `ci.yml` aceita pushes desta branch **somente para testes**; os deploys Cloudflare Pages, VPS e GHCR automáticos continuam limitados a `main`.
+- Um único PR final, após todas as funcionalidades e fluxos migrarem, CI completo verde e revisão de segurança; merge somente mediante nova aprovação explícita do usuário.
+
+## Inventário de paridade (não chamar de concluído até existir equivalência testada)
+
+| Módulo | Atual | Faltam |
+| --- | --- | --- |
+| Visão geral, indicadores, autenticação | Angular parcial | Dados vivos, erro offline, sessão, testes mobile e estados |
+| Containers e gerenciamento | Angular somente leitura | Gerenciar ações, logs, estados e restrições do executor |
+| Sites e apps | Angular parcial | Auditoria de criação, recursos, logs, domínios e publicação |
+| GitHub e publicações | Angular parcial | Todas as ações e paridade de seleção/histórico/vínculos |
+| Terminal VPS | Migrando nesta branch | Comparar com CLI de compatibilidade, SSH, confirmações, script longo, acessibilidade |
+| Revisões e espaço | Migrando nesta branch | Limpeza manual/automática, inventário, histórico, atividades GitHub e status VPS |
+| PostgreSQL | Clássico | Status, listagem de bancos, criação isolada, consultas permitidas |
+| Domínios e DNS | Clássico | Cadastro, publicação, Caddy/DNS, validação HTTPS |
+| Tráfego e recursos | Clássico | Séries temporais, transferências e histórico |
+| Chaves e segredos | Clássico | Listar/cadastrar/remover com confirmação, nunca exibir valores |
+| Configurações e conta | Clássico | Autenticação inicial, alteração de senha, limites e preferências |
+| Detalhes do site e serviços | Clássico | Detalhes, ações confirmadas e estados reais |
+| Limpeza da interface antiga | Pendente | Remover JS/CSS clássico e fallback **somente após** paridade integral e testes |
+
+## Critérios de saída
+
+1. Inventário completo dos elementos `index.html` e `*-ui.ts` legados; cada rota e ação tem equivalência Angular funcional.
+2. Sem links `?interface=classica` ou referência ao frontend antigo na navegação principal final.
+3. Revisão de XSS, CSRF, auth, permissões por projeto e ausência de tokens no navegador; operações perigosas exigem confirmação.
+4. Testes unitários + integração Node/API + Angular build + Docker smoke + mobile (320/360/390/768px) verdes, com estados reais e loading.
+5. Estratégia de substituição e rollback preparada, sem afetar projetos/containers alheios.
+6. Somente após validação final e **autorização do usuário**, preparar PR único para `main` e executar merge/deploy.
+
+**Situação atual:** MIGRAÇÃO EM ANDAMENTO. Não há liberação de produção desta branch.
