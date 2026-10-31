@@ -1,71 +1,114 @@
-<section aria-label="Publicações e versões dos projetos">
-  <div class="deploy-intro">
+<section aria-label="Publicações e versões dos projetos" class="live-deploy-center">
+  <header class="live-head">
     <div>
-      <h2>GitHub e versão instalada na VPS</h2>
-      <p>Uma compilação aprovada não significa que a nova versão está em execução no servidor.</p>
-      <small>Última consulta: {{formatDate(checkedAt())}}</small>
+      <p class="live-eyebrow"><span class="live-led" [class.off]="!automatic()"></span> CENTRAL DE PUBLICAÇÕES</p>
+      <h2>GitHub Actions e VPS</h2>
+      <p>Veja cada execução e compare o resultado do GitHub com a revisão realmente instalada.</p>
+      <small>Consultado em {{formatDate(checkedAt())}} · atualização por consulta, a cada 30 segundos</small>
     </div>
-    <button type="button" class="refresh" (click)="refresh()" [disabled]="loading()">
-      {{loading() ? 'Consultando…' : '↻ Atualizar publicações'}}
-    </button>
+    <div class="live-controls">
+      <button type="button" class="auto-toggle" [attr.aria-pressed]="automatic()" (click)="toggleAutomatic()">
+        {{automatic() ? '● Atualização automática' : '○ Atualização pausada'}}
+      </button>
+      <button type="button" class="refresh" [disabled]="loading()" (click)="refresh()">
+        <span class="refresh-symbol" [class.spinning]="loading()" aria-hidden="true">↻</span>
+        {{loading() ? 'Verificando…' : 'Atualizar agora'}}
+      </button>
+    </div>
+  </header>
+
+  <div class="deploy-stats" aria-label="Resumo das execuções recentes">
+    <div class="stat"><span class="stat-symbol active" aria-hidden="true">↻</span><strong>{{summary().running}}</strong><small>Em andamento</small></div>
+    <div class="stat"><span class="stat-symbol passed" aria-hidden="true">✓</span><strong>{{summary().confirmed}}</strong><small>Revisões VPS confirmadas</small></div>
+    <div class="stat"><span class="stat-symbol failed" aria-hidden="true">×</span><strong>{{summary().failed}}</strong><small>Execuções com alerta</small></div>
+    <div class="stat"><span class="stat-symbol neutral" aria-hidden="true">≡</span><strong>{{summary().tracked}}</strong><small>Execuções recentes</small></div>
   </div>
-  @if (warning()) {
-    <p class="deploy-warning" role="status">{{warning()}}</p>
+
+  @if(warning()){<p class="deploy-warning" role="status">{{warning()}}</p>}
+  @if(error()){
+    <div role="alert" class="deploy-error"><strong>Monitoramento indisponível</strong><p>{{error()}}</p></div>
   }
-  @if (error()) {
-    <div role="alert" class="deploy-error">
-      <strong>Não foi possível consultar as publicações</strong>
-      <p>{{error()}}</p>
-    </div>
+  @if(loading() && !checkedAt()){
+    <p class="deploy-loading" role="status">Consultando repositórios, workflows e revisões instaladas...</p>
   }
-  @if (loading() && !checkedAt()) {
-    <p class="deploy-loading" role="status">Consultando repositórios, execuções e revisões...</p>
-  } @else if (!loading() && !error() && !configured()) {
+  @if(!loading() && !error() && !configured()){
     <div class="deploy-empty">
-      <h3>Nenhum repositório conectado</h3>
-      <p>Conecte os repositórios na área de Publicações do painel atual para acompanhar as versões aqui.</p>
-      <a href="/#deploys">Abrir integração GitHub no painel anterior</a>
+      <h3>Nenhum repositório encontrado</h3>
+      <p>O Painel é monitorado automaticamente. Outros projetos podem ser conectados na área GitHub.</p>
+      <a href="/#projects">Gerenciar repositórios</a>
     </div>
   }
-  @for (group of groups(); track group.name) {
+
+  @for(group of groups(); track group.name){
     <article class="deploy-group">
-      <header>
+      <header class="repo-bar">
         <div class="repo-heading">
-          <strong>{{group.name}}</strong>
-          <span>{{group.branch}} · {{group.workflow}}</span>
+          <span class="repo-symbol" aria-hidden="true">⌘</span>
+          <div><strong>{{group.name}}</strong><span>Branch {{group.branch}} · {{group.rows.length}} execuções</span></div>
         </div>
-        <span class="repo-target">{{group.slug ? 'Projeto da VPS: '+group.slug : 'Sem vínculo com a VPS'}}</span>
+        <span class="repo-target">{{group.slug ? 'VPS · '+group.slug : 'Sem associação de container'}}</span>
       </header>
-      @if (group.installedRevision) {
-        <p class="installed">Container em execução com revisão <code>{{group.installedRevision.slice(0,9)}}</code>. Isso não confirma o acesso HTTPS público.</p>
+      @if(group.installedRevision){
+        <p class="installed"><span aria-hidden="true">●</span> Container em execução, revisão <code>{{group.installedRevision.slice(0,9)}}</code>. O acesso público é verificado separadamente.</p>
       }
-      @if (group.issue) {
-        <p role="status" class="deploy-warning">{{group.issue}}</p>
-      }
-      @if (!group.issue && !group.rows.length) {
-        <p class="deploy-loading">Nenhuma execução recente encontrada.</p>
-      }
+      @if(group.issue){<p role="status" class="deploy-warning">{{group.issue}}</p>}
+      @if(!group.issue && !group.rows.length){<p class="deploy-loading">Nenhuma execução encontrada para esta branch.</p>}
       <div class="runs">
-        @for (run of group.rows; track run.key) {
+        @for(run of group.rows; track run.key){
           <div class="run">
-            <div class="revision">
-              <a [href]="run.url" target="_blank" rel="noopener noreferrer" [attr.aria-label]="'Abrir execução '+run.runId+' no GitHub'">{{run.shortSha}}</a>
-              <small>{{formatDate(run.createdAt)}}</small>
-            </div>
-            <div class="stages">
-              <div class="stage">
-                <small>GitHub CI/CD</small>
-                <span class="state" [class.success]="run.ci.tone === 'success'" [class.warning]="run.ci.tone === 'warning'" [class.danger]="run.ci.tone === 'danger'" [class.running]="run.ci.tone === 'running'">{{run.ci.label}}</span>
+            <div class="run-top">
+              <div class="run-identity">
+                <span class="run-icon" [class.success]="run.ci.tone==='success'" [class.danger]="run.ci.tone==='danger'" [class.running]="run.ci.tone==='running'" [class.warning]="run.ci.tone==='warning'" aria-hidden="true">{{icon(run.ci)}}</span>
+                <div>
+                  <strong>{{run.name}}</strong>
+                  <small><a [href]="run.url" target="_blank" rel="noopener noreferrer" [attr.aria-label]="'Ver execução '+run.runId+' no GitHub'">#{{run.runId}}</a> · {{run.shortSha}} · {{formatDate(run.createdAt)}}</small>
+                </div>
               </div>
-              <div class="stage">
-                <small>VPS / container</small>
-                <span class="state" [class.success]="run.vps.tone === 'success'" [class.warning]="run.vps.tone === 'warning'" [class.danger]="run.vps.tone === 'danger'" [class.running]="run.vps.tone === 'running'">{{run.vps.label}}</span>
+              <button type="button" class="job-button" (click)="toggleJobs(run,group.name)" [attr.aria-expanded]="expanded()===run.key">
+                {{expanded()===run.key ? 'Ocultar etapas −' : 'Ver etapas +'}}
+              </button>
+            </div>
+            <div class="pipeline" aria-label="Status de execução e instalação">
+              <div class="phase" [class.done]="run.ci.tone==='success'" [class.problem]="run.ci.tone==='danger'">
+                <span class="phase-dot" [class.success]="run.ci.tone==='success'" [class.danger]="run.ci.tone==='danger'" [class.running]="run.ci.tone==='running'" [class.warning]="run.ci.tone==='warning'" aria-hidden="true">{{icon(run.ci)}}</span>
+                <div><small>01 · GITHUB ACTIONS</small><strong>{{run.ci.label}}</strong></div>
+              </div>
+              <div class="phase" [class.done]="run.delivery.tone==='success'" [class.problem]="run.delivery.tone==='danger'">
+                <span class="phase-dot" [class.success]="run.delivery.tone==='success'" [class.danger]="run.delivery.tone==='danger'" [class.running]="run.delivery.tone==='running'" [class.warning]="run.delivery.tone==='warning'" aria-hidden="true">{{icon(run.delivery)}}</span>
+                <div><small>02 · PUBLICAÇÃO</small><strong>{{run.delivery.label}}</strong></div>
+              </div>
+              <div class="phase" [class.done]="run.vps.tone==='success'" [class.problem]="run.vps.tone==='danger'">
+                <span class="phase-dot" [class.success]="run.vps.tone==='success'" [class.danger]="run.vps.tone==='danger'" [class.running]="run.vps.tone==='running'" [class.warning]="run.vps.tone==='warning'" aria-hidden="true">{{icon(run.vps)}}</span>
+                <div><small>03 · VPS / CONTAINER</small><strong>{{run.vps.label}}</strong></div>
               </div>
             </div>
+            @if(expanded()===run.key){
+              <div class="job-details">
+                <h3>Etapas informadas pelo GitHub Actions</h3>
+                @if(jobLoading()){<p role="status">Obtendo jobs do GitHub…</p>}
+                @if(jobError()){<p role="alert" class="deploy-warning">{{jobError()}}</p>}
+                @for(job of expandedJobs();track job.id){
+                  <div class="job">
+                    <div class="job-header">
+                      <span class="phase-dot" [class.success]="jobStage(job.status,job.conclusion).tone==='success'" [class.danger]="jobStage(job.status,job.conclusion).tone==='danger'" [class.running]="jobStage(job.status,job.conclusion).tone==='running'">{{icon(jobStage(job.status,job.conclusion))}}</span>
+                      <strong>{{job.name}}</strong>
+                      <small>{{jobStage(job.status,job.conclusion).label}}</small>
+                    </div>
+                    <ol class="job-steps">
+                      @for(step of job.steps;track step.number){
+                        <li><span class="step-icon" [class.success]="jobStage(step.status,step.conclusion).tone==='success'" [class.danger]="jobStage(step.status,step.conclusion).tone==='danger'" [class.running]="jobStage(step.status,step.conclusion).tone==='running'">{{icon(jobStage(step.status,step.conclusion))}}</span> {{step.name}}</li>
+                      }
+                    </ol>
+                  </div>
+                }@empty{
+                  @if(!jobLoading() && !jobError()){<p>Nenhum job detalhado informado.</p>}
+                }
+              </div>
+            }
           </div>
         }
       </div>
     </article>
   }
-  <p class="deploy-note">A confirmação de execução na VPS utiliza o SHA e o estado do container registrado pela API. Ela não equivale a uma verificação de domínio, HTTPS ou acessibilidade pública. Histórico de todos os projetos no painel atual: <a href="/#revisions">Revisões e espaço</a>.</p>
+  <p class="deploy-note">O Painel consulta o GitHub periodicamente; não é uma conexão instantânea por WebSocket. Os detalhes dos jobs vêm do GitHub Actions. O estado da VPS exige uma leitura do container com SHA correspondente; outros serviços ou provedores precisam de integração própria. <a href="/#projects">Gerenciar projetos GitHub</a>.</p>
 </section>
