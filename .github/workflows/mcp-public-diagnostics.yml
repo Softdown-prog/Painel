@@ -24,10 +24,16 @@ jobs:
         run: node --test tools/repo-mcp/public-diagnostics.test.mjs
       - name: Compare public MCP unauthenticated and invalid-token responses
         run: node tools/repo-mcp/public-diagnostics.mjs
+      - name: Inspect only Cloudflare Security Events with existing deployment token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 tools/repo-mcp/cloudflare-security-diagnostic.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: mcp-public-diagnostic-${{ github.run_id }}
-          path: mcp-public-diagnostic.json
+          path: |
+            mcp-public-diagnostic.json
+            mcp-cloudflare-security-diagnostic.json
           if-no-files-found: ignore
           retention-days: 7
