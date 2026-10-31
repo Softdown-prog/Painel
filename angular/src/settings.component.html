@@ -1,0 +1,47 @@
+<section class="settings" aria-label="Configurações administrativas">
+ <header><h2>Configurações do administrador</h2>
+   <p>Proteja o acesso à VPS. As credenciais permanecem na API e não são armazenadas no navegador.</p></header>
+ @if(error()){<p class="error" role="alert">{{error()}}</p>}
+ @if(notice()){<p class="success" role="status">{{notice()}}</p>}
+ <section class="settings-panel">
+   <h3>Alterar senha administrativa</h3>
+   <p>Use uma senha nova de 14 a 256 caracteres. A troca invalida todas as sessões atuais e exigirá novo login.</p>
+   <form (submit)="prepare($event)" autocomplete="off">
+     <label>Senha atual
+       <input type="password" [value]="currentPassword()"
+         (input)="currentPassword.set($any($event.target).value);pending.set(false)"
+         autocomplete="current-password" maxlength="256" required [disabled]="working()"/>
+     </label>
+     <label>Nova senha
+       <input type="password" [value]="newPassword()"
+         (input)="newPassword.set($any($event.target).value);pending.set(false)"
+         autocomplete="new-password" minlength="14" maxlength="256" required [disabled]="working()"/>
+     </label>
+     <label>Confirme a nova senha
+       <input type="password" [value]="repeatPassword()"
+         (input)="repeatPassword.set($any($event.target).value);pending.set(false)"
+         autocomplete="new-password" minlength="14" maxlength="256" required [disabled]="working()"/>
+     </label>
+     <button type="submit" [disabled]="!valid()||working()">Preparar troca de senha</button>
+   </form>
+   @if(pending()){
+     <div class="confirm" role="group" aria-label="Confirmar mudança de senha">
+       <strong>Encerrar todas as sessões e substituir a senha?</strong>
+       <p>Digite ALTERAR SENHA para confirmar. Se a API não confirmar a alteração, confira a sessão antes de repetir.</p>
+       <label>Confirmação
+         <input [value]="confirmation()" (input)="confirmation.set($any($event.target).value)"
+           autocomplete="off" spellcheck="false" [disabled]="working()"/>
+       </label>
+       <div class="buttons">
+         <button type="button" (click)="cancel()" [disabled]="working()">Cancelar</button>
+         <button type="button" class="danger" (click)="save()"
+           [disabled]="working()||confirmation()!=='ALTERAR SENHA'">{{working()?'Alterando…':'Confirmar troca'}}</button>
+       </div>
+     </div>
+   }
+ </section>
+ <section class="settings-panel"><h3>Segurança do painel</h3>
+   <p>A autenticação utiliza a sessão administrativa já protegida no backend. Alterações de conexão, segredos e execução na VPS exigem permissões próprias. Nenhum controle desta página aumenta privilégios de outros projetos.</p>
+   <p>Chaves e segredos devem ser cadastrados na tela correspondente; tokens não são guardados em configurações do Angular.</p>
+ </section>
+</section>
