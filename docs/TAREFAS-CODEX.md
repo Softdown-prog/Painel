@@ -382,3 +382,7 @@ Guia de uso: [GUIA-RAPIDO.md](GUIA-RAPIDO.md). Domínios técnicos: [domain-rout
 
 ### Migração Angular — visão geral (31/10/2026; branch de desenvolvimento)
 **Implementado no código:** consultas independentes de métricas/inventário, validação estrita e indicação de dados antigos ou ausentes, descartando consultas após logout. Teste `server/angular-overview.test.mjs` adicionado. **CI:** pendente de conferência. **Frontend publicado e VPS validada:** não. Ainda faltam validação autenticada real e resoluções 320/360/390/768px; sem liberação para produção.
+
+### Angular / TypeScript — novas regras estritas (31/10/2026)
+
+**Somente branch `feat/angular-complete-migration`.** Configurados `noUnusedLocals`, `noUnusedParameters`, `noImplicitReturns`, `noPropertyAccessFromIndexSignature` para TypeScript raiz e Angular; ESLint recomendado e regras de código sem `any` explícito, sem variáveis não utilizadas, alertas para funções sem anotação de retorno e `console`. CI de desenvolvimento passa a verificar `npm run lint`. A aprovação final do CI deve ser verificada. **Frontend publicado / VPS validada:** não. Antes de liberar produção, corrigir todos os diagnósticos da compilação e do ESLint sem suprimir regras.

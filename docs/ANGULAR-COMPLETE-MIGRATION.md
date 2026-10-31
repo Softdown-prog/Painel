@@ -82,3 +82,10 @@
 - `/overview` e `/containers` são consultados separadamente: falha de um não impede a leitura do outro. Os estados mostram dados antigos de forma explícita e nunca os apresentam como saúde atual.
 - `overview-state.ts` valida horário, métricas numéricas e inventário somente leitura; atributos Docker inesperados não são repassados à interface. Respostas assíncronas de uma sessão encerrada são descartadas.
 - Novos testes em `server/angular-overview.test.mjs`. **Código apenas nesta branch:** CI e teste autenticado/mobile devem ser verificados; não há publicação nem merge.
+
+## Regras adicionais de qualidade (31/10/2026)
+
+- Ambos os projetos TypeScript (raiz e Angular) usam `noUnusedLocals`, `noUnusedParameters`, `noImplicitReturns` e `noPropertyAccessFromIndexSignature` além das opções estritas anteriores. `angular/tsconfig.app.json` mantém as três verificações estritas de template/injeção/entrada.
+- ESLint flat config aplica `typescript-eslint` recommended e as regras solicitadas a `**/*.ts`; `npm run lint` passa a rodar no CI isolado, com `no-explicit-any` e `no-unused-vars` como erros.
+- Compatibilidade a observar: o analisador typescript-eslint 8.x declara suporte oficial a TypeScript menor que 6.1, mas o projeto principal usa TS 7.0.2; avaliar avisos e suporte quando a ferramenta publicar suporte oficial. Nenhum downgrade automático.
+- Sem deploy ou alterações na VPS. CI e limpeza de avisos do novo lint serão avaliados nesta branch.
