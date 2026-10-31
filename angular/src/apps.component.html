@@ -1,0 +1,122 @@
+<section class="managed">
+  <div class="section-top">
+    <div><h2>Aplicações gerenciadas</h2>
+      <p>Crie e controle somente aplicações autorizadas pelo painel. Outros containers da VPS continuam em modo de consulta.</p>
+      <small>Os números de RAM e CPU são <strong>limites configurados</strong>, não consumo instantâneo.</small>
+    </div>
+    <button type="button" class="secondary" [disabled]="loading() || acting() !== null" (click)="refresh()">{{loading()?'Consultando...':'↻ Atualizar'}}</button>
+  </div>
+
+  @if (error()) { <div class="alert danger" role="alert">{{error()}}</div> }
+  @if (notice()) { <div class="alert success" role="status">{{notice()}}</div> }
+  @if (loading() && !data()) { <p role="status">Carregando aplicações...</p> }
+  @if (data(); as snapshot) {
+    <div class="stats">
+      <div class="tile"><span>Aplicações cadastradas</span><strong>{{snapshot.applications.length}} / {{snapshot.maxApps}}</strong></div>
+      <div class="tile"><span>Em execução</span><strong>{{running()}}</strong></div>
+      <div class="tile"><span>Gerenciamento</span><strong>{{snapshot.enabled?'Habilitado':'Desabilitado'}}</strong></div>
+    </div>
+    @if (!snapshot.enabled) {
+      <div class="alert warning" role="status">A VPS não habilitou o gerenciamento dessas aplicações. Consulta disponível; operações bloqueadas.</div>
+    }
+    <section class="block" aria-labelledby="newAppTitle">
+      <div class="block-heading"><div><h3 id="newAppTitle">Criar aplicação</h3>
+        <p>Ela será criada <strong>desligada</strong> e sem domínio público.</p></div><a href="/#apps">Abrir modo anterior</a></div>
+      <form class="create-form" (submit)="create($event)">
+        <label>Nome da aplicação
+          <input [value]="slug()" (input)="updateCreate('slug',$event)" placeholder="minha-loja" required minlength="2" maxlength="40"
+                 pattern="[a-z0-9]+(-[a-z0-9]+)*" autocomplete="off" aria-describedby="slugHint"/>
+          <small id="slugHint">Letras minúsculas, números e traços; de 2 a 40 caracteres.</small>
+        </label>
+        <label>Imagem permitida
+          <select [value]="image()" (change)="updateCreate('image',$event)" [disabled]="!snapshot.enabled || !snapshot.allowedImages.length" required>
+            @for (name of snapshot.allowedImages; track name) {
+              <option [value]="name">{{name}}</option>
+            } @empty { <option value="">Nenhuma imagem liberada</option> }
+          </select>
+        </label>
+        <label>Limite de RAM
+          <select [value]="ramMb()" (change)="updateCreate('ramMb',$event)">
+            @for (ram of snapshot.ramChoices;track ram){<option [value]="ram">{{ram}} MB</option>}
+          </select>
+        </label>
+        <label>Limite de CPU
+          <select [value]="cpuCores()" (change)="updateCreate('cpuCores',$event)">
+            @for (cpu of snapshot.cpuChoices;track cpu){<option [value]="cpu">{{cpu}} vCPU</option>}
+          </select>
+        </label>
+        <button type="submit" class="primary create-button" [disabled]="!canCreate() || acting() !== null || loading()">
+          {{acting()==='creating'?'Criando...':'＋ Criar aplicação desligada'}}
+        </button>
+      </form>
+      @if (snapshot.applications.length >= snapshot.maxApps) { <p class="small-alert">Limite de aplicações alcançado.</p> }
+    </section>
+
+    <div class="list-heading"><h3>Serviços cadastrados</h3><span>{{snapshot.applications.length}} encontrados</span></div>
+    <div class="app-grid">
+      @for (app of snapshot.applications;track app.slug) {
+        <article class="app-card">
+          <header>
+            <div><strong>{{app.slug}}</strong><small>{{app.image}}</small></div>
+            <span class="state" [class.running]="app.state==='running'">{{app.state==='running'?'Ativo':app.state==='created'?'Desligado · novo':app.state==='exited'?'Parado':app.state}}</span>
+          </header>
+          <div class="app-facts">
+            <div><span>RAM máxima</span><strong>{{app.ramMb}} MB</strong></div>
+            <div><span>CPU máxima</span><strong>{{app.cpuCores}} vCPU</strong></div>
+            <div><span>Disco gravado</span><strong>{{diskMb(app.diskUsedBytes)}}</strong></div>
+            <div><span>Parada por ociosidade</span><strong>{{app.idleMinutes?app.idleMinutes+' min':'Desligada'}}</strong></div>
+          </div>
+          <p class="substatus">{{app.status || 'Sem informação adicional do Docker.'}}</p>
+          <div class="app-actions">
+            @if (app.state==='running') {
+              <button type="button" [disabled]="!allowed(app,'restart')" (click)="operate(app,'restart')">Reiniciar</button>
+              <button type="button" [disabled]="!allowed(app,'stop')" (click)="operate(app,'stop')">Parar</button>
+            } @else {
+              <button type="button" [disabled]="!allowed(app,'start')" (click)="operate(app,'start')">Iniciar</button>
+            }
+            <button type="button" (click)="showLogs(app)" [disabled]="logsBusy() || loading()">Ver registros</button>
+          </div>
+          <details class="settings">
+            <summary>Ajustar limites e ociosidade</summary>
+            <div class="settings-grid">
+              <label>RAM máxima
+                <select [value]="draft(app).ramMb" (change)="updateDraft(app.slug,'ramMb',$event)">
+                  @for (ram of snapshot.ramChoices;track ram){<option [value]="ram">{{ram}} MB</option>}
+                </select>
+              </label>
+              <label>CPU máxima
+                <select [value]="draft(app).cpuCores" (change)="updateDraft(app.slug,'cpuCores',$event)">
+                  @for (cpu of snapshot.cpuChoices;track cpu){<option [value]="cpu">{{cpu}} vCPU</option>}
+                </select>
+              </label>
+              <button type="button" (click)="saveResources(app)" [disabled]="!snapshot.enabled || acting() !== null || loading()">Salvar limites</button>
+              <label>Parar por ociosidade
+                <select [value]="draft(app).idleMinutes" (change)="updateDraft(app.slug,'idleMinutes',$event)">
+                  @for (minutes of snapshot.idleChoices;track minutes){<option [value]="minutes">{{minutes?minutes+' min':'Desligada'}}</option>}
+                </select>
+              </label>
+              <button type="button" (click)="saveIdle(app)" [disabled]="!snapshot.enabled || acting() !== null || loading()">Salvar ociosidade</button>
+            </div>
+            <p class="small">A parada automática usa os critérios de atividade da VPS e pode exigir início manual depois.</p>
+          </details>
+          @if (app.state !== 'running') {
+            <div class="danger-zone">
+              <button type="button" class="remove" [disabled]="!allowed(app,'remove')" (click)="operate(app,'remove')">Remover container</button>
+              <small>Se houver domínio cadastrado, a API bloqueará a remoção.</small>
+            </div>
+          }
+          <footer><a href="/#projects">Ligar ao GitHub</a><a href="/#domains">Escolher endereço</a></footer>
+        </article>
+      } @empty { <div class="empty">Ainda não existem aplicações gerenciadas. Cadastre uma acima para começar.</div> }
+    </div>
+
+    @if (selectedLogs()) {
+      <section class="block logs" aria-label="Registros de aplicação">
+        <div class="block-heading"><div><h3>Registros · {{selectedLogs()}}</h3><p>Últimas mensagens disponíveis no Docker.</p></div>
+          <button type="button" class="secondary" (click)="closeLogs()">Fechar</button>
+        </div>
+        <pre [textContent]="logs()"></pre>
+      </section>
+    }
+  }
+</section>
