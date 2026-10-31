@@ -49,6 +49,13 @@ def validate_claims(claims, policy, project, operation, now=None):
         raise ValueError('Workflow rejected')
     if project not in repo['projects'] or operation not in repo['operations']:
         raise ValueError('Project/operation not authorized')
+    # Each trusted workflow is confined to its own project and operations.
+    # Without this check, adding the Go shadow workflow would also let it deploy Node.
+    workflow_scopes = repo.get('workflow_scopes')
+    if workflow_scopes is not None:
+        workflow_name = claims['workflow_ref'].split('/.github/workflows/', 1)[1].split('@', 1)[0]
+        if operation not in workflow_scopes.get(workflow_name, {}).get(project, []):
+            raise ValueError('Workflow not allowed to operate on this project')
     if not re.fullmatch(r'[0-9a-f]{40}', claims.get('sha', '')):
         raise ValueError('Invalid commit')
     return repo
