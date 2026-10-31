@@ -69,7 +69,7 @@ test('connection failure is opaque to the browser', async () => {
 test('creation denies trust, missing opt-in and unsafe input without DB writes', async () => {
   const tmp = temporaryAdmin();
   try {
-    await assert.rejects(createProjectDatabase('a', tmp.dir, {}), /não habilitada/);
+    await assert.rejects(createProjectDatabase('site-loja', tmp.dir, {}), /não habilitada/);
     await assert.rejects(createProjectDatabase('drop;database', tmp.dir, tmp.env), /Use 2 a 30/);
     let writes = 0;
     const mock = () => ({
