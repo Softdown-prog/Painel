@@ -184,6 +184,12 @@
 
         <section class="view" id="revisions" data-title="Revisões e espaço">
           <div class="page-heading"><div><div class="eyebrow">MANUTENÇÃO / IMAGENS DOCKER</div><h1>Revisões e espaço</h1><p>Confira versões antigas, veja o que está protegido e acompanhe a limpeza sem apagar seu site.</p></div><button type="button" class="primary-button" id="revisionsRefreshButton">↻ Verificar agora</button></div>
+          <section class="panel full-panel revision-section revision-ci-panel" aria-label="Acompanhamento de deploys">
+            <div class="panel-head"><div><h2>Últimas revisões · GitHub → VPS</h2><p>Veja o CI/CD girando enquanto executa e a confirmação da versão ativa na VPS. O acesso público é conferido separadamente.</p></div><button class="secondary-button" id="revisionActivityRefresh" type="button">↻ Atualizar CI/CD</button></div>
+            <p class="revision-checked" id="revisionActivitySummary" role="status">Entre no painel para consultar as revisões recentes.</p>
+            <div class="revision-ci-list" id="revisionActivity"><p class="revision-ci-empty">Aguardando consulta ao GitHub...</p></div>
+            <p class="revision-ci-footnote">Verde em <strong>Ativa na VPS</strong> significa que a imagem da revisão está em execução no Docker. Isso não garante que o domínio público esteja respondendo. <a href="#deploys">Abrir histórico de publicações</a>.</p>
+          </section>
           <p class="revision-explainer">Cada atualização pode guardar uma imagem do programa na VPS. <strong>A versão em uso, as duas últimas revisões de cada aplicação e o backup de recuperação são protegidos.</strong> Imagens antigas só podem ser removidas depois do prazo de retenção e de uma verificação no Docker.</p>
           <div class="revision-stats">
             <article class="panel revision-stat"><small>Revisões registradas</small><strong id="revisionsCount">—</strong><span>Importadas pelo painel</span></article>
@@ -454,6 +460,7 @@
   <script src="domains-ui.js" defer></script>
   <script src="terminal-ui.js" defer></script>
   <script src="revisions-ui.js" defer></script>
+  <script src="revision-activity-ui.js" defer></script>
   <script src="secrets-ui.js" defer></script>
   <script src="database-ui.js" defer></script>
   <script src="traffic-ui.js" defer></script>
