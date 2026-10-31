@@ -6,6 +6,13 @@
   <meta name="theme-color" content="#10121a">
   <meta name="description" content="Gerenciamento de servidores, aplicações e publicações de vários projetos.">
   <title>Painel VPS</title>
+  <!-- Angular is the main entrypoint; legacy deep links continue to work at /#view. -->
+  <script>
+    if ((location.pathname === '/' || location.pathname === '/index.html') &&
+        !location.hash && new URLSearchParams(location.search).get('interface') !== 'classica') {
+      location.replace('/angular/' + location.search);
+    }
+  </script>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="panel.css">
   <link rel="stylesheet" href="apps.css">
@@ -30,6 +37,7 @@
       <div class="workspace-label">MINHA VPS <span>PAINEL</span></div>
       <div class="workspace-card"><span class="workspace-icon">V</span><span><strong>Minha VPS</strong><small>Projetos e serviços</small></span><span class="chevron">⌄</span></div>
 
+      <p style="margin:2px 10px 12px"><a href="/angular/" style="display:block;padding:12px;border:1px solid #7560c8;border-radius:12px;background:#292541;color:#e8ddff;font-weight:700">✦ Abrir painel Angular atualizado</a></p>
       <nav class="nav" aria-label="Navegação principal">
         <div class="nav-group-title">GERENCIAR VPS</div>
         <a class="nav-item active" href="#overview" data-view="overview"><span class="nav-icon">▦</span> Visão geral</a>
