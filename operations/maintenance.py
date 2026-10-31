@@ -46,7 +46,7 @@ def host_summary():
 def validate_target(policy, target):
     registry=(policy.get('maintenance') or {}).get('targets') or {}
     config=registry.get(target)
-    if not isinstance(config,dict) or set(config)!={'project','service','compose_project'}:
+    if not isinstance(config,dict) or set(config)!={'project','service','compose_project','compose_service'}:
         raise ValueError('Unregistered maintenance target')
     project=policy.get('projects',{}).get(config['project'],{})
     container=project.get('containers',{}).get(config['service'])
@@ -58,7 +58,7 @@ def container_status(policy,target):
     mapping,name=validate_target(policy,target)
     c=inspect(name)
     labels=c['Config'].get('Labels') or {}
-    if labels.get('com.docker.compose.project') != mapping['compose_project'] or labels.get('com.docker.compose.service') != mapping['service']:
+    if labels.get('com.docker.compose.project') != mapping['compose_project'] or labels.get('com.docker.compose.service') != mapping['compose_service']:
         raise ValueError('Installed container ownership does not match policy')
     image=image_info(c['Image'])
     revision=(image['Config'].get('Labels') or {}).get('org.opencontainers.image.revision')
