@@ -76,7 +76,7 @@ test('small screens keep apps, GitHub Actions cards and buttons inside viewport'
   assert.match(apps,/\.create-form \{ grid-template-columns:1fr/);
   assert.match(apps,/\.app-grid \{ grid-template-columns:1fr/);
   assert.match(apps,/\.logs pre \{ max-width:100%;overflow-x:auto/);
-  assert.match(deploys,/\.pipeline \{ grid-template-columns:1fr/);
+  assert.match(deploys,/\.pipeline\s*\{\s*grid-template-columns:1fr/);
   assert.match(deploys,/\.live-controls \{ grid-template-columns:1fr/);
   assert.match(deploys,/min-height:44px/);
 });
