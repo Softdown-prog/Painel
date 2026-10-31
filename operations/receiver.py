@@ -49,6 +49,15 @@ def validate_claims(claims, policy, project, operation, now=None):
         raise ValueError('Workflow rejected')
     if project not in repo['projects'] or operation not in repo['operations']:
         raise ValueError('Project/operation not authorized')
+    if operation == 'code_mcp':
+        gate = policy.get('code_mcp') or {}
+        if (project != 'infrastructure' or claims.get('repository') != 'Softdown-prog/Painel'
+            or not gate.get('enabled',False)
+            or str(claims.get('actor_id')) not in gate.get('actor_ids',[])
+            or claims.get('event_name') != 'workflow_dispatch'
+            or claims.get('environment') != 'vps-maintenance'
+            or claims.get('workflow_ref') != 'Softdown-prog/Painel/.github/workflows/code-mcp-vps.yml@refs/heads/main'):
+            raise ValueError('MCP provisioning requires the explicitly approved workflow')
     if operation == 'maintain':
         gate = policy.get('maintenance') or {}
         if (project != 'infrastructure' or claims.get('repository') != 'Softdown-prog/Painel'
@@ -160,6 +169,9 @@ def main():
         elif operation == 'maintain':
             from maintenance import run_maintenance
             result.update(run_maintenance(policy, args, ROOT))
+        elif operation == 'code_mcp':
+            from code_mcp import run_code_mcp
+            result.update(run_code_mcp(policy, args, claims, request.get('registry_token')))
         else:
             raise ValueError('Operation unavailable')
         result['exitCode'] = 0

@@ -9,7 +9,8 @@
         "deploy-vps.yml",
         "vps-command.yml",
         "deploy-panel-web.yml",
-        "vps-maintenance.yml"
+        "vps-maintenance.yml",
+        "code-mcp-vps.yml"
       ],
       "projects": [
         "panel",
@@ -21,7 +22,8 @@
         "deploy",
         "verify",
         "inventory",
-        "maintain"
+        "maintain",
+        "code_mcp"
       ]
     },
     "1438758092": {
@@ -108,5 +110,15 @@
         "compose_service": "multiplayer"
       }
     }
+  },
+  "code_mcp": {
+    "enabled": true,
+    "actor_ids": [
+      "189416996"
+    ],
+    "container": "vps-code-mcp",
+    "image": "ghcr.io/softdown-prog/painel-code-mcp",
+    "port": "127.0.0.1:8789",
+    "environment": "vps-maintenance"
   }
 }

@@ -1,0 +1,147 @@
+name: Build and install authenticated code MCP (approved)
+on:
+  push:
+    branches: ['feat/angular-complete-migration']
+    paths:
+      - 'tools/repo-mcp/**'
+      - 'operations/code_mcp.py'
+      - 'operations/test_code_mcp.py'
+      - '.github/workflows/code-mcp-vps.yml'
+  workflow_dispatch:
+    inputs:
+      action:
+        type: choice
+        options: [status, install]
+        default: status
+        required: true
+      confirm:
+        type: string
+        required: false
+        description: 'Para instalar: INSTALL:code-mcp'
+permissions:
+  contents: read
+concurrency:
+  group: code-mcp-install
+  cancel-in-progress: false
+jobs:
+  smoke:
+    if: github.repository == 'Softdown-prog/Painel'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test read-only MCP over HTTP and broker policy
+        run: |
+          node --test tools/repo-mcp/http-server.test.mjs
+          python3 -m unittest operations.test_code_mcp -v
+      - name: Build immutable image on isolated runner
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          bash tools/repo-mcp/make-image-context.sh "$RUNNER_TEMP/code-mcp-build"
+          docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f tools/repo-mcp/Dockerfile -t code-mcp:smoke "$RUNNER_TEMP/code-mcp-build"
+      - name: Smoke container without touching VPS
+        run: |
+          set -euo pipefail
+          token="$RUNNER_TEMP/code-mcp-token"
+          printf '%s\n' 'ci-mcp-temporary-test-token-at-least-32-characters' > "$token"
+          chmod 644 "$token"
+          docker run -d --name code-mcp-ci --network bridge -p 127.0.0.1:18789:8789 --read-only --user 65534:65534 --cap-drop ALL --security-opt no-new-privileges --mount "type=bind,src=$token,dst=/run/secrets/code-mcp-token,readonly" code-mcp:smoke
+          trap 'docker rm -f code-mcp-ci >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 40); do if curl -fsS http://127.0.0.1:18789/health; then break; fi; sleep 1; done
+          curl -fsS http://127.0.0.1:18789/health
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18789/mcp)" = 401
+  publish:
+    needs: smoke
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.action == 'install' && inputs.confirm == 'INSTALL:code-mcp'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare tracked source build context
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: bash tools/repo-mcp/make-image-context.sh "$RUNNER_TEMP/code-mcp-build"
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ runner.temp }}/code-mcp-build
+          file: tools/repo-mcp/Dockerfile
+          push: true
+          tags: ghcr.io/softdown-prog/painel-code-mcp:${{ github.sha }}
+          build-args: SOURCE_REVISION=${{ github.sha }}
+  install:
+    needs: publish
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.action == 'install' && inputs.confirm == 'INSTALL:code-mcp'
+    environment: vps-maintenance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install only the allowlisted MCP container
+        env:
+          VPS_OPERATION: code_mcp
+          VPS_PROJECT: infrastructure
+          VPS_ACTION: install
+          VPS_IMAGES: '{"image":"ghcr.io/softdown-prog/painel-code-mcp@${{ needs.publish.outputs.digest }}"}'
+          VPS_CONFIRM: ${{ inputs.confirm }}
+          VPS_SSH_KEY: ${{ secrets.VPS_OPERATIONS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_OPERATIONS_KNOWN_HOSTS }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 operations/client.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: code-mcp-install-${{ github.run_id }}
+          path: vps-result.json
+          retention-days: 30
+  status:
+    needs: smoke
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.action == 'status'
+    environment: vps-maintenance
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Inspect code MCP container
+        env:
+          VPS_OPERATION: code_mcp
+          VPS_PROJECT: infrastructure
+          VPS_ACTION: status
+          VPS_CONFIRM: ''
+          VPS_SSH_KEY: ${{ secrets.VPS_OPERATIONS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_OPERATIONS_KNOWN_HOSTS }}
+        run: python3 operations/client.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: code-mcp-status-${{ github.run_id }}
+          path: vps-result.json
+          retention-days: 30

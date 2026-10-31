@@ -24,6 +24,7 @@ jobs:
           python3 -m unittest discover -s operations -p 'test_*.py' -v
           bash -n operations/install-vps.sh
           bash -n operations/upgrade-vpsops-maintenance.sh
+          bash -n operations/upgrade-vpsops-code-mcp.sh
       - run: docker compose -f server/compose.yaml -f server/compose.web.yaml config --quiet
       - name: Enforce staging frontend isolation
         run: |

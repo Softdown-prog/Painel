@@ -17,7 +17,13 @@ def main():
     operation = os.environ.get('VPS_OPERATION', 'inventory')
     project = os.environ.get('VPS_PROJECT', 'infrastructure')
     request_id = os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'] + '-' + operation + '-' + project
-    if operation == 'maintain':
+    if operation == 'code_mcp':
+        requested = json.loads(os.environ.get('VPS_IMAGES', '{}'))
+        args = {'action': os.environ['VPS_ACTION'],
+                'image': requested.get('image',''),
+                'sha': os.environ.get('GITHUB_SHA','') if os.environ['VPS_ACTION']=='install' else '',
+                'confirm': os.environ.get('VPS_CONFIRM','')}
+    elif operation == 'maintain':
         args = {
             'action': os.environ['VPS_ACTION'],
             'target': os.environ['VPS_TARGET'],
@@ -28,7 +34,7 @@ def main():
                 'images': json.loads(os.environ.get('VPS_IMAGES', '{}'))}
     payload = {'id': request_id, 'operation': operation, 'project': project, 'oidc': oidc,
                'args': args,
-               'registry_token': os.environ.get('GITHUB_TOKEN') if operation == 'deploy' else None}
+               'registry_token': os.environ.get('GITHUB_TOKEN') if operation in ('deploy','code_mcp') else None}
     with tempfile.TemporaryDirectory() as directory:
         key, hosts = Path(directory) / 'key', Path(directory) / 'known_hosts'
         key.write_text(os.environ['VPS_SSH_KEY'].strip() + '\n'); key.chmod(0o600)
