@@ -91,7 +91,7 @@
   async function request(path) {
     return window.panelApi.request(path);
   }
-  function schedule(ongoing: boolean) {
+  function schedule(ongoing) {
     window.clearTimeout(timer);
     if (visible()) timer = window.setTimeout(() => { void refreshRevisionActivity(); }, ongoing ? 20000 : 90000);
   }
