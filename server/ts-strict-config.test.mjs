@@ -31,10 +31,11 @@ test('the Angular frontend build remains part of isolated CI, never production d
   }
 });
 
-test('ESLint flat config enforces safe TypeScript rules across the repository',()=>{
-  const config=file('eslint.config.js');
+test('Angular ESLint flat config enforces safe TypeScript rules',()=>{
+  const config=file('angular/eslint.config.js');
   const pkg=JSON.parse(file('package.json'));
-  assert.equal(pkg.scripts.lint,'eslint "**/*.ts"');
+  assert.equal(pkg.scripts.lint,'npm --prefix angular run lint');
+  assert.equal(JSON.parse(file('angular/package.json')).scripts.lint,'eslint "src/**/*.ts"');
   for(const rule of ['@typescript-eslint/no-explicit-any','@typescript-eslint/no-unused-vars',
     '@typescript-eslint/explicit-function-return-type','no-console'])assert.ok(config.includes(rule));
   assert.match(file('.github/workflows/ci.yml'),/npm run lint/);
