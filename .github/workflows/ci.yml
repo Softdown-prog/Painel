@@ -15,7 +15,7 @@ jobs:
           node-version: '24'
       - run: npm install --no-audit --no-fund
       - run: npm run typecheck
-      - run: npm --prefix angular install --no-audit --no-fund
+      - run: npm --prefix angular ci --no-audit --no-fund
       - run: npm run lint
       - run: npm test
       - name: Test private VPS operations and project isolation

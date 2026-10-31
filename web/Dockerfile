@@ -16,8 +16,8 @@ RUN echo "$PANEL_WEB_REVISION" | grep -Eq '^[a-f0-9]{40}$' \
 # Angular uses TypeScript 6 in an isolated workspace; the existing backend keeps TypeScript 7.
 FROM node:24-alpine AS angular-builder
 WORKDIR /angular
-COPY angular/package.json ./
-RUN npm install --no-audit --no-fund
+COPY angular/package.json angular/package-lock.json ./
+RUN npm ci --no-audit --no-fund
 COPY angular/angular.json angular/tsconfig.json angular/tsconfig.app.json ./
 COPY angular/src/ ./src/
 RUN npm run build && test -s dist/panel-angular/browser/index.html

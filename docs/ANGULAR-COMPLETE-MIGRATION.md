@@ -89,3 +89,7 @@
 - ESLint flat config aplica `typescript-eslint` recommended e as regras solicitadas ao código `angular/src/**/*.ts`; `npm run lint` delega ao workspace Angular e passa a rodar no CI isolado, com `no-explicit-any` e `no-unused-vars` como erros. Arquivos legados/backend seguem verificados pelo TypeScript 7 estrito, até existir parser ESLint oficialmente compatível.
 - Compatibilidade: o analisador typescript-eslint 8.x declara suporte oficial a TypeScript menor que 6.1. Por isso a instalação de ESLint fica isolada no Angular (TypeScript 6) e não bloqueia a instalação do backend (TypeScript 7). A cobertura do ESLint no backend é uma pendência consciente; nenhum downgrade nem `--force`.
 - Sem deploy ou alterações na VPS. CI e limpeza de avisos do novo lint serão avaliados nesta branch.
+
+## Reprodutibilidade Angular
+
+- `angular/package-lock.json` é gerado a partir da instalação real do workspace, versionado na branch e conferido com `npm ci` tanto no CI quanto no estágio Angular do Dockerfile. Sem instalar em produção.
