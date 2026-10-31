@@ -6,9 +6,7 @@ export default tseslint.config(
       "dist/**",
       "coverage/**",
       "node_modules/**",
-      "angular/dist/**",
-      "angular/.angular/**",
-      "angular/node_modules/**"
+      ".angular/**"
     ]
   },
   ...tseslint.configs.recommended,

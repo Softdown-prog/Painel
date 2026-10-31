@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "ng build --configuration production",
-    "start": "ng serve --host 127.0.0.1"
+    "start": "ng serve --host 127.0.0.1",
+    "lint": "eslint \"src/**/*.ts\""
   },
   "dependencies": {
     "@angular/common": "22.2.3",
@@ -19,6 +20,8 @@
     "@angular/build": "22.2.3",
     "@angular/cli": "22.2.3",
     "@angular/compiler-cli": "22.2.3",
-    "typescript": "~6.0.0"
+    "typescript": "~6.0.0",
+    "eslint": "10.14.0",
+    "typescript-eslint": "8.72.1"
   }
 }
