@@ -121,7 +121,7 @@
       return;
     }
     if (!confirm('Criar banco e conta PostgreSQL para "' + project +
-      '"? As credenciais serão geradas e guardadas na VPS.')) return;
+      '"? O certificado de acesso será gerado automaticamente na VPS, sem senha.')) return;
     void (async () => {
       const submit = byId("dbCreateSubmit") as HTMLButtonElement;
       submit.disabled = true;
@@ -131,7 +131,7 @@
             body: JSON.stringify({ project }) }
         );
         byId("dbCreateResult").textContent = "Criado: " + response.database + " · usuário: " +
-          response.username + ". Senha guardada somente na VPS.";
+          response.username + ". Certificado privado salvo na VPS. Nenhuma senha de banco criada.";
         createForm.hidden = true;
         projectInput.value = "";
         await refreshDatabasePanel();

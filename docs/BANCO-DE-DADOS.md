@@ -1,31 +1,40 @@
-# PostgreSQL multiprojetos — gestão por projeto (em desenvolvimento)
+# PostgreSQL compartilhado entre projetos e containers — SEM SENHAS
 
-## Situação confirmada na VPS
-O operador confirmou a API em execução com a revisão e4469c7, PostgreSQL 18.6 conectado, 1 banco `postgres` e 9 conexões no momento do teste. Isso **não** significa que a nova criação de bancos já tenha sido implantada.
+## Contrato solicitado
+- **Uma instância PostgreSQL 18 na VPS, independente de qualquer projeto.**
+- **Vários bancos**: um por projeto, com usuários restritos e independentes; não obrigar aplicações a compartilharem identidade.
+- **Nenhuma senha de banco** — sem campo de senha, sem SCRAM, sem gerar senha silenciosamente, sem guardar senha em arquivo nem em variáveis de ambiente.
+- Autenticação remota privada com **certificados cliente TLS**, um certificado por projeto; isso ainda implica *chaves privadas*, administradas pelo Painel e não mostradas em navegador.
+- A API do Painel possui seu próprio certificado administrativo (CN postgres) e nunca concede esse arquivo aos containers de clientes.
 
-## Implementação deste PR
-- `GET /database/status` consulta bancos, tamanhos, papéis sem senhas e configuração de autenticação por `pg_hba_file_rules`.
-- A interface **Sistema → Banco de Dados** exibe a segurança real da conexão e a lista de contas. O botão **Criar banco** fica desativado até a API confirmar `provisioningEnabled: true`.
-- `POST /database/projects`, autenticado pela sessão administrativa do Painel, cria um par de banco/usuário gerenciado a partir de um slug estritamente validado. Não aceita SQL fornecido pelo navegador. Exemplo: `site-loja` → banco `p_site_loja`, usuário `u_site_loja`.
-- A senha de cada usuário é gerada automaticamente, nunca retornada na resposta, guardada exclusivamente no volume administrativo da VPS sob `/data/database-credentials/<slug>.json`, com arquivo 0600 e diretório 0700.
-- O papel criado não é superusuário, não cria bancos ou papéis; o novo banco tem `PUBLIC CONNECT` revogado. Contagem máxima provisória: 40 bancos gerenciados; sem remoção automática.
-- A rota de criação exige **simultaneamente**: `PANEL_POSTGRES_WRITE_ENABLED=1`, credencial administrativa em arquivo protegido `PANEL_POSTGRES_PASSWORD_FILE`, autenticação **SCRAM** em todas as regras host não rejeitadas, e **prova por conexão** de que uma senha errada retorna `28P01`. Faltando qualquer requisito, a API bloqueia **antes de qualquer CREATE**.
-- Os projetos já hospedados não são automaticamente associados aos bancos, nem são conectados à rede PostgreSQL. Criar um banco não instala a aplicação nem injeta credenciais nela.
-- Não há função de excluir/restaurar banco ou consultar SQL arbitrário na interface. A observabilidade e o provisionamento são serviços da VPS compartilhada, independentes dos aplicativos.
+## Implementação no código
+- `server/postgres-cert.ts` lê arquivos em `/data/postgres-tls` (0700), verifica permissões privadas e gera certificados X.509 de cliente por projeto via OpenSSL **sem invocar shell**. A CA privada permanece sob controle do servidor administrativo.
+- `GET /database/status` lista bancos/papéis e informa `trust`, `cert` ou `other`, sinalizando provisionamento habilitado apenas quando a infraestrutura de certificados e opt-in estiverem presentes.
+- `POST /database/projects` cria, mediante sessão administrativa, `p_<slug>` e `u_<slug>`. O papel é criado com `PASSWORD NULL`. Nenhum dado de certificado ou chave é retornado na resposta.
+- Arquivos em `/data/database-credentials/<slug>/`: `client.crt`, `client.key` (0600), `ca.crt`, `connection.json` (sem senha). Cada container futuro deve receber **somente seu próprio** diretório, montado read-only; **nunca** a CA privada nem o certificado do Painel.
+- O backend checa `pg_hba_file_rules` para recusar `host trust` e qualquer método de rede diferente de `cert` ou `reject`. Para criar, também prova TLS ativo, rejeição de conexão sem certificado e rejeição do certificado administrativo ao tentar entrar como novo usuário, e verifica autenticação do certificado do projeto. **Falha impede criação**.
+- O usuário dono de banco não é superusuário nem cria bancos/roles. Não há SQL arbitrário, exclusão ou restauração pelo navegador.
+- A política de projetos já existentes e as permissões de bancos não gerenciados devem ser auditadas separadamente; criar papéis não garante automaticamente revogação de `PUBLIC CONNECT` em bancos preexistentes.
 
-## Bloqueio esperado na instalação atual
-A instância atual usa `POSTGRES_HOST_AUTH_METHOD=trust`, permitindo que qualquer container conectado à rede interna se apresente como qualquer role, inclusive superusuário. Isso **não** oferece isolamento. Por segurança, a nova interface deve exibir aviso explícito e **manter a criação desabilitada** nessa instalação.
+## Estado da VPS
+A instalação atual foi criada com `POSTGRES_HOST_AUTH_METHOD=trust` e não possui autenticação TLS por cliente configurada. O backend atual continua consultando o banco, mas **não deve liberar criação** antes da migração. A configuração `trust` permite a qualquer container na rede tentar assumir outros usuários PostgreSQL. O fato de a rede Docker ser interna não substitui autenticação.
 
-Não habilitar `PANEL_POSTGRES_WRITE_ENABLED` antes de migrar a autenticação de todas as conexões host para SCRAM-SHA-256, preparar um arquivo privado de senha administrativa e testar a rejeição de senha incorreta. A migração do `pg_hba.conf` e das credenciais exige procedimento separado e validação do impacto nos clientes. Não alterar o banco de produção, apagar volume ou mudar rede de maneira improvisada.
+**Não alterar pg_hba.conf ou reiniciar o PostgreSQL manualmente durante este PR.** A migração segura exige:
+1. Gerar CA privada, certificado de servidor com SAN `DNS:vps-postgres` e certificado administrativo com CN `postgres`, sem nenhuma senha.
+2. Montar a CA pública e certificado de servidor no PostgreSQL, e material de assinatura e certificado administrativo somente no volume privado do Painel. Arquivos com acesso mínimo (chaves 0600, pastas 0700).
+3. Configurar `ssl=on`, `ssl_ca_file`, `ssl_cert_file` e `ssl_key_file` e HBA restritivo:
+   ```
+   local   all  postgres                   peer
+   local   all  all                        reject
+   hostssl all  all  0.0.0.0/0             cert
+   hostssl all  all  ::/0                  cert
+   hostnossl all all 0.0.0.0/0             reject
+   hostnossl all all ::/0                  reject
+   ```
+   A ordem das regras é obrigatória; **não manter nenhuma regra `host ... trust` anterior**. `cert` verifica o CN do certificado com o nome do usuário conectado.
+4. Ensaiar com um container descartável, garantindo: sem certificado → recusado; certificado de outro usuário → recusado; certificado correto → conectado.
+5. Usar um procedimento de implantação coordenado com retorno possível à configuração anterior se a API perder conexão. A troca de `ssl=on` pode exigir **reiniciar apenas o PostgreSQL**, não apagar o volume.
+6. Montar arquivos da CA administrativa no Painel e configurar `PANEL_POSTGRES_TLS_ENABLED=1`, `PANEL_POSTGRES_WRITE_ENABLED=1`, sem qualquer variável `PASSWORD`.
+7. Testar dois projetos fictícios, cada um com seu certificado, e a impossibilidade de assumir o usuário do outro. O acesso aos bancos deve ser restrito por permissões reais; containers não recebem certificados de projetos vizinhos.
 
-## Ativação futura
-1. Preparar política SCRAM e credenciais com procedimento específico, preservar conexões dos projetos e manter o PostgreSQL sem porta publicada no host.
-2. Confirmar que a conta administrativa do Painel realmente se autentica com senha e que senha incorreta é rejeitada.
-3. Instalar secret administrativo em caminho privado visível à API e habilitar explicitamente a flag de escrita. Até lá, apenas a leitura e o diagnóstico estão disponíveis.
-4. Publicar a nova API no host através de atualização isolada com rollback. Cloudflare Pages atualiza somente o frontend.
-5. Abrir Sistema → Banco de Dados, conferir o diagnóstico e, após confirmar a liberação, criar um projeto de teste. Conferir criação do banco, papel restrito e arquivo de credencial com mode 0600; evitar registrar o segredo nos logs.
-
-## Limites
-A leitura de `pg_hba_file_rules` descreve o arquivo de configuração e pode apresentar alterações não recarregadas; por isso não é aceita como única prova de segurança. A execução da rota de escrita testa ativamente a rejeição de senha errada. As credenciais geradas nunca são enviadas pelo navegador, mas ainda falta uma etapa futura para injetá-las com segurança em cada serviço hospedado.
-
-**Verificações:** typecheck, frontend compilado, testes, check:js e Compose devem passar no GitHub antes do merge. CI não prova que a funcionalidade está implantada na VPS.
+**Importante:** este PR modifica apenas GitHub. Publicar Pages não atualiza a API que roda no Docker, e nem configura automaticamente o PostgreSQL. Nenhuma senha é necessária ao operador, mas certificados e suas chaves privadas são identidades que devem permanecer protegidas. Renovação/revogação dos certificados é trabalho posterior antes do vencimento de 365 dias.

@@ -384,7 +384,7 @@
             </div>
           </section>
           <section class="database-tab-panel" id="dbPaneProjects" role="tabpanel" aria-labelledby="dbTabProjects" hidden>
-            <div class="panel database-block"><div class="database-panel-heading"><div><h2>Bancos por projeto</h2><p>Cada aplicação terá um banco e uma conta com permissões próprias.</p></div>
+            <div class="panel database-block"><div class="database-panel-heading"><div><h2>Bancos por projeto</h2><p>Cada projeto terá seu próprio banco, usuário e certificado de acesso, sem senha.</p></div>
               <button type="button" class="primary-button" disabled id="dbCreate" title="Habilita após configuração segura do PostgreSQL">+ Criar banco</button></div>
               <form id="dbCreateForm" class="database-create-form" hidden>
                 <label for="dbProjectSlug">Identificador do projeto (ex.: site-loja)</label>
@@ -399,11 +399,11 @@
             </div>
           </section>
           <section class="database-tab-panel" id="dbPaneAccess" role="tabpanel" aria-labelledby="dbTabAccess" hidden>
-            <div class="panel database-block"><div class="database-panel-heading"><div><h2>Usuários e permissões</h2><p>Uma credencial para cada aplicação, sem compartilhar o superusuário.</p></div>
+            <div class="panel database-block"><div class="database-panel-heading"><div><h2>Usuários e permissões</h2><p>Um certificado para cada aplicação, sem senha e sem compartilhar o administrador.</p></div>
               <button type="button" class="primary-button" disabled title="Requer integração PostgreSQL segura">+ Criar usuário</button></div>
               <div class="database-table-wrap"><table class="database-table"><thead><tr><th>Usuário do banco</th><th>Projeto</th><th>Permissões</th><th>Situação</th></tr></thead>
                 <tbody id="dbRolesBody"><tr><td colspan="4" class="database-empty">Nenhum usuário do PostgreSQL foi consultado.</td></tr></tbody></table></div>
-              <p class="database-footnote">A lista mostra apenas atributos de papéis (sem senhas). O botão de criação de usuários separados permanece bloqueado; a criação de banco gera automaticamente seu usuário após a ativação segura.</p>
+              <p class="database-footnote">A lista mostra os usuários PostgreSQL, sem certificados privados. O botão de criação de usuários isolados permanece desativado; ao criar um banco, o Painel também gerará seu usuário e certificado exclusivo.</p>
             </div>
           </section>
           <section class="database-tab-panel" id="dbPaneData" role="tabpanel" aria-labelledby="dbTabData" hidden>
