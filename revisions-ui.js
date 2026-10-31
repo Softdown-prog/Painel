@@ -162,7 +162,10 @@
             await refreshManagedRevisions();
         }
     });
-    get('revisionsRefreshButton').addEventListener('click', () => void refreshManagedRevisions());
+    get('revisionsRefreshButton').addEventListener('click', () => {
+        void refreshManagedRevisions();
+        window.refreshRevisionActivity?.();
+    });
     get('revisionsCleanupButton').addEventListener('click', async () => {
         if (!confirm('Excluir SOMENTE imagens antigas importadas pelo Painel?\\n\\nA versão em uso, backups, containers e volumes serão preservados. A operação não poderá ser desfeita.'))
             return;
@@ -180,5 +183,10 @@
             await refreshManagedRevisions();
         }
     });
-    Object.assign(window, { refreshManagedRevisions });
+    function updateRevisionRuns(runs, notice) {
+        liveRuns=Array.isArray(runs)?runs:[];
+        get('revisionActivitySummary').textContent=notice;
+        renderRevisionRows();
+    }
+    Object.assign(window, { refreshManagedRevisions, updateRevisionRuns });
 })();
