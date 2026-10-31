@@ -3,7 +3,11 @@
 # Preserve current Compose overlays, tunnel, executor, volumes and hosted projects.
 set -Eeuo pipefail
 umask 077
-SHA=e4469c7c9c004afcb37047ea7d3142998fe87a8e
+SHA="${1:-}"
+if [[ ! "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+  echo 'ERRO: informe o SHA completo (40 caracteres) da revisão para publicar.' >&2
+  exit 2
+fi
 NEW=/opt/vps-panel/releases/$SHA/server
 OLD=$(readlink -f /opt/vps-panel/current)
 REG=/etc/softload-panel/compose-production-files.json
@@ -13,19 +17,22 @@ CONTAINER=softload-panel-api
 exec 9>/run/lock/vps-panel-api-rollout.lock
 flock -n 9 || { echo 'Atualização já em andamento'; exit 1; }
 [[ -f "$NEW/compose.postgres.yaml" && -f "$NEW/compose.yaml" && -r "$REG" && -r "$ENVFILE" ]] || { echo 'Arquivos necessários ausentes'; exit 1; }
-[[ "$NEW" != "$OLD" ]] || { echo 'Revisão já instalada'; exit 1; }
+if [[ "$NEW" == "$OLD" ]]; then echo "API já está na revisão $SHA"; exit 0; fi
 [[ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER")" == true ]] || exit 1
 [[ "$(docker inspect -f '{{.State.Running}}' vps-postgres)" == true ]] || exit 1
 [[ "$(docker inspect -f '{{.State.Running}}' softload-panel-tunnel)" == true ]] || exit 1
 docker image inspect "$IMAGE" >/dev/null
+IMAGE_REVISION=$(docker image inspect "$IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
+[[ "$IMAGE_REVISION" == "$SHA" ]] || { echo 'Imagem não comprova a revisão esperada; build precisa do label OCI.'; exit 2; }
 OLD_IMAGE=$(docker inspect -f '{{.Config.Image}}' "$CONTAINER")
 docker image inspect "$OLD_IMAGE" >/dev/null
 CSV=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project.config_files"}}' "$CONTAINER")
 IFS=, read -r -a FILES <<< "$CSV"
-[[ ${#FILES[@]} -eq 13 ]] || { echo 'Compose atual não tem os 13 overlays esperados'; exit 1; }
+[[ ${#FILES[@]} -ge 12 && ${#FILES[@]} -le 20 ]] || { echo 'Número de overlays Compose inesperado'; exit 1; }
 old_args=()
 new_args=()
 count=0
+postgres_count=0
 for path in "${FILES[@]}"; do
   [[ "$path" == "$OLD"/compose*.yaml && -f "$path" ]] || exit 1
   name=${path##*/}
@@ -33,9 +40,12 @@ for path in "${FILES[@]}"; do
   old_args+=(-f "$path")
   new_args+=(-f "$NEW/$name")
   if [[ "$name" == compose.install.yaml ]]; then count=$((count+1)); fi
+  if [[ "$name" == compose.postgres.yaml ]]; then postgres_count=$((postgres_count+1)); fi
 done
-[[ $count -eq 1 ]] || exit 1
-new_args+=(-f "$NEW/compose.postgres.yaml")
+[[ $count -eq 1 && $postgres_count -le 1 ]] || { echo 'Overlays duplicados ou instalador ausente'; exit 1; }
+# A primeira atualização adiciona PostgreSQL (13 → 14 arquivos).
+# As próximas devem preservar os 14, sem duplicar o mesmo overlay.
+if [[ $postgres_count -eq 0 ]]; then new_args+=(-f "$NEW/compose.postgres.yaml"); fi
 python3 - "$OLD/compose.install.yaml" "$NEW/compose.install.yaml" "$OLD_IMAGE" "$IMAGE" <<'PY'
 from pathlib import Path
 import sys
@@ -59,11 +69,8 @@ assert not a.get("ports") and not a.get("depends_on")
 assert c["volumes"]["panel_data"]["name"]=="softload_panel_data"
 print("Compose, terminal, dados e redes: OK")
 ' "$IMAGE"
-docker run --rm --network vps_pg_private -e PANEL_POSTGRES_ENABLED=1 --entrypoint node "$IMAGE" --experimental-strip-types --input-type=module -e '
-import {getDatabaseStatus} from "./database.ts";
-if((await getDatabaseStatus()).integration!=="connected")process.exit(1);
-console.log("PostgreSQL: conectado");
-'
+# The current PostgreSQL authentication may be trust or certificate-based.
+# Verify the new API *after* launch with its actual mounted secrets; roll back on failure.
 swapped=0
 rollback() {
   status=$?
@@ -89,6 +96,10 @@ for i in $(seq 1 30); do
   sleep 3
 done
 [[ $ready -eq 1 ]] || { echo 'API não saudável'; exit 1; }
+docker exec "$CONTAINER" node --experimental-strip-types --input-type=module -e '
+import {getDatabaseStatus} from "./database.ts";
+if((await getDatabaseStatus()).integration!=="connected")process.exit(1);
+' || { echo 'A API atualizada não conectou ao PostgreSQL; revertendo'; exit 1; }
 docker inspect -f '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$CONTAINER" | grep -qx vps_panel_control
 docker inspect -f '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$CONTAINER" | grep -qx vps_pg_private
 [[ "$(docker inspect -f '{{.State.Running}}' softload-panel-tunnel)" == true ]]
@@ -125,4 +136,4 @@ finally:
     if link.is_symlink():link.unlink()
 PY
 swapped=0
-echo "SUCESSO: somente $CONTAINER atualizado para $IMAGE; PostgreSQL e túnel preservados."
+echo "SUCESSO: somente $CONTAINER atualizado para $IMAGE; PostgreSQL, túnel e projetos preservados."
