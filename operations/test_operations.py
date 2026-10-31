@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 import driver
 import receiver
+from io import BytesIO
 
 POLICY = json.loads((Path(__file__).parent / 'policy.example.json').read_text())
 
@@ -81,6 +82,20 @@ class Authorization(unittest.TestCase):
             driver.run([sys.executable, '-c', 'import time;time.sleep(3)'], timeout=0.05)
 
 class Deployment(unittest.TestCase):
+    def test_https_probe_identifies_itself_and_checks_server_revision(self):
+        project = {'adapter':'panel','containers':{'api':'test-api'},'public_url':'https://panel.example.test/api/session'}
+        c = {'Image':'id','State':{'Running':True,'Health':{'Status':'healthy'}},'Config':{'Image':'ref'}}
+        image = {'Config':{'Labels':{'org.opencontainers.image.revision':'a'*40}}}
+        with patch.object(driver,'inspect',return_value=c), patch.object(driver,'image_info',return_value=image), \
+             patch.object(driver.urllib.request,'urlopen',return_value=BytesIO(json.dumps({'revision':'a'*40}).encode())) as http:
+            self.assertTrue(driver.verify_project(project,{'sha':'a'*40})['publicVerified'])
+            request = http.call_args.args[0]
+            self.assertEqual(request.get_header('User-agent'),'VPS-Operations-Healthcheck/1.0')
+            self.assertEqual(request.get_header('Accept'),'application/json')
+        with patch.object(driver,'inspect',return_value=c), patch.object(driver,'image_info',return_value=image), \
+             patch.object(driver.urllib.request,'urlopen',return_value=BytesIO(b'{"revision":"old"}')):
+            with self.assertRaises(RuntimeError): driver.verify_project(project,{'sha':'a'*40})
+
     def test_digest_registry_and_service_set_are_exact(self):
         with self.assertRaises(ValueError):
             driver.prepare_images(POLICY['projects']['panel'], {'sha': 'a'*40, 'images': {'postgres': 'evil'}}, 'token', None)
