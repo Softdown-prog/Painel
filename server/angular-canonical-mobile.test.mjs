@@ -54,8 +54,9 @@ test('mobile navigation is tactile, responsive and deep-linkable', () => {
   const ts = read('angular/src/app.component.ts');
   const globalCss = read('angular/src/styles.css');
   assert.match(tpl,/class="mobile-tabs"/);
+  const tabMarkup=tpl.slice(tpl.indexOf('class="mobile-tabs"'));
   for(const view of ['overview','containers','apps','deployments']){
-    assert.match(tpl,new RegExp("class=\\"mobile-tabs\\"[\\s\\S]*?selectPage\\('"+view+"'\\)"));
+    assert.ok(tabMarkup.includes("selectPage('"+view+"')"),'Missing mobile tab: '+view);
   }
   assert.match(tpl,/aria-controls="navigationPanel"/);
   assert.match(tpl,/aria-label="Fechar menu"/);
