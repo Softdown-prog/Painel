@@ -47,3 +47,6 @@
 .database-settings-shortcut {margin:18px 0;min-height:auto}
 @media(max-width:1050px){.database-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.database-heading{align-items:flex-start;flex-direction:column}.database-heading .secondary-button{margin-left:0}.database-metrics,.database-two-column{grid-template-columns:1fr}.database-tabs{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-inline:contain}.database-tabs button{white-space:nowrap;flex-shrink:0}.database-block{padding:16px}.database-panel-heading{flex-direction:column;gap:10px}.database-panel-heading button{margin:0}.database-detail-row{flex-wrap:wrap}.database-intro{padding:16px}}
+
+.database-intro[data-state="connected"] {border-color:#397e65;background:#1b302a}
+.database-intro[data-state="connected"] strong,.database-intro[data-state="connected"] .database-state-icon {color:#a5e9be}

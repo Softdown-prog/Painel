@@ -6,7 +6,10 @@
 
 **Limite atual de capacidade:** são permitidas até **8 aplicações gerenciadas** por instalação. Esse teto é uma proteção temporária do protótipo, não o desenho final de hospedagem de clientes. Aumentar o limite exige controle por servidor, cotas, separação de clientes e observabilidade (tarefa C07).
 
-### Banco de Dados (interface preparada; implantação proibida nesta etapa)
+### Banco de Dados — PR de integração real somente leitura
+A instância PostgreSQL 18 foi confirmada pelo operador na VPS, com container vps-postgres e teste de criação/remoção de banco. Esta branch introduz integração opt-in de status e listagem pelo overlay server/compose.postgres.yaml. Sem habilitar a flag, nenhuma conexão será feita. Código proposto, CI ainda não comprovado, frontend/API não publicados nem validados na VPS. Ver docs/BANCO-DE-DADOS.md. Operações de escrita e isolamento entre projetos continuam pendentes; a instância atual usa trust sem senha.
+
+### Banco de Dados (histórico: interface preparada sem PostgreSQL)
 **Código proposto em branch/PR dedicado:** seção Sistema → Banco de Dados, com abas de visão geral, projetos, acessos, tabelas/consulta, recuperação e monitoramento; indicadores indisponíveis quando não consultados, botões mutáveis desligados, status autenticado `GET /database/status`, negação explícita das demais rotas e testes. Documentação de implantação futura: [BANCO-DE-DADOS.md](BANCO-DE-DADOS.md).
 
 **PostgreSQL instalado:** não. **pgAdmin/Adminer instalado:** não. **VPS, containers, DNS, Caddy, volumes, rede e credenciais alterados:** não. **Banco e contas reais:** nenhum cadastrado por esta mudança. **CI:** aprovado na revisão `131048dadeb12b00bd17e050122456f7e23df55d`, [Console CI](https://github.com/Softdown-prog/Painel/actions/runs/41135121146) e [Docker executor integration smoke](https://github.com/Softdown-prog/Painel/actions/runs/41135121102). **PR:** [#20](https://github.com/Softdown-prog/Painel/pull/20), preparado para revisão, sem merge. **Frontend publicado e VPS validada:** não; instalação não autorizada nesta etapa. Não chamar o módulo de operacional até o adaptador e a instalação serem autorizados e testados.

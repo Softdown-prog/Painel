@@ -1,26 +1,36 @@
-# Banco de Dados — preparação da interface sem PostgreSQL
+# PostgreSQL multiprojetos — integração com o Painel
 
-## Estado atual
-A aba **Sistema → Banco de Dados** existe para preparar a administração multiprojetos.
-**Nenhum PostgreSQL, pgAdmin, Adminer, driver, volume, container ou porta foi criado**, e nenhuma credencial de banco é requerida.
-A API disponibiliza apenas `GET /database/status`, após autenticação administrativa (sessão e chave da borda), respondendo `integration: not_configured`.
-Todas as demais rotas sob `/database` respondem indisponível (503), e POST em `/database/status` é recusado (405).
+## Estado
 
-A interface tem seções de Visão geral, Bancos e projetos, Usuários e acesso, Tabelas e consultas, Cópias e recuperação e Monitoramento. Os indicadores são **—**, não zeros nem números fictícios. Botões destrutivos/de criação permanecem desabilitados e sem chamadas a servidores.
+O operador confirmou na VPS que PostgreSQL 18 está rodando como container vps-postgres, e que criou e apagou um banco de teste. A API do painel ainda precisa de deploy autorizado e verificação de conexão real. O PostgreSQL é um serviço compartilhado da VPS e não pertence a nenhum projeto específico.
 
-## Arquitetura pretendida — somente para uma etapa futura, com autorização
-- Uma instância PostgreSQL por host; um banco por projeto, e uma role LOGIN por aplicação com permissões restritas. O usuário administrativo não deve ser utilizado por aplicações.
-- Rede Docker privada entre API e banco, nenhuma exposição de porta 5432 no host, sem acessar PostgreSQL a partir do Pages/navegador.
-- API com adaptador isolado, timeout e limites de requisição, allowlist de operações; consultas iniciais paginadas e só leitura. Não aceitar SQL arbitrário no navegador.
-- Operações de criação/rotação/exclusão com autenticação de sessão, confirmação, validação de nomes e posse de projeto, auditoria e separação de papéis.
-- Segredos armazenados apenas em local protegido na VPS, fora do Git e fora de logs, com rotação controlada.
-- Segurança contra SQL injection: identificadores validados, parâmetros SQL para valores e nunca interpolar SQL enviado por clientes.
-- Medição real de conexões, tamanho por banco, queries lentas e uso de WAL; apresentar indisponível quando não houver acesso, sem inventar métricas.
-- Recuperação com cópias consistentes, retenção, criptografia e um destino fora da VPS; testes de restauração antes de habilitar botão Restaurar.
-- Recursos e operação de banco distintos do executor privilegiado de Docker; API sem acesso geral a arquivos do host e sem abertura de novo domínio.
-- Aprovação explícita e plano de reversão antes de instalar, mudar Docker/Compose, redes, volumes, Caddy ou credenciais.
+## O que esta mudança entrega
 
-## Contrato futuro
-Até o adaptador PostgreSQL ser desenvolvido e auditado, o endpoint de status continuará `not_configured`; a interface não marca ações como disponíveis.
-Um estado real de conexão, listas de bancos, contas, projetos, tabelas e métricas só poderá ser exibido após implementar e testar novas rotas autenticadas.
-O cadastro de projetos do Painel **não** implica existência automática de um banco.
+- GET /database/status autenticado verifica PostgreSQL diretamente apenas quando a integração é habilitada.
+- Mostra versão, contagem de bancos não-template, conexões, ocupação total e até 100 bancos com nome, proprietário e tamanho.
+- UI diferencia conectado, não habilitado e indisponível; jamais fabrica números.
+- Acesso SQL fixo de leitura. Não implementa criação, exclusão, edições, consultas arbitrárias ou backup.
+- Não instala nada na VPS; não toca nos volumes PostgreSQL, DNS, Caddy ou containers hospedados.
+- A ativação é opcional, no overlay server/compose.postgres.yaml.
+
+## Ativar posteriormente, em deploy coordenado
+
+Verifique primeiro que a rede Docker vps_pg_private já existe e que vps-postgres responde nela. O overlay conecta SOMENTE a API do Painel a essa rede externa; a API também continua na rede administrativa vps_panel_control. O executor Docker continua sem rede.
+
+Para validar a combinação dos arquivos em uma máquina com acesso ao Docker:
+
+    docker compose -f server/compose.yaml -f server/compose.postgres.yaml config --quiet
+
+Para ativar, inclua server/compose.postgres.yaml na implantação autorizada, preservando os outros overlays reais do painel. Não substitua a lista de arquivos usada em produção sem conferi-la. Não use down -v; não altere volumes; não reinicie desnecessariamente o túnel. O deploy Pages da interface NÃO atualiza a API na VPS.
+
+A integração define PANEL_POSTGRES_ENABLED=1, PANEL_POSTGRES_HOST=vps-postgres, PANEL_POSTGRES_PORT=5432, PANEL_POSTGRES_DB=postgres e PANEL_POSTGRES_USER=postgres. Sem a flag, a API continua respondendo not_configured. Se o banco ou rede não responderem, a API retorna unavailable (não mascara como zero nem divulga erro interno).
+
+## Limitação de segurança importante
+
+A instância existente foi criada com POSTGRES_HOST_AUTH_METHOD=trust para funcionar sem senha. Isso não limita o número de bancos, mas QUALQUER container que tenha acesso a essa rede pode se identificar como qualquer usuário do PostgreSQL, inclusive superusuário. Logo, a rede privada não equivale a autenticação nem isola usuários de diferentes projetos. Não adicionar containers de clientes ou projetos não confiáveis diretamente à rede administrativa do PostgreSQL. Este PR só consulta dados; operações de escrita e permissões por projeto precisam de etapa separada de segurança.
+
+## Testes e validação real
+
+Validar typecheck, build:frontend, npm test, check:js e Compose. Após deploy coordenado da API: abrir Sistema → Banco de Dados, clicar Verificar situação e confirmar dados reais. Testar também a API sem sessão (401), sem flag (not_configured), com rede interrompida (unavailable) e os controles de escrita desabilitados.
+
+Não classificar API conectada ou recurso publicado apenas porque CI passou. A implantação e conexão real na VPS ainda devem ser confirmadas separadamente.
