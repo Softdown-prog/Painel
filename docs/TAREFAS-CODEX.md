@@ -1,3 +1,6 @@
+### 2026-10-30: corrigir status na tabela de revisões (PR #30)
+A implementação anterior criava cartões no topo, mas o pedido era atualizar os indicadores **nas linhas da tabela de revisões**, abaixo da página. A tabela agora recebe execuções GitHub ainda não importadas, mostra os dois estados independentes de CI/CD e VPS com símbolos animados e preserva a política de limpeza em coluna separada. A API não foi modificada; merge e Pages precisam confirmação. Verde na VPS exige SHA idêntico ao container em execução no Docker, sem afirmar saúde HTTPS do site. A alteração foi refeita sobre o commit Postgres `d0c5ff2` para preservar a interface de banco adicionada em outra sessão.
+
 ### PostgreSQL por projeto — gestão protegida em desenvolvimento
 Criar bancos e usuários reais por projeto pelo Painel, com senha gerada automaticamente e guardada na VPS; inventário de papéis e diagnóstico de autenticação. A instalação atual segue com `trust`, portanto a criação estará **bloqueada** até migrar para SCRAM e configurar credencial administrativa privada. Não executar alterações no PostgreSQL de produção neste PR. O merge/publicação Pages NÃO faz deploy da API. Ver docs/BANCO-DE-DADOS.md.
 
