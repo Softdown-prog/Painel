@@ -8,6 +8,9 @@ O backend agora tem publicação independente: `.github/workflows/deploy-vps.yml
 
 ## Novo frontend Angular 22 na VPS (prévia incremental)
 
+A prévia Angular também apresenta **Publicações** com dois estados independentes por revisão: CI/CD no GitHub e confirmação da revisão em execução na VPS por SHA real. Erros de consulta não são pintados como sucesso, e todas as ações destrutivas permanecem no backend/telas existentes. A aba é somente leitura e atualizada manualmente; nenhuma versão é declarada acessível por HTTPS apenas por executar no Docker.
+
+
 A aplicação `angular/` usa Angular 22 e TypeScript 6 em um projeto separado, preservando TypeScript 7 do backend e do frontend legado. O Pages agora compila e publica a prévia em `/angular/`: login com sessão existente, indicadores reais da API e inventário de containers. As demais áreas continuam no frontend atual (`/`). Nenhum token da Cloudflare é colocado no Angular. **Angular está publicado no Pages e usa a API real da VPS.** O Dockerfile opcional `panel-web` também o compila, mas a migração pública do frontend para a VPS continua separada. Veja [Migração do frontend para VPS](docs/MIGRACAO-FRONTEND-VPS.md).
 
 ## Frontend na VPS (migração preparada, sem troca do domínio)

@@ -1,4 +1,5 @@
 import { Component, OnInit, computed, signal } from '@angular/core';
+import { DeploymentsComponent } from './deployments.component';
 
 type Session = {authenticated: boolean; setupRequired: boolean};
 type Summary = {available: boolean; running: number | null; total: number | null; truncated?: boolean};
@@ -18,11 +19,12 @@ type Inventory = {containers?: ManagedContainer[]; readOnly?: boolean; updatedAt
 @Component({
   selector: 'panel-app',
   standalone: true,
+  imports: [DeploymentsComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
 export class AppComponent implements OnInit {
-  readonly page = signal<'overview' | 'containers'>('overview');
+  readonly page = signal<'overview' | 'containers' | 'deployments'>('overview');
   readonly session = signal<Session | null>(null);
   readonly overview = signal<Overview | null>(null);
   readonly inventory = signal<Inventory | null>(null);
@@ -110,7 +112,7 @@ export class AppComponent implements OnInit {
     } finally { this.loading.set(false); }
   }
 
-  selectPage(page: 'overview' | 'containers'): void { this.page.set(page); }
+  selectPage(page: 'overview' | 'containers' | 'deployments'): void { this.page.set(page); }
   formatDate(value?: string): string {
     if (!value) return 'Sem leitura confirmada';
     const d = new Date(value);

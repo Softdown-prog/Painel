@@ -1,0 +1,71 @@
+<section aria-label="Publicações e versões dos projetos">
+  <div class="deploy-intro">
+    <div>
+      <h2>GitHub e versão instalada na VPS</h2>
+      <p>Uma compilação aprovada não significa que a nova versão está em execução no servidor.</p>
+      <small>Última consulta: {{formatDate(checkedAt())}}</small>
+    </div>
+    <button type="button" class="refresh" (click)="refresh()" [disabled]="loading()">
+      {{loading() ? 'Consultando…' : '↻ Atualizar publicações'}}
+    </button>
+  </div>
+  @if (warning()) {
+    <p class="deploy-warning" role="status">{{warning()}}</p>
+  }
+  @if (error()) {
+    <div role="alert" class="deploy-error">
+      <strong>Não foi possível consultar as publicações</strong>
+      <p>{{error()}}</p>
+    </div>
+  }
+  @if (loading() && !checkedAt()) {
+    <p class="deploy-loading" role="status">Consultando repositórios, execuções e revisões...</p>
+  } @else if (!loading() && !error() && !configured()) {
+    <div class="deploy-empty">
+      <h3>Nenhum repositório conectado</h3>
+      <p>Conecte os repositórios na área de Publicações do painel atual para acompanhar as versões aqui.</p>
+      <a href="/#deploys">Abrir integração GitHub no painel anterior</a>
+    </div>
+  }
+  @for (group of groups(); track group.name) {
+    <article class="deploy-group">
+      <header>
+        <div class="repo-heading">
+          <strong>{{group.name}}</strong>
+          <span>{{group.branch}} · {{group.workflow}}</span>
+        </div>
+        <span class="repo-target">{{group.slug ? 'Projeto da VPS: '+group.slug : 'Sem vínculo com a VPS'}}</span>
+      </header>
+      @if (group.installedRevision) {
+        <p class="installed">Container em execução com revisão <code>{{group.installedRevision.slice(0,9)}}</code>. Isso não confirma o acesso HTTPS público.</p>
+      }
+      @if (group.issue) {
+        <p role="status" class="deploy-warning">{{group.issue}}</p>
+      }
+      @if (!group.issue && !group.rows.length) {
+        <p class="deploy-loading">Nenhuma execução recente encontrada.</p>
+      }
+      <div class="runs">
+        @for (run of group.rows; track run.key) {
+          <div class="run">
+            <div class="revision">
+              <a [href]="run.url" target="_blank" rel="noopener noreferrer" [attr.aria-label]="'Abrir execução '+run.runId+' no GitHub'">{{run.shortSha}}</a>
+              <small>{{formatDate(run.createdAt)}}</small>
+            </div>
+            <div class="stages">
+              <div class="stage">
+                <small>GitHub CI/CD</small>
+                <span class="state" [class.success]="run.ci.tone === 'success'" [class.warning]="run.ci.tone === 'warning'" [class.danger]="run.ci.tone === 'danger'" [class.running]="run.ci.tone === 'running'">{{run.ci.label}}</span>
+              </div>
+              <div class="stage">
+                <small>VPS / container</small>
+                <span class="state" [class.success]="run.vps.tone === 'success'" [class.warning]="run.vps.tone === 'warning'" [class.danger]="run.vps.tone === 'danger'" [class.running]="run.vps.tone === 'running'">{{run.vps.label}}</span>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    </article>
+  }
+  <p class="deploy-note">A confirmação de execução na VPS utiliza o SHA e o estado do container registrado pela API. Ela não equivale a uma verificação de domínio, HTTPS ou acessibilidade pública. Histórico de todos os projetos no painel atual: <a href="/#revisions">Revisões e espaço</a>.</p>
+</section>
