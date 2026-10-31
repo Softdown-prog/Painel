@@ -27,7 +27,7 @@ test('Angular is the only canonical entrypoint for desktop and mobile URLs', () 
   assert.equal(navigate('https://panel.example.test/index.html').destination,'/angular/#overview');
   for (const [oldRoute,newRoute] of Object.entries({
     overview:'overview',containers:'containers',apps:'apps',projects:'projects',deploys:'deployments',
-    deployments:'deployments'
+    deployments:'deployments',terminal:'terminal',revisions:'revisions'
   })) {
     assert.equal(navigate('https://panel.example.test/#'+oldRoute).destination,
       '/angular/#'+newRoute);
@@ -38,12 +38,16 @@ test('Angular is the only canonical entrypoint for desktop and mobile URLs', () 
 });
 
 test('advanced legacy tools stay available explicitly, without a second default dashboard', () => {
-  for (const view of ['terminal','database','revisions','domains','traffic','secrets','settings']) {
+  for (const view of ['database','domains','traffic','secrets','settings']) {
     assert.equal(navigate('https://panel.example.test/#'+view).destination,
       '/?interface=classica#'+view);
     const result = navigate('https://panel.example.test/?interface=classica#'+view);
     assert.equal(result.destination,null);
     assert.equal(result.classicClass,true);
+  }
+  for(const view of ['terminal','revisions']){
+    assert.equal(navigate('https://panel.example.test/#'+view).destination,'/angular/#'+view);
+    assert.equal(navigate('https://panel.example.test/?interface=classica#'+view).destination,null);
   }
   const projectsResult = navigate('https://panel.example.test/?interface=classica#projects');
   assert.equal(projectsResult.destination, null);
