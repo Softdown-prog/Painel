@@ -22,17 +22,16 @@ jobs:
       - name: Check formatting
         run: cargo fmt --manifest-path server/rust-executor/Cargo.toml --all -- --check
       - name: Verify policy prototype has no clippy warnings
-        run: cargo clippy --manifest-path server/rust-executor/Cargo.toml --all-targets -- -D warnings
+        run: cargo clippy --locked --manifest-path server/rust-executor/Cargo.toml --all-targets -- -D warnings
       - name: Test shadow mode fail-closed policy
-        run: cargo test --manifest-path server/rust-executor/Cargo.toml --all-targets --verbose
+        run: cargo test --locked --manifest-path server/rust-executor/Cargo.toml --all-targets --verbose
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
       - name: Build shadow executable for parity tests
-        run: cargo build --manifest-path server/rust-executor/Cargo.toml
+        run: cargo build --locked --manifest-path server/rust-executor/Cargo.toml
       - name: Node versus Rust policy parity fixtures
         run: node --test server/rust-executor/parity.test.mjs
       - name: Build optimized Rust executor prototype
-        run: cargo build --manifest-path server/rust-executor/Cargo.toml --release
-      - name: Dependency lockfile inventory for pinning
-        run: cat server/rust-executor/Cargo.lock
+        run: cargo build --locked --manifest-path server/rust-executor/Cargo.toml --release
+
