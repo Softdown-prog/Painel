@@ -349,14 +349,14 @@
           <div class="database-intro" id="dbStatusCard" data-state="unconfigured" role="status" aria-live="polite">
             <span class="database-state-icon" aria-hidden="true">▤</span>
             <div><strong id="dbStatus">Integração não configurada</strong>
-              <p id="dbMessage">Preparando a área de gerenciamento. Nenhum PostgreSQL será instalado por esta tela.</p>
+              <p id="dbMessage">O painel consultará o PostgreSQL existente quando o conector for habilitado na API.</p>
               <small id="dbLastCheck">Ainda não consultado</small></div>
           </div>
           <div class="database-metrics" aria-label="Indicadores do banco de dados">
             <div class="panel database-metric"><small>Serviço PostgreSQL</small><strong id="dbService">—</strong><span>Verificação via API privada</span></div>
-            <div class="panel database-metric"><small>Bancos cadastrados</small><strong id="dbCount">—</strong><span>Sem dados até conectar</span></div>
+            <div class="panel database-metric"><small>Bancos cadastrados</small><strong id="dbCount">—</strong><span>Consulta real após conexão</span></div>
             <div class="panel database-metric"><small>Armazenamento</small><strong id="dbStorage">—</strong><span>Uso real, não estimativa</span></div>
-            <div class="panel database-metric"><small>Conexões ativas</small><strong id="dbConnections">—</strong><span>Somente após integração</span></div>
+            <div class="panel database-metric"><small>Conexões ativas</small><strong id="dbConnections">—</strong><span>Consulta real após conexão</span></div>
           </div>
           <nav class="database-tabs" aria-label="Opções de banco de dados" role="tablist">
             <button type="button" role="tab" id="dbTabOverview" data-db-tab="overview" aria-controls="dbPaneOverview" aria-selected="true" tabindex="0">Visão geral</button>
@@ -368,16 +368,16 @@
           </nav>
           <section class="database-tab-panel" id="dbPaneOverview" role="tabpanel" aria-labelledby="dbTabOverview">
             <div class="database-two-column">
-              <div class="panel database-block"><h2>Preparação do servidor</h2>
-                <p>O painel está pronto para receber o conector PostgreSQL quando você decidir instalá-lo. Nada é instalado automaticamente.</p>
-                <div class="database-detail-row"><span>Motor planejado</span><strong>PostgreSQL</strong></div>
+              <div class="panel database-block"><h2>Servidor PostgreSQL</h2>
+                <p>O PostgreSQL já foi instalado na VPS. A API do painel precisa ser conectada para exibir dados reais.</p>
+                <div class="database-detail-row"><span>Motor de dados</span><strong>PostgreSQL</strong></div>
                 <div class="database-detail-row"><span>Arquitetura</span><strong>Uma instância, bancos separados</strong></div>
                 <div class="database-detail-row"><span>Rede</span><strong>Privada, sem porta pública</strong></div>
                 <div class="database-detail-row"><span>Operações</span><strong id="dbOperations">Desativadas</strong></div>
               </div>
               <div class="panel database-block"><h2>Próximas etapas</h2>
-                <ol class="database-steps"><li>Definir volume, rede privada e limites de memória.</li><li>Instalar PostgreSQL em uma etapa futura e verificar a saúde do serviço.</li><li>Conectar a API com credenciais administrativas restritas.</li><li>Habilitar cada função após testes de permissões e recuperação.</li></ol>
-                <p class="database-note">Esta etapa cria apenas a interface e o contrato de status da API.</p>
+                <ol class="database-steps"><li>Confirmar a saúde do PostgreSQL existente na VPS.</li><li>Ativar a conexão da API na rede privada em deploy autorizado.</li><li>Consultar bancos e métricas reais nesta tela.</li><li>Preparar permissões específicas antes de liberar alterações.</li></ol>
+                <p class="database-note">A primeira integração é somente leitura. Criar e excluir bancos permanece desabilitado.</p>
               </div>
             </div>
           </section>
@@ -385,7 +385,7 @@
             <div class="panel database-block"><div class="database-panel-heading"><div><h2>Bancos por projeto</h2><p>Cada aplicação terá um banco e uma conta com permissões próprias.</p></div>
               <button type="button" class="primary-button" disabled title="Requer PostgreSQL conectado e provisionamento seguro">+ Criar banco</button></div>
               <div class="database-table-wrap"><table class="database-table"><thead><tr><th>Projeto</th><th>Banco</th><th>Armazenamento</th><th>Situação</th><th>Ações</th></tr></thead>
-                <tbody id="dbProjectsBody"><tr><td colspan="5" class="database-empty">Nenhum banco foi consultado. É necessário conectar o PostgreSQL.</td></tr></tbody></table></div>
+                <tbody id="dbProjectsBody"><tr><td colspan="5" class="database-empty">Aguardando consulta à API do PostgreSQL.</td></tr></tbody></table></div>
               <p class="database-footnote">Os projetos hospedados e os bancos de dados são cadastros diferentes. Não criaremos bancos apenas porque uma aplicação existe na VPS. <a href="#projects" class="text-link">Ver projetos registrados</a></p>
             </div>
           </section>

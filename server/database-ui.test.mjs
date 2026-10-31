@@ -39,4 +39,6 @@ test('Docker Compose remains without database containers and no PostgreSQL depen
   assert.equal(dependencies.dependencies?.pg, undefined);
   assert.equal(dependencies.dependencies?.postgres, undefined);
   assert.match(file('server/database.ts'), /integration: "not_configured"/);
+  assert.match(file('server/database.ts'), /integration: "connected"/);
+  assert.match(file('server/compose.postgres.yaml'), /vps_pg_private/);
 });

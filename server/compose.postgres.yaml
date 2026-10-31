@@ -1,0 +1,16 @@
+# Ativação opcional de leitura do PostgreSQL já existente na VPS.
+# Usar com server/compose.yaml, preservando overlays atuais da instalação.
+services:
+  api:
+    environment:
+      PANEL_POSTGRES_ENABLED: "1"
+      PANEL_POSTGRES_HOST: vps-postgres
+      PANEL_POSTGRES_PORT: "5432"
+      PANEL_POSTGRES_DB: postgres
+      PANEL_POSTGRES_USER: postgres
+    networks:
+      - postgres_shared
+networks:
+  postgres_shared:
+    external: true
+    name: vps_pg_private

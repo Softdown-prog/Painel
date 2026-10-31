@@ -22,6 +22,7 @@ jobs:
       - run: docker compose -f server/compose.yaml -f server/compose.publications.yaml config --quiet
       - run: docker compose -f server/compose.yaml -f server/compose.secrets.yaml config --quiet
       - run: docker compose -f server/compose.yaml -f server/compose.legacy-softload.yaml config --quiet
+      - run: docker compose -f server/compose.yaml -f server/compose.postgres.yaml config --quiet
       - run: docker compose -f server/tunnel.compose.yaml config --quiet
       - name: Verify independent control-plane configuration
         run: |
