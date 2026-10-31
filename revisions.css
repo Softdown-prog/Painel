@@ -49,3 +49,13 @@
 @keyframes revision-ci-spin{to{transform:rotate(360deg)}}
 @media(max-width:580px){.revision-ci-panel .panel-head{flex-wrap:wrap;gap:10px}.revision-ci-list{margin:8px 12px 15px}.revision-ci-card{padding:12px}.revision-ci-card-head{flex-direction:column;gap:7px}.revision-ci-stage{padding:6px 9px}.revision-ci-arrow{font-size:14px}.revision-ci-footnote{margin:8px 12px 15px}}
 @media(prefers-reduced-motion:reduce){.revision-ci-running .revision-ci-dot{animation:none;border-style:dashed;color:#80bdff;background:transparent}}
+
+/* Status na linha real da tabela de revisões (não em cards separados). */
+.revision-live-table{min-width:850px}
+.revision-live-table .revision-pipeline-cell{white-space:normal;min-width:215px;max-width:350px}
+.revision-live-table .revision-ci-stage{margin:3px 4px 3px 0;padding:5px 8px;font-size:11px}
+.revision-live-table .revision-ci-dot{width:14px;height:14px;font-size:11px}
+.revision-live-table a{color:#cbb1ff;text-decoration:underline;text-underline-offset:3px}
+.revision-live-row{background:rgba(34,45,64,.25)}
+.revision-live-table td:nth-child(1){font-weight:600}
+.revision-live-table td:nth-child(1),.revision-live-table td:nth-child(2){overflow-wrap:anywhere;white-space:normal}
