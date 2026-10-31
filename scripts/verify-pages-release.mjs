@@ -11,7 +11,7 @@ for (let attempt = 0; attempt < 24; attempt++) {
     const homepage = await fetch(`${base}/?sha=${sha}`, { signal: AbortSignal.timeout(15000) });
     assert.equal(homepage.status,200);
     const homepageHtml = await homepage.text();
-    assert.match(homepageHtml,/location\.replace\('\/angular\/'/);
+    assert.match(homepageHtml,/location\.replace\('\/angular\/#'/);
     const angular = await fetch(`${base}/angular/?sha=${sha}`, { signal: AbortSignal.timeout(15000) });
     assert.equal(angular.status, 200);
     const html = await angular.text();
