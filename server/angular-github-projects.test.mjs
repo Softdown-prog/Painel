@@ -14,7 +14,7 @@ test('Angular includes GitHub projects page and keeps existing maintenance tools
   assert.match(html,/selectPage\('projects'\)/);
   assert.match(root,/projects:'projects'/);
   assert.match(root,/fragment === 'projects'/);
-  assert.match(html,/\?interface=classica#terminal/);
+  assert.match(html,/selectPage\('terminal'\)/);
   assert.match(html,/\?interface=classica#database/);
 });
 
