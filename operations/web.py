@@ -126,7 +126,16 @@ def unrelated_ids():
             (json.loads(run(['docker','inspect',*ids])) if ids else [])
             if c['Name'].lstrip('/')!=CONTAINER}
 
-def web_activate(project,sha,images,log):
+def web_activate(project, sha, images, log):
+    # Share the lock used by the older manual staging installer.
+    import fcntl
+    directory = Path('/run/lock/softload-panel')
+    directory.mkdir(parents=True, exist_ok=True)
+    with (directory / 'panel-web-deploy.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return _activate_unlocked(project, sha, images, log)
+
+def _activate_unlocked(project,sha,images,log):
     if project['adapter']!='web' or project['containers']!={'web':CONTAINER} or set(images)!={'web'}:
         raise ValueError('Invalid web project/service mapping')
     preflight()
