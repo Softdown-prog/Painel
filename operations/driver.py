@@ -29,6 +29,9 @@ def wait_healthy(names, seconds=150):
     raise RuntimeError('Service failed healthcheck')
 
 def verify_project(project, args):
+    if project.get('adapter') == 'shadow':
+        from shadow import verify_shadow
+        return verify_shadow(project, args)
     sha = args.get('sha')
     if not isinstance(sha, str) or not re.fullmatch('[0-9a-f]{40}', sha):
         raise ValueError('A full expected SHA is required')
@@ -210,6 +213,11 @@ def deploy(project, args, token, state):
     with open(state / ('deploy-' + project['adapter'] + '-' + sha + '.log'), 'ab', buffering=0) as log:
         try:
             images = prepare_images(project, args, token, log)
+            if project['adapter'] == 'shadow':
+                from shadow import shadow_activate
+                return shadow_activate(project, sha, images, log)
+            if project['adapter'] not in ('panel', 'compose'):
+                raise ValueError('Unknown deployment adapter')
             return (panel_activate if project['adapter'] == 'panel' else compose_activate)(project, sha, images, log)
         except BaseException:
             import traceback
