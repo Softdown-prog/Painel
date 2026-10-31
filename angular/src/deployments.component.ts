@@ -108,9 +108,11 @@ export class DeploymentsComponent implements OnInit, OnDestroy {
       const groups=await Promise.all(repos.map(async repo=>{
         const linked=projects.find(item=>item.repository===repo.fullName &&
           typeof item.slug==='string' && SLUG.test(item.slug));
-        const slug=linked?.slug ?? null;
+        const isPanel=repo.fullName==='Softdown-prog/Painel';
+        const slug=isPanel?'panel-api':(linked?.slug??null);
         const [runsResponse,releaseResponse]=await Promise.allSettled([
           this.api<{runs?:WorkflowRun[]}>('/repositories/'+repo.fullName+'/runs-all'),
+          isPanel ? this.api<ReleaseSnapshot>('/panel-version') :
           slug ? this.api<ReleaseSnapshot>('/projects/'+slug+'/releases'):Promise.resolve(null)
         ]);
         const release=releaseResponse.status==='fulfilled'?releaseResponse.value:null;
@@ -120,7 +122,9 @@ export class DeploymentsComponent implements OnInit, OnDestroy {
           releaseResponse.status==='rejected'&&slug ? 'Não foi possível conferir a VPS.' : null;
         const rows:RunRow[]=runs.map(run=>{
           const ci=ciStatus(run);
-          const vps=vpsStatus(run,repo.fullName,slug,release,jobs);
+          const raw=vpsStatus(run,repo.fullName,slug,release,jobs);
+          const vps=isPanel&&raw.tone==='success'
+            ? {...raw,label:'API do Painel nesta revisão'} : raw;
           return {key:repo.fullName+':'+run.id,sha:run.sha,shortSha:run.sha.slice(0,9),
             runId:run.id,name:typeof run.name==='string'?run.name:'Workflow',
             createdAt:run.createdAt,
