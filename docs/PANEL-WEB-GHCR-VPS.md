@@ -45,6 +45,24 @@ Antes desse preparo, os pushes apenas compilam/publicam a imagem; o job `deploy`
 intencionalmente ignorado. Se for iniciado manualmente antes do preparo, será recusado
 pela política antiga: não há permissão implícita ou shell arbitrário.
 
+
+### Acionar pela integração GitHub do ChatGPT
+
+Depois de instalar a autorização root-owned, também é possível criar uma **nova issue**
+no repositório Painel com o título exato:
+
+    [VPS] deploy panel-web
+
+Somente issues abertas pela identidade administrativa cadastrada, na branch main
+e com esse título disparam o workflow. O corpo e os comentários NÃO recebem
+comandos de shell, imagens alternativas ou caminhos. A imagem é construída no
+GitHub e seu SHA vem do próprio evento/identidade OIDC. Issues de outros autores
+ou com título diferente não têm o job de build/deploy executado.
+
+Na primeira tentativa **antes** da instalação root-owned, o broker recusará
+o deploy sem alterar o host. O ChatGPT pode consultar o workflow de execução
+e o artifact JSON sanitizado para verificar a resposta real.
+
 ## O que o deploy verifica
 
 - Selo OCI SHA completo e repositório exato na imagem GHCR.
