@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { dockerRequest, type DockerRequest } from './apps.ts';
@@ -23,7 +23,7 @@ type Deps = {
  enabled?: boolean;
  automatic?: boolean;
 };
-const REPO_OWNER = (process.env.PANEL_GHCR_ALLOWED_OWNER || 'Softdown-prog').toLowerCase();
+const REPO_OWNER = (process.env['PANEL_GHCR_ALLOWED_OWNER'] || 'Softdown-prog').toLowerCase();
 const MAX_IMPORTS = 300;
 const KEEP = 2; // Last two imports per app are always retained.
 const DAYS = 14; // Do not remove very recent images, even on a small VPS.
@@ -45,7 +45,7 @@ function automaticFor(dataDir:string):boolean{
   if(settings && typeof settings==='object' && typeof (settings as {automatic?:unknown}).automatic==='boolean')
    return (settings as {automatic:boolean}).automatic;
  }catch{ /* Default to deploy configuration until changed by an administrator */ }
- return process.env.PANEL_REVISIONS_AUTOMATIC==='1';
+ return process.env['PANEL_REVISIONS_AUTOMATIC']==='1';
 }
 function histories(dataDir:string):History[]{
  try {
@@ -167,8 +167,8 @@ export async function revisionReport(dataDir:string,docker:DockerRequest=dockerR
  const stale=entries.filter(e=>e.status==='antiga');
  const oldRefs=new Map(stale.map(e=>[e.ref,e]));
  const history=histories(dataDir);
-  return {checkedAt:new Date(now).toISOString(),enabled:process.env.PANEL_REVISIONS_CLEANUP_ENABLED==='1',
-   automatic:automaticFor(dataDir),scheduler:{intervalHours:6,enabledByCompose:process.env.PANEL_REVISIONS_CLEANUP_ENABLED==='1',automaticDefault:process.env.PANEL_REVISIONS_AUTOMATIC==='1'},ageDays:DAYS,keepPerApp:KEEP,
+  return {checkedAt:new Date(now).toISOString(),enabled:process.env['PANEL_REVISIONS_CLEANUP_ENABLED']==='1',
+   automatic:automaticFor(dataDir),scheduler:{intervalHours:6,enabledByCompose:process.env['PANEL_REVISIONS_CLEANUP_ENABLED']==='1',automaticDefault:process.env['PANEL_REVISIONS_AUTOMATIC']==='1'},ageDays:DAYS,keepPerApp:KEEP,
    totalImports:entries.length,oldCount:oldRefs.size,
    oldBytesEstimate:[...oldRefs.values()].reduce((sum,e)=>sum+e.sizeBytes,0),
    entries:entries.slice().sort((a,b)=>Date.parse(b.importedAt)-Date.parse(a.importedAt)),
@@ -222,22 +222,22 @@ export async function handleRevisionRoute(req:IncomingMessage,res:ServerResponse
    return true;
   }
   if(path==='/maintenance/revisions/settings'&&req.method==='POST'){
-   if(!(deps.enabled ?? process.env.PANEL_REVISIONS_CLEANUP_ENABLED==='1'))
+   if(!(deps.enabled ?? process.env['PANEL_REVISIONS_CLEANUP_ENABLED']==='1'))
     throw new CleanupError(403,'A limpeza precisa ser habilitada na configuração do servidor.');
    const input=await deps.body(req);
-   if(Object.keys(input).length!==1||typeof input.automatic!=='boolean')
+   if(Object.keys(input).length!==1||typeof input['automatic']!=='boolean')
     throw new CleanupError(400,'Informe apenas automatic: true ou false.');
-   store(deps.dataDir,SETTINGS_NAME,{automatic:input.automatic,changedAt:new Date(now).toISOString()});
-   send(200,{ok:true,automatic:input.automatic,message:input.automatic ?
+   store(deps.dataDir,SETTINGS_NAME,{automatic:input['automatic'],changedAt:new Date(now).toISOString()});
+   send(200,{ok:true,automatic:input['automatic'],message:input['automatic'] ?
     'Limpeza programada. A próxima verificação será feita no ciclo de seis horas.' :
     'Limpeza automática pausada. Nenhuma revisão foi apagada nesta operação.'});
    return true;
   }
   if(path==='/maintenance/revisions/cleanup'&&req.method==='POST'){
-   if(!(deps.enabled ?? process.env.PANEL_REVISIONS_CLEANUP_ENABLED==='1'))
+   if(!(deps.enabled ?? process.env['PANEL_REVISIONS_CLEANUP_ENABLED']==='1'))
     throw new CleanupError(403,'Limpeza desativada neste servidor.');
    const input=await deps.body(req);
-   if(Object.keys(input).length!==1||input.confirm!=='LIMPAR_REVISOES_ANTIGAS')
+   if(Object.keys(input).length!==1||input['confirm']!=='LIMPAR_REVISOES_ANTIGAS')
     throw new CleanupError(400,'Confirmação necessária para remover revisões antigas.');
    const outcome=await perform(deps.dataDir,docker,now,'manual');
    send(200,{ok:outcome.failed===0,...outcome});
@@ -255,7 +255,7 @@ export async function handleRevisionRoute(req:IncomingMessage,res:ServerResponse
 }
 export function startRevisionMonitor(dataDir:string):void {
  // A disabled deployment cannot clean; the timer allows toggling automatic mode without restarting the API.
- if(process.env.PANEL_REVISIONS_CLEANUP_ENABLED!=='1')return;
+ if(process.env['PANEL_REVISIONS_CLEANUP_ENABLED']!=='1')return;
  const run=async()=>{
   if(!automaticFor(dataDir))return;
   try{await perform(dataDir,dockerRequest,Date.now(),'automatic');}

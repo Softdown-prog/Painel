@@ -24,9 +24,9 @@ function checkedFile(path: string, secret: boolean): string {
   return readFileSync(path, "utf8");
 }
 function tlsDirectory(env: NodeJS.ProcessEnv): string {
-  const dir = resolve(env.PANEL_POSTGRES_TLS_DIR || CERT_ROOT);
+  const dir = resolve(env['PANEL_POSTGRES_TLS_DIR'] || CERT_ROOT);
   // Do not permit user-requested paths, symlink escapes or arbitrary file reads.
-  if ((dir !== CERT_ROOT && !(env.NODE_ENV === "test" && process.env.NODE_ENV !== "production")) || !existsSync(dir))
+  if ((dir !== CERT_ROOT && !(env['NODE_ENV'] === "test" && process.env['NODE_ENV'] !== "production")) || !existsSync(dir))
     throw new Error("TLS directory not installed");
   const st = lstatSync(dir);
   if (!st.isDirectory() || st.isSymbolicLink() || (st.mode & 0o077) !== 0)
@@ -34,7 +34,7 @@ function tlsDirectory(env: NodeJS.ProcessEnv): string {
   return dir;
 }
 export function adminTls(env: NodeJS.ProcessEnv): TlsMaterial | undefined {
-  if (env.PANEL_POSTGRES_TLS_ENABLED !== "1") return;
+  if (env['PANEL_POSTGRES_TLS_ENABLED'] !== "1") return;
   const dir = tlsDirectory(env);
   return {
     ca: checkedFile(join(dir, "ca.crt"), false),
@@ -100,8 +100,8 @@ export function issueCertificate(
     // Private key and CA are not exposed through the API or browser.
     writeFileSync(join(pending, "connection.json"), JSON.stringify({
       database: "p_" + role.slice(2), user: role,
-      host: env.PANEL_POSTGRES_HOST || "vps-postgres",
-      port: Number(env.PANEL_POSTGRES_PORT || 5432),
+      host: env['PANEL_POSTGRES_HOST'] || "vps-postgres",
+      port: Number(env['PANEL_POSTGRES_PORT'] || 5432),
       sslMode: "verify-full", authentication: "client-certificate",
       expiresAfterDays: 365,
     }) + "\n", { mode: 0o600 });

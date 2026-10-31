@@ -40,12 +40,6 @@ class ReleaseError extends Error {
 function parse<T>(response: DockerResponse): T {
   return JSON.parse(response.buffer.toString('utf8')) as T;
 }
-async function required(docker: DockerRequest, name: string): Promise<Inspect> {
-  const response = await docker('/containers/' + encodeURIComponent(name) + '/json');
-  if (response.status === 404) throw new ReleaseError(404, 'Container ' + name + ' não encontrado.');
-  if (response.status >= 400) throw new ReleaseError(502, 'Falha ao inspecionar container.');
-  return parse<Inspect>(response);
-}
 async function optional(docker: DockerRequest, name: string): Promise<Inspect | null> {
   const response = await docker('/containers/' + encodeURIComponent(name) + '/json');
   if (response.status === 404) return null;
@@ -80,9 +74,6 @@ async function locked<T>(callback: () => Promise<T>): Promise<T> {
   releaseQueue = new Promise(resolve => { done = resolve; });
   await prior;
   try { return await callback(); } finally { done(); }
-}
-function imageTag(repo: string, sha: string): string {
-  return 'ghcr.io/' + repo.toLowerCase() + ':sha-' + sha;
 }
 async function authenticatedBuild(call: typeof github, repo: LinkedRepository, runId: number): Promise<string> {
   const run = await call('/repos/' + repo.fullName + '/actions/runs/' + runId);
@@ -138,7 +129,7 @@ export async function handleReleaseRoute(req: IncomingMessage, res: ServerRespon
   const send = (status: number, value: unknown) => deps.send(res, status, value);
   const docker = deps.docker || dockerRequest;
   const githubCall = deps.githubRequest || github;
-  const enabled = deps.enabled ?? process.env.PANEL_RELEASES_ENABLED === '1';
+  const enabled = deps.enabled ?? process.env['PANEL_RELEASES_ENABLED'] === '1';
   const slug = match[1], operation = match[2];
   try {
     if (!validSlug(slug)) throw new ReleaseError(404, 'Projeto inválido.');
@@ -182,7 +173,7 @@ export async function handleReleaseRoute(req: IncomingMessage, res: ServerRespon
     if (req.method !== 'POST' || !operation) throw new ReleaseError(405, 'Método não permitido.');
     if (operation === 'recovery') {
       const input = await deps.body(req);
-      if (input.confirm !== 'RESTORE_SAFE_STATE' || Object.keys(input).length !== 1)
+      if (input['confirm'] !== 'RESTORE_SAFE_STATE' || Object.keys(input).length !== 1)
         throw new ReleaseError(400, 'Confirmação RESTORE_SAFE_STATE necessária.');
       const result = await locked(async () => {
         const current = await optional(docker, PREFIX + slug);
@@ -223,12 +214,12 @@ export async function handleReleaseRoute(req: IncomingMessage, res: ServerRespon
       if (operation === 'stage') {
         const input = await deps.body(req);
         if (Object.keys(input).some(key => key !== 'runId') ||
-          !Number.isSafeInteger(input.runId) || (input.runId as number) < 1) {
+          !Number.isSafeInteger(input['runId']) || (input['runId'] as number) < 1) {
           throw new ReleaseError(400, 'Informe o ID numérico da execução do build.');
         }
         if (candidate || backup) throw new ReleaseError(409, 'Já existe candidata ou backup. Resolva a publicação anterior.');
         if (current.State?.Status !== 'running') throw new ReleaseError(409, 'A aplicação atual precisa estar em execução.');
-        const sha = await authenticatedBuild(githubCall, repo, input.runId as number);
+        const sha = await authenticatedBuild(githubCall, repo, input['runId'] as number);
         const image = await localVerifiedImage(docker, project.repository, sha, deps.dataDir, slug);
         const labels = { [REPOSITORY]: project.repository, [REVISION]: sha, [ROLE]: 'candidate' };
         const inherited = { ramMb: (current.HostConfig?.Memory || 0) / 1048576,
@@ -243,9 +234,9 @@ export async function handleReleaseRoute(req: IncomingMessage, res: ServerRespon
       if (operation === 'promote') {
         const input = await deps.body(req);
         if (Object.keys(input).some(key => key !== 'expectedRevision') ||
-            (input.expectedRevision !== undefined && !validSha(input.expectedRevision)))
+            (input['expectedRevision'] !== undefined && !validSha(input['expectedRevision'])))
           throw new ReleaseError(400, 'Revisão esperada inválida.');
-        if (input.expectedRevision && candidate?.Config?.Labels?.[REVISION] !== input.expectedRevision)
+        if (input['expectedRevision'] && candidate?.Config?.Labels?.[REVISION] !== input['expectedRevision'])
           throw new ReleaseError(409, 'A candidata não corresponde à revisão escolhida para publicação.');
         if (!candidate || backup) throw new ReleaseError(409, 'É necessário ter candidata e nenhum backup pendente.');
         if (current.State?.Status !== 'running') throw new ReleaseError(409, 'Container original precisa estar em execução.');
@@ -293,7 +284,7 @@ export async function handleReleaseRoute(req: IncomingMessage, res: ServerRespon
       }
       if (operation === 'finalize') {
         const input = await deps.body(req);
-        if (input.confirm !== 'DELETE_BACKUP' || Object.keys(input).some(key => key !== 'confirm'))
+        if (input['confirm'] !== 'DELETE_BACKUP' || Object.keys(input).some(key => key !== 'confirm'))
           throw new ReleaseError(400, 'Confirmação explícita DELETE_BACKUP necessária.');
         if (backup && candidate) throw new ReleaseError(409, 'Rollback pendente. Resolva a candidata antes de finalizar.');
         if (!backup && !candidate) throw new ReleaseError(404, 'Sem backup ou candidata para finalizar.');

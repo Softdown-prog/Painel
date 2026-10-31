@@ -87,7 +87,7 @@ export async function handleProjectRoute(req: IncomingMessage, res: ServerRespon
   const docker = deps.docker || dockerRequest;
   const repositories = deps.repositories || (() => readRepositories(deps.dataDir));
   const githubCall = deps.githubRequest || github;
-  const buildsEnabled = deps.buildsEnabled ?? process.env.PANEL_PROJECT_BUILDS_ENABLED === '1';
+  const buildsEnabled = deps.buildsEnabled ?? process.env['PANEL_PROJECT_BUILDS_ENABLED'] === '1';
   try {
     if (path === '/projects' && req.method === 'GET') {
       const linked = repositories();
@@ -105,22 +105,22 @@ export async function handleProjectRoute(req: IncomingMessage, res: ServerRespon
     if (path === '/projects' && req.method === 'POST') {
       const input = await deps.body(req);
       if (Object.keys(input).some(key => !['slug', 'repository', 'services'].includes(key)) ||
-          !validSlug(input.slug) || typeof input.repository !== 'string' ||
-          (input.services !== undefined && !validServices(input.services))) {
+          !validSlug(input['slug']) || typeof input['repository'] !== 'string' ||
+          (input['services'] !== undefined && !validServices(input['services']))) {
         throw new ProjectError(400, 'Informe uma aplicação e um repositório válido.');
       }
-      const services = input.services === undefined ? [input.slug as string] : input.services as string[];
+      const services = input['services'] === undefined ? [input['slug'] as string] : input['services'] as string[];
       for (const service of services) await inspectOwned(docker, service);
-      const repo = repositories().find(item => item.fullName === input.repository);
+      const repo = repositories().find(item => item.fullName === input['repository']);
       if (!repo) throw new ProjectError(404, 'Conecte primeiro o repositório na aba Deploys.');
       const project = await serialize(async () => {
         const current = readProjects(deps.dataDir);
-        if (current.some(item => item.slug === input.slug)) throw new ProjectError(409, 'Aplicação já vinculada.');
-        if (ownsServices(current, input.slug as string, services))
+        if (current.some(item => item.slug === input['slug'])) throw new ProjectError(409, 'Aplicação já vinculada.');
+        if (ownsServices(current, input['slug'] as string, services))
           throw new ProjectError(409, 'Serviço já vinculado a outro projeto.');
         if (current.length >= MAX_PROJECTS) throw new ProjectError(409, 'Limite de projetos atingido.');
         const newProject: ProjectBinding = {
-          slug: input.slug as string, repository: repo.fullName,
+          slug: input['slug'] as string, repository: repo.fullName,
           connectedAt: new Date().toISOString(), services
         };
         saveProjects(deps.dataDir, [...current, newProject]);
@@ -137,9 +137,9 @@ export async function handleProjectRoute(req: IncomingMessage, res: ServerRespon
     if (!project) throw new ProjectError(404, 'Projeto não encontrado.');
     if (action === 'services' && req.method === 'PUT') {
       const input = await deps.body(req);
-      if (Object.keys(input).join(',') !== 'services' || !validServices(input.services))
+      if (Object.keys(input).join(',') !== 'services' || !validServices(input['services']))
         throw new ProjectError(400, 'Informe uma lista válida de serviços.');
-      const next = input.services as string[];
+      const next = input['services'] as string[];
       // A removed service is detached from the project registry only. It is never
       // inspected, stopped or deleted, so retired images cannot block reconciliation.
       const updated = await serialize(async () => {
