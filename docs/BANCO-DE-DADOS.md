@@ -38,3 +38,13 @@ A instalação atual foi criada com `POSTGRES_HOST_AUTH_METHOD=trust` e não pos
 7. Testar dois projetos fictícios, cada um com seu certificado, e a impossibilidade de assumir o usuário do outro. O acesso aos bancos deve ser restrito por permissões reais; containers não recebem certificados de projetos vizinhos.
 
 **Importante:** este PR modifica apenas GitHub. Publicar Pages não atualiza a API que roda no Docker, e nem configura automaticamente o PostgreSQL. Nenhuma senha é necessária ao operador, mas certificados e suas chaves privadas são identidades que devem permanecer protegidas. Renovação/revogação dos certificados é trabalho posterior antes do vencimento de 365 dias.
+
+## Preparação automatizada dos certificados (sem reiniciar PostgreSQL)
+A preparação host-only foi adicionada em `server/postgres-mtls-prepare-vps.sh`. Ela gera, sem senhas, uma CA privada, um certificado administrativo para o Painel (CN `postgres`) e um certificado de servidor para `vps-postgres` com SAN `DNS:vps-postgres`. Não lê, imprime ou pede senhas; mantém os arquivos apenas em armazenamento privado do servidor:
+
+- Material administrativo em `softload_panel_data/postgres-tls` (visível para API como `/data/postgres-tls`), incluindo `ca.key`, `ca.crt`, `admin.key` e `admin.crt`.
+- Material do servidor em `/etc/vps-postgres-tls/`, com `server.key`, `server.crt`, `ca.crt`.
+- O script recusa sobrescrever material existente; gera arquivo novo somente mediante operação administrativa e **não edita nenhum container, HBA, PGDATA, configuração ou banco existente**.
+- `server/postgres-mtls-preflight-vps.sh` é leitura: confere SSL, quantos bancos e regras `trust`/`cert` existem e se os certificados foram preparados.
+
+Preparar certificados **não ativa** autenticação TLS. Habilitar `ssl=on` e substituir as regras HBA requer implantação separada e reversível, e verificação de conexão com e sem certificado antes de habilitar criação na interface.

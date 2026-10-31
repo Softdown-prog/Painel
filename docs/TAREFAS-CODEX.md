@@ -1,3 +1,6 @@
+### 2026-10-30 — estágio de preparação de certificados PostgreSQL
+Fornecidos scripts de preparação de CA e certificados de servidor/admin para PostgreSQL compartilhado sem senhas; diagnóstico somente leitura; nenhum serviço ou banco da VPS modificado por código GitHub. Preparar certificados não implica TLS ativado, nem permissões de bancos de projetos. A migração HBA/SSL e provisionamento real ainda dependem de atualização coordenada com testes e rollback.
+
 ### 2026-10-30 — PostgreSQL MULTIPROJETOS SEM SENHAS (pedido explícito)
 Reverter exigência de senha SCRAM inserida no PR #28. Banco compartilhado da VPS independente de apps: um banco/usuário por projeto, autenticação por **certificados cliente TLS X.509**, CA privada e chaves mantidas no servidor, nunca no frontend ou repositório. Implementar emissão, comprovação de rejeição de login sem certificado e CN divergente, criação de role PASSWORD NULL, testes. O PostgreSQL atual permanece em modo trust, então escrita deve ficar bloqueada até migração segura e deploy API. **Não descrever código mesclado ou Pages publicado como configuração aplicada ao PG da VPS.** Ver docs/BANCO-DE-DADOS.md.
 

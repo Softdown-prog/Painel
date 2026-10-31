@@ -40,6 +40,8 @@ jobs:
           print("PASS: PostgreSQL overlay preserves control plane and isolation")
           '
       - run: bash -n server/postgres-preflight-vps.sh
+      - run: bash -n server/postgres-mtls-prepare-vps.sh
+      - run: bash -n server/postgres-mtls-preflight-vps.sh
       - run: bash -n server/deploy-panel-api-postgres-vps.sh
       - run: docker compose -f server/tunnel.compose.yaml config --quiet
       - name: Verify independent control-plane configuration
