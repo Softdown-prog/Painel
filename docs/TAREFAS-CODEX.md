@@ -403,3 +403,6 @@ Guia de uso: [GUIA-RAPIDO.md](GUIA-RAPIDO.md). Domínios técnicos: [domain-rout
 
 ### Angular — confirmação imutável de comandos SSH (branch, 31/10/2026)
 **Código:** terminal só executa quando o comando corresponde ao texto exato aprovado, inclusive scripts com quebras de linha; mudança/cancelamento/destruição descarta a confirmação, com validação imediata antes do envio. **Testes:** `server/angular-long-migration.test.mjs` validando guardas e template. **Segurança:** sem novos endpoints, acesso SSH ou mudança na VPS. **CI:** conferir SHA final. **Pendente:** teste de navegador autenticado e mobile.
+
+### Angular — confirmações de chaves e segredos (branch, 31/10/2026)
+**Código:** qualquer alteração de metadados/segredo ou atualização de inventário invalida aprovação anterior; ação exige correspondência de nome e presença/ausência esperada da chave. Sem cópia do valor secreto para confirmar. Limpeza na desmontagem e bloqueio de edição durante envio. **Testes:** `server/angular-secrets-settings.test.mjs`. **CI:** validar SHA final. **VPS/produção:** sem alterações; homologação em navegador autenticado e mobile pendente.

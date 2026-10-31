@@ -129,3 +129,10 @@
 - Validação de comando (limite UTF-8 4 MB e caracteres proibidos) isolada em `angular/src/terminal-command.ts` e exercitada por testes unitários, incluindo texto alterado após a confirmação, estado SSH desabilitado, tentativas sem aprovação e scripts multilinha.
 - Comando aprovado é descartado ao confirmar/cancelar/sair da tela. O componente não exibe resultados de consultas concluídas após sua destruição; não pressupõe que fechar a tela interrompa execução já enviada ao servidor.
 - Sem mudança de permissão SSH, endpoint, token, Docker/VPS ou deploy. Resta testar o terminal em navegador autenticado com dispositivos móveis antes da liberação.
+
+## Incremento — confirmação segura na tela de chaves (31/10/2026)
+
+- `#secrets`: gravação e exclusão usam confirmação associada ao nome, presença/ausência no inventário e revisão do formulário. Alterar nome, descrição, finalidade ou valor invalida a aprovação anterior; recarregar o inventário também cancela a confirmação. A revisão é numérica: **o valor secreto não é duplicado** para checar a confirmação.
+- Exclusão exige item existente no inventário autorizado, senha administrativa e confirmação digitada; troca de registro ou estado invalida a ação antes do envio. Os controles de edição são desabilitados durante a operação e os dados sensíveis são limpos ao fechar a tela.
+- Consultas atrasadas não restauram o inventário após `OnDestroy`. Uma gravação já enviada não é cancelada pelo fechamento da tela; o servidor continua sendo a fonte de verdade, e a próxima abertura deve consultar o inventário.
+- Testes de confirmação, revisão do formulário, cadastro/substituição/exclusão e limpeza após destruição em `server/angular-secrets-settings.test.mjs`. Ainda pendente validação em navegador real e celular, sem API/produção alteradas.

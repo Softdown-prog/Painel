@@ -1,8 +1,8 @@
 import {Component,OnDestroy,OnInit,computed,signal} from '@angular/core';
+import {currentSecretIntent,type SecretIntent} from './secrets-confirmation';
 type Item={name:string;label:string;category:'sistema'|'aplicacao';installed:boolean;sizeBytes:number;createdAt:string;updatedAt:string};
 type Connection={id:string;label:string;configured:boolean;managed:boolean};
 type SecretInfo={enabled:boolean;entries:Item[];connections:Connection[];note?:string};
-type Intent={kind:'save'|'delete';name:string;replacement:boolean};
 const NAME=/^[a-z][a-z0-9-]{1,47}$/;
 const CATEGORIES=['sistema','aplicacao'] as const;
 
@@ -19,8 +19,10 @@ export class SecretsComponent implements OnInit,OnDestroy{
  readonly category=signal<'sistema'|'aplicacao'>('sistema');
  readonly value=signal('');
  readonly password=signal('');
- readonly pending=signal<Intent|null>(null);
+ readonly pending=signal<SecretIntent|null>(null);
  readonly typedName=signal('');
+ private revision=0;
+ private destroyed=false;
  readonly canSave=computed(()=>{
    const n=this.name(),v=this.value();
    return this.info()?.enabled===true&&!this.working()&&!this.loading() &&
@@ -32,9 +34,27 @@ export class SecretsComponent implements OnInit,OnDestroy{
      this.password().length>0&&this.password().length<=256;
  });
  ngOnInit():void{void this.refresh();}
- ngOnDestroy():void{this.clearSensitive();}
+ ngOnDestroy():void{
+   this.destroyed=true;
+   this.clearSensitive();
+   this.info.set(null);
+ }
+ private invalidatePrepared():void{
+   this.revision++;
+   this.pending.set(null);
+   this.typedName.set('');
+ }
+ editName(value:string):void{if(this.working())return;this.invalidatePrepared();this.name.set(value);}
+ editLabel(value:string):void{if(this.working())return;this.invalidatePrepared();this.label.set(value);}
+ editCategory(value:string):void{
+   if(this.working())return;
+   this.invalidatePrepared();
+   if(value==='sistema'||value==='aplicacao')this.category.set(value);
+ }
+ editValue(value:string):void{if(this.working())return;this.invalidatePrepared();this.value.set(value);}
  private clearSensitive():void{
-   this.value.set('');this.password.set('');this.typedName.set('');this.pending.set(null);
+   this.invalidatePrepared();
+   this.value.set('');this.password.set('');
  }
  private async api<T>(path:string,method='GET',payload?:object):Promise<T>{
    const response=await fetch('/api'+path,{method,credentials:'same-origin',redirect:'error',cache:'no-store',
@@ -49,7 +69,7 @@ export class SecretsComponent implements OnInit,OnDestroy{
    return body as T;
  }
  async refresh():Promise<void>{
-   if(this.loading()||this.working())return;
+   if(this.loading()||this.working()||this.destroyed)return;
    this.loading.set(true);this.error.set('');
    try{
      const data=await this.api<SecretInfo>('/secrets');
@@ -58,11 +78,15 @@ export class SecretsComponent implements OnInit,OnDestroy{
          (e.category==='sistema'||e.category==='aplicacao')&&typeof e.installed==='boolean')||
        !data.connections.every(c=>c&&typeof c.label==='string'&&typeof c.configured==='boolean'&&typeof c.managed==='boolean'))
        throw Error('Inventário de chaves inválido.');
+     if(this.destroyed)return;
+     this.invalidatePrepared();
      this.info.set(data);
      if(!data.enabled)this.clearSensitive();
    }catch(e){
-     this.info.set(null);this.clearSensitive();
-     this.error.set(this.message(e));
+     if(!this.destroyed){
+       this.info.set(null);this.clearSensitive();
+       this.error.set(this.message(e));
+     }
    }finally{this.loading.set(false);}
  }
  prepareSave(event:Event):void{
@@ -70,22 +94,28 @@ export class SecretsComponent implements OnInit,OnDestroy{
    if(!this.canSave())return;
    this.error.set('');this.notice.set('');
    const n=this.name();
-   this.pending.set({kind:'save',name:n,replacement:this.info()?.entries.some(e=>e.name===n)??false});
+   this.pending.set({kind:'save',name:n,replacement:this.info()?.entries.some(e=>e.name===n)??false,
+     revision:this.revision});
    this.typedName.set('');
  }
  prepareDelete(item:Item):void{
-   if(this.loading()||this.working()||!this.info()?.enabled)return;
+   if(this.loading()||this.working()||this.destroyed||!this.info()?.enabled||
+     !this.info()?.entries.some(e=>e.name===item.name))return;
    this.error.set('');this.notice.set('');
-   this.value.set('');
-   this.pending.set({kind:'delete',name:item.name,replacement:false});
-   this.typedName.set('');this.password.set('');
+   this.clearSensitive();
+   this.pending.set({kind:'delete',name:item.name,replacement:false,revision:this.revision});
  }
  cancel():void{this.clearSensitive();}
  async confirm():Promise<void>{
    const action=this.pending();
-   if(!action||this.working()||this.loading()||!this.info()?.enabled||
+   if(!action||this.working()||this.loading()||this.destroyed||!this.info()?.enabled||
      this.typedName()!==action.name||!this.password()||this.password().length>256)return;
-   if(action.kind==='save'&&(!this.canSave()||this.name()!==action.name))return;
+   if(!currentSecretIntent(action,this.revision,this.info()?.entries??[],this.name())){
+     this.invalidatePrepared();
+     this.error.set('A operação ou o inventário mudou. Revise e confirme novamente.');
+     return;
+   }
+   if(action.kind==='save'&&!this.canSave())return;
    this.working.set(true);this.error.set('');this.notice.set('');
    try{
      const data=action.kind==='save'
@@ -93,15 +123,16 @@ export class SecretsComponent implements OnInit,OnDestroy{
           name:action.name,label:this.label().trim(),category:this.category(),value:this.value(),password:this.password()})
        :await this.api<{ok:boolean;message:string}>('/secrets/'+encodeURIComponent(action.name),'DELETE',{
           password:this.password(),confirm:action.name});
+     if(this.destroyed)return;
      if(data.ok!==true)throw Error('Operação não confirmada. Consulte o inventário antes de repetir.');
-     this.notice.set(data.message);
+     this.notice.set(typeof data.message==='string'?data.message:'Operação confirmada pela API.');
      this.name.set('');this.label.set('');this.category.set('sistema');
-   }catch(e){this.error.set(this.message(e));}
+   }catch(e){if(!this.destroyed)this.error.set(this.message(e));}
    finally{
      // Never retain secret or admin password in signals after a write attempt.
      this.clearSensitive();this.working.set(false);
    }
-   await this.refresh();
+   if(!this.destroyed)await this.refresh();
  }
  date(v:string):string{
    if(!v)return 'Não informado';
