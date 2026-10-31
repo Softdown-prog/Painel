@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import {
   chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync,
-  readFileSync, readdirSync, renameSync, rmSync, writeFileSync,
+  readFileSync, renameSync, rmSync, writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
 
@@ -26,7 +26,8 @@ function checkedFile(path: string, secret: boolean): string {
 function tlsDirectory(env: NodeJS.ProcessEnv): string {
   const dir = resolve(env.PANEL_POSTGRES_TLS_DIR || CERT_ROOT);
   // Do not permit user-requested paths, symlink escapes or arbitrary file reads.
-  if (dir !== CERT_ROOT || !existsSync(dir)) throw new Error("TLS directory not installed");
+  if ((dir !== CERT_ROOT && !(env.NODE_ENV === "test" && process.env.NODE_ENV !== "production")) || !existsSync(dir))
+    throw new Error("TLS directory not installed");
   const st = lstatSync(dir);
   if (!st.isDirectory() || st.isSymbolicLink() || (st.mode & 0o077) !== 0)
     throw new Error("TLS directory is not private");

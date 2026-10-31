@@ -161,7 +161,6 @@ export async function createProjectDatabase(
   let client: Client | undefined;
   let createdRole = false, createdDb = false, issued: IssuedCertificate | undefined;
   const pair = names(slug);
-  const create = await factoryOrPg(factory);
   const connectAs = async (ssl?: TlsMaterial, role?: string, database?: string): Promise<Client> => {
     const session = create(options(env, ssl, role, database));
     try { await session.connect(); return session; }
@@ -171,6 +170,7 @@ export async function createProjectDatabase(
     !!error && typeof error === "object" && "code" in error &&
     error.code === "28000";
   try {
+    const create = await factoryOrPg(factory);
     const admin = adminTls(env);
     if (!admin) throw new ProvisionError(403, "Conexão administrativa por certificado não configurada.");
     if (existsSync(join(dataDir, "database-credentials", slug)))
