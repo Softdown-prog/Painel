@@ -183,13 +183,7 @@
         </section>
 
         <section class="view" id="revisions" data-title="Revisões e espaço">
-          <div class="page-heading"><div><div class="eyebrow">MANUTENÇÃO / IMAGENS DOCKER</div><h1>Revisões e espaço</h1><p>Confira versões antigas, veja o que está protegido e acompanhe a limpeza sem apagar seu site.</p></div><button type="button" class="primary-button" id="revisionsRefreshButton">↻ Verificar agora</button></div>
-          <section class="panel full-panel revision-section revision-ci-panel" aria-label="Acompanhamento de deploys">
-            <div class="panel-head"><div><h2>Últimas revisões · GitHub → VPS</h2><p>Veja o CI/CD girando enquanto executa e a confirmação da versão ativa na VPS. O acesso público é conferido separadamente.</p></div><button class="secondary-button" id="revisionActivityRefresh" type="button">↻ Atualizar CI/CD</button></div>
-            <p class="revision-checked" id="revisionActivitySummary" role="status">Entre no painel para consultar as revisões recentes.</p>
-            <div class="revision-ci-list" id="revisionActivity"><p class="revision-ci-empty">Aguardando consulta ao GitHub...</p></div>
-            <p class="revision-ci-footnote">Verde em <strong>Ativa na VPS</strong> significa que a imagem da revisão está em execução no Docker. Isso não garante que o domínio público esteja respondendo. <a href="#deploys">Abrir histórico de publicações</a>.</p>
-          </section>
+          <div class="page-heading"><div><div class="eyebrow">GITHUB / VPS / MANUTENÇÃO</div><h1>Revisões e espaço</h1><p>Acompanhe as revisões que chegam do GitHub e confira as versões armazenadas na VPS.</p></div><button type="button" class="primary-button" id="revisionsRefreshButton">↻ Verificar agora</button></div>
           <p class="revision-explainer">Cada atualização pode guardar uma imagem do programa na VPS. <strong>A versão em uso, as duas últimas revisões de cada aplicação e o backup de recuperação são protegidos.</strong> Imagens antigas só podem ser removidas depois do prazo de retenção e de uma verificação no Docker.</p>
           <div class="revision-stats">
             <article class="panel revision-stat"><small>Revisões registradas</small><strong id="revisionsCount">—</strong><span>Importadas pelo painel</span></article>
@@ -197,8 +191,10 @@
             <article class="panel revision-stat"><small>Espaço estimado</small><strong id="revisionsOldSize">—</strong><span>Pode variar por camadas compartilhadas</span></article>
             <article class="panel revision-stat"><small>Limpeza automática</small><strong id="revisionsAuto">—</strong><span id="revisionsCompose">Consultando configuração do Compose...</span><button type="button" id="revisionsAutoButton" class="secondary-button" disabled>Ativar / pausar</button></article>
           </div>
-          <section class="panel full-panel revision-section"><div class="panel-head"><div><h2>O que pode ser removido?</h2><p id="revisionsRetention">Verificando política de retenção...</p></div><button id="revisionsCleanupButton" class="secondary-button" disabled type="button">Limpar antigas agora</button></div><p id="revisionsNotice" role="status" class="revision-notice">Aguardando conexão com a VPS...</p>
-            <div class="revision-scroll"><table class="revision-table"><thead><tr><th>Aplicação</th><th>Revisão</th><th>Situação</th><th>Tamanho</th><th>Importada em</th></tr></thead><tbody id="revisionsEntries"><tr><td colspan="5">Clique em Verificar agora.</td></tr></tbody></table></div>
+          <section class="panel full-panel revision-section"><div class="panel-head"><div><h2>Últimas revisões recebidas · GitHub → VPS</h2><p id="revisionsRetention">Verificando política de retenção...</p></div><button id="revisionsCleanupButton" class="secondary-button" disabled type="button">Limpar antigas agora</button></div><p id="revisionsNotice" role="status" class="revision-notice">Aguardando conexão com a VPS...</p>
+            <p class="revision-checked" id="revisionActivitySummary" role="status">Consultando CI/CD e revisões da VPS...</p>
+             <div class="revision-scroll"><table class="revision-table revision-live-table"><thead><tr><th>Projeto</th><th>Revisão GitHub</th><th>CI/CD → VPS</th><th>Proteção da imagem</th><th>Tamanho</th><th>Quando</th></tr></thead><tbody id="revisionsEntries"><tr><td colspan="6">Carregando revisões...</td></tr></tbody></table></div>
+             <p class="revision-checked">Os ícones aparecem diretamente nas revisões. <strong>Verde na VPS</strong> exige revisão idêntica em execução no Docker; CI verde sozinho não confirma publicação. Situações de limpeza são independentes dos deploys.</p>
           </section>
           <section class="panel full-panel revision-section">
             <div class="panel-head"><div><h2>Imagens de toda a VPS</h2><p>Veja também versões da infraestrutura e de outros projetos. Esta tabela é somente leitura: a limpeza automática não toca nessas imagens.</p></div></div>
