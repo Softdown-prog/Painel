@@ -8,11 +8,11 @@
     <nav aria-label="Navegação Angular">
       <button type="button" [class.active]="page() === 'overview'" (click)="selectPage('overview')">▦ &nbsp; Visão geral</button>
       <button type="button" [class.active]="page() === 'containers'" (click)="selectPage('containers')">▣ &nbsp; Containers</button>
+      <button type="button" [class.active]="page() === 'apps'" (click)="selectPage('apps')">⬡ &nbsp; Sites e apps</button>
       <button type="button" [class.active]="page() === 'deployments'" (click)="selectPage('deployments')">⇅ &nbsp; Publicações</button>
     </nav>
     <p class="group-label">OUTRAS FERRAMENTAS</p>
     <nav aria-label="Ferramentas do painel anterior">
-      <a href="/#apps">⬡ &nbsp; Sites e apps</a>
       <a href="/#projects">⌘ &nbsp; GitHub</a>
       <a href="/#terminal">›_ &nbsp; Terminal</a>
       <a href="/#database">▤ &nbsp; PostgreSQL</a>
@@ -22,7 +22,7 @@
   </aside>
   <main class="main">
     <header class="topbar">
-      <span class="breadcrumb">Workspace / <strong>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers' : 'Publicações'}}</strong></span>
+      <span class="breadcrumb">Workspace / <strong>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers' : page() === 'apps' ? 'Sites e apps' : 'Publicações'}}</strong></span>
       <div class="actions">
         <span class="mode">Angular 22</span>
         @if (signedIn()) { <button type="button" class="secondary" (click)="logout()">Sair</button> }
@@ -30,9 +30,9 @@
     </header>
     <div class="content">
       <div class="heading">
-        <div><small>GERENCIAMENTO MULTIPROJETOS</small><h1>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers da VPS' : 'Publicações'}}</h1>
+        <div><small>GERENCIAMENTO MULTIPROJETOS</small><h1>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers da VPS' : page() === 'apps' ? 'Sites e apps' : 'Publicações'}}</h1>
           <p>Interface Angular em migração incremental, utilizando a mesma API protegida do painel.</p></div>
-        @if (signedIn() && page() !== 'deployments') { <button type="button" class="primary" [disabled]="loading()" (click)="refresh()">{{loading() ? 'Consultando…' : '↻ Atualizar dados'}}</button> }
+        @if (signedIn() && (page() === 'overview' || page() === 'containers')) { <button type="button" class="primary" [disabled]="loading()" (click)="refresh()">{{loading() ? 'Consultando…' : '↻ Atualizar dados'}}</button> }
       </div>
       @if (error()) { <div role="alert" class="alert error">{{error()}}</div> }
       @if (notice() && signedIn()) { <div role="status" class="alert">{{notice()}}</div> }
@@ -82,6 +82,8 @@
               } @empty { <p>Nenhum container informado pela VPS.</p> }
             </div>
           </section>
+        } @else if (page() === 'apps') {
+          <panel-managed-apps />
         } @else {
           <panel-deployments />
         }
