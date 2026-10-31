@@ -1,3 +1,9 @@
+### 2026-10-31 — Projetos GitHub migrados para Angular no mobile
+
+Novo componente `angular/src/github-projects.component.{ts,html,css}`: a tela `/angular/#projects` agora lista os repositórios vinculados, permite cadastrar apenas nomes da conta autorizada, mostra branch/workflow e últimas execuções do GitHub. Conectar não dispara publicação; iniciar `workflow_dispatch` requer confirmação explícita de repositório, branch e workflow. A desconexão também pede confirmação e não altera containers. Token permanece exclusivamente no backend da VPS, como antes. O painel usa `/api/repositories`, `/api/repositories/:owner/:repo/runs` e a operação `deploy` já existente; sem criar endpoints privilegiados nem novos direitos.
+
+O menu Angular passou a abrir Projetos GitHub nativamente, e o favorito antigo `/#projects` aponta para a mesma página Angular. `/?interface=classica#projects` continua como compatibilidade temporária até conclusão da migração. A navegação principal mantém quatro abas inferiores, com Projetos GitHub no menu lateral. O CI executa testes de regressão do comportamento, da proteção de token e do layout 320–480px.
+
 ### 2026-10-31 — Painel canônico Angular, manutenção prioritariamente mobile
 
 A rota pública `/` e os favoritos antigos `/#overview`, `/#apps`, `/#containers`, `/#deploys` encaminham agora para a mesma interface Angular em `/angular/#...`. Ferramentas **ainda não migradas** (GitHub avançado, Terminal, PostgreSQL, Domínios, Revisões, Tráfego, Chaves e Configurações) permanecem acessíveis em `/?interface=classica#ferramenta`, ou por links do menu Angular — não se deve remover essas funções até terem equivalentes completos. Essa compatibilidade não é um segundo dashboard principal.
