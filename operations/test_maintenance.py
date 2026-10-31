@@ -85,12 +85,12 @@ class MaintenanceExecution(unittest.TestCase):
             result=maintenance.run_maintenance(POLICY,{
                 'action':'restart_container','target':'panel-web','confirm':'RESTART:panel-web'
             },Path(tmp))
+            self.assertTrue((Path(tmp)/'panel-web.lock').exists())
         self.assertTrue(result['changed'])
         command.assert_called_once_with(
             ['docker','restart','--time','20','softload-panel-web'],
             stderr=maintenance.subprocess.STDOUT,timeout=75
         )
-        self.assertTrue((Path(tmp)/'panel-web.lock').exists())
 
     def test_unknown_registry_cannot_be_controlled(self):
         with self.assertRaises(ValueError):
