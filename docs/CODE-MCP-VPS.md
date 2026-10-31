@@ -37,3 +37,9 @@ Por padrão o serviço ouvirá **somente loopback**. Para permitir acesso do Cha
 5. Integrar HTTPS + cliente MCP. Não expor endpoint somente para contornar o problema de conexão.
 
 Referência protocolo: https://modelcontextprotocol.io/specification/2025-11-25/basic/transports
+
+## Bootstrap sem merge, pela Shell da VPS (alternativa manual)
+
+A restrição atual `main` no OIDC do vpsops impede a etapa de implantação do workflow enquanto a nova implementação está **somente** na branch `feat/angular-complete-migration`. Isso é intencional: não mover a branch para `main` antecipadamente.
+
+Após atualizar `vpsops` com os scripts administrativos previstos, é possível instalar o serviço **somente por sessão Shell administrativa autorizada**, usando `tools/repo-mcp/install-vps-from-source.sh` numa cópia do commit exato. O script faz build local de fonte imutável, verifica labels, exige a política code_mcp instalada, cria exclusivamente `vps-code-mcp`, token local, porta loopback e valida health+401. Ele aborta caso esse nome já exista, não modifica serviço existente e limpa apenas seu próprio container em caso de falha. **Este bootstrap não representa o workflow de deploy pelo Actions**; a implantação pelo Actions ficará para quando o usuário autorizar concluir a migração da branch.

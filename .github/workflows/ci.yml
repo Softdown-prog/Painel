@@ -25,6 +25,7 @@ jobs:
           bash -n operations/install-vps.sh
           bash -n operations/upgrade-vpsops-maintenance.sh
           bash -n operations/upgrade-vpsops-code-mcp.sh
+          bash -n tools/repo-mcp/install-vps-from-source.sh
       - run: docker compose -f server/compose.yaml -f server/compose.web.yaml config --quiet
       - name: Enforce staging frontend isolation
         run: |

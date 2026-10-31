@@ -39,6 +39,7 @@ jobs:
         run: |
           node --test tools/repo-mcp/http-server.test.mjs
           python3 -m unittest operations.test_code_mcp -v
+          bash -n tools/repo-mcp/install-vps-from-source.sh
       - name: Build immutable image on isolated runner
         env:
           GITHUB_SHA: ${{ github.sha }}
