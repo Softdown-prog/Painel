@@ -43,3 +43,36 @@ Referência protocolo: https://modelcontextprotocol.io/specification/2025-11-25/
 A restrição atual `main` no OIDC do vpsops impede a etapa de implantação do workflow enquanto a nova implementação está **somente** na branch `feat/angular-complete-migration`. Isso é intencional: não mover a branch para `main` antecipadamente.
 
 Após atualizar `vpsops` com os scripts administrativos previstos, é possível instalar o serviço **somente por sessão Shell administrativa autorizada**, usando `tools/repo-mcp/install-vps-from-source.sh` numa cópia do commit exato. O script faz build local de fonte imutável, verifica labels, exige a política code_mcp instalada, cria exclusivamente `vps-code-mcp`, token local, porta loopback e valida health+401. Ele aborta caso esse nome já exista, não modifica serviço existente e limpa apenas seu próprio container em caso de falha. **Este bootstrap não representa o workflow de deploy pelo Actions**; a implantação pelo Actions ficará para quando o usuário autorizar concluir a migração da branch.
+
+## Rede privada para o Cloudflare Tunnel (código preparado, não ativado)
+
+Inventário real da VPS: `vps-code-mcp` (healthy, rede Docker padrão `bridge`, 127.0.0.1:8789) e `softload-panel-tunnel` (executando na rede `vps_panel_control`). **O Tunnel não enxerga o MCP pela rede atual**; dentro do container Cloudflare, `localhost` não é o localhost da VPS.
+
+`tools/repo-mcp/edge-network.mjs` gerencia somente a rede Docker nova `vps_code_mcp_edge` (bridge interna, sem gateway/portas públicas), com dois containers fixos e com verificações de label, imagem, health, porta loopback e ausência de Docker socket. Não altera o painel, redes preexistentes, Caddy, banco, DNS ou Cloudflare. O código não corre automaticamente em workflows que recebem pushes.
+
+Em uma Shell administrativa aprovada, **após revisar o código e o estado dos dois containers**, a execução do arquivo em um checkout imutável funciona assim:
+
+```sh
+node tools/repo-mcp/edge-network.mjs --check
+# Somente com aprovação explícita, via root:
+node tools/repo-mcp/edge-network.mjs --apply LINK:code-mcp
+# Reversão, inclusive se um serviço estiver unhealthy:
+node tools/repo-mcp/edge-network.mjs --rollback UNLINK:code-mcp
+```
+
+O modo `--check` não faz alterações; os demais exigem root e a confirmação literal. A instalação atual do MCP permanece no endereço loopback, além de receber o alias interno `code-mcp-bridge`.
+
+### Rota HTTPS — configuração separada no Cloudflare
+
+A hospedagem pública **não está feita**. Quando a conexão de rede tiver sido aplicada e validada no host, um administrador deve configurar, no **túnel Cloudflare já existente**, um hostname HTTPS **exclusivo para MCP** e a origem fixa `http://code-mcp-bridge:8789`. O endpoint MCP será `https://<hostname-configurado>/mcp`. Um exemplo de hostname não constitui DNS cadastrado. Não apontar Cloudflare para `http://localhost:8789` (é o localhost de outro container), não abrir porta 8789 na WAN e não alterar as rotas já existentes de Terrania, Softload ou Painel.
+
+Testes de aceitação necessários, sem publicar credenciais em logs:
+- Interno: `/health` indica saúde; `/mcp` sem Bearer retorna **401**; POST com Bearer válido e `Accept: application/json, text/event-stream` responde `initialize`.
+- Externo: HTTPS válido, hostname exclusivo, `/mcp` sem token retorna 401, `/mcp` com token inválido também 401, chamadas de navegador com Origin inesperado retornam 403. Não copiar o token no chat, issue, logs ou artefatos.
+- Revogar a rota pública caso o token seja exposto. Logs de Cloudflare/Caddy devem evitar a captura do cabeçalho Authorization. Pode-se adicionar controles de acesso e rate-limit no Cloudflare sem mudar as credenciais do MCP.
+
+### Compatibilidade de clientes
+
+O servidor HTTP atual é **somente leitura** e recebe **Bearer estático**, gerado localmente e nunca comitado. Clientes compatíveis com MCP que conseguem enviar Bearer customizado podem usá-lo. **Isso não constitui uma implementação OAuth 2.1** e, portanto, não garante integração direta ao ChatGPT ou outros clientes que exijam descoberta/fluxo OAuth. Para esses, implementar um provedor OAuth 2.1 com PKCE, metadados de recurso protegido e tokens com audience correto antes de declarar a integração concluída. Token único também **não concede permissões diferentes para 50 repositórios**. A sincronização de outros repositórios e ACL individuais permanecem pendentes.
+
+Referências: https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization e https://developers.cloudflare.com/tunnel/get-started/.

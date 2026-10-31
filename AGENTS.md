@@ -39,3 +39,7 @@ O repositório contém um MCP stdio próprio em `tools/repo-mcp/server.mjs`, com
 ## Servidor MCP HTTP hospedável (implantação separada)
 
 A branch Angular também prepara `tools/repo-mcp/http-server.mjs` e `operations/code_mcp.py`. São independentes da aba Angular de clusters/MCP; o servidor HTTP é **somente leitura**, com token bearer, Origin bloqueado, repositórios explicitamente cadastrados, limite de 50 entradas e acesso por token único nesta fase (não significa ACL individual de 50 repositórios). O image builder atual inclui **somente o Painel**. A operação na VPS é exata: `code_mcp status/install`, sem root shell, sem instalar outros containers; exige OIDC main/workflow_dispatch/ambiente protegido e bootstrap separado do broker instalado no host. CI da branch **não instala na VPS**, não abre HTTPS e não liga o MCP a assistentes automaticamente. Ver `docs/CODE-MCP-VPS.md`.
+
+## Integração Cloudflare Tunnel do Code MCP
+
+`tools/repo-mcp/edge-network.mjs` gerencia uma **rede privada adicional**, somente entre `vps-code-mcp` e `softload-panel-tunnel`. Padrão read-only `--check`; `--apply LINK:code-mcp` e `--rollback UNLINK:code-mcp` são operações root **manuais**, separadas do GitHub CI, com validações de propriedade e rede. Não modificar Caddy ou Cloudflare remotamente por suposição; não expor 8789 na WAN. O servidor usa Bearer fixo, não OAuth, e a publicação real HTTPS depende de rota Cloudflare autorizada. Consultar `docs/CODE-MCP-VPS.md`.
