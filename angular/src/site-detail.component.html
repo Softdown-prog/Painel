@@ -1,0 +1,93 @@
+<section class="site-detail" aria-label="Detalhes da aplicação na VPS">
+  <div class="top"><div><h2>Aplicação: {{slug}}</h2><p>Configuração e estado informados pela API. Esta página administra somente o container pertencente ao gerenciador.</p></div>
+    <a class="back" href="/angular/#apps">← Voltar às aplicações</a></div>
+  @if(error()){<p class="error" role="alert">{{error()}}</p>}
+  @if(notice()){<p class="success" role="status">{{notice()}}</p>}
+  @if(loading()){<p role="status">Consultando container e vínculos da VPS…</p>}
+  @if(app();as a){
+    <section class="card">
+      <div class="heading"><h3>Estado do container</h3><span [class.running]="a.state==='running'" class="state">{{a.state==='running'?'● Em execução':'○ '+a.state}}</span></div>
+      <p>{{a.status}}</p>
+      <div class="facts">
+        <div><small>RAM máxima</small><strong>{{a.ramMb}} MB</strong></div>
+        <div><small>CPU máxima</small><strong>{{a.cpuCores}} vCPU</strong></div>
+        <div><small>Espaço gravado</small><strong>{{diskMb(a.diskUsedBytes)}}</strong></div>
+        <div><small>Ociosidade</small><strong>{{a.idleMinutes?a.idleMinutes+' minutos':'Desativada'}}</strong></div>
+      </div>
+      <p class="muted">RAM e CPU são limites configurados, não leituras instantâneas. Imagem: {{inspectedImage()??a.image}}</p>
+      <div class="actions">
+        <button type="button" (click)="prepare('start')" [disabled]="!available('start')">Iniciar</button>
+        <button type="button" (click)="prepare('restart')" [disabled]="!available('restart')">Reiniciar</button>
+        <button type="button" class="danger" (click)="prepare('stop')" [disabled]="!available('stop')">Parar</button>
+        <button type="button" (click)="refresh()" [disabled]="loading()||working()">↻ Atualizar</button>
+      </div>
+    </section>
+    <section class="card">
+      <h3>Integrações e publicação</h3>
+      <div class="linked">
+        <div><small>Repositório GitHub</small>
+          <strong>{{repositoryStatus()==='unavailable'?'Consulta indisponível':repositoryStatus()==='none'?'Não vinculado':repository()}}</strong>
+        </div>
+        <div><small>Endereço público</small>
+          <strong>{{domainStatus()==='unavailable'?'Consulta indisponível':domainStatus()==='none'?'Nenhum endereço reservado':domain()?.host}}</strong>
+          @if(domain();as d){<small>{{d.state==='published'?'Última confirmação HTTPS registrada':d.state==='reserved'?'Reservado · publicação não confirmada':d.state==='failed'?'Falha registrada na publicação':'Publicação em andamento · HTTPS não confirmado'}}</small>
+            @if(d.message){<small>{{d.message}}</small>}}
+        </div>
+        <div><small>Versão em execução</small>
+          <strong>{{releaseStatus()==='available'?(release()?.current?.revision?.slice(0,12)??release()?.current?.image??'Versão não identificada'):releaseStatus()==='not_linked'?'Sem projeto vinculado':'Consulta indisponível'}}</strong>
+          <small>{{releaseStatus()==='available'?(release()?.backup?'Versão anterior disponível':'Sem versão anterior confirmada'):'Versões não verificadas'}}</small>
+        </div>
+      </div>
+      <p class="muted">Os registros de domínio e releases são a última resposta da API, não prova de disponibilidade pública contínua.</p>
+      <div class="actions"><a class="back" href="/angular/#projects">Projetos GitHub</a><a class="back" href="/angular/#domains">Domínios e HTTPS</a></div>
+    </section>
+    <section class="card">
+      <h3>Limites e ociosidade</h3>
+      <p>A alteração é aplicada apenas após confirmação do identificador da aplicação.</p>
+      <div class="form-grid">
+        <label>RAM máxima
+          <select [value]="draft().ramMb" (change)="updateDraft('ramMb',$event)" [disabled]="!canEdit()">
+            @for(v of snapshot()?.ramChoices??[];track v){<option [value]="v">{{v}} MB</option>}
+          </select>
+        </label>
+        <label>CPU máxima
+          <select [value]="draft().cpuCores" (change)="updateDraft('cpuCores',$event)" [disabled]="!canEdit()">
+            @for(v of snapshot()?.cpuChoices??[];track v){<option [value]="v">{{v}} vCPU</option>}
+          </select>
+        </label>
+        <label>Parada após inatividade
+          <select [value]="draft().idleMinutes" (change)="updateDraft('idleMinutes',$event)" [disabled]="!canEdit()">
+            @for(v of snapshot()?.idleChoices??[];track v){<option [value]="v">{{v?v+' minutos':'Desativado'}}</option>}
+          </select>
+        </label>
+      </div>
+      <div class="actions">
+        <button type="button" (click)="prepare('resources')" [disabled]="!available('resources')">Preparar novos limites</button>
+        <button type="button" (click)="prepare('idle')" [disabled]="!available('idle')">Preparar ociosidade</button>
+      </div>
+      @if(pending();as job){
+        <div class="confirm" role="group" aria-label="Confirmação de ação sobre aplicação">
+          <strong>{{job.operation==='resources'?'Alterar RAM/CPU':job.operation==='idle'?'Alterar ociosidade':job.operation==='start'?'Iniciar container':job.operation==='stop'?'Parar container':'Reiniciar container'}}: {{job.slug}}</strong>
+          <p>A mudança será enviada à VPS e poderá afetar usuários conectados. Confira as informações antes de confirmar.</p>
+          <label>Digite exatamente {{job.slug}}
+            <input [value]="typedName()" (input)="typedName.set($any($event.target).value)"
+              autocomplete="off" spellcheck="false" autocapitalize="off" [disabled]="working()"/>
+          </label>
+          <div class="actions">
+            <button type="button" (click)="cancel()" [disabled]="working()">Cancelar</button>
+            <button type="button" class="danger" (click)="confirm()" [disabled]="working()||typedName()!==job.slug">
+              {{working()?'Executando…':'Confirmar operação'}}</button>
+          </div>
+        </div>
+      }
+    </section>
+    <section class="card">
+      <div class="heading"><h3>Registros do container</h3>
+        <button type="button" (click)="showLogs()" [disabled]="logsBusy()||loading()||working()">{{logsBusy()?'Consultando…':'↻ Ler logs'}}</button></div>
+      @if(logs()!==null){<pre tabindex="0">{{logs()}}</pre>}
+      @else{<p>Os registros não foram consultados. Clique para ler as últimas mensagens disponíveis.</p>}
+    </section>
+  }@else if(!loading()&&!error()){
+    <p>Escolha uma aplicação existente na lista Apps.</p>
+  }
+</section>
