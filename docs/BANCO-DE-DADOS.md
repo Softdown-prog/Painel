@@ -1,45 +1,31 @@
-# PostgreSQL multiprojetos — integração com o Painel
+# PostgreSQL multiprojetos — gestão por projeto (em desenvolvimento)
 
-## Estado
+## Situação confirmada na VPS
+O operador confirmou a API em execução com a revisão e4469c7, PostgreSQL 18.6 conectado, 1 banco `postgres` e 9 conexões no momento do teste. Isso **não** significa que a nova criação de bancos já tenha sido implantada.
 
-O operador confirmou na VPS que PostgreSQL 18 está rodando como container vps-postgres, e que criou e apagou um banco de teste. A API do painel ainda precisa de deploy autorizado e verificação de conexão real. O merge PR #22 (0be6c28) incluiu o conector, mas isso não instala nem ativa a API na VPS. O PostgreSQL é um serviço compartilhado da VPS e não pertence a nenhum projeto específico.
+## Implementação deste PR
+- `GET /database/status` consulta bancos, tamanhos, papéis sem senhas e configuração de autenticação por `pg_hba_file_rules`.
+- A interface **Sistema → Banco de Dados** exibe a segurança real da conexão e a lista de contas. O botão **Criar banco** fica desativado até a API confirmar `provisioningEnabled: true`.
+- `POST /database/projects`, autenticado pela sessão administrativa do Painel, cria um par de banco/usuário gerenciado a partir de um slug estritamente validado. Não aceita SQL fornecido pelo navegador. Exemplo: `site-loja` → banco `p_site_loja`, usuário `u_site_loja`.
+- A senha de cada usuário é gerada automaticamente, nunca retornada na resposta, guardada exclusivamente no volume administrativo da VPS sob `/data/database-credentials/<slug>.json`, com arquivo 0600 e diretório 0700.
+- O papel criado não é superusuário, não cria bancos ou papéis; o novo banco tem `PUBLIC CONNECT` revogado. Contagem máxima provisória: 40 bancos gerenciados; sem remoção automática.
+- A rota de criação exige **simultaneamente**: `PANEL_POSTGRES_WRITE_ENABLED=1`, credencial administrativa em arquivo protegido `PANEL_POSTGRES_PASSWORD_FILE`, autenticação **SCRAM** em todas as regras host não rejeitadas, e **prova por conexão** de que uma senha errada retorna `28P01`. Faltando qualquer requisito, a API bloqueia **antes de qualquer CREATE**.
+- Os projetos já hospedados não são automaticamente associados aos bancos, nem são conectados à rede PostgreSQL. Criar um banco não instala a aplicação nem injeta credenciais nela.
+- Não há função de excluir/restaurar banco ou consultar SQL arbitrário na interface. A observabilidade e o provisionamento são serviços da VPS compartilhada, independentes dos aplicativos.
 
-## O que esta mudança entrega
+## Bloqueio esperado na instalação atual
+A instância atual usa `POSTGRES_HOST_AUTH_METHOD=trust`, permitindo que qualquer container conectado à rede interna se apresente como qualquer role, inclusive superusuário. Isso **não** oferece isolamento. Por segurança, a nova interface deve exibir aviso explícito e **manter a criação desabilitada** nessa instalação.
 
-- GET /database/status autenticado verifica PostgreSQL diretamente apenas quando a integração é habilitada.
-- Mostra versão, contagem de bancos não-template, conexões, ocupação total e até 100 bancos com nome, proprietário e tamanho.
-- UI diferencia conectado, não habilitado e indisponível; jamais fabrica números.
-- Acesso SQL fixo de leitura. Não implementa criação, exclusão, edições, consultas arbitrárias ou backup.
-- Não instala nada na VPS; não toca nos volumes PostgreSQL, DNS, Caddy ou containers hospedados.
-- A ativação é opcional, no overlay server/compose.postgres.yaml.
+Não habilitar `PANEL_POSTGRES_WRITE_ENABLED` antes de migrar a autenticação de todas as conexões host para SCRAM-SHA-256, preparar um arquivo privado de senha administrativa e testar a rejeição de senha incorreta. A migração do `pg_hba.conf` e das credenciais exige procedimento separado e validação do impacto nos clientes. Não alterar o banco de produção, apagar volume ou mudar rede de maneira improvisada.
 
-## Ativar posteriormente, em deploy coordenado
+## Ativação futura
+1. Preparar política SCRAM e credenciais com procedimento específico, preservar conexões dos projetos e manter o PostgreSQL sem porta publicada no host.
+2. Confirmar que a conta administrativa do Painel realmente se autentica com senha e que senha incorreta é rejeitada.
+3. Instalar secret administrativo em caminho privado visível à API e habilitar explicitamente a flag de escrita. Até lá, apenas a leitura e o diagnóstico estão disponíveis.
+4. Publicar a nova API no host através de atualização isolada com rollback. Cloudflare Pages atualiza somente o frontend.
+5. Abrir Sistema → Banco de Dados, conferir o diagnóstico e, após confirmar a liberação, criar um projeto de teste. Conferir criação do banco, papel restrito e arquivo de credencial com mode 0600; evitar registrar o segredo nos logs.
 
-Verifique primeiro que a rede Docker vps_pg_private já existe e que vps-postgres responde nela. O overlay conecta SOMENTE a API do Painel a essa rede externa; a API também continua na rede administrativa vps_panel_control. O executor Docker continua sem rede.
+## Limites
+A leitura de `pg_hba_file_rules` descreve o arquivo de configuração e pode apresentar alterações não recarregadas; por isso não é aceita como única prova de segurança. A execução da rota de escrita testa ativamente a rejeição de senha errada. As credenciais geradas nunca são enviadas pelo navegador, mas ainda falta uma etapa futura para injetá-las com segurança em cada serviço hospedado.
 
-Para validar a combinação dos arquivos em uma máquina com acesso ao Docker:
-
-    docker compose -f server/compose.yaml -f server/compose.postgres.yaml config --quiet
-
-Para ativar, inclua server/compose.postgres.yaml na implantação autorizada, preservando os outros overlays reais do painel. Não substitua a lista de arquivos usada em produção sem conferi-la. Não use down -v; não altere volumes; não reinicie desnecessariamente o túnel. O deploy Pages da interface NÃO atualiza a API na VPS.
-
-A integração define PANEL_POSTGRES_ENABLED=1, PANEL_POSTGRES_HOST=vps-postgres, PANEL_POSTGRES_PORT=5432, PANEL_POSTGRES_DB=postgres e PANEL_POSTGRES_USER=postgres. Sem a flag, a API continua respondendo not_configured. Se o banco ou rede não responderem, a API retorna unavailable (não mascara como zero nem divulga erro interno).
-
-## Limitação de segurança importante
-
-A instância existente foi criada com POSTGRES_HOST_AUTH_METHOD=trust para funcionar sem senha. Isso não limita o número de bancos, mas QUALQUER container que tenha acesso a essa rede pode se identificar como qualquer usuário do PostgreSQL, inclusive superusuário. Logo, a rede privada não equivale a autenticação nem isola usuários de diferentes projetos. Não adicionar containers de clientes ou projetos não confiáveis diretamente à rede administrativa do PostgreSQL. Este PR só consulta dados; operações de escrita e permissões por projeto precisam de etapa separada de segurança.
-
-## Testes e validação real
-
-Console CI e Docker integration smoke passaram para eb994e7 (runs 41151858886 e 41151858841), mas o teste extra do overlay e a revisão final ainda exigem novo CI. Validar typecheck, build:frontend, npm test, check:js e Compose. Após deploy coordenado da API: abrir Sistema → Banco de Dados, clicar Verificar situação e confirmar dados reais. Testar também a API sem sessão (401), sem flag (not_configured), com rede interrompida (unavailable) e os controles de escrita desabilitados.
-
-Não classificar API conectada ou recurso publicado apenas porque CI passou. A implantação e conexão real na VPS ainda devem ser confirmadas separadamente.
-
-
-## Preflight de ativação, antes de atualizar a API
-
-O script de diagnóstico somente leitura `server/postgres-preflight-vps.sh` verifica a instância existente e os nomes de rede. Ele NÃO atualiza o PostgreSQL nem a API, não imprime segredos e não reinicia serviços. Rode-o no host da VPS pelo terminal administrativo disponível, sem alterar a composição antes de conhecer o estado atual.
-
-Importante: o overlay `compose.postgres.yaml` precisa manter as redes `proxy` (túnel) e `postgres_shared` (PostgreSQL) simultaneamente. O CI deve verificar isso. **Não** usar `docker compose -f compose.yaml -f compose.postgres.yaml up` em produção isoladamente: a implantação utiliza outros overlays e imagens versionadas que precisam ser preservados.
-
-Antes de preparar qualquer atualização de API, confirme o conjunto efetivo dos overlays atualmente ativo em `/etc/softload-panel/compose-production-files.json` e a revisão `/opt/vps-panel/current`. Planejar troca somente da API com imagem previamente compilada, preservando credenciais, volumes e endpoint do túnel. Sem canal administrativo de recuperação independente, não tentar uma recriação arriscada do serviço, pois o terminal do Painel depende da própria API.
+**Verificações:** typecheck, frontend compilado, testes, check:js e Compose devem passar no GitHub antes do merge. CI não prova que a funcionalidade está implantada na VPS.

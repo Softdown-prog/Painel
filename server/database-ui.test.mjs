@@ -18,18 +18,21 @@ test('database navigation and settings shortcut lead to an accessible panel with
   assert.match(file('script.js'), /refreshDatabasePanel/);
 });
 
-test('new database controls do not contain an install, a database credential or a live mutation', () => {
+test('database creation is gated by backend security readiness and does not expose credentials', () => {
   const page = file('index.html');
   const view = page.split('id="database" data-title="Banco de Dados"')[1].split('id="settings" data-title=')[0];
   assert.ok(view.includes('id="dbRefresh"'));
-  assert.doesNotMatch(view, /type="submit"/);
-  assert.match(view, /disabled[^>]*>\+ Criar banco/);
+  assert.match(view, /id="dbCreateForm"[^>]*hidden/);
+  assert.match(view, /disabled id="dbCreate"[^>]*>\+ Criar banco/);
   assert.match(view, /disabled[^>]*>\+ Criar usuário/);
   assert.match(view, /disabled[^>]*>Restaurar banco/);
   assert.match(file('database-ui.ts'), /request<DatabaseStatus>/);
   const client = file('database-ui.js');
   assert.match(client, /panelApi\.request\("\/database\/status"\)/);
-  assert.doesNotMatch(client, /method\s*:\s*["'](?:POST|DELETE|PUT|PATCH)/);
+  assert.match(client, /provisioningEnabled === true/);
+  assert.match(client, /method: "POST"/);
+  assert.match(client, /"\/database\/projects"/);
+  assert.doesNotMatch(client, /password\s*:/);
 });
 
 test('Docker Compose remains without database containers and no PostgreSQL dependencies were added', () => {

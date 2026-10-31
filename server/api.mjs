@@ -189,7 +189,7 @@ async function handler(req, res) {
       return valid;
     }
   })) return;
-  if (await handleDatabaseRoute(req, res, { send })) return;
+  if (await handleDatabaseRoute(req, res, { send, body, dataDir })) return;
   if (await handleRevisionRoute(req, res, { send, body, dataDir })) return;
   if (await handleTrafficRoute(req, res, { send, body, dataDir })) return;
   if (await handleGitHubRoute(req, res, { send, body, dataDir })) return;

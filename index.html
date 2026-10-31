@@ -383,13 +383,20 @@
               </div>
               <div class="panel database-block"><h2>Próximas etapas</h2>
                 <ol class="database-steps"><li>Confirmar a saúde do PostgreSQL existente na VPS.</li><li>Ativar a conexão da API na rede privada em deploy autorizado.</li><li>Consultar bancos e métricas reais nesta tela.</li><li>Preparar permissões específicas antes de liberar alterações.</li></ol>
-                <p class="database-note">A primeira integração é somente leitura. Criar e excluir bancos permanece desabilitado.</p>
+                <p class="database-note" id="dbSecurity">Verificação da autenticação PostgreSQL pendente. No modo trust, os bancos não ficam isolados.</p>
               </div>
             </div>
           </section>
           <section class="database-tab-panel" id="dbPaneProjects" role="tabpanel" aria-labelledby="dbTabProjects" hidden>
             <div class="panel database-block"><div class="database-panel-heading"><div><h2>Bancos por projeto</h2><p>Cada aplicação terá um banco e uma conta com permissões próprias.</p></div>
-              <button type="button" class="primary-button" disabled title="Requer PostgreSQL conectado e provisionamento seguro">+ Criar banco</button></div>
+              <button type="button" class="primary-button" disabled id="dbCreate" title="Habilita após configuração segura do PostgreSQL">+ Criar banco</button></div>
+              <form id="dbCreateForm" class="database-create-form" hidden>
+                <label for="dbProjectSlug">Identificador do projeto (ex.: site-loja)</label>
+                <input id="dbProjectSlug" type="text" minlength="2" maxlength="30" pattern="[a-z][a-z0-9-]{1,29}" autocomplete="off" spellcheck="false" placeholder="site-loja" required>
+                <button type="submit" class="primary-button" id="dbCreateSubmit">Criar banco e usuário</button>
+                <button type="button" class="secondary-button" id="dbCreateCancel">Cancelar</button>
+              </form>
+              <p id="dbCreateResult" class="database-footnote" role="status" aria-live="polite"></p>
               <div class="database-table-wrap"><table class="database-table"><thead><tr><th>Projeto</th><th>Banco</th><th>Armazenamento</th><th>Situação</th><th>Ações</th></tr></thead>
                 <tbody id="dbProjectsBody"><tr><td colspan="5" class="database-empty">Aguardando consulta à API do PostgreSQL.</td></tr></tbody></table></div>
               <p class="database-footnote">Os projetos hospedados e os bancos de dados são cadastros diferentes. Não criaremos bancos apenas porque uma aplicação existe na VPS. <a href="#projects" class="text-link">Ver projetos registrados</a></p>
@@ -399,8 +406,8 @@
             <div class="panel database-block"><div class="database-panel-heading"><div><h2>Usuários e permissões</h2><p>Uma credencial para cada aplicação, sem compartilhar o superusuário.</p></div>
               <button type="button" class="primary-button" disabled title="Requer integração PostgreSQL segura">+ Criar usuário</button></div>
               <div class="database-table-wrap"><table class="database-table"><thead><tr><th>Usuário do banco</th><th>Projeto</th><th>Permissões</th><th>Situação</th></tr></thead>
-                <tbody><tr><td colspan="4" class="database-empty">Nenhum usuário do PostgreSQL foi consultado.</td></tr></tbody></table></div>
-              <p class="database-footnote">Futuras operações: conceder/revogar acessos, trocar credenciais com confirmação e registrar auditoria. Senhas nunca deverão ser exibidas no navegador nem armazenadas no Pages.</p>
+                <tbody id="dbRolesBody"><tr><td colspan="4" class="database-empty">Nenhum usuário do PostgreSQL foi consultado.</td></tr></tbody></table></div>
+              <p class="database-footnote">A lista mostra apenas atributos de papéis (sem senhas). O botão de criação de usuários separados permanece bloqueado; a criação de banco gera automaticamente seu usuário após a ativação segura.</p>
             </div>
           </section>
           <section class="database-tab-panel" id="dbPaneData" role="tabpanel" aria-labelledby="dbTabData" hidden>

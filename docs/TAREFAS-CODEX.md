@@ -1,3 +1,6 @@
+### PostgreSQL por projeto — gestão protegida em desenvolvimento
+Criar bancos e usuários reais por projeto pelo Painel, com senha gerada automaticamente e guardada na VPS; inventário de papéis e diagnóstico de autenticação. A instalação atual segue com `trust`, portanto a criação estará **bloqueada** até migrar para SCRAM e configurar credencial administrativa privada. Não executar alterações no PostgreSQL de produção neste PR. O merge/publicação Pages NÃO faz deploy da API. Ver docs/BANCO-DE-DADOS.md.
+
 ### 2026-10-30: revisões com indicadores GitHub → VPS (PR em revisão)
 Nova seção somente leitura em **Revisões e espaço**: mostra três workflows recentes por repositório conectado, indicadores animados durante a fila/build/publicação, verde de CI aprovado e verde *Ativa na VPS* apenas após `GET /projects/{slug}/releases` confirmar SHA + container running. Histórico `/publications` sinaliza progresso intermediário e falha, mas não prova ativação. Atualiza a cada 20 s durante atividade ou 90 s em repouso, somente com aba visível. O acesso HTTPS público permanece não verificado. **Não publicado nem validado na VPS**; checar CI no PR, publicação Pages após merge, e resposta da API da VPS.
 

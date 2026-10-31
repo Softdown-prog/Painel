@@ -50,3 +50,9 @@
 
 .database-intro[data-state="connected"] {border-color:#397e65;background:#1b302a}
 .database-intro[data-state="connected"] strong,.database-intro[data-state="connected"] .database-state-icon {color:#a5e9be}
+
+.database-create-form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-bottom:8px;padding:14px;border:1px solid #4a415c;border-radius:10px;background:#201e2b}
+.database-create-form[hidden]{display:none}
+.database-create-form label{width:100%;font-size:12px;color:#bfc5d4}
+.database-create-form input{min-height:40px;flex:1 1 180px;padding:8px 12px;border:1px solid #696275;border-radius:7px;background:#141824;color:#eee}
+.database-create-form button{min-height:40px}

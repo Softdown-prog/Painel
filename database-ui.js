@@ -40,6 +40,10 @@
     byId("dbStorage").textContent = "—";
     byId("dbConnections").textContent = "—";
     byId("dbOperations").textContent = "Desativadas";
+    byId("dbCreate").setAttribute("disabled", "");
+    byId("dbCreateForm").hidden = true;
+    byId("dbSecurity").textContent = "Autenticação do banco ainda não verificada.";
+    byId("dbRolesBody").replaceChildren();
     emptyInventory("Nenhuma lista de bancos disponível nesta consulta.");
   }
   function formatBytes(value) {
@@ -66,6 +70,58 @@
     });
     byId("dbProjectsBody").replaceChildren(...rows);
   }
+  function renderRoles(roles) {
+    const rows = roles.map((role) => {
+      const tr = document.createElement("tr");
+      const project = /^u_[a-z][a-z0-9_]*$/.test(role.name)
+        ? role.name.slice(2).replaceAll("_", "-") + " (pelo nome)" : "Não associado";
+      for (const value of [role.name, project, role.superuser ? "Superusuário" : "Sem privilégios de superusuário",
+        role.canLogin ? "Login habilitado" : "Sem login"]) {
+        const td = document.createElement("td");
+        td.textContent = value;
+        tr.append(td);
+      }
+      return tr;
+    });
+    byId("dbRolesBody").replaceChildren(...rows);
+  }
+  const createButton = byId("dbCreate");
+  const createForm = byId("dbCreateForm");
+  const projectInput = byId("dbProjectSlug");
+  createButton.addEventListener("click", () => {
+    if (createButton.disabled) return;
+    createForm.hidden = false;
+    projectInput.focus();
+  });
+  byId("dbCreateCancel").addEventListener("click", () => { createForm.hidden = true; });
+  createForm.addEventListener("submit", event => {
+    event.preventDefault();
+    const project = projectInput.value.trim();
+    if (!/^[a-z][a-z0-9-]{1,29}$/.test(project)) {
+      byId("dbCreateResult").textContent = "Use 2 a 30 caracteres: letras minúsculas, números e traços.";
+      return;
+    }
+    if (!confirm('Criar banco e conta PostgreSQL para "' + project +
+      '"? As credenciais serão geradas e guardadas na VPS.')) return;
+    void (async () => {
+      const submit = byId("dbCreateSubmit");
+      submit.disabled = true;
+      try {
+        const response = await window.panelApi.request("/database/projects", {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ project })
+        });
+        byId("dbCreateResult").textContent = "Criado: " + response.database + " · usuário: " +
+          response.username + ". Senha guardada somente na VPS.";
+        createForm.hidden = true;
+        projectInput.value = "";
+        await refreshDatabasePanel();
+      } catch (error) {
+        byId("dbCreateResult").textContent = error instanceof Error ? error.message :
+          "Não foi possível criar o banco. Verifique a situação antes de repetir.";
+      } finally { submit.disabled = false; }
+    })();
+  });
   async function refreshDatabasePanel() {
     if (inFlight) return;
     inFlight = true;
@@ -84,14 +140,20 @@
           && Number.isFinite(data.metrics.totalBytes)) {
         byId("dbStatusCard").dataset.state = "connected";
         byId("dbStatus").textContent = "PostgreSQL conectado";
-        byId("dbMessage").textContent = "Versão " + data.instance.version
-          + ". Consulta real; criação e exclusão de bancos ainda não estão habilitadas.";
+        byId("dbMessage").textContent = "Versão " + data.instance.version +
+          ". Inventário real do PostgreSQL compartilhado.";
+        const policy = data.security;
+        const enabled = policy?.provisioningEnabled === true;
+        createButton.disabled = !enabled;
+        byId("dbSecurity").textContent = policy?.message ??
+          "A política de autenticação ainda não foi verificada. Criação bloqueada.";
         byId("dbService").textContent = "Conectado";
         byId("dbCount").textContent = String(data.metrics.databaseCount);
         byId("dbStorage").textContent = formatBytes(data.metrics.totalBytes);
         byId("dbConnections").textContent = String(data.metrics.connections);
-        byId("dbOperations").textContent = "Somente leitura";
+        byId("dbOperations").textContent = enabled ? "Criação protegida habilitada" : "Somente leitura";
         renderInventory(data.databases);
+        renderRoles(Array.isArray(data.roles) ? data.roles : []);
       } else if (data.integration === "not_configured" && data.enabled === false) {
         setUnavailable("Conector ainda não habilitado",
           "O PostgreSQL pode estar instalado, mas a API do Painel ainda não foi conectada à rede privada.",
