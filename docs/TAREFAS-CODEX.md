@@ -1,3 +1,7 @@
+### 2026-10-31 — preparar frontend no Docker da própria VPS (sem cutover)
+
+Código em desenvolvimento na branch `feat/vps-native-panel-web-staging`: novo container isolado `panel-web` entrega frontend HTML/CSS/JS e faz proxy `/api/*` internamente para `softload-panel-api:8080` com a chave já existente, preservando sessão e bloqueando origens incompatíveis. Build Docker, testes Node e overlay Compose sem portas públicas, sem Docker socket e sem acesso a outros projetos. Script opcional de staging recebe SHA fixo e atualiza somente esse container, nunca Caddy, DNS, API, executor, Pages ou Tunnel. **Código criado não significa frontend instalado na VPS**. CI e imagem devem passar; staging deve ser executado em canal administrativo independente; migração pública exige barreira equivalente ao Access, verificação de login/Android e rollback. Só então desligar `deploy-pages.yml` e segredos de publicação. Ver `docs/MIGRACAO-FRONTEND-VPS.md`.
+
 ### 2026-10-30/31 — deploy da própria API não é automático (auditado)
 Confirmado: workflows do Painel no GitHub são Console CI, deploy Cloudflare Pages (somente estáticos/Functions) e smoke Docker. Nenhum executa envio à VPS nem troca o container `softload-panel-api`. Último rollout confirmado pelo operador: imagem `vps-panel-api:e4469c7...`, healthy. Commits seguintes até `665cee...` chegaram ao Pages, mas **não é possível afirmar que chegaram ao backend sem inspeção da VPS**.
 
