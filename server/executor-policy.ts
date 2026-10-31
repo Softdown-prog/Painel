@@ -13,27 +13,27 @@ const object=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&
 const keys=(v:Record<string,unknown>,expected:string[])=>Object.keys(v).sort().join(',')===expected.sort().join(',');
 export function validCreate(name:string,input:unknown,images:string[]):boolean{
  const slot=/^softload-(app|candidate)-([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(name);
- if(!slot?.[2]||slot[2].length>40||!object(input)||!keys(input,['Image','User','Labels','HostConfig'])||!object(input.Labels)||!object(input.HostConfig)||input.User!=='65534:65534')return false;
- const labels=input.Labels,host=input.HostConfig;
+ if(!slot?.[2]||slot[2].length>40||!object(input)||!keys(input,['Image','User','Labels','HostConfig'])||!object(input['Labels'])||!object(input['HostConfig'])||input['User']!=='65534:65534')return false;
+ const labels=input['Labels'],host=input['HostConfig'];
  if(labels[owner]!=='true'||labels[slugLabel]!==slot[2])return false;
  if(slot[1]==='app'){
-   if(!keys(labels,[owner,slugLabel])||typeof input.Image!=='string'||!images.includes(input.Image))return false;
+   if(!keys(labels,[owner,slugLabel])||typeof input['Image']!=='string'||!images.includes(input['Image']))return false;
  }else{
    if(!keys(labels,[owner,slugLabel,'com.softload.panel.repository','com.softload.panel.revision','com.softload.panel.release-role'])||
      labels['com.softload.panel.release-role']!=='candidate'|| !/^[a-f0-9]{40}$/.test(String(labels['com.softload.panel.revision']))||
      !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(labels['com.softload.panel.repository']))||
-     !/^sha256:[a-f0-9]{64}$/.test(String(input.Image)))return false;
+     !/^sha256:[a-f0-9]{64}$/.test(String(input['Image'])))return false;
  }
  return keys(host,['NetworkMode','ReadonlyRootfs','Memory','MemorySwap','NanoCpus','PidsLimit','CapDrop','SecurityOpt','Init','AutoRemove','PublishAllPorts','Tmpfs'])&&
-  ['bridge','softload_panel_apps'].includes(String(host.NetworkMode))&&host.ReadonlyRootfs===true&&ram.has(host.Memory as number)&&
-  host.MemorySwap===(host.Memory as number)*2&&cpus.has(host.NanoCpus as number)&&host.PidsLimit===64&&
-  JSON.stringify(host.CapDrop)==='["ALL"]'&&JSON.stringify(host.SecurityOpt)==='["no-new-privileges"]'&&
-  host.Init===false&&host.AutoRemove===false&&host.PublishAllPorts===false&&
-  object(host.Tmpfs)&&keys(host.Tmpfs,['/tmp'])&&host.Tmpfs['/tmp']==='rw,nosuid,nodev,size=16m,mode=1777';
+  ['bridge','softload_panel_apps'].includes(String(host['NetworkMode']))&&host['ReadonlyRootfs']===true&&ram.has(host['Memory'] as number)&&
+  host['MemorySwap']===(host['Memory'] as number)*2&&cpus.has(host['NanoCpus'] as number)&&host['PidsLimit']===64&&
+  JSON.stringify(host['CapDrop'])==='["ALL"]'&&JSON.stringify(host['SecurityOpt'])==='["no-new-privileges"]'&&
+  host['Init']===false&&host['AutoRemove']===false&&host['PublishAllPorts']===false&&
+  object(host['Tmpfs'])&&keys(host['Tmpfs'],['/tmp'])&&host['Tmpfs']['/tmp']==='rw,nosuid,nodev,size=16m,mode=1777';
 }
 export function validLimits(input:unknown):boolean{
- return object(input)&&keys(input,['Memory','MemorySwap','NanoCpus'])&&ram.has(input.Memory as number)&&
-  cpus.has(input.NanoCpus as number)&&input.MemorySwap===(input.Memory as number)*2;
+ return object(input)&&keys(input,['Memory','MemorySwap','NanoCpus'])&&ram.has(input['Memory'] as number)&&
+  cpus.has(input['NanoCpus'] as number)&&input['MemorySwap']===(input['Memory'] as number)*2;
 }
 async function authorizedContainer(id:string,inspect:(id:string)=>Promise<Inspect|null>,operation:string,legacyEnabled:boolean):Promise<Decision>{
  const item=await inspect(id);

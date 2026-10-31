@@ -111,13 +111,13 @@ export async function handleDomainRoute(req: IncomingMessage, res: ServerRespons
   if (pathname !== '/domains' && pathname !== '/domains/caddy' &&
       !/^\/domains\/[a-z0-9-]+(?:\/publish)?$/.test(pathname)) return false;
   const send = (status: number, value: unknown) => deps.send(res, status, value);
-  const enabled = deps.enabled ?? process.env.PANEL_DOMAINS_ENABLED === '1';
-  const zone = deps.zone ?? process.env.PANEL_APPS_DOMAIN_ZONE ?? '';
+  const enabled = deps.enabled ?? process.env['PANEL_DOMAINS_ENABLED'] === '1';
+  const zone = deps.zone ?? process.env['PANEL_APPS_DOMAIN_ZONE'] ?? '';
   const docker = deps.docker || dockerRequest;
   try {
     if (pathname === '/domains' && req.method === 'GET') {
       send(200, { enabled: enabled && validDomainZone(zone), zone: validDomainZone(zone) ? zone : null,
-        network: NETWORK, publicationEnabled: Boolean(deps.publishingEnabled ?? process.env.PANEL_DOMAIN_PUBLISH_ENABLED === '1') && Boolean(publishConfig()),
+        network: NETWORK, publicationEnabled: Boolean(deps.publishingEnabled ?? process.env['PANEL_DOMAIN_PUBLISH_ENABLED'] === '1') && Boolean(publishConfig()),
         routes: readDomainRoutes(deps.dataDir), publications: readPublications(deps.dataDir) });
       return true;
     }
@@ -129,21 +129,21 @@ export async function handleDomainRoute(req: IncomingMessage, res: ServerRespons
       throw new DomainError(403, 'Domínios desabilitados ou zona apps. não configurada.');
     if (pathname === '/domains' && req.method === 'POST') {
       const input = await deps.body(req);
-      if (Object.keys(input).sort().join(',') !== 'port,slug' || !validSlug(input.slug) ||
-          RESERVED.has(input.slug) || !Number.isSafeInteger(input.port) ||
-          (input.port as number) < PORT_MIN || (input.port as number) > 65535)
+      if (Object.keys(input).sort().join(',') !== 'port,slug' || !validSlug(input['slug']) ||
+          RESERVED.has(input['slug']) || !Number.isSafeInteger(input['port']) ||
+          (input['port'] as number) < PORT_MIN || (input['port'] as number) > 65535)
         throw new DomainError(400, 'Informe somente uma aplicação válida e porta interna de 1024 a 65535.');
-      const details = await inspectOwned(docker, input.slug);
+      const details = await inspectOwned(docker, input['slug']);
       if (details.HostConfig?.NetworkMode !== NETWORK)
         throw new DomainError(409, 'A aplicação deve ter sido criada na rede isolada softload_panel_apps.');
-      const host = input.slug + '.' + zone;
+      const host = input['slug'] + '.' + zone;
       const route = await serialize(async () => {
         const routes = readDomainRoutes(deps.dataDir);
-        if (routes.some(existing => existing.slug === input.slug || existing.host === host))
+        if (routes.some(existing => existing.slug === input['slug'] || existing.host === host))
           throw new DomainError(409, 'Aplicação já possui domínio cadastrado.');
         if (routes.length >= MAX_ROUTES) throw new DomainError(409, 'Limite de oito domínios atingido.');
-        const added: DomainRoute = { slug: input.slug as string, host,
-          port: input.port as number, createdAt: new Date().toISOString() };
+        const added: DomainRoute = { slug: input['slug'] as string, host,
+          port: input['port'] as number, createdAt: new Date().toISOString() };
         saveDomainRoutes(deps.dataDir, [...routes, added]);
         return added;
       });
@@ -157,7 +157,7 @@ export async function handleDomainRoute(req: IncomingMessage, res: ServerRespons
     const publish = /^\/domains\/([a-z0-9-]+)\/publish$/.exec(pathname);
     if (publish && req.method === 'POST') {
       if (!enabled || !validDomainZone(zone)) throw new DomainError(403, 'Domínios desabilitados ou zona apps. não configurada.');
-      if (!(deps.publishingEnabled ?? process.env.PANEL_DOMAIN_PUBLISH_ENABLED === '1') || !deps.execute || !publishConfig())
+      if (!(deps.publishingEnabled ?? process.env['PANEL_DOMAIN_PUBLISH_ENABLED'] === '1') || !deps.execute || !publishConfig())
         throw new DomainError(503, 'A publicação automática ainda não foi configurada nesta VPS.');
       const route = readDomainRoutes(deps.dataDir).find(item => item.slug === publish[1]);
       if (!route) throw new DomainError(404, 'Domínio não encontrado.');
@@ -195,7 +195,7 @@ export async function handleDomainRoute(req: IncomingMessage, res: ServerRespons
         const active = ['dns_ready', 'certificate_pending', 'published'].includes(publications[route.slug]?.state || 'reserved');
         if (active) {
           const config = publishConfig();
-          if (!(deps.publishingEnabled ?? process.env.PANEL_DOMAIN_PUBLISH_ENABLED === '1') || !deps.execute || !config)
+          if (!(deps.publishingEnabled ?? process.env['PANEL_DOMAIN_PUBLISH_ENABLED'] === '1') || !deps.execute || !config)
             throw new DomainError(409, 'Esse endereço está publicado; a publicação automática precisa estar disponível para removê-lo com segurança.');
           await installPublicGateway(routes.filter(item => item.slug !== route.slug && ['dns_ready', 'certificate_pending', 'published'].includes(publications[item.slug]?.state || 'reserved')), deps.execute);
           await removeDnsRecord(config, route);

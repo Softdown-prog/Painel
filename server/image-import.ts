@@ -56,8 +56,8 @@ function saveImport(dataDir: string, item: ImportRecord): void {
   renameSync(temp, dest);
 }
 function registryCredentials(): { username: string; password: string } | null {
-  const path = process.env.PANEL_GHCR_TOKEN_FILE;
-  const username = process.env.PANEL_GHCR_USERNAME;
+  const path = process.env['PANEL_GHCR_TOKEN_FILE'];
+  const username = process.env['PANEL_GHCR_USERNAME'];
   if (!path || !username) return null;
   const password = readFileSync(path, 'utf8').trim();
   return password ? { username, password } : null;
@@ -96,7 +96,7 @@ export async function dockerPullByDigest(reference: string): Promise<void> {
     { serveraddress: 'ghcr.io' })).toString('base64');
   return new Promise<void>((resolve, reject) => {
     const req = http.request({
-      socketPath: process.env.PANEL_DOCKER_SOCKET_PATH || '/run/panel-executor/docker.sock', method: 'POST',
+      socketPath: process.env['PANEL_DOCKER_SOCKET_PATH'] || '/run/panel-executor/docker.sock', method: 'POST',
       path: '/v1.45/images/create?fromImage=' + encodeURIComponent(reference),
       headers: { 'x-registry-auth': auth }, signal: AbortSignal.timeout(600000)
     }, response => {
@@ -178,7 +178,7 @@ export async function handleImageImportRoute(req: IncomingMessage, res: ServerRe
   const slug = match[1];
   if (!slug) return false;
   const send = (status: number, data: unknown) => deps.send(res, status, data);
-  const enabled = deps.enabled ?? process.env.PANEL_GHCR_PULL_ENABLED === '1';
+  const enabled = deps.enabled ?? process.env['PANEL_GHCR_PULL_ENABLED'] === '1';
   try {
     const project = readProjects(deps.dataDir).find(v => v.slug === slug);
     if (!project) throw new ImportError(404, 'Projeto não encontrado.');
@@ -196,10 +196,10 @@ export async function handleImageImportRoute(req: IncomingMessage, res: ServerRe
     if (req.method !== 'POST') throw new ImportError(405, 'Método não permitido.');
     if (!enabled) throw new ImportError(403, 'Importação GHCR desativada.');
     const input = await deps.body(req);
-    if (Object.keys(input).length !== 1 || !Number.isSafeInteger(input.runId) || (input.runId as number) < 1)
+    if (Object.keys(input).length !== 1 || !Number.isSafeInteger(input['runId']) || (input['runId'] as number) < 1)
       throw new ImportError(400, 'Informe apenas o ID inteiro do workflow.');
     if (active) throw new ImportError(409, 'Já existe uma importação em andamento.');
-    const revision = await approvedRun(deps.githubRequest || github, repository, input.runId as number);
+    const revision = await approvedRun(deps.githubRequest || github, repository, input['runId'] as number);
     const digest = await (deps.resolveDigest || resolveGhcrDigest)(repository.fullName, revision);
     if (!DIGEST_RE.test(digest)) throw new ImportError(502, 'Digest inválido retornado pelo GHCR.');
     if (active) throw new ImportError(409, 'Já existe uma importação em andamento.');
@@ -213,7 +213,7 @@ export async function handleImageImportRoute(req: IncomingMessage, res: ServerRe
         await (deps.pull || dockerPullByDigest)(ref);
         const id = await verifiedLocal(docker, repository.fullName, revision, digest);
         saveImport(deps.dataDir, { slug, repository: repository.fullName, revision, digest, imageId: id,
-          runId: input.runId as number, importedAt: new Date().toISOString() });
+          runId: input['runId'] as number, importedAt: new Date().toISOString() });
         job.status = 'success'; job.message = 'Imagem importada por digest. Nenhum container foi alterado.';
       } catch (error) {
         console.error('GHCR import failed:', error instanceof Error ? error.message : String(error));
