@@ -400,3 +400,6 @@ Guia de uso: [GUIA-RAPIDO.md](GUIA-RAPIDO.md). Domínios técnicos: [domain-rout
 
 ### Angular — correção da concorrência de logout (branch, 31/10/2026)
 **Implementado no código:** impedir que login/setup ou revalidação ocorram enquanto `POST /logout` está pendente ou sem confirmação do servidor. A interface exibe nova tentativa em vez de formulário de entrada. `maySubmitAdminLogin` testado em `server/angular-overview.test.mjs`. **CI:** conferir no SHA final. **VPS/produção:** intactas. Pendente teste real com perda de rede e cookies.
+
+### Angular — confirmação imutável de comandos SSH (branch, 31/10/2026)
+**Código:** terminal só executa quando o comando corresponde ao texto exato aprovado, inclusive scripts com quebras de linha; mudança/cancelamento/destruição descarta a confirmação, com validação imediata antes do envio. **Testes:** `server/angular-long-migration.test.mjs` validando guardas e template. **Segurança:** sem novos endpoints, acesso SSH ou mudança na VPS. **CI:** conferir SHA final. **Pendente:** teste de navegador autenticado e mobile.

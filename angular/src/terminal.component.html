@@ -13,7 +13,7 @@
   </div>
   <form (submit)="prepare($event)">
     <label for="sshCommand">Comando ou script Bash</label>
-    <textarea id="sshCommand" [value]="command()" (input)="command.set($any($event.target).value);pending.set(false)"
+    <textarea id="sshCommand" [value]="command()" (input)="updateCommand($event)"
       rows="6" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Digite seu comando. Scripts longos não ficam salvos no navegador."
       [disabled]="busy()" aria-describedby="sshWarning"></textarea>
     <p id="sshWarning" class="warning">O comando pode modificar a VPS e outros projetos. Revise antes de executar. Não cole senhas nem tokens. A saída pode conter dados sensíveis.</p>
@@ -25,7 +25,7 @@
       <strong>Executar este comando na VPS?</strong>
       <p>Confira o texto digitado acima. O painel transmitirá o comando somente após confirmação.</p>
       <div class="actions"><button type="button" (click)="cancel()">Cancelar</button>
-        <button type="button" class="danger" (click)="execute()">Confirmar execução</button></div>
+        <button type="button" class="danger" [disabled]="busy()||checking()" (click)="execute()">Confirmar execução</button></div>
     </div>
   }
   @if(busy()){<p role="status" class="waiting">Executando na VPS… Aguarde o resultado, sem reenviar o comando.</p>}

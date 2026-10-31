@@ -1,11 +1,11 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal } from '@angular/core';
+import {confirmedTerminalCommand,validTerminalCommand} from './terminal-command';
 
 type SshStatus={enabled:boolean;configured:boolean};
 type Execution={exitCode:number;output:string;truncated:boolean;timedOut:boolean};
-const MAX_COMMAND_BYTES=4*1024*1024;
 @Component({selector:'panel-vps-terminal',standalone:true,
   templateUrl:'./terminal.component.html',styleUrl:'./terminal.component.css'})
-export class TerminalComponent implements OnInit {
+export class TerminalComponent implements OnInit,OnDestroy {
   readonly status=signal<SshStatus|null>(null);
   readonly busy=signal(false);
   readonly checking=signal(false);
@@ -15,8 +15,18 @@ export class TerminalComponent implements OnInit {
   readonly result=signal<Execution|null>(null);
   readonly error=signal('');
   readonly executedAt=signal<string|null>(null);
+  private preparedCommand:string|null=null;
+  private destroyed=false;
   readonly snippets=['uname -a','df -h /','free -h','docker ps --format "{{.Names}}: {{.Status}}"'];
   ngOnInit():void {void this.refresh();}
+  ngOnDestroy():void {
+    this.destroyed=true;
+    this.cancel();
+    this.command.set('');
+    this.output.set('');
+    this.result.set(null);
+    this.status.set(null);
+  }
   private async api<T>(path:string,method='GET',data?:object):Promise<T>{
     const response=await fetch('/api'+path,{method,credentials:'same-origin',
       cache:'no-store',redirect:'error',headers:data?{'content-type':'application/json'}:{accept:'application/json'},
@@ -36,36 +46,62 @@ export class TerminalComponent implements OnInit {
     try{
       const status=await this.api<SshStatus>('/terminal/ssh/status');
       if(typeof status.enabled!=='boolean'||typeof status.configured!=='boolean')throw Error('Estado SSH inválido.');
+      if(this.destroyed)return;
       this.status.set(status);
-    }catch(e){this.status.set(null);this.error.set(this.message(e));}
+      if(!status.enabled||!status.configured)this.cancel();
+    }catch(e){if(!this.destroyed){this.status.set(null);this.cancel();this.error.set(this.message(e));}}
     finally{this.checking.set(false);}
   }
-  choose(value:string):void {if(this.busy())return;this.command.set(value);this.pending.set(false);}
+  choose(value:string):void {
+    if(this.busy()||this.destroyed)return;
+    this.command.set(value);
+    this.cancel();
+  }
+  updateCommand(event:Event):void {
+    if(this.busy()||this.destroyed)return;
+    const field=event.target;
+    if(!(field instanceof HTMLTextAreaElement))return;
+    this.command.set(field.value);
+    this.cancel();
+  }
   prepare(event:Event):void {
     event.preventDefault();
-    if(this.busy()||!this.status()?.configured||!this.status()?.enabled)return;
+    if(this.busy()||this.checking()||this.destroyed||
+       !this.status()?.configured||!this.status()?.enabled)return;
     const value=this.command();
-    if(!value.trim()||new TextEncoder().encode(value).length>MAX_COMMAND_BYTES ||
-      /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value)){
+    if(!validTerminalCommand(value)){
+      this.cancel();
       this.error.set('Comando vazio, inválido ou maior que 4 MB.');return;
     }
     this.error.set('');
+    this.preparedCommand=value;
     this.pending.set(true);
   }
-  cancel():void {this.pending.set(false);}
+  cancel():void {this.pending.set(false);this.preparedCommand=null;}
   async execute():Promise<void>{
-    if(this.busy()||!this.pending()||!this.status()?.enabled||!this.status()?.configured)return;
+    if(this.busy()||this.destroyed)return;
     const value=this.command();
-    this.busy.set(true);this.error.set('');this.pending.set(false);
+    const status=this.status();
+    if(!confirmedTerminalCommand(this.preparedCommand,value,
+      status?.enabled===true,status?.configured===true,this.pending())){
+      this.cancel();
+      this.error.set('O comando mudou ou perdeu a confirmação. Revise e prepare novamente.');
+      return;
+    }
+    this.cancel();
+    this.busy.set(true);this.error.set('');
     this.result.set(null);this.output.set('');
     try{
       const result=await this.api<Execution>('/terminal/ssh/exec','POST',{command:value});
-      if(typeof result.exitCode!=='number'||typeof result.output!=='string')throw Error('Resultado SSH inválido.');
+      if(this.destroyed)return;
+      if(!Number.isSafeInteger(result.exitCode)||typeof result.output!=='string'||
+         typeof result.truncated!=='boolean'||typeof result.timedOut!=='boolean')
+        throw Error('Resultado SSH inválido.');
       this.output.set(result.output);
       this.result.set(result);
       this.executedAt.set(new Date().toISOString());
       this.command.set('');
-    }catch(e){this.error.set(this.message(e));}
+    }catch(e){if(!this.destroyed)this.error.set(this.message(e));}
     finally{this.busy.set(false);}
   }
   clear():void {this.result.set(null);this.output.set('');this.error.set('');}

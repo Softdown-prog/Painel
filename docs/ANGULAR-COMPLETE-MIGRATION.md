@@ -122,3 +122,10 @@
 - Em vez de renderizar simultaneamente o formulário de entrada, o Angular mostra apenas a confirmação pendente ou a ação de tentar encerrar novamente. `GET /session` também fica bloqueado até obter confirmação de saída do backend.
 - O predicado puro `maySubmitAdminLogin` tem testes para sessão desconhecida, usuário autenticado, setup, entrada em andamento, validação de sessão pendente, logout em andamento e logout não confirmado. No frontend, a senha continua limpa em qualquer tentativa de login.
 - Somente a branch Angular; testes E2E com cookies reais e cenários de perda de rede ainda pendentes. Nenhuma alteração de API/VPS/produção.
+
+## Incremento — terminal SSH: confirmação vinculada ao comando (31/10/2026)
+
+- `/angular/#terminal`: confirmação fica vinculada ao texto exato revisado (inclusive espaços e quebras de linha). Alterar o campo ou selecionar um exemplo cancela a autorização; a chamada de execução revalida novamente, antes do `POST /terminal/ssh/exec`.
+- Validação de comando (limite UTF-8 4 MB e caracteres proibidos) isolada em `angular/src/terminal-command.ts` e exercitada por testes unitários, incluindo texto alterado após a confirmação, estado SSH desabilitado, tentativas sem aprovação e scripts multilinha.
+- Comando aprovado é descartado ao confirmar/cancelar/sair da tela. O componente não exibe resultados de consultas concluídas após sua destruição; não pressupõe que fechar a tela interrompa execução já enviada ao servidor.
+- Sem mudança de permissão SSH, endpoint, token, Docker/VPS ou deploy. Resta testar o terminal em navegador autenticado com dispositivos móveis antes da liberação.
