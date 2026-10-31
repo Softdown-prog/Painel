@@ -32,7 +32,7 @@ test('GitHub mobile component keeps credential server-side and requires explicit
   assert.match(html,/Confirmar solicitação/);
   assert.match(html,/Confirmar remoção/);
   assert.match(html,/\(click\)="cancelAction\(\)"/);
-  assert.match(code,/\['?\/?repositories\/?'?/);
+  assert.ok(code.includes("this.api('/repositories','POST'"));
   assert.doesNotMatch(code,/localStorage|sessionStorage|GITHUB_TOKEN|Bearer /);
   assert.doesNotMatch(html,/type="password"|Insira seu token/);
 });
