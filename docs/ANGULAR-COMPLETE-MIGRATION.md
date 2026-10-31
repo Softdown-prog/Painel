@@ -13,7 +13,7 @@
 | Módulo | Atual | Faltam |
 | --- | --- | --- |
 | Visão geral, indicadores, autenticação | Angular parcial | Dados vivos, erro offline, sessão, testes mobile e estados |
-| Containers e gerenciamento | Angular somente leitura | Gerenciar ações, logs, estados e restrições do executor |
+| Containers e gerenciamento | Angular parcial | Inventário seguro somente leitura, serviços explicitamente autorizados com logs e ações confirmadas; paridade gerencial completa e UX mobile pendentes |
 | Sites e apps | Angular parcial | Auditoria de criação, recursos, logs, domínios e publicação |
 | GitHub e publicações | Angular parcial | Todas as ações e paridade de seleção/histórico/vínculos |
 | Terminal VPS | Migrando nesta branch | Comparar com CLI de compatibilidade, SSH, confirmações, script longo, acessibilidade |
@@ -63,3 +63,9 @@
 - `/angular/#secrets`: inventário não sensível, conexão GHCR/GitHub, inclusão/rotação por nome e exclusão. Requer confirmação digitada do identificador e senha administrativa no próprio fluxo, sem armazenar em localStorage, sessionStorage ou logs. Ao encerrar o componente ou concluir uma tentativa, sinais de segredo e senha são limpos. Reutiliza `GET/POST /secrets` e `DELETE /secrets/:name` sem novos privilégios.
 - `/angular/#settings`: alteração de senha existente por `POST /password`; após sucesso o backend invalida todas as sessões e o Angular exige login novamente. Setup inicial por `POST /setup` disponível quando `GET /session` informa `setupRequired`, com confirmação explícita; token inicial não fica salvo. `/#secrets` e `/#settings` direcionam ao Angular.
 - O modo clássico explícito é mantido para verificação de paridade enquanto existirem recursos não migrados. Sem PR, merge ou deploy até validação integral.
+
+## Incremento — serviços autorizados na tela Containers (31/10/2026)
+
+- O inventário multiprojetos `GET /containers` **permanece apenas leitura**: nunca incluir IDs Docker, montagens, portas, labels ou ações genéricas na resposta.
+- A seção Angular `panel-legacy-services` usa somente `GET /services`, `GET /services/:id/logs` e `POST /services/:id/(start|stop|restart)` já existentes, e exclusivamente IDs `app` e `agent` após confirmação digitada. O backend/executor mantém a política de autorização. Serviço `caddy` possui logs em modo leitura, mas não oferece comandos.
+- Esta seção atende o modo legado opcional; serviços de aplicações gerenciadas têm ações separadas na aba Apps. Não ampliar ações para containers externos de Terrânia, PostgreSQL ou outros projetos sem autorização específica.

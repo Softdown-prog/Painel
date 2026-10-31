@@ -9,6 +9,7 @@ import { DomainsComponent } from './domains.component';
 import { TrafficComponent } from './traffic.component';
 import { SecretsComponent } from './secrets.component';
 import { SettingsComponent } from './settings.component';
+import { LegacyServicesComponent } from './legacy-services.component';
 
 type Session = {authenticated: boolean; setupRequired: boolean};
 type Summary = {available: boolean; running: number | null; total: number | null; truncated?: boolean};
@@ -28,7 +29,7 @@ type Inventory = {containers?: ManagedContainer[]; readOnly?: boolean; updatedAt
 @Component({
   selector: 'panel-app',
   standalone: true,
-  imports: [DeploymentsComponent, AppsComponent, GithubProjectsComponent, TerminalComponent, RevisionsComponent, PostgresComponent, DomainsComponent, TrafficComponent, SecretsComponent, SettingsComponent],
+  imports: [DeploymentsComponent, AppsComponent, GithubProjectsComponent, TerminalComponent, RevisionsComponent, PostgresComponent, DomainsComponent, TrafficComponent, SecretsComponent, SettingsComponent, LegacyServicesComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
