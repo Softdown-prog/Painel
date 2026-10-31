@@ -22,7 +22,7 @@
       return {kind:'warning',label:'CI/CD cancelado'};
     return {kind:'neutral',label:'CI/CD não confirmado'};
   }
-  function vpsState(run, repo, project, release, history:any[]) {
+  function vpsState(run, repo, project, release, history) {
     if (release?.current?.state === 'running' && release.current.revision === run.sha)
       return {kind:'success',label:'Ativa na VPS'};
     const job=history.find(item=>item.repository===repo.fullName && item.runId===run.id &&
