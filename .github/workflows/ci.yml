@@ -33,6 +33,28 @@ jobs:
       - run: bash -n web/deploy-staging-vps.sh
       - name: Build independent VPS frontend image
         run: docker build -f web/Dockerfile --build-arg PANEL_WEB_REVISION="$GITHUB_SHA" -t vps-panel-web:test .
+      - name: Boot frontend as an isolated restricted container
+        run: |
+          set -euo pipefail
+          secret="$(mktemp)"
+          trap 'docker rm -f panel-web-smoke >/dev/null 2>&1 || true; sudo rm -f "$secret"' EXIT
+          printf '%s\n' "github-smoke-test-secret-at-least-32-characters" | sudo tee "$secret" >/dev/null
+          sudo chown 0:0 "$secret"
+          sudo chmod 600 "$secret"
+          docker run -d --name panel-web-smoke --network none --read-only \
+            --cap-drop ALL --cap-add SETUID --cap-add SETGID --security-opt no-new-privileges \
+            --mount "type=bind,src=$secret,dst=/run/secrets/panel-edge-key,readonly" \
+            -e PANEL_PUBLIC_ORIGIN=https://panel.example.test vps-panel-web:test
+          docker exec panel-web-smoke node -e '
+            (async()=>{
+              const r=await fetch("http://127.0.0.1:8081/");
+              if(r.status!==200 || !(await r.text()).includes("<html"))process.exit(1);
+              const h=await fetch("http://127.0.0.1:8081/__panel_web_health");
+              if(!h.ok || !(await h.json()).ok)process.exit(1);
+              console.log("PASS: root secret read, privilege drop and static files served");
+            })().catch(()=>process.exit(1))
+          '
+
       - run: docker compose -f server/compose.yaml -f server/compose.apps.yaml -f server/compose.routing.yaml config --quiet
       - run: docker compose -f server/compose.yaml -f server/compose.ssh-terminal.yaml config --quiet
       - run: docker compose -f server/compose.yaml -f server/compose.revisions.yaml config --quiet
