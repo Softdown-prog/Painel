@@ -406,3 +406,6 @@ Guia de uso: [GUIA-RAPIDO.md](GUIA-RAPIDO.md). Domínios técnicos: [domain-rout
 
 ### Angular — confirmações de chaves e segredos (branch, 31/10/2026)
 **Código:** qualquer alteração de metadados/segredo ou atualização de inventário invalida aprovação anterior; ação exige correspondência de nome e presença/ausência esperada da chave. Sem cópia do valor secreto para confirmar. Limpeza na desmontagem e bloqueio de edição durante envio. **Testes:** `server/angular-secrets-settings.test.mjs`. **CI:** validar SHA final. **VPS/produção:** sem alterações; homologação em navegador autenticado e mobile pendente.
+
+### Infraestrutura: catálogo de clusters e MCP no Angular (branch, 31/10/2026)
+Cadastro multiprojetos persistente em `PANEL_DATA_DIR/infrastructure-plans.json`, endpoints autenticados `/infrastructure`, validação de propriedade, criação/edição/exclusão com confirmação, concorrência serializada e limites. UI Angular `#infrastructure` distingue claramente plano registrado de serviço provisionado. Sem shell, Docker API, redes, portas, tokens ou deploy. Testes: `server/infrastructure.test.mjs`, `server/angular-infrastructure.test.mjs`. **Próximas fases:** executor/segurança MCP, scheduler/health de clusters, ciclo de vida, auditoria e testes em navegador autenticado.

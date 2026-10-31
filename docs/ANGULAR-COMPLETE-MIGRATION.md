@@ -136,3 +136,23 @@
 - Exclusão exige item existente no inventário autorizado, senha administrativa e confirmação digitada; troca de registro ou estado invalida a ação antes do envio. Os controles de edição são desabilitados durante a operação e os dados sensíveis são limpos ao fechar a tela.
 - Consultas atrasadas não restauram o inventário após `OnDestroy`. Uma gravação já enviada não é cancelada pelo fechamento da tela; o servidor continua sendo a fonte de verdade, e a próxima abertura deve consultar o inventário.
 - Testes de confirmação, revisão do formulário, cadastro/substituição/exclusão e limpeza após destruição em `server/angular-secrets-settings.test.mjs`. Ainda pendente validação em navegador real e celular, sem API/produção alteradas.
+
+## Nova frente — Servidores MCP e Clusters multiprojetos (31/10/2026)
+
+**Escopo desta entrega: painel de cadastro de arquitetura, NÃO provisionamento.** A tela Angular `/angular/#infrastructure` oferece criação, edição, listagem e exclusão confirmada dos **planos** MCP e cluster. Um plano não é um processo, nó ou servidor funcionando; nenhuma métrica/estado é inventado. O backend retorna `runtime: not-provisioned` e capacidades `provisioning=false, healthMonitoring=false, lifecycle=false`.
+
+- Nova API administrativa `GET /infrastructure`, `POST /infrastructure`, `PUT /infrastructure/:id`, `DELETE /infrastructure/:id`. Ela fica **depois da checagem de edge key e sessão do Painel** em `server/api.mjs`. A interface usa cookie same-origin, sem chave no navegador.
+- Configurações persistidas como `infrastructure-plans.json` em `PANEL_DATA_DIR`, com gravação atômica e modo 0600, serialização de alterações, leitura restritiva e proteção contra sobrescrever arquivo corrompido.
+- Cada configuração pertence a um projeto existente em `projects.json`; identificador determinístico `projeto.tipo.nome`. Cadastros órfãos ficam identificados e podem ser removidos, mas não editados até reconectar o projeto. Cada operação valida identidade do projeto; nenhuma configuração faz referências a containers ou redes de outros projetos.
+- Limites conservadores: 32 planos no total, 8 por projeto e até 8 réplicas **apenas planejadas** por cluster. MCP: transporte privado `streamable-http`, uma instância. Cluster: topologia de nó único ou regional (somente cadastro). Sem parâmetros de shell, URL arbitrária, segredos, portas, imagens não confiáveis, Docker socket ou exposição pública.
+- Formulário Angular com revisão e confirmação digitada do ID completo; edição altera apenas capacidade/topologia planejada. Tela informa explicitamente que não provisionou serviços nem reservou CPU/RAM. Layout responsivo, erros e estados vazios.
+- Testes: `server/infrastructure.test.mjs` verifica persistência, isolamento, concorrência, limites, adulterações, cadastros órfãos, confirmação e corrupção de dados; `server/angular-infrastructure.test.mjs` valida payload e navegação.
+
+### Próximas etapas obrigatórias (sem autorização de deploy nesta branch)
+
+1. **Executor seguro de MCP**: escolher runtime/transportes e empacotamento, registrar ferramentas permitidas por projeto; políticas de autenticação e comunicação MCP, mTLS/RBAC, isolamento por rede, sem execução de comandos livres.
+2. **Clusters reais**: definir nó/worker, limites físicos, colocação (VPS única vs. múltiplos hosts), gerenciamento da fila e estado desejado vs. observado; só então ativar provisionamento idempotente.
+3. **Manutenção e observabilidade**: inspeção de saúde, logs sanitizados, restart/scale/upgrade/rollback com confirmação e políticas de autorização auditáveis; evitar alegar disponibilidade com base só no registro.
+4. **Homologação**: mocks, testes reais multiusuário/multiprojeto, falhas e mobile, sem executar na VPS ou retirar interface clássica até a migração integral.
+
+**Status:** plano persistido e gerenciável na branch, execução operacional não implementada. Nenhum PR/merge/deploy.

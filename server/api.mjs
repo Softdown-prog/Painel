@@ -2,6 +2,7 @@ import http from 'node:http';
 import { handleGitHubRoute } from './github.ts';
 import { handleAppRoute, listManaged, startIdleMonitor } from './apps.ts';
 import { handleProjectRoute, readProjects } from './projects.ts';
+import { handleInfrastructureRoute } from './infrastructure.ts';
 import { hostedProjects } from './hosted-projects.ts';
 import { handleReleaseRoute } from './releases.ts';
 import { handleImageImportRoute } from './image-import.ts';
@@ -202,6 +203,7 @@ async function handler(req, res) {
   if (await handlePublicationRoute(req, res, { send, body, dataDir })) return;
   if (await handleReleaseRoute(req, res, { send, body, dataDir })) return;
   if (await handleProjectRoute(req, res, { send, body, dataDir })) return;
+  if (await handleInfrastructureRoute(req, res, { send, body, dataDir })) return;
   if (path === '/hosted-projects' && req.method === 'GET') {
     const [apps, legacy] = await Promise.all([listManaged(docker), containers()]);
     return send(res, 200, { projects: hostedProjects(readProjects(dataDir), apps, legacy) });

@@ -11,6 +11,7 @@ import { SecretsComponent } from './secrets.component';
 import { SettingsComponent } from './settings.component';
 import { LegacyServicesComponent } from './legacy-services.component';
 import { SiteDetailComponent } from './site-detail.component';
+import { InfrastructureComponent } from './infrastructure.component';
 import { validAppSlug } from './apps-policy';
 import {parseOverview,parseInventory,capacityAlerts,readingFresh,type HostOverview,type HostInventory} from './overview-state';
 import {filterInventory,inventoryProjects,type InventoryStatusFilter} from './inventory-view';
@@ -19,12 +20,12 @@ import {parseAdminSession,expiredProtectedSession,maySubmitAdminLogin,type Admin
 @Component({
   selector: 'panel-app',
   standalone: true,
-  imports: [DeploymentsComponent, AppsComponent, GithubProjectsComponent, TerminalComponent, RevisionsComponent, PostgresComponent, DomainsComponent, TrafficComponent, SecretsComponent, SettingsComponent, LegacyServicesComponent, SiteDetailComponent],
+  imports: [DeploymentsComponent, AppsComponent, GithubProjectsComponent, TerminalComponent, RevisionsComponent, PostgresComponent, DomainsComponent, TrafficComponent, SecretsComponent, SettingsComponent, LegacyServicesComponent, SiteDetailComponent, InfrastructureComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
 export class AppComponent implements OnInit,OnDestroy {
-  readonly page = signal<'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains' | 'traffic' | 'secrets' | 'settings' | 'site'>('overview');
+  readonly page = signal<'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains' | 'traffic' | 'secrets' | 'settings' | 'site' | 'infrastructure'>('overview');
   readonly selectedSiteSlug=signal<string|null>(null);
   readonly menuOpen = signal(false);
   readonly session = signal<AdminSession | null>(null);
@@ -127,7 +128,7 @@ export class AppComponent implements OnInit,OnDestroy {
         hash === 'deployments' || hash === 'apps' || hash === 'projects' ||
         hash === 'terminal' || hash === 'revisions' ||
         hash === 'database' || hash === 'domains' || hash === 'traffic' ||
-        hash === 'secrets' || hash === 'settings') this.page.set(hash);
+        hash === 'secrets' || hash === 'settings' || hash === 'infrastructure') this.page.set(hash);
     else this.page.set('overview');
   }
 
@@ -352,7 +353,7 @@ export class AppComponent implements OnInit,OnDestroy {
     }finally{if(epoch===this.authEpoch&&!this.destroyed)this.loading.set(false);}
   }
 
-  selectPage(page: 'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains' | 'traffic' | 'secrets' | 'settings'): void {
+  selectPage(page: 'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains' | 'traffic' | 'secrets' | 'settings' | 'infrastructure'): void {
     this.page.set(page);
     this.menuOpen.set(false);
     if (window.location.hash !== '#' + page) window.location.hash = page;
