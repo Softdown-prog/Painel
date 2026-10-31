@@ -51,6 +51,8 @@ jobs:
             (async()=>{
               const r=await fetch("http://127.0.0.1:8081/");
               if(r.status!==200 || !(await r.text()).includes("<html"))process.exit(1);
+              const angular=await fetch("http://127.0.0.1:8081/angular/");
+              if(!angular.ok || !(await angular.text()).includes("panel-app"))process.exit(1);
               const h=await fetch("http://127.0.0.1:8081/__panel_web_health");
               if(!h.ok || !(await h.json()).ok)process.exit(1);
               console.log("PASS: root secret read, privilege drop and static files served");

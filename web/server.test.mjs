@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
@@ -13,6 +13,10 @@ async function setup(t) {
   writeFileSync(join(staticDir, 'index.html'), '<h1>Painel local</h1>');
   writeFileSync(join(staticDir, 'app.js'), 'console.log("safe")');
   writeFileSync(join(staticDir, 'app.css'), 'body{}');
+  mkdirSync(join(staticDir, 'angular'));
+  writeFileSync(join(staticDir, 'angular', 'index.html'), '<base href="/angular/"><panel-app></panel-app>');
+  writeFileSync(join(staticDir, 'angular', 'main-123.js'), 'console.log("angular")');
+  writeFileSync(join(staticDir, 'angular', 'styles-123.css'), 'body{color:red}');
   const calls = [];
   const api = createServer(async (req, res) => {
     let body = '';
@@ -112,4 +116,23 @@ test('health route does not require the backend or authentication',async t=>{
 test('invalid secret or external HTTP API target fails closed at startup',()=>{
   assert.throws(()=>createPanelWebServer({edgeKey:'short',staticDir:'/tmp',publicOrigin:'http://panel.test'}),/secret/);
   assert.throws(()=>createPanelWebServer({edgeKey:KEY,staticDir:'/tmp',publicOrigin:'http://panel.test',apiHost:'evil.test/path'}),/target/);
+});
+
+test('serves Angular entrypoint and hashed JS/CSS from private VPS frontend', async t => {
+  const {origin}=await setup(t);
+  const redirect=await fetch(origin+'/angular',{redirect:'manual'});
+  assert.equal(redirect.status,308);
+  assert.equal(redirect.headers.get('location'),'/angular/');
+  const page=await fetch(origin+'/angular/');
+  assert.equal(page.status,200);
+  assert.match(await page.text(),/<panel-app>/);
+  const js=await fetch(origin+'/angular/main-123.js');
+  assert.equal(js.status,200);
+  assert.match(js.headers.get('content-type'),/javascript/);
+  assert.equal((await fetch(origin+'/angular/styles-123.css')).status,200);
+  for (const path of ['/angular/tsconfig.json','/angular/package.json','/angular/src/main.ts',
+    '/angular/%2e%2e%2fserver.mjs','/angular/nested/main.js','/angular/evil%5c.js']) {
+    const r=await fetch(origin+path,{redirect:'manual'});
+    assert.notEqual(r.status,200,path);
+  }
 });

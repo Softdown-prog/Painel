@@ -132,9 +132,24 @@ export function createPanelWebServer({
     }
     if (req.method !== 'GET' && req.method !== 'HEAD')
       return json(res, 405, 'Método não permitido', 'METHOD_NOT_ALLOWED');
-    const filename = pathname === '/' ? 'index.html' : pathname.slice(1);
-    if (!/^(?:index\.html|[a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)*\.(?:js|css))$/.test(filename))
-      return json(res, 404, 'Arquivo não encontrado', 'NOT_FOUND');
+    // Angular coexists under /angular/ while all legacy screens remain intact.
+    // Do not provide SPA fallback for arbitrary paths or private files.
+    if (pathname === '/angular') {
+      res.writeHead(308, { location: '/angular/', 'cache-control': 'no-store' });
+      return res.end();
+    }
+    let filename;
+    if (pathname === '/angular/') filename = 'angular/index.html';
+    else if (pathname.startsWith('/angular/')) {
+      const asset = pathname.slice('/angular/'.length);
+      if (!/^[a-zA-Z0-9_-][a-zA-Z0-9_.-]*\.(?:js|css)$/.test(asset))
+        return json(res, 404, 'Arquivo não encontrado', 'NOT_FOUND');
+      filename = 'angular/' + asset;
+    } else {
+      filename = pathname === '/' ? 'index.html' : pathname.slice(1);
+      if (!/^(?:index\.html|[a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)*\.(?:js|css))$/.test(filename))
+        return json(res, 404, 'Arquivo não encontrado', 'NOT_FOUND');
+    }
     let size;
     try {
       const stat = statSync(join(staticDir, filename));

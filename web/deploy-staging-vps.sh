@@ -118,6 +118,9 @@ probe='
   if (page.status !== 200 || health.status !== 200 || api.status !== 200)
     throw Error("HTTP inesperado: " + page.status + "/" + health.status + "/" + api.status);
   const html = await page.text(), meta = await health.json(), session = await api.json();
+  const angular = await fetch(base + "/angular/");
+  if (angular.status !== 200 || !(await angular.text()).includes("panel-app"))
+    throw Error("Angular 22 não está disponível no frontend");
   if (!html.includes("terminal-ui.js?v=") || meta.revision !== process.env.PANEL_WEB_REVISION ||
       typeof session.authenticated !== "boolean" || typeof session.setupRequired !== "boolean")
     throw Error("Conteúdo ou contrato da API inválido");
