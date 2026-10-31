@@ -17,7 +17,7 @@ async function launch(dir, legacy = '0') {
     env: {...process.env, PORT: String(port), PANEL_DATA_DIR: dir, PANEL_SOFTLOAD_LEGACY: legacy,
       PANEL_EDGE_KEY_FILE: join(dir, 'edge-key'), SOFTLOAD_ENV_FILE: join(dir, 'nonexistent-project.env'),
       PANEL_DOCKER_SOCKET_PATH: join(dir, 'missing-executor.sock'), PANEL_PUBLICATIONS_ENABLED: '0',
-      PANEL_REVISIONS_AUTOMATIC: '0', PANEL_APPS_ENABLED: '0'}, stdio: ['ignore', 'pipe', 'pipe']
+      PANEL_REVISIONS_AUTOMATIC: '0', PANEL_APPS_ENABLED: '0', PANEL_RELEASE_SHA: 'a'.repeat(40)}, stdio: ['ignore', 'pipe', 'pipe']
   });
   let output = '';child.stdout.on('data', part => {output += part;});child.stderr.on('data', part => {output += part;});
   const call = async (path, method = 'GET', input, cookie = '') => {
@@ -40,7 +40,7 @@ test('generic API boots, authenticates and preserves projects without Softload f
   const password = 'Test only account password 2026';
   let api = await launch(dir);
   try {
-    assert.deepEqual((await api.call('/session')).data, {authenticated: false, setupRequired: true, legacySoftload: false});
+    assert.deepEqual((await api.call('/session')).data, {authenticated: false, setupRequired: true, legacySoftload: false, revision: 'a'.repeat(40)});
     assert.equal((await api.call('/publications')).status, 401);
     assert.equal((await api.call('/database/status')).status, 401, 'O status administrativo exige sessão');
     const setupToken = readFileSync(join(dir, 'setup-token'), 'utf8').trim();
