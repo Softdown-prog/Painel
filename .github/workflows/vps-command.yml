@@ -8,7 +8,7 @@ on:
         default: inventory
       project:
         type: choice
-        options: [infrastructure, panel, terrania]
+        options: [infrastructure, panel, panel-web, terrania]
         default: infrastructure
       sha:
         description: Full installed commit expected for verify
