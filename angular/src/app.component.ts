@@ -194,7 +194,7 @@ export class AppComponent implements OnInit {
     } finally { this.loading.set(false); }
   }
 
-  selectPage(page: 'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains' | 'traffic'): void {
+  selectPage(page: 'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains' | 'traffic' | 'secrets' | 'settings'): void {
     this.page.set(page);
     this.menuOpen.set(false);
     if (window.location.hash !== '#' + page) window.location.hash = page;
