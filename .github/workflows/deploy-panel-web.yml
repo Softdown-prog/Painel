@@ -17,6 +17,8 @@ on:
       - 'operations/policy.example.json'
       - '.github/workflows/deploy-panel-web.yml'
   workflow_dispatch:
+  issues:
+    types: [opened]
 
 permissions:
   contents: read
@@ -27,7 +29,9 @@ concurrency:
 
 jobs:
   build:
-    if: github.repository == 'Softdown-prog/Painel' && github.ref == 'refs/heads/main'
+    # Issues must have the exact title and the registered administrator identity.
+    # The issue body/comments are NEVER interpreted as commands or input.
+    if: github.repository == 'Softdown-prog/Painel' && github.ref == 'refs/heads/main' && (github.event_name != 'issues' || (github.event.issue.user.id == 189416996 && github.event.issue.title == '[VPS] deploy panel-web'))
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -78,7 +82,7 @@ jobs:
 
   deploy:
     needs: build
-    if: github.repository == 'Softdown-prog/Painel' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.PANEL_WEB_DEPLOY_ENABLED == 'true')
+    if: github.repository == 'Softdown-prog/Painel' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && vars.PANEL_WEB_DEPLOY_ENABLED == 'true') || (github.event_name == 'issues' && github.event.issue.user.id == 189416996 && github.event.issue.title == '[VPS] deploy panel-web'))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
