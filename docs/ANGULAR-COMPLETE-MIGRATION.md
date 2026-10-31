@@ -36,3 +36,11 @@
 6. Somente após validação final e **autorização do usuário**, preparar PR único para `main` e executar merge/deploy.
 
 **Situação atual:** MIGRAÇÃO EM ANDAMENTO. Não há liberação de produção desta branch.
+
+## Tipagem rigorosa no desenvolvimento (31/10/2026)
+
+- `tsconfig.json` (Node/API e código TS legado) e `angular/tsconfig.json` agora habilitam `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride` e `noFallthroughCasesInSwitch`.
+- Angular mantém `strictTemplates`, `strictInjectionParameters` e `strictInputAccessModifiers` no compilador Angular.
+- Chamadas `fetch` só incluem propriedade `body` quando há payload. Índices de arrays, parâmetros de URL e rótulos dinâmicos precisam ser validados antes do uso; não usar `as any` ou desabilitar regras para corrigir erros.
+- O comando `build:frontend` de compatibilidade ainda usa `--ignoreConfig`. Isto será removido quando todas as telas legadas forem migradas. Até lá `npm run typecheck` verifica os arquivos TS legados sob o `tsconfig.json` rigoroso.
+- O CI valida os dois compilares separadamente: `npm run typecheck` na raiz e `ng build` por meio da imagem frontend Docker. O código nesta branch não deve entrar em produção antes da migração integral e da autorização para merge.

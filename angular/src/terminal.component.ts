@@ -20,7 +20,7 @@ export class TerminalComponent implements OnInit {
   private async api<T>(path:string,method='GET',data?:object):Promise<T>{
     const response=await fetch('/api'+path,{method,credentials:'same-origin',
       cache:'no-store',redirect:'error',headers:data?{'content-type':'application/json'}:{accept:'application/json'},
-      body:data?JSON.stringify(data):undefined});
+      ...(data?{body:JSON.stringify(data)}:{})});
     let json:unknown;
     try{json=await response.json();}catch{throw Error('Resposta JSON inválida da VPS.');}
     if(!json||typeof json!=='object'||Array.isArray(json))throw Error('Resposta inválida da VPS.');

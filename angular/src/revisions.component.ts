@@ -28,7 +28,7 @@ export class RevisionsComponent implements OnInit {
     const response=await fetch('/api'+path,{
       method,credentials:'same-origin',cache:'no-store',redirect:'error',
       headers:data?{'content-type':'application/json'}:{accept:'application/json'},
-      body:data?JSON.stringify(data):undefined});
+      ...(data?{body:JSON.stringify(data)}:{})});
     let result:unknown;try{result=await response.json();}catch{throw Error('A API devolveu JSON inválido.');}
     if(!result||typeof result!=='object'||Array.isArray(result))throw Error('Resposta da API inválida.');
     if(!response.ok){

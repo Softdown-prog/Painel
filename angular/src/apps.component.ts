@@ -34,7 +34,7 @@ export class AppsComponent implements OnInit {
     const response=await fetch('/api'+path,{
       method,credentials:'same-origin',cache:'no-store',redirect:'error',
       headers:payload?{'content-type':'application/json',accept:'application/json'}:{accept:'application/json'},
-      body:payload?JSON.stringify(payload):undefined
+      ...(payload?{body:JSON.stringify(payload)}:{})
     });
     const result:unknown=await response.json();
     if (!result || typeof result!=='object' || Array.isArray(result))

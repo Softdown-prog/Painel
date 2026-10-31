@@ -44,7 +44,7 @@ export class GithubProjectsComponent implements OnInit {
     const res=await fetch('/api'+path,{
       method, credentials:'same-origin',redirect:'error',cache:'no-store',
       headers:data?{'content-type':'application/json'}:{accept:'application/json'},
-      body:data?JSON.stringify(data):undefined
+      ...(data?{body:JSON.stringify(data)}:{})
     });
     let result:unknown;
     try {result=await res.json();}

@@ -72,8 +72,7 @@ export class AppComponent implements OnInit {
   async request<T>(path: string, method = 'GET', payload?: object): Promise<T> {
     // The VPS web gateway keeps x-panel-edge-key only on the server. Never store it here.
     const response = await fetch('/api' + path, {
-      method, headers: payload ? {'content-type': 'application/json'} : undefined,
-      body: payload ? JSON.stringify(payload) : undefined,
+      method, ...(payload ? {headers: {'content-type':'application/json'},body:JSON.stringify(payload)} : {}),
       credentials: 'same-origin', redirect: 'error', cache: 'no-store'
     });
     const data: unknown = await response.json();

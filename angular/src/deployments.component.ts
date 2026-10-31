@@ -130,7 +130,7 @@ export class DeploymentsComponent implements OnInit, OnDestroy {
             ? {...raw,label:'API do Painel nesta revisão'} : raw;
           return {key:repo.fullName+':'+run.id,sha:run.sha,shortSha:run.sha.slice(0,9),
             runId:run.id,name:typeof run.name==='string'?run.name:'Workflow',
-            createdAt:run.createdAt,
+            ...(typeof run.createdAt === 'string' ? {createdAt:run.createdAt} : {}),
             url:'https://github.com/'+repo.fullName+'/actions/runs/'+run.id,
             ci,delivery:deliveryStatus(run,vps),vps};
         });
