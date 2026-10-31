@@ -42,7 +42,10 @@ def verify_project(project, args):
         services.append({'service': service, 'container': name, 'revision': revision, 'imageId': c['Image'],
                          'image': c['Config']['Image'], 'digests': im.get('RepoDigests') or [], 'health': 'healthy'})
     if project.get('public_url'):
-        with urllib.request.urlopen(project['public_url'] + '?revision=' + sha, timeout=60) as response:
+        request = urllib.request.Request(project['public_url'] + '?revision=' + sha,
+                                         headers={'User-Agent': 'VPS-Operations-Healthcheck/1.0',
+                                                  'Accept': 'application/json', 'Cache-Control': 'no-cache'})
+        with urllib.request.urlopen(request, timeout=60) as response:
             payload = json.load(response)
         if project['adapter'] == 'panel' and payload.get('revision') != sha:
             raise RuntimeError('Public API serves a different revision')
@@ -148,7 +151,7 @@ def panel_activate(project, sha, images, log):
             wait_healthy([project['containers'][service]])
         result = verify_project(project, {'sha': sha})
         run(['docker', 'exec', project['containers']['api'], 'node', '--input-type=module', '-e',
-             'import {getDatabaseStatus} from "./database.ts";if((await getDatabaseStatus()).integration!=="connected")process.exit(1)'], log=log)
+             'import {getDatabaseStatus} from "./database.ts";process.exit((await getDatabaseStatus()).integration==="connected"?0:1)'], log=log)
         after = {name: inspect(name)['Id'] for name in before}
         if after != before:
             raise RuntimeError('Unrelated service changed during rollout')
