@@ -11,12 +11,12 @@
     (() => {
       if (location.pathname !== '/' && location.pathname !== '/index.html') return;
       const fragment = location.hash.slice(1);
-      const pages = { overview:'overview', apps:'apps', containers:'containers', projects:'projects', terminal:'terminal', revisions:'revisions', database:'database', domains:'domains', traffic:'traffic',
+      const pages = { overview:'overview', apps:'apps', containers:'containers', projects:'projects', terminal:'terminal', revisions:'revisions', database:'database', domains:'domains', traffic:'traffic', secrets:'secrets', settings:'settings',
         deployments:'deployments', deploys:'deployments' };
-      const tools = new Set(['secrets','settings','services','logs']);
+      const tools = new Set(['services','logs']);
       const params = new URLSearchParams(location.search);
       const classic = params.get('interface') === 'classica';
-      if (classic && (tools.has(fragment) || fragment === 'projects' || fragment === 'terminal' || fragment === 'revisions' || fragment === 'database' || fragment === 'domains' || fragment === 'traffic' || fragment === 'apps' || fragment === 'containers' || fragment === 'deploys')) {
+      if (classic && (tools.has(fragment) || fragment === 'projects' || fragment === 'terminal' || fragment === 'revisions' || fragment === 'database' || fragment === 'domains' || fragment === 'traffic' || fragment === 'secrets' || fragment === 'settings' || fragment === 'apps' || fragment === 'containers' || fragment === 'deploys')) {
         document.documentElement.classList.add('legacy-tools');
         return;
       }

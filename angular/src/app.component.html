@@ -25,15 +25,15 @@
       <button type="button" [class.active]="page() === 'revisions'" (click)="selectPage('revisions')">◴ &nbsp; Revisões e espaço</button>
       <button type="button" [class.active]="page() === 'domains'" [attr.aria-current]="page() === 'domains' ? 'page' : null" (click)="selectPage('domains')">◎ &nbsp; Domínios</button>
       <button type="button" [class.active]="page() === 'traffic'" [attr.aria-current]="page() === 'traffic' ? 'page' : null" (click)="selectPage('traffic')">↕ &nbsp; Tráfego e recursos</button>
-      <a href="/?interface=classica#secrets">⚿ &nbsp; Chaves</a>
-      <a href="/?interface=classica#settings">⚙ &nbsp; Configurações</a>
+      <button type="button" [class.active]="page() === 'secrets'" [attr.aria-current]="page() === 'secrets' ? 'page' : null" (click)="selectPage('secrets')">⚿ &nbsp; Chaves e segredos</button>
+      <button type="button" [class.active]="page() === 'settings'" [attr.aria-current]="page() === 'settings' ? 'page' : null" (click)="selectPage('settings')">⚙ &nbsp; Configurações</button>
     </nav>
     <p class="note">Interface única para o uso diário. As ferramentas ainda não migradas permanecem acessíveis apenas pelo modo de compatibilidade.</p>
   </aside>
   <main class="main" id="mainContent">
     <header class="topbar">
       <button type="button" class="menu-toggle" aria-label="Abrir ferramentas e navegação" aria-controls="navigationPanel" [attr.aria-expanded]="menuOpen()" (click)="toggleMenu()">☰</button>
-      <span class="breadcrumb">Minha VPS <span aria-hidden="true">/</span> <strong>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers' : page() === 'apps' ? 'Sites e apps' : page() === 'projects' ? 'GitHub' : page() === 'terminal' ? 'Terminal' : page() === 'revisions' ? 'Revisões' : page() === 'database' ? 'PostgreSQL' : page() === 'domains' ? 'Domínios' : page() === 'traffic' ? 'Tráfego' : 'Publicações'}}</strong></span>
+      <span class="breadcrumb">Minha VPS <span aria-hidden="true">/</span> <strong>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers' : page() === 'apps' ? 'Sites e apps' : page() === 'projects' ? 'GitHub' : page() === 'terminal' ? 'Terminal' : page() === 'revisions' ? 'Revisões' : page() === 'database' ? 'PostgreSQL' : page() === 'domains' ? 'Domínios' : page() === 'traffic' ? 'Tráfego' : page() === 'secrets' ? 'Chaves' : page() === 'settings' ? 'Configurações' : 'Publicações'}}</strong></span>
       <div class="actions">
         <span class="mode">{{signedIn() ? '● Sessão ativa' : '● Acesso protegido'}}</span>
         @if (signedIn()) { <button type="button" class="secondary logout" (click)="logout()">Sair</button> }
@@ -41,7 +41,7 @@
     </header>
     <div class="content">
       <div class="heading">
-        <div><small>GERENCIAMENTO MULTIPROJETOS</small><h1>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers da VPS' : page() === 'apps' ? 'Sites e apps' : page() === 'projects' ? 'Projetos GitHub' : page() === 'terminal' ? 'Terminal VPS' : page() === 'revisions' ? 'Revisões e espaço' : page() === 'database' ? 'PostgreSQL' : page() === 'domains' ? 'Domínios e HTTPS' : page() === 'traffic' ? 'Tráfego e recursos' : 'Publicações'}}</h1>
+        <div><small>GERENCIAMENTO MULTIPROJETOS</small><h1>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers da VPS' : page() === 'apps' ? 'Sites e apps' : page() === 'projects' ? 'Projetos GitHub' : page() === 'terminal' ? 'Terminal VPS' : page() === 'revisions' ? 'Revisões e espaço' : page() === 'database' ? 'PostgreSQL' : page() === 'domains' ? 'Domínios e HTTPS' : page() === 'traffic' ? 'Tráfego e recursos' : page() === 'secrets' ? 'Chaves e segredos' : page() === 'settings' ? 'Configurações' : 'Publicações'}}</h1>
           <p>Gerencie seus projetos e acompanhe a VPS pelo celular ou computador.</p></div>
         @if (signedIn() && (page() === 'overview' || page() === 'containers')) { <button type="button" class="primary" [disabled]="loading()" (click)="refresh()">{{loading() ? 'Consultando…' : '↻ Atualizar dados'}}</button> }
       </div>
@@ -54,7 +54,31 @@
         <section class="panel login">
           <h2>Acesso administrativo</h2>
           @if (session()?.setupRequired) {
-            <p>O administrador ainda não foi configurado. Abra as <a href="/?interface=classica#settings">configurações avançadas</a> para concluir a configuração inicial.</p>
+            <p>O administrador ainda não foi configurado. Utilize o código inicial guardado exclusivamente na VPS para criar a senha de acesso.</p>
+            <form (submit)="prepareSetup($event)" autocomplete="off">
+              <label>Código inicial da VPS
+                <input type="password" [value]="setupToken()" (input)="setupToken.set($any($event.target).value);setupPending.set(false)"
+                  autocomplete="off" spellcheck="false" required [disabled]="submitting()"/>
+              </label>
+              <label>Nova senha administrativa (14–256 caracteres)
+                <input type="password" [value]="setupPassword()" (input)="setupPassword.set($any($event.target).value);setupPending.set(false)"
+                  autocomplete="new-password" minlength="14" maxlength="256" required [disabled]="submitting()"/>
+              </label>
+              <label>Confirme a senha
+                <input type="password" [value]="setupRepeat()" (input)="setupRepeat.set($any($event.target).value);setupPending.set(false)"
+                  autocomplete="new-password" minlength="14" maxlength="256" required [disabled]="submitting()"/>
+              </label>
+              <button type="submit" class="primary" [disabled]="submitting()||!setupValid()">Preparar criação do administrador</button>
+            </form>
+            @if(setupPending()){
+              <div class="alert" role="group" aria-label="Confirmar criação de administrador">
+                <p>Confirme a criação. O código inicial só funciona uma vez e não será armazenado no Angular.</p>
+                <div class="actions">
+                  <button type="button" class="secondary" [disabled]="submitting()" (click)="cancelSetup()">Cancelar</button>
+                  <button type="button" class="primary" [disabled]="submitting()" (click)="completeSetup()">{{submitting()?'Criando…':'Confirmar configuração inicial'}}</button>
+                </div>
+              </div>
+            }
           } @else {
             <p>Use suas credenciais existentes. A senha não fica armazenada no Angular.</p>
             <form (submit)="login($event)">
@@ -108,11 +132,15 @@
           <panel-domains />
         } @else if (page() === 'traffic') {
           <panel-traffic />
+        } @else if (page() === 'secrets') {
+          <panel-secrets />
+        } @else if (page() === 'settings') {
+          <panel-settings (signedOut)="onPasswordChanged()" />
         } @else {
           <panel-deployments />
         }
       }
-      <footer>Central Angular · API Node.js/TypeScript · <a href="/?interface=classica#settings">Configurações avançadas</a></footer>
+      <footer>Central Angular · API Node.js/TypeScript · <button type="button" class="secondary" (click)="selectPage('settings')">Configurações administrativas</button></footer>
     </div>
   </main>
   <nav class="mobile-tabs" aria-label="Navegação rápida">

@@ -21,8 +21,8 @@
 | PostgreSQL | Angular em desenvolvimento | Inventário real e criação isolada com certificado; revisar estados, integração, validações e paridade mobile |
 | Domínios e DNS | Angular em desenvolvimento | Reserva, publicação, remoção e confirmação HTTPS; revisar DNS, gateway, estados e paridade mobile |
 | Tráfego e recursos | Angular em desenvolvimento | RX/TX, referência mensal, histórico de rede, gráfico de RAM/disco; validar dados reais e responsividade |
-| Chaves e segredos | Clássico | Listar/cadastrar/remover com confirmação, nunca exibir valores |
-| Configurações e conta | Clássico | Autenticação inicial, alteração de senha, limites e preferências |
+| Chaves e segredos | Angular em desenvolvimento | Inventário, criação/rotação e remoção confirmadas; auditar acessibilidade, reautenticação e limpeza de memória |
+| Configurações e conta | Angular em desenvolvimento | Configuração inicial, alteração de senha com invalidação de sessão; auditar estados e preferências |
 | Detalhes do site e serviços | Clássico | Detalhes, ações confirmadas e estados reais |
 | Limpeza da interface antiga | Pendente | Remover JS/CSS clássico e fallback **somente após** paridade integral e testes |
 
@@ -57,3 +57,9 @@
 - `/angular/#traffic` consulta os contadores reais `GET /traffic` e o histórico de memória/disco no `GET /overview`. Mostra RX/TX, ciclo de referência, alertas e gráfico de até 31 dias + 24h, com coleta automática de leitura a cada 60s enquanto a aba estiver visível.
 - `POST /traffic` muda apenas a franquia de referência e o dia de renovação (1–28), com confirmação digitada `ATUALIZAR`; não altera contrato com o provedor. Não inventar medição de faturamento. Frontend não envia segredos.
 - Os atalhos `/#traffic` apontam para o Angular, mantendo modo clássico explícito para comparação durante a migração. Sem deploy ou merge.
+
+## Incremento — Chaves e conta administrativa (31/10/2026)
+
+- `/angular/#secrets`: inventário não sensível, conexão GHCR/GitHub, inclusão/rotação por nome e exclusão. Requer confirmação digitada do identificador e senha administrativa no próprio fluxo, sem armazenar em localStorage, sessionStorage ou logs. Ao encerrar o componente ou concluir uma tentativa, sinais de segredo e senha são limpos. Reutiliza `GET/POST /secrets` e `DELETE /secrets/:name` sem novos privilégios.
+- `/angular/#settings`: alteração de senha existente por `POST /password`; após sucesso o backend invalida todas as sessões e o Angular exige login novamente. Setup inicial por `POST /setup` disponível quando `GET /session` informa `setupRequired`, com confirmação explícita; token inicial não fica salvo. `/#secrets` e `/#settings` direcionam ao Angular.
+- O modo clássico explícito é mantido para verificação de paridade enquanto existirem recursos não migrados. Sem PR, merge ou deploy até validação integral.

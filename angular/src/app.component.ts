@@ -7,6 +7,8 @@ import { RevisionsComponent } from './revisions.component';
 import { PostgresComponent } from './postgres.component';
 import { DomainsComponent } from './domains.component';
 import { TrafficComponent } from './traffic.component';
+import { SecretsComponent } from './secrets.component';
+import { SettingsComponent } from './settings.component';
 
 type Session = {authenticated: boolean; setupRequired: boolean};
 type Summary = {available: boolean; running: number | null; total: number | null; truncated?: boolean};
@@ -26,12 +28,12 @@ type Inventory = {containers?: ManagedContainer[]; readOnly?: boolean; updatedAt
 @Component({
   selector: 'panel-app',
   standalone: true,
-  imports: [DeploymentsComponent, AppsComponent, GithubProjectsComponent, TerminalComponent, RevisionsComponent, PostgresComponent, DomainsComponent, TrafficComponent],
+  imports: [DeploymentsComponent, AppsComponent, GithubProjectsComponent, TerminalComponent, RevisionsComponent, PostgresComponent, DomainsComponent, TrafficComponent, SecretsComponent, SettingsComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
 export class AppComponent implements OnInit {
-  readonly page = signal<'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains' | 'traffic'>('overview');
+  readonly page = signal<'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains' | 'traffic' | 'secrets' | 'settings'>('overview');
   readonly menuOpen = signal(false);
   readonly session = signal<Session | null>(null);
   readonly overview = signal<Overview | null>(null);
@@ -42,6 +44,12 @@ export class AppComponent implements OnInit {
   readonly notice = signal('');
   readonly username = signal('admin');
   readonly password = signal('');
+  readonly setupToken=signal('');
+  readonly setupPassword=signal('');
+  readonly setupRepeat=signal('');
+  readonly setupPending=signal(false);
+  readonly setupValid=computed(()=>this.setupToken().trim().length>0&&this.setupPassword().length>=14&&
+    this.setupPassword().length<=256&&this.setupPassword()===this.setupRepeat());
   readonly activeContainers = computed(() =>
     (this.inventory()?.containers ?? []).filter(c => c.state === 'running').length);
   readonly signedIn = computed(() => this.session()?.authenticated === true);
@@ -65,7 +73,8 @@ export class AppComponent implements OnInit {
     if (hash === 'overview' || hash === 'containers' ||
         hash === 'deployments' || hash === 'apps' || hash === 'projects' ||
         hash === 'terminal' || hash === 'revisions' ||
-        hash === 'database' || hash === 'domains' || hash === 'traffic') this.page.set(hash);
+        hash === 'database' || hash === 'domains' || hash === 'traffic' ||
+        hash === 'secrets' || hash === 'settings') this.page.set(hash);
     else this.page.set('overview');
   }
 
@@ -100,6 +109,45 @@ export class AppComponent implements OnInit {
     } catch (err) { this.error.set(this.message(err)); }
   }
 
+  prepareSetup(event:Event):void{
+    event.preventDefault();
+    if(this.submitting()||!this.session()?.setupRequired||!this.setupValid())return;
+    this.error.set('');this.setupPending.set(true);
+  }
+
+  cancelSetup():void{
+    this.setupToken.set('');this.setupPassword.set('');this.setupRepeat.set('');
+    this.setupPending.set(false);
+  }
+
+  async completeSetup():Promise<void>{
+    if(!this.setupPending()||!this.session()?.setupRequired||!this.setupValid()||this.submitting())return;
+    this.submitting.set(true);this.error.set('');
+    try{
+      const data=await this.request<{ok:boolean}>('/setup','POST',{
+        setupToken:this.setupToken().trim(),password:this.setupPassword()
+      });
+      if(data.ok!==true)throw Error('A inicialização administrativa não foi confirmada.');
+      this.cancelSetup();
+      await this.checkSession();
+      this.notice.set('Administrador criado. Entre com a nova senha para continuar.');
+    }catch(e){
+      this.error.set(this.message(e));
+      this.cancelSetup();
+    }finally{this.submitting.set(false);}
+  }
+  
+  onPasswordChanged():void {
+    this.session.set({authenticated:false,setupRequired:false});
+    this.overview.set(null);this.inventory.set(null);
+    this.password.set('');
+    this.cancelSetup();
+    this.menuOpen.set(false);
+    this.error.set('');
+    this.notice.set('Senha alterada. Entre novamente.');
+    this.selectPage('overview');
+  }
+
   async login(event: Event): Promise<void> {
     event.preventDefault();
     if (this.submitting()) return;
@@ -123,6 +171,7 @@ export class AppComponent implements OnInit {
     this.overview.set(null);
     this.inventory.set(null);
     this.password.set('');
+    this.cancelSetup();
     this.menuOpen.set(false);
   }
 
