@@ -17,10 +17,18 @@ def main():
     operation = os.environ.get('VPS_OPERATION', 'inventory')
     project = os.environ.get('VPS_PROJECT', 'infrastructure')
     request_id = os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'] + '-' + operation + '-' + project
+    if operation == 'maintain':
+        args = {
+            'action': os.environ['VPS_ACTION'],
+            'target': os.environ['VPS_TARGET'],
+            'confirm': os.environ.get('VPS_CONFIRM', '')
+        }
+    else:
+        args = {'sha': os.environ.get('VPS_SHA') or os.environ['GITHUB_SHA'],
+                'images': json.loads(os.environ.get('VPS_IMAGES', '{}'))}
     payload = {'id': request_id, 'operation': operation, 'project': project, 'oidc': oidc,
-               'args': {'sha': os.environ.get('VPS_SHA') or os.environ['GITHUB_SHA'],
-                        'images': json.loads(os.environ.get('VPS_IMAGES', '{}'))},
-               'registry_token': os.environ.get('GITHUB_TOKEN')}
+               'args': args,
+               'registry_token': os.environ.get('GITHUB_TOKEN') if operation == 'deploy' else None}
     with tempfile.TemporaryDirectory() as directory:
         key, hosts = Path(directory) / 'key', Path(directory) / 'known_hosts'
         key.write_text(os.environ['VPS_SSH_KEY'].strip() + '\n'); key.chmod(0o600)
