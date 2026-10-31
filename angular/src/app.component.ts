@@ -10,6 +10,8 @@ import { TrafficComponent } from './traffic.component';
 import { SecretsComponent } from './secrets.component';
 import { SettingsComponent } from './settings.component';
 import { LegacyServicesComponent } from './legacy-services.component';
+import { SiteDetailComponent } from './site-detail.component';
+import { validAppSlug } from './apps-policy';
 
 type Session = {authenticated: boolean; setupRequired: boolean};
 type Summary = {available: boolean; running: number | null; total: number | null; truncated?: boolean};
@@ -29,12 +31,13 @@ type Inventory = {containers?: ManagedContainer[]; readOnly?: boolean; updatedAt
 @Component({
   selector: 'panel-app',
   standalone: true,
-  imports: [DeploymentsComponent, AppsComponent, GithubProjectsComponent, TerminalComponent, RevisionsComponent, PostgresComponent, DomainsComponent, TrafficComponent, SecretsComponent, SettingsComponent, LegacyServicesComponent],
+  imports: [DeploymentsComponent, AppsComponent, GithubProjectsComponent, TerminalComponent, RevisionsComponent, PostgresComponent, DomainsComponent, TrafficComponent, SecretsComponent, SettingsComponent, LegacyServicesComponent, SiteDetailComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
 export class AppComponent implements OnInit {
-  readonly page = signal<'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains' | 'traffic' | 'secrets' | 'settings'>('overview');
+  readonly page = signal<'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains' | 'traffic' | 'secrets' | 'settings' | 'site'>('overview');
+  readonly selectedSiteSlug=signal<string|null>(null);
   readonly menuOpen = signal(false);
   readonly session = signal<Session | null>(null);
   readonly overview = signal<Overview | null>(null);
@@ -71,6 +74,14 @@ export class AppComponent implements OnInit {
 
   private syncPageFromLocation(): void {
     const hash = window.location.hash.replace(/^#\/?/, '');
+    const [view,query]=hash.split('?');
+    if(view==='site'){
+      const slug=new URLSearchParams(query??'').get('slug')??'';
+      this.selectedSiteSlug.set(validAppSlug(slug)?slug:null);
+      this.page.set('site');
+      return;
+    }
+    this.selectedSiteSlug.set(null);
     if (hash === 'overview' || hash === 'containers' ||
         hash === 'deployments' || hash === 'apps' || hash === 'projects' ||
         hash === 'terminal' || hash === 'revisions' ||

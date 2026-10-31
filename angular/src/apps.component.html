@@ -21,7 +21,7 @@
     }
     <section class="block" aria-labelledby="newAppTitle">
       <div class="block-heading"><div><h3 id="newAppTitle">Criar aplicação</h3>
-        <p>Ela será criada <strong>desligada</strong> e sem domínio público.</p></div><a href="/#apps">Abrir modo anterior</a></div>
+        <p>Ela será criada <strong>desligada</strong> e sem domínio público.</p></div></div>
       <form class="create-form" (submit)="create($event)">
         <label>Nome da aplicação
           <input [value]="slug()" (input)="updateCreate('slug',$event)" placeholder="minha-loja" required minlength="2" maxlength="40"
@@ -105,7 +105,7 @@
               <small>Se houver domínio cadastrado, a API bloqueará a remoção.</small>
             </div>
           }
-          <footer><a href="/angular/#projects">Ligar ao GitHub</a><a href="/angular/#domains">Escolher endereço</a></footer>
+          <footer><a [href]="'/angular/#site?slug='+app.slug">Detalhes e manutenção</a><a href="/angular/#projects">Ligar ao GitHub</a><a href="/angular/#domains">Escolher endereço</a></footer>
         </article>
       } @empty { <div class="empty">Ainda não existem aplicações gerenciadas. Cadastre uma acima para começar.</div> }
     </div>

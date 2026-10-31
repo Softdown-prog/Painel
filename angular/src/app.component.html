@@ -33,7 +33,7 @@
   <main class="main" id="mainContent">
     <header class="topbar">
       <button type="button" class="menu-toggle" aria-label="Abrir ferramentas e navegação" aria-controls="navigationPanel" [attr.aria-expanded]="menuOpen()" (click)="toggleMenu()">☰</button>
-      <span class="breadcrumb">Minha VPS <span aria-hidden="true">/</span> <strong>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers' : page() === 'apps' ? 'Sites e apps' : page() === 'projects' ? 'GitHub' : page() === 'terminal' ? 'Terminal' : page() === 'revisions' ? 'Revisões' : page() === 'database' ? 'PostgreSQL' : page() === 'domains' ? 'Domínios' : page() === 'traffic' ? 'Tráfego' : page() === 'secrets' ? 'Chaves' : page() === 'settings' ? 'Configurações' : 'Publicações'}}</strong></span>
+      <span class="breadcrumb">Minha VPS <span aria-hidden="true">/</span> <strong>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers' : page() === 'apps' ? 'Sites e apps' : page() === 'projects' ? 'GitHub' : page() === 'terminal' ? 'Terminal' : page() === 'revisions' ? 'Revisões' : page() === 'database' ? 'PostgreSQL' : page() === 'domains' ? 'Domínios' : page() === 'traffic' ? 'Tráfego' : page() === 'secrets' ? 'Chaves' : page() === 'settings' ? 'Configurações' : page() === 'site' ? 'Detalhes do site' : 'Publicações'}}</strong></span>
       <div class="actions">
         <span class="mode">{{signedIn() ? '● Sessão ativa' : '● Acesso protegido'}}</span>
         @if (signedIn()) { <button type="button" class="secondary logout" (click)="logout()">Sair</button> }
@@ -41,7 +41,7 @@
     </header>
     <div class="content">
       <div class="heading">
-        <div><small>GERENCIAMENTO MULTIPROJETOS</small><h1>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers da VPS' : page() === 'apps' ? 'Sites e apps' : page() === 'projects' ? 'Projetos GitHub' : page() === 'terminal' ? 'Terminal VPS' : page() === 'revisions' ? 'Revisões e espaço' : page() === 'database' ? 'PostgreSQL' : page() === 'domains' ? 'Domínios e HTTPS' : page() === 'traffic' ? 'Tráfego e recursos' : page() === 'secrets' ? 'Chaves e segredos' : page() === 'settings' ? 'Configurações' : 'Publicações'}}</h1>
+        <div><small>GERENCIAMENTO MULTIPROJETOS</small><h1>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers da VPS' : page() === 'apps' ? 'Sites e apps' : page() === 'projects' ? 'Projetos GitHub' : page() === 'terminal' ? 'Terminal VPS' : page() === 'revisions' ? 'Revisões e espaço' : page() === 'database' ? 'PostgreSQL' : page() === 'domains' ? 'Domínios e HTTPS' : page() === 'traffic' ? 'Tráfego e recursos' : page() === 'secrets' ? 'Chaves e segredos' : page() === 'settings' ? 'Configurações' : page() === 'site' ? 'Detalhes da aplicação' : 'Publicações'}}</h1>
           <p>Gerencie seus projetos e acompanhe a VPS pelo celular ou computador.</p></div>
         @if (signedIn() && (page() === 'overview' || page() === 'containers')) { <button type="button" class="primary" [disabled]="loading()" (click)="refresh()">{{loading() ? 'Consultando…' : '↻ Atualizar dados'}}</button> }
       </div>
@@ -121,6 +121,14 @@
           <section class="panel"><panel-legacy-services /></section>
         } @else if (page() === 'apps') {
           <panel-managed-apps />
+        } @else if (page() === 'site') {
+          @if(selectedSiteSlug();as slug){
+            <panel-site-detail [slug]="slug" />
+          }@else{
+            <section class="panel"><p role="alert">Identificador inválido. Abra a lista de aplicações para selecionar um site.</p>
+              <a href="/angular/#apps">Voltar às aplicações</a>
+            </section>
+          }
         } @else if (page() === 'projects') {
           <panel-github-projects />
         } @else if (page() === 'terminal') {

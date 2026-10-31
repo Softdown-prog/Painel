@@ -20,6 +20,16 @@
         document.documentElement.classList.add('legacy-tools');
         return;
       }
+      if (classic && fragment.startsWith('site?')) {
+        document.documentElement.classList.add('legacy-tools');
+        return;
+      }
+      if (!classic && fragment.startsWith('site?')) {
+        const slug = new URLSearchParams(fragment.slice(5)).get('slug') || '';
+        location.replace(/^(?=.{2,40}$)[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)
+          ? '/angular/#site?slug=' + slug : '/angular/#apps');
+        return;
+      }
       if (!classic && tools.has(fragment)) {
         location.replace('/?interface=classica#' + fragment);
         return;

@@ -23,7 +23,7 @@
 | Tráfego e recursos | Angular em desenvolvimento | RX/TX, referência mensal, histórico de rede, gráfico de RAM/disco; validar dados reais e responsividade |
 | Chaves e segredos | Angular em desenvolvimento | Inventário, criação/rotação e remoção confirmadas; auditar acessibilidade, reautenticação e limpeza de memória |
 | Configurações e conta | Angular em desenvolvimento | Configuração inicial, alteração de senha com invalidação de sessão; auditar estados e preferências |
-| Detalhes do site e serviços | Clássico | Detalhes, ações confirmadas e estados reais |
+| Detalhes do site e serviços | Angular em desenvolvimento | Resumo por app, recursos, logs, vínculos GitHub, domínio e releases; validar paridade funcional, operações e fluxo mobile |
 | Limpeza da interface antiga | Pendente | Remover JS/CSS clássico e fallback **somente após** paridade integral e testes |
 
 ## Critérios de saída
@@ -69,3 +69,10 @@
 - O inventário multiprojetos `GET /containers` **permanece apenas leitura**: nunca incluir IDs Docker, montagens, portas, labels ou ações genéricas na resposta.
 - A seção Angular `panel-legacy-services` usa somente `GET /services`, `GET /services/:id/logs` e `POST /services/:id/(start|stop|restart)` já existentes, e exclusivamente IDs `app` e `agent` após confirmação digitada. O backend/executor mantém a política de autorização. Serviço `caddy` possui logs em modo leitura, mas não oferece comandos.
 - Esta seção atende o modo legado opcional; serviços de aplicações gerenciadas têm ações separadas na aba Apps. Não ampliar ações para containers externos de Terrânia, PostgreSQL ou outros projetos sem autorização específica.
+
+## Incremento — Detalhes nativos por aplicação (31/10/2026)
+
+- Link direto `/angular/#site?slug=<slug>` no cartão de cada app. Os links legados `/#site?slug=<slug>` passam ao Angular; identificadores fora do padrão retornam à listagem antes de qualquer chamada à API. Modo clássico explícito continua disponível apenas para comparação durante a migração.
+- Leitura autorizada `GET /apps`, `GET /apps/:slug`, `GET /projects`, `GET /projects/:slug/releases`, `GET /domains`. Caso projetos ou domínios falhem, a tela mostra 'consulta indisponível', **nunca** 'não vinculado'. Domínio reservado não equivale a HTTPS confirmado.
+- Comandos de container apenas sob `/apps/:slug/(start|stop|restart)`, opções válidas de RAM/CPU por `/resources`, ociosidade por `/idle` e leitura de logs por `/logs`. Identidade validada no inventário autenticado; exige digitação do identificador e revalidação da permissão no backend. Nunca administra containers externos da VPS.
+- Os metadados e o status das releases não autorizam disparar deploys. Revisão mobile e testes de integração ponta a ponta com API real ainda são pendências da migração integral.
