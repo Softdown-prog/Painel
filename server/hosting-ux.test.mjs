@@ -71,3 +71,15 @@ test('Serviços Softload mostra somente os dois containers centrais com ações 
   assert.match(ui, /Atualizar registros/);
   assert.match(ui, /buttons\.forEach\(control => \{ control\.disabled = true;/);
 });
+
+
+test('GitHub issue bridge only accepts exact administrator-triggered web deploy', () => {
+  const yaml = file('.github/workflows/deploy-panel-web.yml');
+  assert.match(yaml, /issues:\s*\n\s*types:\s*\[opened\]/);
+  assert.match(yaml, /github\.event\.issue\.user\.id == 189416996/);
+  assert.match(yaml, /github\.event\.issue\.title == '\[VPS\] deploy panel-web'/);
+  assert.match(yaml, /VPS_PROJECT:\s*panel-web/);
+  assert.match(yaml, /VPS_OPERATION:\s*deploy/);
+  assert.doesNotMatch(yaml, /github\.event\.issue\.body|github\.event\.comment\.body/);
+  assert.doesNotMatch(yaml, /VPS_OPERATION:\s*shell|bash -c "\$\{\{/);
+});
