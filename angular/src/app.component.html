@@ -35,7 +35,7 @@
       <button type="button" class="menu-toggle" aria-label="Abrir ferramentas e navegação" aria-controls="navigationPanel" [attr.aria-expanded]="menuOpen()" (click)="toggleMenu()">☰</button>
       <span class="breadcrumb">Minha VPS <span aria-hidden="true">/</span> <strong>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers' : page() === 'apps' ? 'Sites e apps' : 'Publicações'}}</strong></span>
       <div class="actions">
-        <span class="mode">● Conectado ao painel</span>
+        <span class="mode">{{signedIn() ? '● Sessão ativa' : '● Acesso protegido'}}</span>
         @if (signedIn()) { <button type="button" class="secondary logout" (click)="logout()">Sair</button> }
       </div>
     </header>
