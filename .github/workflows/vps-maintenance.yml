@@ -1,0 +1,76 @@
+name: VPS maintenance via existing vpsops executor
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        type: choice
+        description: 'Operação administrativa controlada (sem shell livre)'
+        options: [host_summary, container_status, restart_container]
+        default: host_summary
+        required: true
+      target:
+        type: choice
+        description: 'Serviço cadastrado; para relatório do host escolha host'
+        options: [host, panel-api, panel-executor, panel-web, terrania-multiplayer]
+        default: host
+        required: true
+      confirm:
+        type: string
+        description: 'Para reiniciar, escrever RESTART:nome-do-target'
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vps-approved-maintenance
+  cancel-in-progress: false
+
+jobs:
+  maintain:
+    if: github.repository == 'Softdown-prog/Painel' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    # Create this environment with required reviewers BEFORE enabling restarts.
+    environment: vps-maintenance
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate structured action; prevent arbitrary commands
+        env:
+          ACTION: ${{ inputs.action }}
+          TARGET: ${{ inputs.target }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          python3 - <<'PY'
+          import os
+          action,target,confirm=(os.environ[k] for k in ('ACTION','TARGET','CONFIRM'))
+          if action=='host_summary':
+              assert target=='host' and not confirm
+          elif action=='container_status':
+              assert target in {'panel-api','panel-executor','panel-web','terrania-multiplayer'} and not confirm
+          elif action=='restart_container':
+              assert target in {'panel-api','panel-executor','panel-web','terrania-multiplayer'}
+              assert confirm=='RESTART:'+target
+          else:
+              raise SystemExit('Unsupported action')
+          PY
+      - name: Execute approved maintenance on VPS and verify result
+        env:
+          VPS_OPERATION: maintain
+          VPS_PROJECT: infrastructure
+          VPS_ACTION: ${{ inputs.action }}
+          VPS_TARGET: ${{ inputs.target }}
+          VPS_CONFIRM: ${{ inputs.confirm }}
+          VPS_SSH_KEY: ${{ secrets.VPS_OPERATIONS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_OPERATIONS_KNOWN_HOSTS }}
+        run: python3 operations/client.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vps-maintenance-${{ github.run_id }}
+          path: vps-result.json
+          if-no-files-found: warn
+          retention-days: 30
