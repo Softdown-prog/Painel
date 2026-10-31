@@ -1,3 +1,4 @@
+"use strict";
 let githubRepos = [];
 let githubTokenAvailable = false;
 function ge(id) {

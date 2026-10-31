@@ -3,6 +3,8 @@ dist/
 .wrangler/
 .secrets/
 node_modules/
+__pycache__/
+*.pyc
 
 # Angular workspace independente
 angular/node_modules/

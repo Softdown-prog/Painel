@@ -1,3 +1,4 @@
+"use strict";
 /** Same-origin transport shared by all screens. Never repeats administrative operations. */
 (() => {
     class PanelApiError extends Error {

@@ -1,3 +1,4 @@
+"use strict";
 (() => {
     const get = (id) => document.getElementById(id);
     const fmt = (value) => value >= 1024 ** 4 ? (value / 1024 ** 4).toFixed(2) + ' TB' : value >= 1024 ** 3 ? (value / 1024 ** 3).toFixed(2) + ' GB' : value >= 1024 ** 2 ? (value / 1024 ** 2).toFixed(1) + ' MB' : value + ' B';

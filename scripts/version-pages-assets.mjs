@@ -21,4 +21,5 @@ if (count < 10 || !rewritten.includes('terminal-ui.js?v=')) {
   throw new Error('Unexpected Pages HTML: static assets were not versioned');
 }
 writeFileSync(file, rewritten);
+writeFileSync(join(process.env.PAGES_DIST_DIR || 'dist', 'release.json'), JSON.stringify({ sha: process.env.GITHUB_SHA }) + '\n');
 console.log('Prepared ' + count + ' versioned static assets for Pages');

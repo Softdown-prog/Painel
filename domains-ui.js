@@ -1,3 +1,4 @@
+"use strict";
 (() => {
     const get = (id) => {
         const target = document.getElementById(id);

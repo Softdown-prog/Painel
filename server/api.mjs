@@ -138,7 +138,7 @@ async function handler(req, res) {
   const url = new URL(req.url, 'http://panel-api.local');
   const path = url.pathname;
   const ip = clientIp(req);
-  if (path === '/session' && req.method === 'GET') return send(res, 200, { authenticated: session(req), setupRequired: !existsSync(adminFile), legacySoftload: legacyEntries.length > 0 });
+  if (path === '/session' && req.method === 'GET') return send(res, 200, { authenticated: session(req), setupRequired: !existsSync(adminFile), legacySoftload: legacyEntries.length > 0, revision: process.env.PANEL_RELEASE_SHA || null });
   if (path === '/setup' && req.method === 'POST') {
     if (existsSync(adminFile)) return send(res, 409, { error: 'Já configurado' });
     if (blocked(ip)) return send(res, 429, { error: 'Tente mais tarde' });
