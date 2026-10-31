@@ -28,7 +28,8 @@ class Docker:
             ["docker", *args], capture_output=True, text=True, timeout=25, check=False
         )
         if proc.returncode:
-            if missing_ok and proc.returncode == 1 and "No such network" in proc.stderr:
+            if missing_ok and proc.returncode == 1 and ("no such network" in proc.stderr.lower() or
+                    ("network" in proc.stderr.lower() and "not found" in proc.stderr.lower())):
                 return None
             raise RuntimeError("Docker command failed: " + args[0] + " " + args[1])
         return proc.stdout.strip()
