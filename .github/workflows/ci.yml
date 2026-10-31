@@ -21,6 +21,7 @@ jobs:
           python3 -m pip install 'cryptography>=43,<50'
           python3 -m unittest discover -s operations -p 'test_*.py' -v
           bash -n operations/install-vps.sh
+          bash -n operations/upgrade-vpsops-maintenance.sh
       - run: docker compose -f server/compose.yaml -f server/compose.web.yaml config --quiet
       - name: Enforce staging frontend isolation
         run: |
