@@ -4,6 +4,10 @@ Painel: https://panel.analysepro.com (alternativo: https://softload-vps-panel.pa
 
 Cada push na `main` executa `.github/workflows/deploy-pages.yml`: testes, build do frontend e publicação no projeto Cloudflare Pages `softload-vps-panel`. O workflow usa um token exclusivo `Pages Write` armazenado em `CLOUDFLARE_API_TOKEN` nos segredos GitHub. `CLOUDFLARE_ACCOUNT_ID` está no mesmo local. As credenciais da API privada da VPS permanecem nos segredos do Cloudflare Pages.
 
+## Frontend na VPS (migração preparada, sem troca do domínio)
+
+Há uma alternativa opcional ao Cloudflare Pages: `web/Dockerfile` + `web/server.mjs` + `server/compose.web.yaml` servem a interface diretamente no Docker da VPS e encaminham `/api/*` com a chave privada **somente no servidor**. O serviço `panel-web` fica na rede administrativa, sem porta publicada e sem Docker socket; não substitui API/executor, Caddy nem Tunnel. O workflow Pages **continua ativo** enquanto a nova rota não for instalada, protegida e validada. Procedimento, testes e rollback: [Migração do frontend para VPS](docs/MIGRACAO-FRONTEND-VPS.md).
+
 ## Comece aqui — sem conhecer Docker
 
 O painel é genérico: nenhum projeto hospedado precisa existir para a API iniciar ou para o administrador entrar. A configuração base possui rede administrativa própria e não monta arquivos da Softload. Os dados e identificadores técnicos existentes foram preservados. Leia [Painel independente dos projetos](docs/PAINEL-GENERICO.md) para a arquitetura, compatibilidade opcional e implantação coordenada de API/túnel.
