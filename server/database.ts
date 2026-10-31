@@ -167,6 +167,7 @@ function saveCredential(dir: string, slug: string, record: Record<string, string
   const file = join(dir, slug + ".json");
   const fd = openSync(file, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
   try { writeSync(fd, JSON.stringify(record) + "\n"); }
+  catch (error) { try { unlinkSync(file); } catch { /* already removed */ } throw error; }
   finally { closeSync(fd); }
   return file;
 }
@@ -209,7 +210,7 @@ export async function createProjectDatabase(
     if (admin.rows[0]?.superuser !== true)
       throw new ProvisionError(403, "Conta administrativa PostgreSQL não possui privilégio para criar bancos.");
     const existing = await client.query(
-      "SELECT (SELECT COUNT(*)::int FROM pg_database WHERE datname LIKE 'p\_%') AS databases, " +
+      "SELECT (SELECT COUNT(*)::int FROM pg_database WHERE left(datname,2) = 'p_') AS databases, " +
       "(SELECT COUNT(*)::int FROM pg_database WHERE datname = '" + pair.db + "') AS database_exists, " +
       "(SELECT COUNT(*)::int FROM pg_roles WHERE rolname = '" + pair.role + "') AS role_exists"
     );
