@@ -140,5 +140,112 @@ class Deployment(unittest.TestCase):
         self.assertNotIn("'--remove-orphans'",source)
         self.assertNotIn("'docker', 'restart'",source)
 
+
+
+class WebDeployment(unittest.TestCase):
+    def test_policy_isolated_project_and_workflow(self):
+        repo = POLICY['repositories']['1433232532']
+        self.assertIn('deploy-panel-web.yml',repo['workflows'])
+        self.assertIn('panel-web',repo['projects'])
+        p = POLICY['projects']['panel-web']
+        self.assertEqual(p['adapter'],'web')
+        self.assertEqual(p['containers'],{'web':'softload-panel-web'})
+        self.assertEqual(p['images'],{'web':'ghcr.io/softdown-prog/painel-web'})
+        c=dict(claims(), workflow_ref='Softdown-prog/Painel/.github/workflows/deploy-panel-web.yml@refs/heads/main')
+        self.assertEqual(receiver.validate_claims(c,POLICY,'panel-web','deploy')['name'],'Softdown-prog/Painel')
+        for wrong in [
+            dict(c,ref='refs/heads/evil'),dict(c,event_name='pull_request'),
+            dict(c,repository_id='1438758092'),dict(c,actor_id='1'),
+            dict(c,workflow_ref='Softdown-prog/Painel/.github/workflows/evil.yml@refs/heads/main')
+        ]:
+            with self.assertRaises(ValueError):
+                receiver.validate_claims(wrong,POLICY,'panel-web','deploy')
+
+    def test_web_compose_only_web_and_private_control_network(self):
+        from web import web_config, CONTAINER, ORIGIN
+        sha='a'*40
+        config=web_config('ghcr.io/softdown-prog/painel-web@sha256:'+'b'*64,sha)
+        self.assertEqual(set(config['services']),{'panel-web'})
+        svc=config['services']['panel-web']
+        self.assertEqual(svc['container_name'],CONTAINER)
+        self.assertEqual(svc['environment']['PANEL_PUBLIC_ORIGIN'],ORIGIN)
+        self.assertTrue(svc['read_only'])
+        self.assertEqual(svc['cap_drop'],['ALL'])
+        self.assertFalse(svc.get('ports'))
+        self.assertEqual(config['networks']['proxy']['name'],'vps_panel_control')
+        self.assertEqual(svc['volumes'],['/etc/softload-panel/edge-key:/run/secrets/panel-edge-key:ro'])
+        with self.assertRaises(ValueError):
+            web_config('image',sha,'https://evil.example.test')
+
+    def test_web_verify_requires_running_healthy_exact_sha_and_ownership(self):
+        from web import verify_web
+        sha='a'*40
+        project=POLICY['projects']['panel-web']
+        container={'Image':'sha256:'+'b'*64,'State':{'Running':True,'Health':{'Status':'healthy'}},
+          'Config':{'Image':'valid-image','Labels':{'com.docker.compose.project':'softload-panel',
+                    'com.docker.compose.service':'panel-web'}},
+          'NetworkSettings':{'Networks':{'vps_panel_control':{}}},
+          'HostConfig':{'PortBindings':{}}}
+        image={'Config':{'Labels':{'org.opencontainers.image.revision':sha,
+               'org.opencontainers.image.source':'https://github.com/Softdown-prog/Painel'}},'RepoDigests':[]}
+        with patch('web.inspect',return_value=container),patch('web.image_info',return_value=image),\
+             patch('web.web_probe') as probe:
+            result=verify_web(project,{'sha':sha})
+            self.assertTrue(result['stagingVerified'])
+            self.assertFalse(result['publicVerified'])
+            probe.assert_called_once()
+            with self.assertRaises(ValueError):
+                verify_web(project,{'sha':'short'})
+        with patch('web.inspect',return_value=container),patch('web.image_info',return_value={'Config':{'Labels':{}}}):
+            with self.assertRaises(ValueError):
+                verify_web(project,{'sha':sha})
+
+    def test_web_staging_failure_does_not_promote_previous_service(self):
+        from web import web_activate
+        from unittest.mock import MagicMock
+        sha='a'*40
+        project=POLICY['projects']['panel-web']
+        images={'web':'ghcr.io/softdown-prog/painel-web@sha256:'+'b'*64}
+        cfg=b'{"services":{"panel-web":{}},"networks":{"proxy":{}}}'
+        calls=[]
+        def fake_run(argv,**kwargs):
+            calls.append(argv)
+            if 'config' in argv:return cfg
+            return b''
+        with tempfile.TemporaryDirectory() as directory,patch('web.preflight'),\
+             patch('web.optional_inspect',return_value=None),\
+             patch('web.web_probe',side_effect=RuntimeError('candidate unhealthy')),\
+             patch('web.run',side_effect=fake_run):
+            p=dict(project,releases=directory)
+            with self.assertRaises(RuntimeError):
+                web_activate(p,sha,images,None)
+        self.assertTrue(any('run' in call for call in calls))
+        self.assertTrue(any('rm' in call and '-f' in call for call in calls))
+        self.assertFalse(any('up' in call for call in calls))
+        self.assertFalse(any('down' in call or 'prune' in call for call in calls))
+
+    def test_web_missing_previous_rolls_back_only_new_frontend(self):
+        from web import web_activate
+        sha='a'*40
+        project=dict(POLICY['projects']['panel-web'])
+        images={'web':'ghcr.io/softdown-prog/painel-web@sha256:'+'b'*64}
+        calls=[]
+        def fake_run(argv,**kwargs):
+            calls.append(argv)
+            if 'config' in argv:return b'{"services":{"panel-web":{}},"networks":{"proxy":{}}}'
+            return b''
+        with tempfile.TemporaryDirectory() as directory,patch('web.preflight'),\
+             patch('web.optional_inspect',return_value=None),\
+             patch('web.web_probe'),patch('web.unrelated_ids',return_value={}),\
+             patch('web.wait_healthy',side_effect=RuntimeError('unhealthy')),\
+             patch('web.run',side_effect=fake_run):
+            project['releases']=directory
+            with self.assertRaises(RuntimeError):
+                web_activate(project,sha,images,None)
+        self.assertTrue(any('up' in call and call[-1]=='panel-web' for call in calls))
+        self.assertTrue(any('stop' in call and call[-1]=='panel-web' for call in calls))
+        self.assertTrue(any('rm' in call and call[-1]=='panel-web' for call in calls))
+        self.assertFalse(any('--remove-orphans' in call for call in calls))
+
 if __name__ == '__main__':
     unittest.main()

@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 import secrets
 import subprocess
+import time
 
 from driver import atomic_json, image_info, inspect, run, wait_healthy
 
@@ -56,7 +57,16 @@ def preflight():
         raise ValueError('Panel API is not on the authorized network')
 
 def web_probe(name, sha):
-    run(['docker', 'exec', '-e', 'EXPECTED_SHA='+sha, name, 'node', '-e', PROBE_JS], timeout=80)
+    last_error = None
+    for attempt in range(15):
+        try:
+            run(['docker', 'exec', '-e', 'EXPECTED_SHA='+sha, name, 'node', '-e', PROBE_JS], timeout=80)
+            return
+        except subprocess.CalledProcessError as error:
+            last_error = error
+            if attempt < 14:
+                time.sleep(2)
+    raise RuntimeError('Panel web internal staging probe failed') from last_error
 
 def verify_web(project, args):
     sha=args.get('sha')
