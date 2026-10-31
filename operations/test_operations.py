@@ -201,7 +201,7 @@ class WebDeployment(unittest.TestCase):
                 verify_web(project,{'sha':sha})
 
     def test_web_staging_failure_does_not_promote_previous_service(self):
-        from web import web_activate
+        from web import _activate_unlocked as web_activate
         from unittest.mock import MagicMock
         sha='a'*40
         project=POLICY['projects']['panel-web']
@@ -225,7 +225,7 @@ class WebDeployment(unittest.TestCase):
         self.assertFalse(any('down' in call or 'prune' in call for call in calls))
 
     def test_web_missing_previous_rolls_back_only_new_frontend(self):
-        from web import web_activate
+        from web import _activate_unlocked as web_activate
         sha='a'*40
         project=dict(POLICY['projects']['panel-web'])
         images={'web':'ghcr.io/softdown-prog/painel-web@sha256:'+'b'*64}
