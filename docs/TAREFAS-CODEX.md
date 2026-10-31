@@ -394,3 +394,6 @@ Guia de uso: [GUIA-RAPIDO.md](GUIA-RAPIDO.md). Domínios técnicos: [domain-rout
 
 ### Angular — inventário de containers pesquisável (branch 31/10/2026)
 **Código:** filtros locais por projeto, estado e busca por nome/imagem; indicadores de total e subtotal, limites de lista truncada e estado sem dados mantidos. **Segurança:** o GET /containers continua somente leitura, sem Docker socket no frontend nem operações novas. **Testes:** filtros unitários no arquivo `server/angular-overview.test.mjs`; validar CI no SHA final. **Publicado / VPS:** não; revisar mobile 320/360/390/768px com sessão real antes de qualquer merge.
+
+### Angular — validade da sessão e confirmação do logout (branch, 31/10/2026)
+**Implementado:** revalidação periódica do `/session` mesmo fora da visão geral, checagem ao retornar à aba/navegar, bloqueio do UI quando sessão não é confirmada, distinção de 401 de autenticação e 403 de autorização, segurança contra resultado atrasado e repetição explícita do logout quando a VPS não confirmou. A senha de login é limpa mesmo se a tentativa falhar. **Testes:** `server/angular-overview.test.mjs`. **Pendente:** verificação de fluxos reais e celular, CI do commit final. **Sem publicação ou merge.**

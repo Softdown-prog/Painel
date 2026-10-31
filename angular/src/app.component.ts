@@ -14,8 +14,8 @@ import { SiteDetailComponent } from './site-detail.component';
 import { validAppSlug } from './apps-policy';
 import {parseOverview,parseInventory,capacityAlerts,readingFresh,type HostOverview,type HostInventory} from './overview-state';
 import {filterInventory,inventoryProjects,type InventoryStatusFilter} from './inventory-view';
+import {parseAdminSession,expiredProtectedSession,type AdminSession} from './session-state';
 
-type Session = {authenticated: boolean; setupRequired: boolean};
 @Component({
   selector: 'panel-app',
   standalone: true,
@@ -27,7 +27,7 @@ export class AppComponent implements OnInit,OnDestroy {
   readonly page = signal<'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains' | 'traffic' | 'secrets' | 'settings' | 'site'>('overview');
   readonly selectedSiteSlug=signal<string|null>(null);
   readonly menuOpen = signal(false);
-  readonly session = signal<Session | null>(null);
+  readonly session = signal<AdminSession | null>(null);
   readonly overview = signal<HostOverview | null>(null);
   readonly inventory = signal<HostInventory | null>(null);
   readonly overviewIssue=signal('');
@@ -40,6 +40,9 @@ export class AppComponent implements OnInit,OnDestroy {
     query:this.inventorySearch(),status:this.inventoryStatus(),project:this.inventoryProject()
   }));
   private authEpoch=0;
+  private sessionCheckId=0;
+  readonly sessionChecking=signal(false);
+  readonly logoutUnconfirmed=signal(false);
   private timer:ReturnType<typeof setInterval>|null=null;
   private destroyed=false;
   readonly clock=signal(Date.now());
@@ -63,18 +66,25 @@ export class AppComponent implements OnInit,OnDestroy {
 
   async ngOnInit(): Promise<void> {
     this.syncPageFromLocation();
-    // A host is polled only while its metrics/inventory screen is visible and the admin is signed in.
+    // Verify the administrative session on all pages, not only the metrics dashboard.
     this.timer=setInterval(()=>{
       this.clock.set(Date.now());
-      if(document.visibilityState==='visible'&&this.signedIn()&&
-        (this.page()==='overview'||this.page()==='containers'))void this.refresh(true);
+      if(document.visibilityState==='visible'&&this.signedIn())void this.revalidateVisiblePage();
     },60_000);
-    await this.checkSession();
+    if(await this.checkSession()&&(this.page()==='overview'||this.page()==='containers'))
+      await this.refresh();
+  }
+
+  private async revalidateVisiblePage():Promise<void> {
+    if(this.destroyed||!this.signedIn()||this.logoutUnconfirmed())return;
+    if(await this.checkSession()&&(this.page()==='overview'||this.page()==='containers'))
+      await this.refresh(true);
   }
 
   ngOnDestroy():void {
     this.destroyed=true;
     this.authEpoch++;
+    this.sessionCheckId++;
     if(this.timer!==null)clearInterval(this.timer);
     this.timer=null;
     this.clearReadings();
@@ -83,8 +93,7 @@ export class AppComponent implements OnInit,OnDestroy {
   @HostListener('document:visibilitychange')
   onVisibilityChange():void {
     this.clock.set(Date.now());
-    if(document.visibilityState==='visible'&&this.signedIn()&&
-      (this.page()==='overview'||this.page()==='containers'))void this.refresh(true);
+    if(document.visibilityState==='visible'&&this.signedIn())void this.revalidateVisiblePage();
   }
 
   @HostListener('window:hashchange')
@@ -92,9 +101,8 @@ export class AppComponent implements OnInit,OnDestroy {
     const previous=this.page();
     this.syncPageFromLocation();
     this.menuOpen.set(false);
-    if(previous!==this.page()&&this.signedIn()&&
-       (this.page()==='overview'||this.page()==='containers')&&document.visibilityState==='visible')
-      void this.refresh(true);
+    if(previous!==this.page()&&this.signedIn()&&document.visibilityState==='visible')
+      void this.revalidateVisiblePage();
   }
 
   @HostListener('document:keydown.escape')
@@ -150,6 +158,10 @@ export class AppComponent implements OnInit,OnDestroy {
       method, ...(payload ? {headers: {'content-type':'application/json'},body:JSON.stringify(payload)} : {}),
       credentials: 'same-origin', redirect: 'error', cache: 'no-store'
     });
+    if(expiredProtectedSession(response.status,path)){
+      if(this.signedIn())this.lockSession('Sessão administrativa expirada. Faça login novamente.');
+      throw Error('Sessão administrativa expirada. Faça login novamente.');
+    }
     const data: unknown = await response.json();
     if (!data || typeof data !== 'object' || Array.isArray(data))
       throw new Error('A API da VPS devolveu uma resposta inesperada.');
@@ -160,18 +172,47 @@ export class AppComponent implements OnInit,OnDestroy {
     return data as T;
   }
 
-  async checkSession(): Promise<void> {
+  private lockSession(message:string):void {
+    this.authEpoch++;
+    this.sessionCheckId++;
+    this.session.set({authenticated:false,setupRequired:false});
+    this.clearReadings();
+    this.password.set('');
+    this.cancelSetup();
+    this.menuOpen.set(false);
+    this.error.set(message);
+  }
+
+  async checkSession():Promise<boolean> {
+    if(this.destroyed||this.logoutUnconfirmed())return false;
+    const checkId=++this.sessionCheckId;
     const epoch=this.authEpoch;
-    this.error.set('');
+    this.sessionChecking.set(true);
     try {
-      const session=await this.request<Session>('/session');
-      if(epoch!==this.authEpoch)return;
-      if(typeof session.authenticated!=='boolean'||typeof session.setupRequired!=='boolean')
-        throw Error('Não foi possível validar a sessão administrativa.');
+      const session=parseAdminSession(await this.request<unknown>('/session'));
+      if(epoch!==this.authEpoch||checkId!==this.sessionCheckId||this.destroyed)return false;
+      if(!session.authenticated){
+        if(this.signedIn())this.lockSession('Sessão administrativa encerrada. Faça login novamente.');
+        else this.clearReadings();
+        this.session.set(session);
+        return false;
+      }
       this.session.set(session);
-      if(session.authenticated)await this.refresh();
-      else{this.authEpoch++;this.clearReadings();}
-    }catch(error){if(epoch===this.authEpoch)this.error.set(this.message(error));}
+      this.error.set('');
+      return true;
+    }catch(error){
+      if(epoch===this.authEpoch&&checkId===this.sessionCheckId&&!this.destroyed){
+        const reason=this.signedIn()
+          ? 'Não foi possível revalidar a sessão. A área administrativa foi bloqueada até nova confirmação.'
+          : this.message(error);
+        this.lockSession(reason);
+        this.session.set(null);
+      }
+      return false;
+    }finally{
+      if(checkId===this.sessionCheckId||this.destroyed||!this.signedIn())
+        this.sessionChecking.set(false);
+    }
   }
 
   private clearReadings():void{
@@ -211,6 +252,8 @@ export class AppComponent implements OnInit,OnDestroy {
   
   onPasswordChanged():void {
     this.authEpoch++;
+    this.sessionCheckId++;
+    this.logoutUnconfirmed.set(false);
     this.session.set({authenticated:false,setupRequired:false});
     this.clearReadings();
     this.password.set('');
@@ -223,29 +266,52 @@ export class AppComponent implements OnInit,OnDestroy {
 
   async login(event: Event): Promise<void> {
     event.preventDefault();
-    if (this.submitting()) return;
+    if(this.submitting())return;
+    const epoch=this.authEpoch;
     this.submitting.set(true);
     this.error.set('');
     try {
-      await this.request<{ok: boolean}>('/login', 'POST', {
-        username: this.username().trim(), password: this.password()
+      const result=await this.request<{ok:boolean}>('/login','POST',{
+        username:this.username().trim(),password:this.password()
       });
+      if(epoch!==this.authEpoch||this.destroyed)return;
+      if(result.ok!==true)throw Error('O servidor não confirmou a entrada.');
+      this.logoutUnconfirmed.set(false);
+      if(await this.checkSession()&&(this.page()==='overview'||this.page()==='containers'))
+        await this.refresh();
+    }catch(err){
+      if(epoch===this.authEpoch&&!this.destroyed)this.error.set(this.message(err));
+    }finally{
       this.password.set('');
-      await this.checkSession();
-    } catch (err) { this.error.set(this.message(err)); }
-    finally { this.submitting.set(false); }
+      this.submitting.set(false);
+    }
   }
 
-  async logout(): Promise<void> {
-    this.authEpoch++;
+  async logout():Promise<void> {
+    this.lockSession('');
+    this.logoutUnconfirmed.set(false);
+    try{
+      const result=await this.request<{ok:boolean}>('/logout','POST');
+      if(result.ok!==true)throw Error('Saída não confirmada.');
+      this.notice.set('Sessão encerrada no servidor.');
+    }catch{
+      this.logoutUnconfirmed.set(true);
+      this.error.set('A interface foi bloqueada, mas o servidor não confirmou a saída. Tente encerrar a sessão novamente antes de deixar este dispositivo.');
+    }
+  }
+
+  async retryLogout():Promise<void> {
+    if(!this.logoutUnconfirmed()||this.submitting())return;
+    this.submitting.set(true);
     this.error.set('');
-    this.session.set({authenticated:false,setupRequired:false});
-    this.clearReadings();
-    this.password.set('');
-    this.cancelSetup();
-    this.menuOpen.set(false);
-    try{await this.request('/logout','POST');}
-    catch{this.error.set('Não foi possível confirmar a saída no servidor. Tente novamente antes de deixar o dispositivo.');}
+    try{
+      const result=await this.request<{ok:boolean}>('/logout','POST');
+      if(result.ok!==true)throw Error('Saída não confirmada.');
+      this.logoutUnconfirmed.set(false);
+      this.notice.set('Saída confirmada pelo servidor.');
+    }catch{
+      this.error.set('O servidor ainda não confirmou a saída. Verifique sua conexão e tente novamente.');
+    }finally{this.submitting.set(false);}
   }
 
   async refresh(automatic=false):Promise<void>{

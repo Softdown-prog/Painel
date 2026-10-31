@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {parseOverview,parseInventory,capacityAlerts,readingFresh} from '../angular/src/overview-state.ts';
+import {parseAdminSession,expiredProtectedSession} from '../angular/src/session-state.ts';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const stamp='2026-10-31T17:00:00.000Z';
 const good=()=>({updatedAt:stamp,containerSummary:{available:true,running:2,total:3},cpu:{load1:1.5,cores:4},disk:{used:1024,total:2048}});
@@ -105,4 +106,32 @@ test('container inventory filters are local, project-aware and do not expose lif
  assert.match(html,/Nenhum container corresponde aos filtros atuais/);
  assert.match(html,/Os filtros pesquisam somente os containers recebidos/);
  assert.doesNotMatch(html,/\/containers\/(?:start|stop|restart|delete)/);
+});
+
+test('administrative session is parsed without trusting incomplete or malformed responses',()=>{
+ assert.deepEqual(parseAdminSession({authenticated:false,setupRequired:true,secret:'ignored'}),
+   {authenticated:false,setupRequired:true});
+ assert.deepEqual(parseAdminSession({authenticated:true,setupRequired:false}),
+   {authenticated:true,setupRequired:false});
+ for(const raw of [null,[],{}, {authenticated:'yes',setupRequired:false},
+   {authenticated:true,setupRequired:null}])
+   assert.throws(()=>parseAdminSession(raw),/sessão administrativa/);
+ assert.equal(expiredProtectedSession(401,'/overview'),true);
+ assert.equal(expiredProtectedSession(401,'/containers'),true);
+ assert.equal(expiredProtectedSession(401,'/login'),false);
+ assert.equal(expiredProtectedSession(401,'/session'),false);
+ assert.equal(expiredProtectedSession(403,'/secrets'),false);
+});
+test('Angular revalidates every visible session and refuses unconfirmed logout',()=>{
+ const component=read('angular/src/app.component.ts'),html=read('angular/src/app.component.html');
+ assert.match(component,/void this\.revalidateVisiblePage\(\)/);
+ assert.match(component,/document\.visibilityState==='visible'&&this\.signedIn\(\)/);
+ assert.match(component,/parseAdminSession\(await this\.request<unknown>\('\/session'\)\)/);
+ assert.match(component,/this\.lockSession\('Sessão administrativa encerrada/);
+ assert.match(component,/expiredProtectedSession\(response\.status,path\)/);
+ assert.match(component,/this\.logoutUnconfirmed\.set\(true\)/);
+ assert.match(component,/this\.sessionCheckId\+\+/);
+ assert.match(html,/Tentar encerrar sessão novamente/);
+ assert.match(html,/Verificar sessão/);
+ assert.doesNotMatch(component,/localStorage|sessionStorage/);
 });

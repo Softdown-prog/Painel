@@ -107,3 +107,11 @@
 - A contagem filtrada sempre distingue resultados da última leitura válida do total conhecido; listas truncadas pela API não são apresentadas como varredura completa. Estado diferente de `running` é rotulado “Não em execução”, sem assumir que todos estejam parados.
 - Filtros são descartados ao encerrar a sessão e jamais são persistidos no navegador. Inventário de containers externos permanece **somente leitura**, sem ações de ciclo de vida nem exposição de IDs Docker.
 - Testes unitários de busca com acentos, filtragem por estado/projeto e nenhuma leitura confirmada adicionados a `server/angular-overview.test.mjs`. Pendente validação em navegador real no Android e revisão completa da paridade com o legado.
+
+## Incremento — ciclo de vida de sessão Angular (31/10/2026)
+
+- Tela Angular verifica o cookie administrativo com `GET /session` ao carregar, a cada 60s com aba visível em **todas** as páginas autenticadas, ao voltar à aba e após trocar de rota. A verificação é independente das métricas; não exige permissão adicional.
+- Qualquer sessão rejeitada, resposta não verificável ou erro de conexão na checagem bloqueia imediatamente a interface, limpa leituras e formulários sensíveis e impede apresentar painéis como autenticados. `401` em consulta protegida também bloqueia, mas `401` em login e `403` por permissão não são interpretados como expiração.
+- Um contador de geração impede que uma confirmação tardia restaure a interface após logout. Tentativas de login limpam a senha também em caso de falha.
+- Logout bloqueia a interface imediatamente, mas não declara sucesso do servidor sem `{ok:true}`; em falha mantém o aviso e um botão explícito para repetir `POST /logout`. Configuração inicial e alteração de senha preservam suas confirmações.
+- Testes unitários cobrem validação da sessão, erros 401/403 e vínculos do fluxo no Angular. Pendente teste autenticado em navegador e Android, com a VPS desligada e sessões expiradas. **Somente branch:** nenhum deploy.
