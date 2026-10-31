@@ -3,7 +3,7 @@
   type Stage = { kind: 'running'|'success'|'failed'|'warning'|'neutral'; label: string };
   type LiveRun = { repository:string; slug:string; sha:string; runId:number; createdAt:string;
     ci:Stage; vps:Stage; url:string };
-  const summary = document.getElementById('revisionActivitySummary');
+  const summary = document.getElementById('revisionActivitySummary')!;
   if (!summary) return;
   const phases: Record<string,string> = {
     queued:'Na fila da VPS', importing:'Importando imagem', staging:'Preparando versão',
