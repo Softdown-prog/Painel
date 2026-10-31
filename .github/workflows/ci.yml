@@ -23,6 +23,23 @@ jobs:
       - run: docker compose -f server/compose.yaml -f server/compose.secrets.yaml config --quiet
       - run: docker compose -f server/compose.yaml -f server/compose.legacy-softload.yaml config --quiet
       - run: docker compose -f server/compose.yaml -f server/compose.postgres.yaml config --quiet
+      - name: Verify PostgreSQL overlay preserves Panel and DB networks
+        run: |
+          docker compose -f server/compose.yaml -f server/compose.postgres.yaml config --format json | python3 -c '
+          import json,sys
+          data=json.load(sys.stdin)
+          api=data["services"]["api"]
+          executor=data["services"]["executor"]
+          assert set(api["networks"]) == {"proxy","postgres_shared"}, "API must keep the tunnel and DB networks"
+          assert data["networks"]["proxy"]["name"] == "vps_panel_control"
+          assert data["networks"]["postgres_shared"]["name"] == "vps_pg_private"
+          assert data["networks"]["postgres_shared"]["external"] is True
+          assert executor["network_mode"] == "none"
+          assert api["environment"]["PANEL_POSTGRES_ENABLED"] == "1"
+          assert not api.get("ports")
+          print("PASS: PostgreSQL overlay preserves control plane and isolation")
+          '
+      - run: bash -n server/postgres-preflight-vps.sh
       - run: docker compose -f server/tunnel.compose.yaml config --quiet
       - name: Verify independent control-plane configuration
         run: |

@@ -6,6 +6,9 @@
 
 **Limite atual de capacidade:** são permitidas até **8 aplicações gerenciadas** por instalação. Esse teto é uma proteção temporária do protótipo, não o desenho final de hospedagem de clientes. Aumentar o limite exige controle por servidor, cotas, separação de clientes e observabilidade (tarefa C07).
 
+### Ativação PostgreSQL — preflight e proteção das redes (nova etapa)
+Correção de segurança de deploy: o overlay de PostgreSQL mantém explicitamente as redes de administração (proxy) e banco privado. O CI verifica que a API continua acessível pelo túnel e o executor continua sem rede. Foi criado o diagnóstico somente leitura `server/postgres-preflight-vps.sh`. **Ainda não foi aplicado em produção.** Próximo passo: identificar a instalação/overlays efetivos e programar atualização isolada da API, sem interromper o acesso do painel nem outros projetos. Não afirmar status conectado antes de verificar a API da VPS.
+
 ### Banco de Dados — PR de integração real somente leitura
 A instância PostgreSQL 18 foi confirmada pelo operador na VPS, com container vps-postgres e teste de criação/remoção de banco. Esta branch introduz integração opt-in de status e listagem pelo overlay server/compose.postgres.yaml. Sem habilitar a flag, nenhuma conexão será feita. Código proposto no PR #22 (branch feat/postgres-live-readonly-panel); Console CI aprovado na revisão eb994e7 (run 41151858886), Docker integration smoke aprovado (run 41151858841). Frontend/API não publicados nem validados na VPS. A versão com teste extra do overlay ainda exige novo CI. Ver docs/BANCO-DE-DADOS.md. Operações de escrita e isolamento entre projetos continuam pendentes; a instância atual usa trust sem senha.
 
