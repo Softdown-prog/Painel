@@ -17,7 +17,7 @@
       target.textContent = 'Aguardando pelo menos duas leituras diferentes.';
       return { count: values.length, label: 'Histórico começando' };
     }
-    const width = 360, height = 105, left = 8, right = 352, top = 9, bottom = 90;
+    const left = 8, right = 352, top = 9, bottom = 90;
     const minTime = first.time, maxTime = last.time;
     const x = (t: number) => left + (t-minTime)/(maxTime-minTime)*(right-left);
     const y = (v: number) => bottom-(v/100)*(bottom-top);

@@ -17,7 +17,7 @@ export function parseProcNetDev(text: string, device: string): Counters | null {
   const rx = values[0], tx = values[8];
   return typeof rx === 'number' && typeof tx === 'number' && Number.isSafeInteger(rx) && Number.isSafeInteger(tx) && rx >= 0 && tx >= 0 ? { rx, tx } : null;
 }
-function defaults(): Store { return { version: 1, interface: process.env.PANEL_TRAFFIC_INTERFACE || 'eth0', days: [], settings: { allowanceBytes: TB, resetDay: 1 } }; }
+function defaults(): Store { return { version: 1, interface: process.env['PANEL_TRAFFIC_INTERFACE'] || 'eth0', days: [], settings: { allowanceBytes: TB, resetDay: 1 } }; }
 function read(dataDir: string): Store {
   if (!existsSync(file(dataDir))) return defaults();
   const value = JSON.parse(readFileSync(file(dataDir), 'utf8')) as Store;
@@ -59,14 +59,14 @@ export function startTrafficMonitor(dataDir: string) {
   collect(); const timer = setInterval(collect, 5 * 60_000); timer.unref();
 }
 export function externalCounters(dataDir: string): Counters {
-  const state = read(dataDir); const counters = parseProcNetDev(readFileSync(process.env.PANEL_TRAFFIC_PROC_FILE || '/host/proc/net/dev', 'utf8'), state.interface); if (!counters) throw new Error('Interface externa indisponível'); return counters;
+  const state = read(dataDir); const counters = parseProcNetDev(readFileSync(process.env['PANEL_TRAFFIC_PROC_FILE'] || '/host/proc/net/dev', 'utf8'), state.interface); if (!counters) throw new Error('Interface externa indisponível'); return counters;
 }
 export async function handleTrafficRoute(req: IncomingMessage, res: ServerResponse, deps: Deps): Promise<boolean> {
   if (new URL(req.url || '/', 'http://panel.local').pathname !== '/traffic') return false;
   try {
     if (req.method === 'GET') { deps.send(res, 200, response(deps.dataDir, deps.source)); return true; }
     if (req.method === 'POST') {
-      const input = await deps.body(req); const allowanceTb = input.allowanceTb; const resetDay = input.resetDay;
+      const input = await deps.body(req); const allowanceTb = input['allowanceTb']; const resetDay = input['resetDay'];
       if (Object.keys(input).sort().join(',') !== 'allowanceTb,resetDay' || typeof allowanceTb !== 'number' || !Number.isFinite(allowanceTb) || allowanceTb < 0.01 || allowanceTb > 1000 || typeof resetDay !== 'number' || !Number.isInteger(resetDay) || resetDay < 1 || resetDay > 28) { deps.send(res, 400, { error: 'Informe franquia entre 0,01 e 1000 TB e dia de renovação de 1 a 28.' }); return true; }
       const state = read(deps.dataDir); state.settings = { allowanceBytes: Math.round((allowanceTb as number) * TB), resetDay: resetDay as number }; save(deps.dataDir, state);
       deps.send(res, 200, response(deps.dataDir, deps.source)); return true;

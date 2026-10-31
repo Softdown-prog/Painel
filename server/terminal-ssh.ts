@@ -15,11 +15,11 @@ const MAX_COMMAND_BYTES = 4 * 1024 * 1024;
 const MAX_OUTPUT = 24 * 1024;
 let executing = false;
 function config() {
-  const host = process.env.PANEL_TERMINAL_SSH_HOST || '';
-  const user = process.env.PANEL_TERMINAL_SSH_USER || '';
-  const port = Number(process.env.PANEL_TERMINAL_SSH_PORT || '22');
-  const key = process.env.PANEL_TERMINAL_SSH_KEY_FILE || '/run/secrets/panel-ssh-key';
-  const hosts = process.env.PANEL_TERMINAL_SSH_KNOWN_HOSTS || '/run/secrets/panel-ssh-known-hosts';
+  const host = process.env['PANEL_TERMINAL_SSH_HOST'] || '';
+  const user = process.env['PANEL_TERMINAL_SSH_USER'] || '';
+  const port = Number(process.env['PANEL_TERMINAL_SSH_PORT'] || '22');
+  const key = process.env['PANEL_TERMINAL_SSH_KEY_FILE'] || '/run/secrets/panel-ssh-key';
+  const hosts = process.env['PANEL_TERMINAL_SSH_KNOWN_HOSTS'] || '/run/secrets/panel-ssh-known-hosts';
   const valid = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,126}$/.test(host) &&
     /^[a-z_][a-z0-9_-]{0,31}$/.test(user) &&
     Number.isSafeInteger(port) && port > 0 && port <= 65535 &&
@@ -79,7 +79,7 @@ export async function handleSshTerminalRoute(req: IncomingMessage, res: ServerRe
   const path = new URL(req.url || '/', 'http://panel.local').pathname;
   if (!['/terminal/ssh/status', '/terminal/ssh/exec'].includes(path))
     return false;
-  const enabled = deps.enabled ?? process.env.PANEL_TERMINAL_SSH_ENABLED === '1';
+  const enabled = deps.enabled ?? process.env['PANEL_TERMINAL_SSH_ENABLED'] === '1';
   if (path === '/terminal/ssh/status' && req.method === 'GET') {
     deps.send(res, 200, {
       enabled, configured: enabled && (deps.execute ? true : config().valid)
@@ -92,17 +92,17 @@ export async function handleSshTerminalRoute(req: IncomingMessage, res: ServerRe
   }
   if (path === '/terminal/ssh/exec' && req.method === 'POST') {
     const data = await deps.body(req);
-    if (typeof data.command !== 'string' || !data.command.trim() || Buffer.byteLength(data.command, 'utf8') > MAX_COMMAND_BYTES ||
-      /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(data.command) ||
+    if (typeof data['command'] !== 'string' || !data['command'].trim() || Buffer.byteLength(data['command'], 'utf8') > MAX_COMMAND_BYTES ||
+      /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(data['command']) ||
       Object.keys(data).join(',') !== 'command') {
       deps.send(res, 400, { error: 'Comando inválido. Scripts até 4 MB; caracteres de controle inválidos não são aceitos.' }); return true;
     }
     if (executing) { deps.send(res, 429, { error: 'Já existe um comando Linux em execução. Tente novamente após concluí-lo.' }); return true; }
     executing = true;
-    const fingerprint = createHash('sha256').update(data.command).digest('hex').slice(0, 16);
+    const fingerprint = createHash('sha256').update(data['command']).digest('hex').slice(0, 16);
     const started = Date.now();
     try {
-      const result = await (deps.execute || executeSshCommand)(data.command);
+      const result = await (deps.execute || executeSshCommand)(data['command']);
       console.log(JSON.stringify({ event: 'panel_ssh_command', fingerprint, exitCode: result.exitCode,
         durationMs: Date.now() - started, at: new Date().toISOString() }));
       deps.send(res, 200, result);

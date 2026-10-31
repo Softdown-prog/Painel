@@ -342,7 +342,7 @@
   document.getElementById('terminalHelpButton')?.addEventListener('click', () => void execute('ajuda'));
   document.getElementById('terminalClearButton')?.addEventListener('click', () => { output.replaceChildren(); input.focus(); });
   document.querySelectorAll<HTMLButtonElement>('[data-terminal-command]').forEach(button =>
-    button.addEventListener('click', () => void execute(button.dataset.terminalCommand || 'ajuda')));
+    button.addEventListener('click', () => void execute(button.dataset['terminalCommand'] || 'ajuda')));
 
   async function refreshTerminalConnection(): Promise<void> {
     try {
