@@ -303,3 +303,7 @@ Em **Projetos GitHub** → **Consultar builds**, uma execução concluída com s
 A aba **Chaves e acessos** (`#secrets`) permite ao administrador cadastrar, trocar e excluir arquivos de chaves de API pela interface, sem precisar editar manualmente arquivos dentro do servidor. O backend não revela valores salvos, exige senha administrativa para cada alteração e guarda os valores em arquivos privados com permissões `0600`, em uma pasta dedicada `0700`.
 
 **Ativação opcional:** o código está pronto, mas o operador precisa criar a pasta `/etc/softload-panel/managed-secrets` na VPS, adicionar `server/compose.secrets.yaml` ao Compose atual e habilitar `PANEL_SECRETS_ENABLED=1` antes de usar com chaves reais. Esse overlay é inicialmente desligado e não interfere nos serviços atuais. Cadastrar uma chave **não configura nem reinicia automaticamente o serviço consumidor**; esse vínculo continua sendo uma próxima etapa. Veja o [guia de chaves](docs/CHAVES-NA-VPS.md) e o backlog de integração por serviço.
+
+### Staging Angular da VPS via GHCR
+
+O [guia de publicação da interface Angular](docs/PANEL-WEB-GHCR-VPS.md) documenta o workflow dedicado que compila a imagem no GitHub Actions, publica em GHCR por SHA/digest e instala somente `softload-panel-web` após a autorização root inicial do broker. Enquanto essa autorização não for instalada e o deploy não for confirmado com SHA/saúde reais, **Cloudflare Pages continua sendo o frontend público**, não o container VPS.
