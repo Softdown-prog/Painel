@@ -1,0 +1,90 @@
+<section class="domains" aria-label="Domínios gerenciados pela VPS">
+  <header class="domain-head"><div><h2>Domínios e HTTPS</h2><p>Reserve endereços, publique DNS e acompanhe a confirmação do certificado.</p></div>
+    <button type="button" (click)="refresh()" [disabled]="loading()||working()">{{loading()?'Consultando…':'↻ Atualizar'}}</button>
+  </header>
+  @if(error()){<p role="alert" class="domain-error">{{error()}}</p>}
+  @if(notice()){<p role="status" class="domain-notice">{{notice()}}</p>}
+  @if(loading()){<p role="status">Consultando registros e aplicações da VPS…</p>}
+  @if(data();as d){
+    <div class="domain-stats">
+      <div><small>ZONA DE SITES</small><strong>{{d.zone??'Não configurada'}}</strong></div>
+      <div><small>ENDEREÇOS</small><strong>{{d.routes.length}} / 8</strong></div>
+      <div><small>PUBLICAÇÃO AUTOMÁTICA</small><strong>{{d.publicationEnabled?'Configurada':'Indisponível'}}</strong></div>
+    </div>
+    @if(!d.enabled){
+      <p class="domain-warning" role="status">Cadastro desativado nesta VPS. Nenhum endereço poderá ser reservado.</p>
+    }@else if(!d.publicationEnabled){
+      <p class="domain-warning" role="status">É possível reservar endereços, mas DNS e HTTPS automáticos ainda não estão configurados.</p>
+    }
+    <section class="domain-panel" aria-labelledby="reserve-title">
+      <h3 id="reserve-title">Reservar endereço para uma aplicação</h3>
+      <p>Somente aplicações do Painel na rede isolada <code>{{d.network}}</code>, sem endereço cadastrado.</p>
+      <form (submit)="prepareReserve($event)" class="domain-form">
+        <label>Aplicação
+          <select [value]="selected()" (change)="updateApp($any($event.target).value)"
+            [disabled]="working()||!d.enabled||!eligible().length">
+            @for(app of eligible();track app.slug){
+              <option [value]="app.slug">{{app.slug}} · {{app.image}}</option>
+            }@empty{<option value="">Nenhuma aplicação elegível</option>}
+          </select>
+        </label>
+        <label>Porta interna (1024–65535)
+          <input type="number" [value]="port()" (input)="updatePort($any($event.target).value)"
+            min="1024" max="65535" step="1" required [disabled]="working()||!d.enabled">
+        </label>
+        <p class="domain-preview">{{ready()?'Endereço proposto: '+selected()+'.'+d.zone:'Selecione uma aplicação e uma porta válida.'}} <strong>Não publicado.</strong></p>
+        <button type="submit" [disabled]="!ready()||working()||loading()||d.routes.length>=8">Preparar reserva</button>
+      </form>
+    </section>
+    <section class="domain-panel" aria-labelledby="routes-title">
+      <h3 id="routes-title">Endereços cadastrados</h3>
+      @for(route of d.routes;track route.slug){
+        <article class="domain-route">
+          <div class="domain-info">
+            <strong>{{route.host}}</strong>
+            <small>Aplicação: {{route.slug}} · Porta: {{route.port}} · Reservado em {{date(route.createdAt)}}</small>
+            <p [class.live]="publication(route).state==='published'" [class.failed]="publication(route).state==='failed'">
+              {{stateNames[publication(route).state]}}
+            </p>
+            @if(publication(route).message){<small>{{publication(route).message}}</small>}
+            @if(publication(route).state==='published'){
+              <a [href]="'https://'+route.host" target="_blank" rel="noopener noreferrer">Abrir endereço HTTPS</a>
+            }
+          </div>
+          <div class="domain-actions">
+            <button type="button" (click)="prepareRoute('publish',route)" [disabled]="!d.publicationEnabled||working()||loading()">
+              {{publication(route).state==='published'?'Verificar publicação':'Publicar DNS e HTTPS'}}</button>
+            <button type="button" class="domain-danger" (click)="prepareRoute('remove',route)" [disabled]="!d.enabled||working()||loading()">Despublicar e remover</button>
+          </div>
+        </article>
+      }@empty{<p>Nenhuma reserva cadastrada.</p>}
+    </section>
+    <section class="domain-panel" aria-labelledby="caddy-title">
+      <h3 id="caddy-title">Configuração do gateway (somente leitura)</h3>
+      <p>A prévia não publica configurações no Caddy por conta própria.</p>
+      <button type="button" (click)="showCaddy.update(v=>!v)">{{showCaddy()?'Ocultar configuração':'Ver configuração gerenciada'}}</button>
+      @if(showCaddy()){<pre tabindex="0">{{caddy()||'(sem rotas cadastradas)'}}</pre>}
+    </section>
+    @if(pending();as action){
+      <div class="domain-confirm" role="group" aria-label="Confirmar operação de domínio">
+        <strong>{{action.operation==='reserve'?'Reservar '+action.host:action.operation==='publish'?'Publicar '+action.host:'Despublicar e remover '+action.host}}</strong>
+        <p>
+          @if(action.operation==='reserve'){O endereço será reservado. Isso <strong>não</strong> configura DNS nem publica o site.}
+          @else if(action.operation==='publish'){Esta operação configura DNS/gateway e solicita HTTPS. O resultado público poderá levar algum tempo para ficar disponível.}
+          @else {O endereço deixará de responder após a remoção de DNS/gateway. A aplicação e seus arquivos permanecem intactos.}
+        </p>
+        <label>Digite o nome da aplicação <strong>{{action.slug}}</strong> para confirmar
+          <input [value]="confirmation()" (input)="confirmation.set($any($event.target).value)"
+            autocapitalize="off" autocomplete="off" spellcheck="false" [disabled]="working()"/>
+        </label>
+        <div class="domain-confirm-actions">
+          <button type="button" (click)="cancel()" [disabled]="working()">Cancelar</button>
+          <button type="button" [class.domain-danger]="action.operation==='remove'"
+            (click)="confirm()" [disabled]="working()||confirmation()!==action.slug">
+            {{working()?'Processando…':'Confirmar operação'}}</button>
+        </div>
+      </div>
+    }
+    <p class="domain-footnote">Apenas o retorno da API pode confirmar a publicação por HTTPS. Estados exibidos são o último registro verificado, não uma conexão instantânea com o provedor DNS.</p>
+  }
+</section>
