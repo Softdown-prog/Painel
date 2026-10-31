@@ -4,6 +4,10 @@ Painel: https://panel.analysepro.com (alternativo: https://softload-vps-panel.pa
 
 Cada push na `main` executa `.github/workflows/deploy-pages.yml`: testes, build do frontend e publicação no projeto Cloudflare Pages `softload-vps-panel`. O workflow usa um token exclusivo `Pages Write` armazenado em `CLOUDFLARE_API_TOKEN` nos segredos GitHub. `CLOUDFLARE_ACCOUNT_ID` está no mesmo local. As credenciais da API privada da VPS permanecem nos segredos do Cloudflare Pages.
 
+## Novo frontend Angular 22 na VPS (prévia incremental)
+
+A aplicação `angular/` usa Angular 22 e TypeScript 6 em um projeto separado, preservando TypeScript 7 do backend e do frontend legado. O Dockerfile do `panel-web` compila Angular e entrega a prévia em `/angular/`: login com sessão existente, indicadores reais da API e inventário de containers. As demais áreas continuam no frontend atual (`/`). Nenhum token da Cloudflare é colocado no Angular. **O frontend Angular ainda precisa ser publicado e testado na VPS; o merge no GitHub não faz essa instalação.** Veja [Migração do frontend para VPS](docs/MIGRACAO-FRONTEND-VPS.md).
+
 ## Frontend na VPS (migração preparada, sem troca do domínio)
 
 Há uma alternativa opcional ao Cloudflare Pages: `web/Dockerfile` + `web/server.mjs` + `server/compose.web.yaml` servem a interface diretamente no Docker da VPS e encaminham `/api/*` com a chave privada **somente no servidor**. O serviço `panel-web` fica na rede administrativa, sem porta publicada e sem Docker socket; não substitui API/executor, Caddy nem Tunnel. O workflow Pages **continua ativo** enquanto a nova rota não for instalada, protegida e validada. Procedimento, testes e rollback: [Migração do frontend para VPS](docs/MIGRACAO-FRONTEND-VPS.md).

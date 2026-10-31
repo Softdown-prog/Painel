@@ -62,6 +62,9 @@ docker exec "$web" node -e '
       method:"POST",headers:{origin:"https://attacker.test"},body:"{}"
     });
     if(forbidden.status!==403)throw Error("Origin verification failed");
+    const angular=await fetch("http://127.0.0.1:8081/angular/");
+    if(angular.status!==200 || !(await angular.text()).includes("panel-app"))
+      throw Error("Angular application not served by VPS frontend");
     const health=await fetch("http://127.0.0.1:8081/__panel_web_health");
     if((await health.json()).revision!==process.env.PANEL_WEB_REVISION)
       throw Error("Pinned SHA mismatch");

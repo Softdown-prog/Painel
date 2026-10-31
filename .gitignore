@@ -3,3 +3,8 @@ dist/
 .wrangler/
 .secrets/
 node_modules/
+
+# Angular workspace independente
+angular/node_modules/
+angular/dist/
+angular/.angular/

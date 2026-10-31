@@ -1,5 +1,11 @@
 # Migração do frontend Cloudflare Pages para a VPS — estágio seguro
 
+## Angular 22 integrado ao frontend da VPS
+
+O projeto `angular/` contém Angular 22, com login administrativo e as primeiras telas nativas: visão geral e inventário de containers. As demais telas ainda abrem o frontend legado e **não foram reescritas**. O Angular é compilado dentro do `web/Dockerfile` por um estágio de build separado e servido em **`/angular/`**, na mesma origem do backend `/api`. Não há SSR, Node extra em produção, proxy externo nem mudanças nas regras administrativas.
+
+A versão Angular 22 exige TypeScript 6.0.x e Node 24.15+; o painel legado usa TypeScript 7. O `angular/package.json` independente evita instalar dependências incompatíveis no backend. Para desenvolvimento local: `cd angular && npm install && npm run build`. O script de staging testa os dois index.html e a API antes de trocar apenas `panel-web`. **Somente o código no GitHub não comprova que `/angular/` já está acessível na VPS.**
+
 ## Situação desta etapa
 
 O repositório agora possui um **segundo caminho de publicação opcional** para o frontend. Ele não substitui o Pages nem o domínio atual automaticamente.

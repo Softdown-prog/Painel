@@ -1,0 +1,89 @@
+<div class="layout">
+  <aside class="sidebar">
+    <a href="/#overview" class="brand" aria-label="Voltar ao painel atual">
+      <span class="brand-icon">V✦</span>
+      <span><strong>Painel VPS</strong><small>ANGULAR 22 · PRÉVIA</small></span>
+    </a>
+    <p class="group-label">NOVA INTERFACE</p>
+    <nav aria-label="Navegação Angular">
+      <button type="button" [class.active]="page() === 'overview'" (click)="selectPage('overview')">▦ &nbsp; Visão geral</button>
+      <button type="button" [class.active]="page() === 'containers'" (click)="selectPage('containers')">▣ &nbsp; Containers</button>
+    </nav>
+    <p class="group-label">OUTRAS FERRAMENTAS</p>
+    <nav aria-label="Ferramentas do painel anterior">
+      <a href="/#apps">⬡ &nbsp; Sites e apps</a>
+      <a href="/#projects">⌘ &nbsp; GitHub</a>
+      <a href="/#terminal">›_ &nbsp; Terminal</a>
+      <a href="/#database">▤ &nbsp; PostgreSQL</a>
+      <a href="/#revisions">◴ &nbsp; Revisões</a>
+    </nav>
+    <p class="note">As outras telas permanecem no painel atual até sua migração. Nenhum serviço da VPS é alterado nesta prévia.</p>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <span class="breadcrumb">Workspace / <strong>{{page() === 'overview' ? 'Visão geral' : 'Containers'}}</strong></span>
+      <div class="actions">
+        <span class="mode">Angular 22</span>
+        @if (signedIn()) { <button type="button" class="secondary" (click)="logout()">Sair</button> }
+      </div>
+    </header>
+    <div class="content">
+      <div class="heading">
+        <div><small>GERENCIAMENTO MULTIPROJETOS</small><h1>{{page() === 'overview' ? 'Visão geral' : 'Containers da VPS'}}</h1>
+          <p>Interface Angular em migração incremental, utilizando a mesma API protegida do painel.</p></div>
+        @if (signedIn()) { <button type="button" class="primary" [disabled]="loading()" (click)="refresh()">{{loading() ? 'Consultando…' : '↻ Atualizar dados'}}</button> }
+      </div>
+      @if (error()) { <div role="alert" class="alert error">{{error()}}</div> }
+      @if (notice() && signedIn()) { <div role="status" class="alert">{{notice()}}</div> }
+
+      @if (!session() && !error()) {
+        <section class="panel"><p>Verificando a sessão administrativa da VPS...</p></section>
+      } @else if (!signedIn()) {
+        <section class="panel login">
+          <h2>Acesso administrativo</h2>
+          @if (session()?.setupRequired) {
+            <p>O administrador ainda não foi configurado. Abra o <a href="/#settings">painel atual</a> para concluir a configuração inicial.</p>
+          } @else {
+            <p>Use suas credenciais existentes. A senha não fica armazenada no Angular.</p>
+            <form (submit)="login($event)">
+              <label>Usuário<input [value]="username()" (input)="username.set($any($event.target).value)" autocomplete="username" required></label>
+              <label>Senha<input type="password" [value]="password()" (input)="password.set($any($event.target).value)" autocomplete="current-password" required></label>
+              <button type="submit" class="primary" [disabled]="submitting() || !password()">{{submitting() ? 'Entrando...' : 'Entrar'}}</button>
+            </form>
+          }
+        </section>
+      } @else {
+        @if (page() === 'overview') {
+          <div class="metrics">
+            <article class="metric"><span>Containers em execução</span><strong>{{overview()?.containerSummary?.available ? (overview()?.containerSummary?.running ?? '—') : 'Indisponível'}}</strong><small>Total: {{overview()?.containerSummary?.total ?? '—'}}</small></article>
+            <article class="metric"><span>Carga de CPU · 1 min</span><strong>{{overview()?.cpu?.load1 === undefined ? '—' : overview()?.cpu?.load1?.toFixed(2)}}</strong><small>{{overview()?.cpu?.cores ?? '—'}} núcleos</small></article>
+            <article class="metric"><span>Disco em uso</span><strong>{{gb(overview()?.disk?.used)}}</strong><small>De {{gb(overview()?.disk?.total)}}</small></article>
+          </div>
+          <section class="panel">
+            <h2>Conexão com o servidor</h2>
+            <p>{{overview() ? 'Leitura da API recebida' : 'Aguardando uma leitura confirmada da API'}}</p>
+            <small>Última consulta: {{formatDate(overview()?.updatedAt)}}</small>
+            <p class="hint">Os valores vêm do backend existente. Nenhum número de demonstração é exibido.</p>
+            <button type="button" class="secondary" (click)="selectPage('containers')">Ver inventário de containers</button>
+          </section>
+        } @else {
+          <section class="panel">
+            <h2>Inventário Docker <span class="tag">SOMENTE LEITURA</span></h2>
+            <p>{{inventory()?.containers?.length ?? '—'}} containers encontrados · {{activeContainers()}} ativos</p>
+            <small>Atualizado: {{formatDate(inventory()?.updatedAt)}}</small>
+            @if (inventory()?.truncated) { <p class="hint">A lista foi limitada pela API.</p> }
+            <div class="container-list">
+              @for (item of inventory()?.containers ?? []; track item.name) {
+                <div class="container-row">
+                  <div><strong>{{item.name || 'Sem nome'}}</strong><small>{{item.project || 'Projeto não informado'}} · {{item.image || 'Imagem não informada'}}</small></div>
+                  <span class="state" [class.running]="item.state === 'running'">{{item.state === 'running' ? 'Em execução' : (item.status || 'Parado')}}</span>
+                </div>
+              } @empty { <p>Nenhum container informado pela VPS.</p> }
+            </div>
+          </section>
+        }
+      }
+      <footer>Frontend Angular isolado · Backend Node.js/TypeScript existente · <a href="/#overview">Voltar à interface completa</a></footer>
+    </div>
+  </main>
+</div>

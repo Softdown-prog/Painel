@@ -13,9 +13,19 @@ RUN echo "$PANEL_WEB_REVISION" | grep -Eq '^[a-f0-9]{40}$' \
     && GITHUB_SHA="$PANEL_WEB_REVISION" PAGES_DIST_DIR=/build/dist node scripts/version-pages-assets.mjs \
     && grep -q 'terminal-ui.js?v=' /build/dist/index.html
 
+# Angular uses TypeScript 6 in an isolated workspace; the existing backend keeps TypeScript 7.
+FROM node:24-alpine AS angular-builder
+WORKDIR /angular
+COPY angular/package.json ./
+RUN npm install --no-audit --no-fund
+COPY angular/angular.json angular/tsconfig.json angular/tsconfig.app.json ./
+COPY angular/src/ ./src/
+RUN npm run build && test -s dist/panel-angular/browser/index.html
+
 FROM node:24-alpine
 WORKDIR /app
 COPY --from=builder /build/dist/ /app/public/
+COPY --from=angular-builder /angular/dist/panel-angular/browser/ /app/public/angular/
 COPY web/server.mjs /app/server.mjs
 ENV PORT=8081 PANEL_STATIC_DIR=/app/public
 LABEL org.opencontainers.image.title="VPS Panel web frontend"
