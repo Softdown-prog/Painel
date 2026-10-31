@@ -9,16 +9,19 @@ if [[ $# -ne 1 || ! "$1" =~ ^[a-f0-9]{40}$ ]]; then
   echo "Uso: PANEL_PUBLIC_ORIGIN=https://staging.exemplo.com bash web/deploy-staging-vps.sh <SHA40>" >&2
   exit 2
 fi
-[[ -n "$PANEL_PUBLIC_ORIGIN" ]] || fail "PANEL_PUBLIC_ORIGIN não configurada"
+[[ -n "${PANEL_PUBLIC_ORIGIN:-}" ]] || fail "PANEL_PUBLIC_ORIGIN não configurada"
 [[ "$PANEL_PUBLIC_ORIGIN" =~ ^https://[a-zA-Z0-9.-]+(:[0-9]+)?$ ]] ||
   fail "PANEL_PUBLIC_ORIGIN deve ser HTTPS, sem caminho ou parâmetros"
 (( EUID == 0 )) || fail "É necessário executar por acesso administrativo autorizado (root)"
-for cmd in docker curl tar mktemp install; do
+for cmd in docker curl tar mktemp install flock; do
   command -v "$cmd" >/dev/null || fail "Ferramenta ausente: $cmd"
 done
 docker network inspect vps_panel_control >/dev/null 2>&1 || fail "Rede vps_panel_control ausente"
 [[ -f /etc/softload-panel/edge-key && -r /etc/softload-panel/edge-key ]] ||
   fail "Chave privada da API não está disponível; instalação abortada"
+install -d -m 0700 /run/lock/softload-panel
+exec 9>/run/lock/softload-panel/panel-web-deploy.lock
+flock -n 9 || fail "Outra implantação do frontend já está em andamento"
 [[ "$(docker inspect -f '{{.State.Running}}' softload-panel-api 2>/dev/null)" == true ]] ||
   fail "API principal não está em execução"
 
@@ -26,7 +29,7 @@ sha="$1"
 root=/opt/vps-panel/web-releases
 release="$root/$sha"
 image_name="vps-panel-web:$sha"
-candidate="panel-web-candidate-$(printf '%s' "$sha" | cut -c1-12)"
+candidate="panel-web-candidate-$(printf '%s' "$sha" | cut -c1-12)-$"
 old_revision=''
 old_origin=''
 old_container=0
@@ -129,8 +132,8 @@ done
 
 echo "Nova revisão testada. Atualizando somente o serviço panel-web."
 # This command never re-creates api, executor, Caddy, Tunnel or customer workloads.
-docker compose -f compose.yaml -f compose.web.yaml up -d --no-deps --no-build panel-web
 promoted=1
+docker compose -f compose.yaml -f compose.web.yaml up -d --no-deps --no-build panel-web
 passed=0
 for _ in $(seq 1 20); do
   if [[ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' softload-panel-web 2>/dev/null)" == healthy ]] &&
