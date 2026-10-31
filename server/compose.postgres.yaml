@@ -9,6 +9,7 @@ services:
       PANEL_POSTGRES_DB: postgres
       PANEL_POSTGRES_USER: postgres
     networks:
+      - proxy
       - postgres_shared
 networks:
   postgres_shared:

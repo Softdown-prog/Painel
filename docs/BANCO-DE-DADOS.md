@@ -2,7 +2,7 @@
 
 ## Estado
 
-O operador confirmou na VPS que PostgreSQL 18 está rodando como container vps-postgres, e que criou e apagou um banco de teste. A API do painel ainda precisa de deploy autorizado e verificação de conexão real. O PostgreSQL é um serviço compartilhado da VPS e não pertence a nenhum projeto específico.
+O operador confirmou na VPS que PostgreSQL 18 está rodando como container vps-postgres, e que criou e apagou um banco de teste. A API do painel ainda precisa de deploy autorizado e verificação de conexão real. O merge PR #22 (0be6c28) incluiu o conector, mas isso não instala nem ativa a API na VPS. O PostgreSQL é um serviço compartilhado da VPS e não pertence a nenhum projeto específico.
 
 ## O que esta mudança entrega
 
@@ -34,3 +34,12 @@ A instância existente foi criada com POSTGRES_HOST_AUTH_METHOD=trust para funci
 Console CI e Docker integration smoke passaram para eb994e7 (runs 41151858886 e 41151858841), mas o teste extra do overlay e a revisão final ainda exigem novo CI. Validar typecheck, build:frontend, npm test, check:js e Compose. Após deploy coordenado da API: abrir Sistema → Banco de Dados, clicar Verificar situação e confirmar dados reais. Testar também a API sem sessão (401), sem flag (not_configured), com rede interrompida (unavailable) e os controles de escrita desabilitados.
 
 Não classificar API conectada ou recurso publicado apenas porque CI passou. A implantação e conexão real na VPS ainda devem ser confirmadas separadamente.
+
+
+## Preflight de ativação, antes de atualizar a API
+
+O script de diagnóstico somente leitura `server/postgres-preflight-vps.sh` verifica a instância existente e os nomes de rede. Ele NÃO atualiza o PostgreSQL nem a API, não imprime segredos e não reinicia serviços. Rode-o no host da VPS pelo terminal administrativo disponível, sem alterar a composição antes de conhecer o estado atual.
+
+Importante: o overlay `compose.postgres.yaml` precisa manter as redes `proxy` (túnel) e `postgres_shared` (PostgreSQL) simultaneamente. O CI deve verificar isso. **Não** usar `docker compose -f compose.yaml -f compose.postgres.yaml up` em produção isoladamente: a implantação utiliza outros overlays e imagens versionadas que precisam ser preservados.
+
+Antes de preparar qualquer atualização de API, confirme o conjunto efetivo dos overlays atualmente ativo em `/etc/softload-panel/compose-production-files.json` e a revisão `/opt/vps-panel/current`. Planejar troca somente da API com imagem previamente compilada, preservando credenciais, volumes e endpoint do túnel. Sem canal administrativo de recuperação independente, não tentar uma recriação arriscada do serviço, pois o terminal do Painel depende da própria API.
