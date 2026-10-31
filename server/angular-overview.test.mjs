@@ -79,3 +79,30 @@ test('overview polling is visibility- and authentication-gated and is cleared on
  assert.match(html,/Estimativa sem descontar cache/);
  assert.match(html,/Alertas de capacidade não confirmados/);
 });
+
+test('container inventory filters are local, project-aware and do not expose lifecycle actions',async()=>{
+ const {filterInventory,inventoryProjects}=await import('../angular/src/inventory-view.ts');
+ const raw={readOnly:true,updatedAt:stamp,containers:[
+   {name:'panel-api',image:'registry/API',state:'running',status:'Up',project:'Painel'},
+   {name:'cafe-web',image:'nginx:latest',state:'exited',status:'Exited',project:'Café'},
+   {name:'legacy-job',image:'worker:1',state:'paused',status:'Paused',project:null}
+ ]};
+ const inventory=parseInventory(raw);
+ assert.deepEqual(inventoryProjects(inventory),['Café','Painel']);
+ assert.deepEqual(inventoryProjects(null),[]);
+ const base={query:'',project:'',status:'all'};
+ assert.equal(filterInventory(inventory,base).length,3);
+ assert.deepEqual(filterInventory(inventory,{...base,status:'running'}).map(x=>x.name),['panel-api']);
+ assert.deepEqual(filterInventory(inventory,{...base,status:'other'}).map(x=>x.name),['cafe-web','legacy-job']);
+ assert.deepEqual(filterInventory(inventory,{...base,project:'Café'}).map(x=>x.name),['cafe-web']);
+ assert.deepEqual(filterInventory(inventory,{...base,query:'CAFE'}).map(x=>x.name),['cafe-web']);
+ assert.deepEqual(filterInventory(inventory,{...base,query:'registry/api'}).map(x=>x.name),['panel-api']);
+ assert.equal(filterInventory(inventory,{...base,query:'sem resultado'}).length,0);
+ assert.deepEqual(filterInventory(null,base),[]);
+ const component=read('angular/src/app.component.ts');
+ const html=read('angular/src/app.component.html');
+ assert.match(component,/visibleContainers=computed/);
+ assert.match(html,/Nenhum container corresponde aos filtros atuais/);
+ assert.match(html,/Os filtros pesquisam somente os containers recebidos/);
+ assert.doesNotMatch(html,/\/containers\/(?:start|stop|restart|delete)/);
+});

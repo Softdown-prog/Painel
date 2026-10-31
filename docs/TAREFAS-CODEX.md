@@ -391,3 +391,6 @@ Guia de uso: [GUIA-RAPIDO.md](GUIA-RAPIDO.md). Domínios técnicos: [domain-rout
 
 ### Angular — alertas de capacidade na visão geral (branch, 31/10/2026)
 **Implementado em código:** cartão RAM com fonte da medição, alertas preventivos para disco/RAM/carga com dados confirmados e atualização automática conservadora (60s, somente tela visível e admin autenticado). Dados antigos nunca geram confirmação de saúde. Adicionados testes em `server/angular-overview.test.mjs`. **CI:** conferir SHA final após commit. **VPS/produção:** não publicados. Pendente ensaio autenticado no Android e confiabilidade dos medidores reais.
+
+### Angular — inventário de containers pesquisável (branch 31/10/2026)
+**Código:** filtros locais por projeto, estado e busca por nome/imagem; indicadores de total e subtotal, limites de lista truncada e estado sem dados mantidos. **Segurança:** o GET /containers continua somente leitura, sem Docker socket no frontend nem operações novas. **Testes:** filtros unitários no arquivo `server/angular-overview.test.mjs`; validar CI no SHA final. **Publicado / VPS:** não; revisar mobile 320/360/390/768px com sessão real antes de qualquer merge.

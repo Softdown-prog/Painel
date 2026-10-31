@@ -100,3 +100,10 @@
 - Alertas informativos de disco >= 85%, RAM >= 85% apenas com MemAvailable e carga média de 1 minuto >= quantidade de núcleos. Carga não é porcentagem instantânea de CPU, disco indica o volume monitorado; dados antigos/ausentes não recebem confirmação verde.
 - Atualização a cada 60s somente na visão geral/inventário, com sessão autenticada e aba visível; também ao voltar para o navegador. O timer é limpo ao destruir o componente. Somente endpoints GET existentes, nenhum comando de container.
 - Testes cobrindo porcentagens, fallback de RAM, dados ausentes, amostras antigas/futuras e restrições de atualização. **Código na branch apenas**; ainda exige revisão em navegador autenticado e dispositivos móveis. Sem deploy.
+
+## Incremento — busca e filtros de containers (31/10/2026)
+
+- Aba Angular `#containers` agora permite busca local por nome/imagem/projeto, filtro por estado e filtro por projeto. Opções de projetos vêm unicamente do inventário autorizado e são ordenadas; campos permanecem tipados e não requerem endpoints adicionais.
+- A contagem filtrada sempre distingue resultados da última leitura válida do total conhecido; listas truncadas pela API não são apresentadas como varredura completa. Estado diferente de `running` é rotulado “Não em execução”, sem assumir que todos estejam parados.
+- Filtros são descartados ao encerrar a sessão e jamais são persistidos no navegador. Inventário de containers externos permanece **somente leitura**, sem ações de ciclo de vida nem exposição de IDs Docker.
+- Testes unitários de busca com acentos, filtragem por estado/projeto e nenhuma leitura confirmada adicionados a `server/angular-overview.test.mjs`. Pendente validação em navegador real no Android e revisão completa da paridade com o legado.

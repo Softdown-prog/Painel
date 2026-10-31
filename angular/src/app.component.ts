@@ -13,6 +13,7 @@ import { LegacyServicesComponent } from './legacy-services.component';
 import { SiteDetailComponent } from './site-detail.component';
 import { validAppSlug } from './apps-policy';
 import {parseOverview,parseInventory,capacityAlerts,readingFresh,type HostOverview,type HostInventory} from './overview-state';
+import {filterInventory,inventoryProjects,type InventoryStatusFilter} from './inventory-view';
 
 type Session = {authenticated: boolean; setupRequired: boolean};
 @Component({
@@ -31,6 +32,13 @@ export class AppComponent implements OnInit,OnDestroy {
   readonly inventory = signal<HostInventory | null>(null);
   readonly overviewIssue=signal('');
   readonly inventoryIssue=signal('');
+  readonly inventorySearch=signal('');
+  readonly inventoryStatus=signal<InventoryStatusFilter>('all');
+  readonly inventoryProject=signal('');
+  readonly projectOptions=computed(()=>inventoryProjects(this.inventory()));
+  readonly visibleContainers=computed(()=>filterInventory(this.inventory(),{
+    query:this.inventorySearch(),status:this.inventoryStatus(),project:this.inventoryProject()
+  }));
   private authEpoch=0;
   private timer:ReturnType<typeof setInterval>|null=null;
   private destroyed=false;
@@ -110,6 +118,28 @@ export class AppComponent implements OnInit,OnDestroy {
     else this.page.set('overview');
   }
 
+  setInventorySearch(event:Event):void {
+    const element=event.target;
+    if(element instanceof HTMLInputElement)this.inventorySearch.set(element.value.slice(0,100));
+  }
+  setInventoryStatus(event:Event):void {
+    const element=event.target;
+    if(!(element instanceof HTMLSelectElement))return;
+    if(element.value==='all'||element.value==='running'||element.value==='other')
+      this.inventoryStatus.set(element.value);
+  }
+  setInventoryProject(event:Event):void {
+    const element=event.target;
+    if(!(element instanceof HTMLSelectElement))return;
+    if(element.value===''||this.projectOptions().includes(element.value))
+      this.inventoryProject.set(element.value);
+  }
+  resetInventoryFilters():void {
+    this.inventorySearch.set('');
+    this.inventoryStatus.set('all');
+    this.inventoryProject.set('');
+  }
+
   toggleMenu(): void { this.menuOpen.update(open => !open); }
   closeMenu(): void { this.menuOpen.set(false); }
 
@@ -145,6 +175,7 @@ export class AppComponent implements OnInit,OnDestroy {
   }
 
   private clearReadings():void{
+    this.resetInventoryFilters();
     this.overview.set(null);this.inventory.set(null);
     this.overviewIssue.set('');this.inventoryIssue.set('');
     this.loading.set(false);this.notice.set('');

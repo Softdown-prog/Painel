@@ -132,19 +132,48 @@
               <p role="status">Consultando os containers da VPS...</p>
             }
             @if(inventory()){
-              <p>{{inventory()?.containers?.length}} containers encontrados · {{activeContainers()}} ativos</p>
+              <p>{{inventory()?.containers?.length}} containers encontrados · {{activeContainers()}} em execução</p>
+              <div class="inventory-filters" role="group" aria-label="Filtros do inventário">
+                <label>Buscar container ou imagem
+                  <input type="search" maxlength="100" autocomplete="off" [value]="inventorySearch()"
+                    (input)="setInventorySearch($event)" placeholder="Nome, imagem ou projeto"/>
+                </label>
+                <label>Estado
+                  <select [value]="inventoryStatus()" (change)="setInventoryStatus($event)">
+                    <option value="all">Todos</option>
+                    <option value="running">Em execução</option>
+                    <option value="other">Não em execução</option>
+                  </select>
+                </label>
+                <label>Projeto
+                  <select [value]="inventoryProject()" (change)="setInventoryProject($event)">
+                    <option value="">Todos os projetos</option>
+                    @for(project of projectOptions();track project){<option [value]="project">{{project}}</option>}
+                  </select>
+                </label>
+                <button type="button" class="secondary" (click)="resetInventoryFilters()">Limpar filtros</button>
+              </div>
+              <p role="status">Mostrando {{visibleContainers().length}} de {{inventory()?.containers?.length}} containers da última leitura válida.</p>
             } @else {
               <p>Nenhuma leitura de containers confirmada até agora.</p>
             }
             <small>Última leitura válida: {{formatDate(inventory()?.updatedAt)}}</small>
-            @if (inventory()?.truncated) { <p class="hint">A lista foi limitada pela API.</p> }
+            @if (inventory()?.truncated) { <p class="hint">A lista foi limitada pela API. Os filtros pesquisam somente os containers recebidos, não a VPS inteira.</p> }
             <div class="container-list">
-              @for (item of inventory()?.containers ?? []; track item.name) {
+              @for (item of visibleContainers(); track item.name) {
                 <div class="container-row">
-                  <div><strong>{{item.name || 'Sem nome'}}</strong><small>{{item.project || 'Projeto não informado'}} · {{item.image || 'Imagem não informada'}}</small></div>
-                  <span class="state" [class.running]="item.state === 'running'">{{item.state === 'running' ? 'Em execução' : (item.status || 'Parado')}}</span>
+                  <div><strong>{{item.name}}</strong><small>{{item.project || 'Projeto não informado'}} · {{item.image}}</small></div>
+                  <span class="state" [class.running]="item.state === 'running'">{{item.state === 'running' ? 'Em execução' : (item.status || 'Não em execução')}}</span>
                 </div>
-              } @empty { @if(inventory()){ <p>A VPS confirmou que não há containers na lista consultada.</p> } }
+              } @empty {
+                @if(inventory()){
+                  @if(inventory()?.containers?.length===0){
+                    <p>A VPS confirmou que não há containers na lista consultada.</p>
+                  }@else{
+                    <p>Nenhum container corresponde aos filtros atuais. Use "Limpar filtros" para ver a lista recebida.</p>
+                  }
+                }
+              }
             </div>
           </section>
           <section class="panel"><panel-legacy-services /></section>

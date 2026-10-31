@@ -108,3 +108,10 @@ footer a,.login a { color:#b2a2ff;text-decoration:underline;text-underline-offse
 .host-alerts { display:grid;gap:8px;margin:12px 0; }
 .host-alert { color:#f3d89e !important;background:#30281d;border-left:3px solid #f3c477;padding:10px 12px;border-radius:5px;margin:0; }
 .host-alert.danger { color:#ffc6c6 !important;background:#3b2228;border-left-color:#fa7a8b; }
+
+.inventory-filters { display:grid;grid-template-columns:minmax(190px,2fr) repeat(2,minmax(140px,1fr)) auto;align-items:end;gap:12px;margin:18px 0 12px; }
+.inventory-filters label { display:grid;gap:7px;color:#b7c0d4;font-size:13px;min-width:0; }
+.inventory-filters input,.inventory-filters select { width:100%;min-width:0;min-height:44px;border:1px solid #464a60;background:#10121d;color:#edf0fa;border-radius:10px;padding:10px 12px;font:inherit; }
+.inventory-filters input:focus-visible,.inventory-filters select:focus-visible { outline:3px solid #a88cff;outline-offset:2px; }
+@media(max-width:1050px) { .inventory-filters { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:480px) { .inventory-filters { grid-template-columns:minmax(0,1fr); } .inventory-filters .secondary { width:100%; } }
