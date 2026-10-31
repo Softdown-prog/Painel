@@ -106,7 +106,7 @@ export async function handleGitHubRoute(req: IncomingMessage, res: ServerRespons
   const send = (status: number, data: unknown): void => deps.send(res, status, data);
   try {
     if (path === '/repositories' && req.method === 'GET') {
-      send(200, { repositories: visibleRepositories(deps.dataDir), tokenConfigured: Boolean(token()), allowedOwner });
+      send(200, { repositories: readRepositories(deps.dataDir), tokenConfigured: Boolean(token()), allowedOwner });
       return true;
     }
     if (path === '/repositories' && req.method === 'POST') {
@@ -140,11 +140,17 @@ export async function handleGitHubRoute(req: IncomingMessage, res: ServerRespons
     if (!match[3] && req.method === 'DELETE') {
       if (repo.fullName === panelRepository.fullName && !linked.some(item=>item.fullName===repo.fullName))
         throw new GitHubError(409, 'O Painel é monitorado como repositório principal.');
-      saveRepositories(deps.dataDir, linked.filter(item => item !== repo));
+      saveRepositories(deps.dataDir, linked.filter(item => item.fullName.toLowerCase() !== repo.fullName.toLowerCase()));
       console.log('GitHub repository disconnected: ' + fullName);
       send(200, { ok: true });
       return true;
     }
+    const registered=linked.some(item=>item.fullName.toLowerCase()===repo.fullName.toLowerCase());
+    // Built-in Panel monitoring is GET-only. It never authorizes workflow dispatch
+    // or legacy operations unless the admin explicitly registers that repository.
+    if (!registered && !['runs-all'].includes(match[3] || '') &&
+        !/^runs\/[1-9][0-9]{0,15}\/jobs$/.test(match[3] || ''))
+      throw new GitHubError(404, 'Conecte este repositório antes de operá-lo.');
     const root = '/repos/' + repo.fullName + '/actions/workflows/' + encodeURIComponent(repo.workflow);
     if (match[3] === 'runs' && req.method === 'GET') {
       const data = await github(root + '/runs?per_page=10&branch=' + encodeURIComponent(repo.branch));
