@@ -76,3 +76,42 @@ Testes de aceitação necessários, sem publicar credenciais em logs:
 O servidor HTTP atual é **somente leitura** e recebe **Bearer estático**, gerado localmente e nunca comitado. Clientes compatíveis com MCP que conseguem enviar Bearer customizado podem usá-lo. **Isso não constitui uma implementação OAuth 2.1** e, portanto, não garante integração direta ao ChatGPT ou outros clientes que exijam descoberta/fluxo OAuth. Para esses, implementar um provedor OAuth 2.1 com PKCE, metadados de recurso protegido e tokens com audience correto antes de declarar a integração concluída. Token único também **não concede permissões diferentes para 50 repositórios**. A sincronização de outros repositórios e ACL individuais permanecem pendentes.
 
 Referências: https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization e https://developers.cloudflare.com/tunnel/get-started/.
+
+## Ativação da rede pela Shell — sem reiniciar serviços
+
+Para o ambiente de produção, usar `python3` (presente na VPS) em vez de depender do Node instalado no host. `tools/repo-mcp/edge_network.py` possui as mesmas regras de propriedade e rede que o protótipo JS, com testes de idempotência/rollback. Em checkout de revisão fixa:
+
+```sh
+sudo python3 tools/repo-mcp/edge_network.py check
+sudo python3 tools/repo-mcp/edge_network.py apply LINK:code-mcp
+sudo python3 tools/repo-mcp/edge_network.py check
+# Reversão explícita, se necessária:
+sudo python3 tools/repo-mcp/edge_network.py rollback UNLINK:code-mcp
+```
+
+O resultado de apply só confirma a rede interna; não confirma origem do túnel, DNS público ou a conexão com um cliente.
+
+## Smoke de um cliente Streamable HTTP (sem vazar token)
+
+`tools/repo-mcp/client-smoke.mjs` funciona como cliente MCP real: verifica 401 sem token/401 token inválido/403 Origin, negocia `initialize`, chama `tools/list`, `repo_list`, `repo_stats` e `repo_find_files`. Recebe endpoint e caminho do token, mas **não recebe o segredo como argumento**, e só imprime contagens/estados.
+
+```sh
+# Em um ambiente Node 24 com acesso ao loopback do host:
+node tools/repo-mcp/client-smoke.mjs http://127.0.0.1:8789/mcp /etc/vps-operations/code-mcp-token
+# Em cliente autorizado com HTTPS e uma cópia pessoal segura do token:
+node tools/repo-mcp/client-smoke.mjs https://SEU-HOSTNAME-CONFIRMADO/mcp /caminho/privado/token
+```
+
+`SEU-HOSTNAME-CONFIRMADO` é variável ilustrativa, não DNS criado.
+
+Codex CLI, após um hostname HTTPS configurado e acesso ao token por canal administrativo privado (nunca copie o segredo em chats ou commits):
+
+```sh
+# No COMPUTADOR do cliente, com variável CODE_MCP_TOKEN definida no processo:
+codex mcp add painel-code --url https://SEU-HOSTNAME-CONFIRMADO/mcp --bearer-token-env-var CODE_MCP_TOKEN
+codex mcp list
+```
+
+O token da VPS fica em `/etc/vps-operations/code-mcp-token`, com acesso administrativo restrito. Não publicá-lo no GitHub, issue, log ou página do painel. Para conectar um cliente externo, é preciso provisionar o segredo no cliente por meio seguro e garantir que ele esteja no ambiente do processo Codex.
+
+**O token de execução de `cloudflared` em `/etc/softload-panel/tunnel-token` não é um token administrativo da API Cloudflare.** A rota de publicação é configurada separadamente no Dashboard (Networking > Tunnels > túnel existente > Routes > Add route > Published application), hostname exclusivo e Service URL `http://code-mcp-bridge:8789`. Não modificar os hostnames existentes. O hostname público também pode exigir autorização adicional via Cloudflare Access, desde que o cliente suporte o método configurado.

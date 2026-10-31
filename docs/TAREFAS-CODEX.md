@@ -420,3 +420,5 @@ Cadastro multiprojetos persistente em `PANEL_DATA_DIR/infrastructure-plans.json`
 - Pendências: aprovação humana do ambiente no GitHub, publicação de imagem e execução real, sincronização confiável e autorizada de cada novo repositório, ACL individual por repo/cliente, endpoint HTTPS autenticado (sem expor token ao browser), rotação de token, política de troca/rollback e conexão do cliente MCP.
 
 - [ ] MCP HTTPS remoto: rede privada `vps_code_mcp_edge` com modo prévia/aplicar/reverter por `tools/repo-mcp/edge-network.mjs` e testes no Actions **(código na branch, VPS ainda não modificada)**. Aplicação via Shell root explícita, Cloudflare hostname/tunnel route, smoke HTTP externo e OAuth 2.1 para clientes que exigirem. Não assumir que Bearer estático é suficiente para ChatGPT. Não expor serviços em produção sem autorização.
+
+- [ ] Rust executor: protótipo shadow `server/rust-executor` somente decisões de leitura sem Docker socket (não implantado). Garantir paridade ampla com Node, testes de escalonamento e identidade real, memória/CPU/latência comparativas, depois preparar migração com rollback aprovado.

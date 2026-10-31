@@ -1,0 +1,29 @@
+name: Rust executor shadow policy checks (no deploy)
+on:
+  push:
+    branches: ['feat/angular-complete-migration']
+    paths:
+      - 'server/rust-executor/**'
+      - '.github/workflows/rust-executor-shadow.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rust-shadow:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Check formatting
+        run: cargo fmt --manifest-path server/rust-executor/Cargo.toml --all -- --check
+      - name: Verify policy prototype has no clippy warnings
+        run: cargo clippy --manifest-path server/rust-executor/Cargo.toml --all-targets -- -D warnings
+      - name: Test shadow mode fail-closed policy
+        run: cargo test --manifest-path server/rust-executor/Cargo.toml --all-targets --verbose
+      - name: Build optimized Rust executor prototype
+        run: cargo build --manifest-path server/rust-executor/Cargo.toml --release

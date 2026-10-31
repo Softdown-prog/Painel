@@ -43,3 +43,7 @@ A branch Angular também prepara `tools/repo-mcp/http-server.mjs` e `operations/
 ## Integração Cloudflare Tunnel do Code MCP
 
 `tools/repo-mcp/edge-network.mjs` gerencia uma **rede privada adicional**, somente entre `vps-code-mcp` e `softload-panel-tunnel`. Padrão read-only `--check`; `--apply LINK:code-mcp` e `--rollback UNLINK:code-mcp` são operações root **manuais**, separadas do GitHub CI, com validações de propriedade e rede. Não modificar Caddy ou Cloudflare remotamente por suposição; não expor 8789 na WAN. O servidor usa Bearer fixo, não OAuth, e a publicação real HTTPS depende de rota Cloudflare autorizada. Consultar `docs/CODE-MCP-VPS.md`.
+
+## Executor Rust em modo sombra
+
+`server/rust-executor` contém somente núcleo de decisões em Rust, sem docker.sock, sem socket HTTP e sem permissão operacional. `candidate_allowed` é parecer, nunca autorização executável (`enforcement_allowed` é sempre falso). Manter `server/executor.mjs` como autoridade de produção até existir paridade e benchmarks reais; não implantar o protótipo na VPS nem expor a container privilegiado. A branch permanece separada da main.
