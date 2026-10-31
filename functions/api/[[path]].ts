@@ -59,8 +59,8 @@ export async function proxyPanelRequest(context: PanelContext, fetcher: typeof f
     }
     if (controller.signal.aborted) throw new Error('Upstream timeout');
     const object = data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : null;
-    if (object && !object.cloudflare_error && !('status_code' in object && !('error' in object)) &&
-      (upstream.ok || typeof object.error === 'string')) {
+    if (object && !object['cloudflare_error'] && !('status_code' in object && !('error' in object)) &&
+      (upstream.ok || typeof object['error'] === 'string')) {
       const cookie = upstream.headers.get('set-cookie');
       if (cookie && /^panel_session=/.test(cookie)) responseHeaders.set('set-cookie', cookie);
       return Response.json(object, { status: upstream.status, headers: responseHeaders });

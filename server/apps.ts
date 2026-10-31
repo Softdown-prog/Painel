@@ -25,7 +25,7 @@ type DockerContainer = {
 type DockerInspect = { Id: string; Name: string; Config?: { Labels?: Record<string, string>; Image?: string }; State?: { Status?: string }; HostConfig?: { Memory?: number; NanoCpus?: number; NetworkMode?: string } };
 type Resources = { ramMb: number; cpuCores: number };
 export function validResources(value: Record<string, unknown>): value is Record<string, unknown> & Resources {
-  return RAM_CHOICES.includes(value.ramMb as number) && CPU_CHOICES.includes(value.cpuCores as number);
+  return RAM_CHOICES.includes(value['ramMb'] as number) && CPU_CHOICES.includes(value['cpuCores'] as number);
 }
 function limits(resources: Resources) {
   const memory = resources.ramMb * 1024 * 1024;
@@ -47,9 +47,9 @@ function saveIdlePolicies(dataDir: string, policies: Record<string, number>) {
 type IdleSample = { lastActive: number; network: number; cpu: number; sampledAt: number };
 const idleSamples = new Map<string, IdleSample>();
 function activityCounters(stats: Record<string, any>) {
-  const network = Object.values(stats.networks || {}).reduce((sum: number, value: any) =>
+  const network = Object.values(stats['networks'] || {}).reduce((sum: number, value: any) =>
     sum + Number(value.rx_bytes || 0) + Number(value.tx_bytes || 0), 0);
-  return { network, cpu: Number(stats.cpu_stats?.cpu_usage?.total_usage || 0) };
+  return { network, cpu: Number(stats['cpu_stats']?.cpu_usage?.total_usage || 0) };
 }
 export async function scanIdleApps(docker: DockerRequest, dataDir: string, now = Date.now(), samples = idleSamples): Promise<string[]> {
   const policies = idlePolicies(dataDir);
@@ -83,7 +83,7 @@ export async function scanIdleApps(docker: DockerRequest, dataDir: string, now =
   return stopped;
 }
 export function startIdleMonitor(dataDir: string, docker: DockerRequest = dockerRequest) {
-  if (process.env.PANEL_APPS_ENABLED !== '1') return;
+  if (process.env['PANEL_APPS_ENABLED'] !== '1') return;
   let running = false;
   const timer = setInterval(() => {
     if (running || !existsSync(idleFile(dataDir))) return;
@@ -95,10 +95,10 @@ export function startIdleMonitor(dataDir: string, docker: DockerRequest = docker
   timer.unref();
 }
 function allowedImages(): string[] {
-  return (process.env.PANEL_APPS_ALLOWED_IMAGES || '').split(',').map(s => s.trim())
+  return (process.env['PANEL_APPS_ALLOWED_IMAGES'] || '').split(',').map(s => s.trim())
     .filter(s => /^[a-zA-Z0-9][a-zA-Z0-9._/:@-]{0,190}$/.test(s));
 }
-export function managedContainerSpec(slug: string, image: string, labels: Record<string, string> = {}, resources: Resources = { ramMb: 256, cpuCores: 0.5 }, networkMode = process.env.PANEL_APPS_NETWORK === 'softload_panel_apps' ? 'softload_panel_apps' : 'bridge') {
+export function managedContainerSpec(slug: string, image: string, labels: Record<string, string> = {}, resources: Resources = { ramMb: 256, cpuCores: 0.5 }, networkMode = process.env['PANEL_APPS_NETWORK'] === 'softload_panel_apps' ? 'softload_panel_apps' : 'bridge') {
   return {
     Image: image, User: '65534:65534',
     Labels: { [OWNER_LABEL]: 'true', [ID_LABEL]: slug, ...labels },
@@ -121,7 +121,7 @@ export async function dockerRequest(path: string, method = 'GET', payload?: unkn
   const data = payload === undefined ? undefined : JSON.stringify(payload);
   if (data && Buffer.byteLength(data) > 8192) throw new Error('Docker payload too large');
   return new Promise((resolve, reject) => {
-    const req = http.request({ socketPath: process.env.PANEL_DOCKER_SOCKET_PATH || '/run/panel-executor/docker.sock', path: '/v1.45' + path, method,
+    const req = http.request({ socketPath: process.env['PANEL_DOCKER_SOCKET_PATH'] || '/run/panel-executor/docker.sock', path: '/v1.45' + path, method,
       timeout: 15000, headers: data ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {} }, response => {
       const chunks: Buffer[] = [];
       let bytes = 0;
@@ -190,8 +190,8 @@ export async function handleAppRoute(req: IncomingMessage, res: ServerResponse, 
   const send = (status: number, result: unknown) => deps.send(res, status, result);
   const docker = deps.docker || dockerRequest;
   const images = deps.images || allowedImages();
-  const enabled = deps.enabled ?? process.env.PANEL_APPS_ENABLED === '1';
-  const dataDir = deps.dataDir || process.env.PANEL_DATA_DIR || '/data';
+  const enabled = deps.enabled ?? process.env['PANEL_APPS_ENABLED'] === '1';
+  const dataDir = deps.dataDir || process.env['PANEL_DATA_DIR'] || '/data';
   try {
     if (path === '/apps' && req.method === 'GET') {
       const policies = idlePolicies(dataDir);
@@ -209,9 +209,9 @@ export async function handleAppRoute(req: IncomingMessage, res: ServerResponse, 
     if (!enabled && req.method !== 'GET') throw new AppError(403, 'Gerenciamento de aplicações não habilitado na VPS.');
     if (path === '/apps' && req.method === 'POST') {
       const input = await deps.body(req);
-      const slug = input.slug;
-      const image = input.image;
-      const resources = { ramMb: input.ramMb ?? 256, cpuCores: input.cpuCores ?? 0.5 };
+      const slug = input['slug'];
+      const image = input['image'];
+      const resources = { ramMb: input['ramMb'] ?? 256, cpuCores: input['cpuCores'] ?? 0.5 };
       if (!validSlug(slug) || !validImage(image, images) || !validResources(resources) ||
         Object.keys(input).some(key => !['slug', 'image', 'ramMb', 'cpuCores'].includes(key)))
         throw new AppError(400, 'Nome, imagem ou limites inválidos. Utilize valores autorizados.');
@@ -252,14 +252,14 @@ export async function handleAppRoute(req: IncomingMessage, res: ServerResponse, 
     }
     if (operation === 'idle' && req.method === 'POST') {
       const input = await deps.body(req);
-      if (Object.keys(input).join(',') !== 'minutes' || !IDLE_CHOICES.includes(input.minutes as number))
+      if (Object.keys(input).join(',') !== 'minutes' || !IDLE_CHOICES.includes(input['minutes'] as number))
         throw new AppError(400, 'Período de inatividade inválido.');
       const policies = idlePolicies(dataDir);
-      if (input.minutes === 0) delete policies[slug];
-      else policies[slug] = input.minutes as number;
+      if (input['minutes'] === 0) delete policies[slug];
+      else policies[slug] = input['minutes'] as number;
       saveIdlePolicies(dataDir, policies);
       idleSamples.delete(slug);
-      send(200, { ok: true, slug, idleMinutes: input.minutes });
+      send(200, { ok: true, slug, idleMinutes: input['minutes'] });
       return true;
     }
     if (operation === 'logs' && req.method === 'GET') {

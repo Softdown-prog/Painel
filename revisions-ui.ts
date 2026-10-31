@@ -95,7 +95,7 @@
     const autoButton=get('revisionsAutoButton') as HTMLButtonElement;
     autoButton.disabled=!report.enabled;
     autoButton.textContent=report.automatic?'Pausar limpeza automática':'Ativar limpeza automática';
-    autoButton.dataset.automatic=String(report.automatic);
+    autoButton.dataset['automatic']=String(report.automatic);
     const button=get('revisionsCleanupButton') as HTMLButtonElement;
     button.disabled=!report.enabled||report.oldCount===0;
     button.title=!report.enabled?'A limpeza precisa ser habilitada pelo administrador na VPS.':report.oldCount===0?'Não há imagens antigas elegíveis.':'Excluir apenas imagens antigas verificadas';
@@ -150,7 +150,7 @@
   }
   get('revisionsAutoButton').addEventListener('click',async()=>{
     const element=get('revisionsAutoButton') as HTMLButtonElement;
-    const next=element.dataset.automatic!=='true';
+    const next=element.dataset['automatic']!=='true';
     if(!confirm(next
       ? 'Ativar limpeza automática a cada 6 horas?\n\nSomente imagens importadas há mais de 14 dias e fora das duas versões preservadas por aplicação poderão ser removidas.'
       : 'Pausar a limpeza automática de revisões antigas?'))return;
