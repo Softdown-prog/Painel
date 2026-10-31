@@ -8,12 +8,12 @@ const slots=/^softload-(app|candidate|backup)-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 const ram=new Set([128,256,512,768,1024].map(x=>x*1048576));
 const cpus=new Set([250000000,500000000,1000000000,2000000000]);
 const denied=(reason:string):Decision=>({ok:false,reason});
-const approved=(name?:string):Decision=>({ok:true,reason:'allowlisted',name});
+const approved=(name?:string):Decision=>({ok:true,reason:'allowlisted',...(name===undefined?{}:{name})});
 const object=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const keys=(v:Record<string,unknown>,expected:string[])=>Object.keys(v).sort().join(',')===expected.sort().join(',');
 export function validCreate(name:string,input:unknown,images:string[]):boolean{
  const slot=/^softload-(app|candidate)-([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(name);
- if(!slot||slot[2].length>40||!object(input)||!keys(input,['Image','User','Labels','HostConfig'])||!object(input.Labels)||!object(input.HostConfig)||input.User!=='65534:65534')return false;
+ if(!slot?.[2]||slot[2].length>40||!object(input)||!keys(input,['Image','User','Labels','HostConfig'])||!object(input.Labels)||!object(input.HostConfig)||input.User!=='65534:65534')return false;
  const labels=input.Labels,host=input.HostConfig;
  if(labels[owner]!=='true'||labels[slugLabel]!==slot[2])return false;
  if(slot[1]==='app'){
@@ -43,7 +43,7 @@ async function authorizedContainer(id:string,inspect:(id:string)=>Promise<Inspec
  if(legacyEnabled&&services.has(name))return ['read','start','stop','restart'].includes(operation)?{...approved(name),targetId:item.Id}:denied('Protected service');
  if(legacyEnabled&&monitor.has(name))return operation==='read'?{...approved(name),targetId:item.Id}:denied('Read-only system service');
  const slot=slots.exec(name);
- if(!slot||slot[2].length>40||item.Config?.Labels?.[owner]!=='true'||item.Config.Labels[slugLabel]!==slot[2])return denied('Unmanaged container');
+ if(!slot?.[2]||slot[2].length>40||item.Config?.Labels?.[owner]!=='true'||item.Config.Labels[slugLabel]!==slot[2])return denied('Unmanaged container');
  if(slot[1]==='candidate'&&item.Config.Labels['com.softload.panel.release-role']!=='candidate')return denied('Untrusted release slot');
  if(operation==='delete'&&(item.State?.Running||item.State?.Status==='running'))return denied('Must stop container before removal');
  return {...approved(name),targetId:item.Id};
@@ -104,7 +104,7 @@ export async function authorize(input:{method:string;url:string;payload?:unknown
  const route=/^\/containers\/([^/]+)(?:\/(json|logs|stats|start|stop|restart|rename|update))?$/.exec(path);
  if(!route)return denied('Operation not allowlisted');
  let id:string;
- try{id=decodeURIComponent(route[1])}catch{return denied('Invalid target')}
+ try{if(!route[1])return denied('Invalid target');id=decodeURIComponent(route[1])}catch{return denied('Invalid target')}
  if(!/^[a-zA-Z0-9_-]{2,80}$/.test(id))return denied('Invalid target');
  const action=route[2]||'delete';
  if(action==='delete'){
@@ -130,6 +130,6 @@ export function visibleContainers<T extends {Names?:string[];Labels?:Record<stri
  return list.filter(c=>(c.Names||[]).some(n=>{
   const name=n.replace(/^\//,'');const slot=slots.exec(name);
   return (legacyEnabled&&(services.has(name)||monitor.has(name)))||
-    (Boolean(slot)&&slot![2].length<=40&&c.Labels?.[owner]==='true'&&c.Labels[slugLabel]===slot![2]);
+    (Boolean(slot?.[2])&&slot![2]!.length<=40&&c.Labels?.[owner]==='true'&&c.Labels[slugLabel]===slot![2]);
  }));
 }

@@ -29,7 +29,7 @@ export function appendResourceSample(previous: ResourcePoint[], next: ResourcePo
   if (Math.abs(Date.parse(next.at) - time) > 60_000) return previous;
   const recent = previous.filter(point => valid(point) && Date.parse(point.at) >= time - WINDOW_MS &&
     Date.parse(point.at) <= time + 60_000).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  if (recent.length && Date.parse(next.at) - Date.parse(recent[recent.length - 1].at) < INTERVAL_MS)
+  if (recent.at(-1) && Date.parse(next.at) - Date.parse(recent.at(-1)!.at) < INTERVAL_MS)
     return recent.slice(-MAX_POINTS);
   if (next.memoryPercent === null && next.diskPercent === null)
     return recent.slice(-MAX_POINTS);

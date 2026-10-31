@@ -176,6 +176,7 @@ export async function handleImageImportRoute(req: IncomingMessage, res: ServerRe
   const match = /^\/projects\/([a-z0-9-]+)\/images\/import$/.exec(path);
   if (!match) return false;
   const slug = match[1];
+  if (!slug) return false;
   const send = (status: number, data: unknown) => deps.send(res, status, data);
   const enabled = deps.enabled ?? process.env.PANEL_GHCR_PULL_ENABLED === '1';
   try {

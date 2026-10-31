@@ -119,7 +119,7 @@
   }
   async function runCommand(command: string): Promise<string> {
     const args = command.trim().split(/\s+/);
-    let cmd = args[0].toLowerCase();
+    let cmd = (args[0] ?? '').toLowerCase();
     if (cmd === 'linux') {
       const shellCommand = command.slice(5).trim();
       return runLinux(shellCommand);
@@ -144,7 +144,7 @@
         const result = await mutate('/maintenance/revisions/cleanup','POST',{confirm:'LIMPAR_REVISOES_ANTIGAS'});
         return 'Limpeza concluída: ' + result.removed + ' removidas · ' + result.failed + ' falhas.';
       }
-      if (args[1] === 'auto' && args.length === 3 && ['ligar','desligar'].includes(args[2])) {
+      if (args[1] === 'auto' && args.length === 3 && ['ligar','desligar'].includes(args[2] ?? '')) {
         const automatic = args[2] === 'ligar';
         if (!confirmAction(automatic?'Ativar limpeza automática':'Pausar limpeza automática', 'VPS',
           automatic ? 'Verifica a cada seis horas, protegendo backups e duas últimas revisões/app.' : 'Nenhuma imagem será apagada automaticamente.'))
@@ -218,7 +218,7 @@
     }
     if (cmd === 'logs') {
       if (args.length !== 2) throw new Error('Uso: logs <nome-do-serviço-ou-app>');
-      const target = args[1];
+      const target = args[1] ?? '';
       let path: string;
       if (SERVICES.includes(target)) path = '/services/' + target + '/logs?tail=100';
       else path = '/apps/' + validateName(target) + '/logs';
@@ -227,8 +227,9 @@
     }
     if (Object.hasOwn(ACTIONS, cmd)) {
       if (args.length !== 2) throw new Error('Uso: ' + cmd + ' <serviço-ou-app>');
-      const target = args[1];
+      const target = args[1] ?? '';
       const action = ACTIONS[cmd];
+      if (!action) throw new Error('Ação inválida.');
       const isService = SERVICES.includes(target);
       if (isService && (target === 'caddy' || target === 'portainer'))
         throw new Error('Caddy e Portainer são somente leitura neste painel.');
@@ -240,9 +241,9 @@
     if (cmd === 'app') {
       const operation = args[1];
       if (operation === 'criar' && args.length >= 4 && args.length <= 6) {
-        const name = args[2];
+        const name = args[2] ?? '';
         validateName(name);
-        const image = args[3];
+        const image = args[3] ?? '';
         const ramMb = Number(args[4] || 256);
         const cpuCores = Number(args[5] || 0.5);
         const configured = await api('/apps');
@@ -256,7 +257,7 @@
         return 'Aplicação criada: ' + name + '. Digite iniciar ' + name + ' para ligá-la.';
       }
       if (operation === 'recursos' && args.length === 5) {
-        const name = args[2]; validateName(name);
+        const name = args[2] ?? ''; validateName(name);
         const ramMb = Number(args[3]); const cpuCores = Number(args[4]);
         if (!Number.isFinite(ramMb) || !Number.isFinite(cpuCores)) throw new Error('Informe RAM em MB e CPU numérica.');
         if (!confirmAction('Ajustar memória/processador', name, 'RAM: ' + ramMb + ' MB; CPU: ' + cpuCores)) return 'Operação cancelada.';
@@ -264,7 +265,7 @@
         return 'Limites atualizados para ' + name + '.';
       }
       if (operation === 'remover' && args.length === 3) {
-        const name = args[2]; validateName(name);
+        const name = args[2] ?? ''; validateName(name);
         if (!confirmAction('Remover aplicação', name, 'Exige que o container esteja parado e sem domínio vinculado. A exclusão não pode ser desfeita.'))
           return 'Operação cancelada.';
         await mutate('/apps/' + name, 'DELETE');
@@ -274,7 +275,7 @@
     }
     if (cmd === 'dominio') {
       if (args[1] === 'criar' && args.length === 4) {
-        const name = args[2]; validateName(name);
+        const name = args[2] ?? ''; validateName(name);
         const port = Number(args[3]);
         if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Porta deve ser entre 1024 e 65535.');
         if (!confirmAction('Reservar domínio', name, 'Porta interna: ' + port + '. Atenção: isto NÃO publica o site na internet.'))
@@ -283,7 +284,7 @@
         return 'Endereço reservado: ' + d.route.host + '\nA publicação pública ainda depende de DNS, HTTPS e recarga do gateway.';
       }
       if (args[1] === 'remover' && args.length === 3) {
-        const name = args[2]; validateName(name);
+        const name = args[2] ?? ''; validateName(name);
         if (!confirmAction('Remover domínio', name, 'Será removido do cadastro; a configuração do gateway ainda exige atualização.'))
           return 'Operação cancelada.';
         await mutate('/domains/' + name, 'DELETE');

@@ -14,7 +14,8 @@ export function parseProcNetDev(text: string, device: string): Counters | null {
   const line = text.split('\n').find(value => value.trimStart().startsWith(device + ':'));
   if (!line) return null;
   const values = line.slice(line.indexOf(':') + 1).trim().split(/\s+/).map(Number);
-  return Number.isSafeInteger(values[0]) && Number.isSafeInteger(values[8]) && values[0] >= 0 && values[8] >= 0 ? { rx: values[0], tx: values[8] } : null;
+  const rx = values[0], tx = values[8];
+  return typeof rx === 'number' && typeof tx === 'number' && Number.isSafeInteger(rx) && Number.isSafeInteger(tx) && rx >= 0 && tx >= 0 ? { rx, tx } : null;
 }
 function defaults(): Store { return { version: 1, interface: process.env.PANEL_TRAFFIC_INTERFACE || 'eth0', days: [], settings: { allowanceBytes: TB, resetDay: 1 } }; }
 function read(dataDir: string): Store {

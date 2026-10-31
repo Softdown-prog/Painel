@@ -47,7 +47,7 @@ export async function proxyPanelRequest(context: PanelContext, fetcher: typeof f
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const upstream = await fetcher(target, { method: request.method, headers,
-      body: request.method === 'POST' ? request.body : undefined, redirect: 'manual', signal: controller.signal });
+      ...(request.method === 'POST' ? { body: request.body } : {}), redirect: 'manual', signal: controller.signal });
     if (upstream.status >= 300 && upstream.status < 400)
       return failure(502, 'UPSTREAM_ACCESS', 'A autorização da conexão privada com a VPS precisa ser conferida em Configuração avançada.', upstream.status);
     const responseHeaders = new Headers({ 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });

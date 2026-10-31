@@ -197,7 +197,8 @@ export async function handleAppRoute(req: IncomingMessage, res: ServerResponse, 
       const policies = idlePolicies(dataDir);
       const containers = await listManaged(docker, true);
       const applications = await Promise.all(containers.map(async container => {
-        const slug = container.Labels![ID_LABEL];
+        const slug = container.Labels?.[ID_LABEL];
+         if (!slug) throw new AppError(502, 'Container gerenciado sem identificador válido.');
         const details = await inspectOwned(docker, slug);
         return item(container, details, policies[slug] || 0);
       }));

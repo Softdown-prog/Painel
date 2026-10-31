@@ -12,12 +12,13 @@
         Number.isFinite(point.time) && typeof point.value === 'number' &&
         Number.isFinite(point.value) && point.value >= 0 && point.value <= 100)
       .sort((a, b) => a.time - b.time);
-    if (values.length < 2 || values.at(-1)!.time <= values[0].time) {
+    const first = values[0], last = values.at(-1);
+    if (!first || !last || last.time <= first.time) {
       target.textContent = 'Aguardando pelo menos duas leituras diferentes.';
       return { count: values.length, label: 'Histórico começando' };
     }
     const width = 360, height = 105, left = 8, right = 352, top = 9, bottom = 90;
-    const minTime = values[0].time, maxTime = values.at(-1)!.time;
+    const minTime = first.time, maxTime = last.time;
     const x = (t: number) => left + (t-minTime)/(maxTime-minTime)*(right-left);
     const y = (v: number) => bottom-(v/100)*(bottom-top);
     const svg = document.createElementNS(ns, 'svg');
@@ -64,8 +65,8 @@
     }
     target.append(svg);
     const time = (t: number) => new Date(t).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    return {count:values.length, label:values[0].value.toFixed(1).replace('.', ',')+'% → '+
-      values.at(-1)!.value.toFixed(1).replace('.', ',')+'% · '+time(minTime)+' a '+time(maxTime)};
+    return {count:values.length, label:first.value.toFixed(1).replace('.', ',')+'% → '+
+      last.value.toFixed(1).replace('.', ',')+'% · '+time(minTime)+' a '+time(maxTime)};
   }
   function renderResourceHistory(input?: History | null) {
     const meta = el('resourceHistoryMeta');
