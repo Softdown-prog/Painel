@@ -1,6 +1,7 @@
 import { Component, HostListener, OnInit, computed, signal } from '@angular/core';
 import { DeploymentsComponent } from './deployments.component';
 import { AppsComponent } from './apps.component';
+import { GithubProjectsComponent } from './github-projects.component';
 
 type Session = {authenticated: boolean; setupRequired: boolean};
 type Summary = {available: boolean; running: number | null; total: number | null; truncated?: boolean};
@@ -20,12 +21,12 @@ type Inventory = {containers?: ManagedContainer[]; readOnly?: boolean; updatedAt
 @Component({
   selector: 'panel-app',
   standalone: true,
-  imports: [DeploymentsComponent, AppsComponent],
+  imports: [DeploymentsComponent, AppsComponent, GithubProjectsComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
 export class AppComponent implements OnInit {
-  readonly page = signal<'overview' | 'containers' | 'deployments' | 'apps'>('overview');
+  readonly page = signal<'overview' | 'containers' | 'deployments' | 'apps' | 'projects'>('overview');
   readonly menuOpen = signal(false);
   readonly session = signal<Session | null>(null);
   readonly overview = signal<Overview | null>(null);
@@ -57,7 +58,7 @@ export class AppComponent implements OnInit {
   private syncPageFromLocation(): void {
     const hash = window.location.hash.replace(/^#\/?/, '');
     if (hash === 'overview' || hash === 'containers' ||
-        hash === 'deployments' || hash === 'apps') this.page.set(hash);
+        hash === 'deployments' || hash === 'apps' || hash === 'projects') this.page.set(hash);
     else this.page.set('overview');
   }
 
@@ -138,7 +139,7 @@ export class AppComponent implements OnInit {
     } finally { this.loading.set(false); }
   }
 
-  selectPage(page: 'overview' | 'containers' | 'deployments' | 'apps'): void {
+  selectPage(page: 'overview' | 'containers' | 'deployments' | 'apps' | 'projects'): void {
     this.page.set(page);
     this.menuOpen.set(false);
     if (window.location.hash !== '#' + page) window.location.hash = page;

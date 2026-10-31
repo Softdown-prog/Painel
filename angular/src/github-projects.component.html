@@ -1,0 +1,78 @@
+<section class="github-projects" aria-label="Projetos GitHub conectados">
+  <div class="github-top">
+    <div><h2>Projetos do GitHub</h2><p>Conecte repositórios e acompanhe suas publicações sem sair do painel Angular.</p></div>
+    <button class="refresh" type="button" [disabled]="loading()||working()" (click)="refresh()">{{loading()?'Consultando…':'↻ Atualizar'}}</button>
+  </div>
+  @if(error()){<p class="github-error" role="alert">{{error()}}</p>}
+  @if(notice();as n){<p class="github-notice" [class.success]="n.kind==='success'" role="status">{{n.text}}</p>}
+  @if(!tokenConfigured()){
+    <p class="github-warning" role="status">Leitura disponível. Para conectar repositórios ou solicitar publicações, configure o token do GitHub no servidor. Nunca coloque o token neste formulário.</p>
+  }
+  <div class="github-summary">
+    <div><small>PROJETOS CONECTADOS</small><strong>{{repositories().length}}</strong></div>
+    <div><small>PUBLICAÇÃO</small><strong>{{tokenConfigured()?'Disponível':'Somente leitura'}}</strong></div>
+  </div>
+  <section class="github-panel" aria-labelledby="repo-list-title">
+    <div class="panel-title"><h3 id="repo-list-title">Repositórios cadastrados</h3><small>Somente o proprietário autorizado</small></div>
+    @if(!repositories().length){<p class="github-empty">Nenhum repositório conectado. O Painel continua monitorando a própria revisão na aba Publicações.</p>}
+    @for(repo of repositories();track repo.fullName){
+      <button class="repo-choice" [class.selected]="chosen()===repo.fullName" type="button" [attr.aria-pressed]="chosen()===repo.fullName" (click)="choose(repo.fullName)">
+        <span class="repo-badge" aria-hidden="true">⌘</span>
+        <span class="repo-copy"><strong>{{repo.fullName}}</strong><small>Branch {{repo.branch}} · {{repo.workflow}}</small></span>
+        <span aria-hidden="true">›</span>
+      </button>
+    }
+  </section>
+
+  @if(selected();as repo){
+    <section class="github-panel detail" aria-labelledby="detail-title">
+      <div class="panel-title"><div><h3 id="detail-title">{{repo.fullName}}</h3><small>Workflow autorizado: {{repo.workflow}} · {{repo.branch}}</small></div></div>
+      <div class="repo-actions">
+        <a [href]="'https://github.com/'+repo.fullName" target="_blank" rel="noopener noreferrer">Abrir no GitHub</a>
+        <button type="button" [disabled]="working()||!tokenConfigured()" (click)="startAction('deploy')">⇧ Solicitar publicação</button>
+        <button type="button" class="remove" [disabled]="working()" (click)="startAction('disconnect')">Desconectar</button>
+      </div>
+      @if(action();as pending){
+        <div class="confirm-panel">
+          <strong>{{pending==='deploy'?'Confirmar publicação':'Confirmar desconexão'}}</strong>
+          <p>@if(pending==='deploy'){O GitHub executará <code>{{repo.workflow}}</code> na branch <code>{{repo.branch}}</code> de <strong>{{repo.fullName}}</strong>. A publicação não é considerada concluída até o workflow confirmar o resultado.}
+          @else{Remover <strong>{{repo.fullName}}</strong> do cadastro do Painel? Isto não apaga o repositório nem os containers da VPS.}</p>
+          <div class="confirm-actions">
+            <button type="button" (click)="cancelAction()" [disabled]="working()">Cancelar</button>
+            <button type="button" class="commit" [class.danger]="pending==='disconnect'" [disabled]="working()" (click)="confirm()">{{working()?'Processando…':pending==='deploy'?'Confirmar solicitação':'Confirmar remoção'}}</button>
+          </div>
+        </div>
+      }
+      <div class="runs-title"><h4>Últimas execuções</h4><button type="button" [disabled]="runsLoading()||working()" (click)="refreshRuns()">↻ Reconsultar</button></div>
+      @if(runsLoading()){<p role="status">Consultando execuções do GitHub…</p>}
+      @if(!runsLoading()&&!runs().length){<p class="github-empty">Nenhuma execução informada para esta branch.</p>}
+      <div class="recent-runs">
+        @for(run of runs();track run.id){
+          <a class="recent-run" [href]="'https://github.com/'+repo.fullName+'/actions/runs/'+run.id" target="_blank" rel="noopener noreferrer">
+            <span class="run-mark" [class.success]="tone(run)==='success'" [class.failure]="tone(run)==='failure'" [class.pending]="tone(run)==='pending'" aria-hidden="true">{{tone(run)==='success'?'✓':tone(run)==='failure'?'×':tone(run)==='pending'?'↻':'·'}}</span>
+            <span class="run-info"><strong>#{{run.id}} · {{run.sha.slice(0,9)}}</strong><small>{{status(run)}} · {{date(run.createdAt)}}</small></span>
+            <span aria-hidden="true">↗</span>
+          </a>
+        }
+      </div>
+      <a class="more-link" href="/angular/#deployments">Ver todos os workflows e etapas →</a>
+    </section>
+  }
+  <section class="github-panel" aria-labelledby="connect-title">
+    <h3 id="connect-title">Conectar repositório</h3>
+    <p>Use somente repositórios da conta <strong>{{allowedOwner()}}</strong>. Os dados de autenticação continuam na VPS.</p>
+    <form class="connect-form" (submit)="connect($event)">
+      <label>Repositório (proprietário/nome)
+        <input [value]="repoName()" (input)="repoName.set($any($event.target).value)" placeholder="Softdown-prog/meu-projeto" autocapitalize="off" spellcheck="false" autocomplete="off" required maxlength="201">
+      </label>
+      <label>Branch
+        <input [value]="branch()" (input)="branch.set($any($event.target).value)" placeholder="main" autocapitalize="off" spellcheck="false" autocomplete="off" required maxlength="100">
+      </label>
+      <label>Workflow (.yml/.yaml)
+        <input [value]="workflow()" (input)="workflow.set($any($event.target).value)" placeholder="deploy.yml" autocapitalize="off" spellcheck="false" autocomplete="off" required maxlength="85">
+      </label>
+      <button type="submit" class="connect-submit" [disabled]="!validForm()||!tokenConfigured()||working()">{{working()?'Processando…':'+ Conectar repositório'}}</button>
+    </form>
+  </section>
+  <p class="github-footnote">As operações usam a API administrativa já autenticada. Adicionar um repositório não instala nada na VPS. Publicações precisam de confirmação, e o estado real é consultado na aba Publicações.</p>
+</section>

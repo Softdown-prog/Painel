@@ -324,3 +324,7 @@ Use **[panel.analysepro.com](https://panel.analysepro.com/)**: a entrada princip
 As ferramentas ainda não migradas continuam na interface de compatibilidade, acessível pelo próprio menu Angular ou por `/?interface=classica#terminal`, `#database`, `#projects` etc. Isso evita perder controles enquanto seus equivalentes Angular são implementados. O uso direto de `/#overview` e outros atalhos antigos vai para o Angular, não para um segundo dashboard.
 
 A verificação de produção exige SHA no Cloudflare Pages e teste do bundle Angular, além de CI. Essas mudanças não habilitam comandos root extras e não afetam outros containers.
+
+### Projetos GitHub na interface Angular
+
+Na tela principal do Painel, toque em **☰ → Projetos GitHub**. O Angular permite vincular repositórios da conta autorizada, consultar as execuções e solicitar o workflow configurado mediante confirmação. O token permanece na API da VPS. Para ver todos os jobs, use a aba **Deploys**. O endereço antigo `/#projects` abre esta mesma tela; ferramentas ainda não migradas permanecem no menu de compatibilidade.
