@@ -12,7 +12,7 @@ test('Angular migration stays isolated and cannot deploy on feature pushes',()=>
    assert.match(s,/branches:\s*\[main\]/);
    assert.doesNotMatch(s,/feat\/angular-complete-migration/);
  }
- assert.match(read('docs/ANGULAR-COMPLETE-MIGRATION.md'),/não abrir PR, não fazer merge/);
+ assert.match(read('docs/ANGULAR-COMPLETE-MIGRATION.md'),/Não abrir PR, não fazer merge/);
 });
 test('Angular terminal uses only existing authenticated SSH endpoints and confirmation',()=>{
  const code=read('angular/src/terminal.component.ts');
