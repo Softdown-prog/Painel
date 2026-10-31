@@ -1,0 +1,76 @@
+<section class="postgres" aria-label="PostgreSQL compartilhado">
+  <header class="db-head"><div><h2>PostgreSQL</h2>
+    <p>Instância compartilhada da VPS, com bancos e identidades separados por projeto.</p></div>
+    <button type="button" (click)="refresh()" [disabled]="loading()||working()">{{loading()?'Consultando…':'↻ Atualizar'}}</button>
+  </header>
+  @if(error()){<p class="db-error" role="alert">{{error()}}</p>}
+  @if(notice()){<p class="db-success" role="status">{{notice()}}</p>}
+  @if(loading()){<p role="status">Consultando o PostgreSQL da VPS…</p>}
+  @if(status();as s){
+    <div class="db-connection" [class.connected]="s.integration==='connected'" role="status">
+      <strong>{{s.integration==='connected'?'● PostgreSQL conectado':s.integration==='not_configured'?'○ Integração não configurada':'! PostgreSQL indisponível'}}</strong>
+      <span>{{s.message}}</span>
+      <small>Verificado: {{date(s.checkedAt)}}</small>
+    </div>
+    @if(s.integration==='connected'&&s.instance&&s.metrics){
+      <div class="db-metrics">
+        <div><small>VERSÃO</small><strong>{{s.instance.version}}</strong></div>
+        <div><small>BANCOS</small><strong>{{s.metrics.databaseCount}}</strong></div>
+        <div><small>CONEXÕES</small><strong>{{s.metrics.connections}}</strong></div>
+        <div><small>ARMAZENAMENTO</small><strong>{{bytes(s.metrics.totalBytes)}}</strong></div>
+      </div>
+      <div class="db-security" [class.locked]="!enabled()">
+        <strong>{{enabled()?'● Provisionamento protegido habilitado':'○ Provisionamento bloqueado'}}</strong>
+        <p>{{s.security.message}}</p>
+        <small>Autenticação observada: {{s.security.hostAuthentication}}. A API faz verificações adicionais antes de criar um banco.</small>
+      </div>
+      <div class="db-tabs" role="group" aria-label="Inventário PostgreSQL">
+        <button type="button" [attr.aria-pressed]="view()==='databases'" (click)="view.set('databases')">Bancos ({{s.databases?.length??0}})</button>
+        <button type="button" [attr.aria-pressed]="view()==='roles'" (click)="view.set('roles')">Identidades ({{s.roles?.length??0}})</button>
+      </div>
+      @if(view()==='databases'){
+        <section class="db-list" aria-label="Bancos cadastrados">
+          @for(db of s.databases??[];track db.name){
+            <article><div><strong>{{db.name}}</strong><small>Proprietário: {{db.owner}}</small></div><span>{{bytes(db.sizeBytes)}}</span></article>
+          }@empty{<p>Nenhum banco informado pelo servidor.</p>}
+        </section>
+      }@else{
+        <section class="db-list" aria-label="Identidades PostgreSQL">
+          @for(role of s.roles??[];track role.name){
+            <article><div><strong>{{role.name}}</strong><small>{{role.canLogin?'Login habilitado':'Sem login'}} · {{role.superuser?'Superusuário':'Não é superusuário'}}</small></div></article>
+          }@empty{<p>Nenhuma identidade informada.</p>}
+        </section>
+      }
+      <section class="db-create" aria-labelledby="db-create-title">
+        <h3 id="db-create-title">Criar banco isolado por projeto</h3>
+        <p>O servidor criará uma identidade exclusiva e guardará o certificado na VPS. Não é necessário informar senha nem usar o banco de outro projeto.</p>
+        <form (submit)="prepare($event)">
+          <label for="dbProject">Identificador do projeto</label>
+          <input id="dbProject" [value]="project()" (input)="project.set($any($event.target).value);cancel()"
+            placeholder="meu-projeto" autocomplete="off" autocapitalize="off" spellcheck="false"
+            minlength="2" maxlength="30" pattern="[a-z][a-z0-9-]{1,29}" required [disabled]="!enabled()||working()||loading()"/>
+          <small>Letras minúsculas, números e traços; 2 a 30 caracteres. Nomes de bancos já existentes não serão sobrescritos.</small>
+          <button type="submit" [disabled]="!enabled()||!validProject()||working()||loading()">Preparar criação</button>
+        </form>
+        @if(pending()){
+          <div class="db-confirm" role="group" aria-label="Confirmação de novo banco">
+            <strong>Criar banco para {{project()}}?</strong>
+            <p>Confirme o nome abaixo. A criação altera a instância PostgreSQL compartilhada e não pode ser desfeita automaticamente.</p>
+            <label for="dbConfirm">Digite o identificador do projeto</label>
+            <input id="dbConfirm" [value]="confirmation()" (input)="confirmation.set($any($event.target).value)"
+              autocapitalize="off" spellcheck="false" autocomplete="off" [disabled]="working()"/>
+            <div class="db-actions">
+              <button type="button" (click)="cancel()" [disabled]="working()">Cancelar</button>
+              <button type="button" class="db-danger" (click)="create()" [disabled]="working()||confirmation()!==project()||!enabled()">
+                {{working()?'Criando…':'Confirmar criação'}}</button>
+            </div>
+          </div>
+        }
+      </section>
+    }@else{
+      <p class="db-muted">Sem inventário confiável nesta leitura. A criação de bancos permanece bloqueada.</p>
+    }
+  }@else{
+    @if(!loading()&&!error()){<p class="db-muted">Aguardando dados do PostgreSQL.</p>}
+  }
+</section>
