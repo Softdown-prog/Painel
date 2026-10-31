@@ -104,7 +104,11 @@ export function createPanelWebServer({
       let bytes = 0;
       req.on('data', chunk => {
         bytes += chunk.length;
-        if (bytes > MAX_BODY) upstream.destroy(new Error('Request body exceeded limit'));
+        if (bytes > MAX_BODY) {
+          if (!res.headersSent) json(res, 413, 'Requisição acima do limite de segurança.', 'PAYLOAD_TOO_LARGE');
+          upstream.destroy(new Error('Request body exceeded limit'));
+          req.unpipe(upstream);
+        }
       });
       req.pipe(upstream);
     }
@@ -118,7 +122,8 @@ export function createPanelWebServer({
     const { pathname, suffix } = parsed;
     if (pathname === '/__panel_web_health') {
       if (req.method !== 'GET') return json(res, 405, 'Método não permitido', 'METHOD_NOT_ALLOWED');
-      return json(res, 200, 'ok', 'PANEL_WEB_READY');
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+      return res.end(JSON.stringify({ ok: true, revision }));
     }
     if (pathname === '/api' || pathname.startsWith('/api/')) {
       if (pathname === '/api' || pathname.startsWith('/api//'))
