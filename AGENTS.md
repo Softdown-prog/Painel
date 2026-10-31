@@ -31,3 +31,7 @@ Este repositório é o painel administrativo da VPS, não o projeto Softloadv4. 
 3. P2: modelos de hospedagem, clientes, planos e testes de experiência.
 
 O arquivo de tarefas documenta detalhes e aceites. Não substituir esse backlog por suposições.
+
+## MCP de navegação deste repositório (desenvolvimento, não VPS)
+
+O repositório contém um MCP stdio próprio em `tools/repo-mcp/server.mjs`, com índice gerado pelo Actions (workflow `.github/workflows/repo-mcp-index.yml`) e documentação em `tools/repo-mcp/README.md`. Use `repo_find_files` e `repo_find_symbols` para localizar arquivos e definições; `repo_dependencies` para descobrir vínculos; `repo_read_file` antes de editar; e `repo_search_text` para referências. Edição `repo_replace_text` usa comparação SHA-256 e simulação por padrão, não faz commit. A ferramenta GitHub permanece necessária para operações remotas. **Não confundir** com o cadastro de MCP/clusters no painel Angular.

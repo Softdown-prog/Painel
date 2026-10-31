@@ -10,3 +10,6 @@ __pycache__/
 angular/node_modules/
 angular/dist/
 angular/.angular/
+
+# Índice local/artefato gerado pelo MCP de navegação do código
+.repo-mcp/

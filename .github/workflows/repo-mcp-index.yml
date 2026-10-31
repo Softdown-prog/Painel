@@ -1,0 +1,42 @@
+name: Repository MCP code index
+
+on:
+  push:
+    branches: ['feat/angular-complete-migration']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repo-mcp-index-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  index:
+    if: github.ref == 'refs/heads/feat/angular-complete-migration'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout for read-only indexing
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify code navigator MCP
+        env:
+          REPO_MCP_ALLOW_WRITE: '0'
+        run: node --test tools/repo-mcp/repo-mcp.test.mjs
+      - name: Generate symbol and dependency index
+        env:
+          REPO_MCP_ALLOW_WRITE: '0'
+        run: node tools/repo-mcp/cli.mjs index
+      - name: Publish index as artifact (no repository writes)
+        uses: actions/upload-artifact@v4
+        with:
+          name: painel-code-index
+          path: .repo-mcp/index.json
+          if-no-files-found: error
+          retention-days: 7
