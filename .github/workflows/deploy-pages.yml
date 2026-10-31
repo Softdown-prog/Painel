@@ -33,10 +33,13 @@ jobs:
           npm run build:frontend
           npm run check:js
 
-      - name: Prepare static site
+      - name: Prepare static site with versioned assets
         run: |
           mkdir dist
-          cp index.html *.css *.js dist/
+          cp index.html *.css *.js _headers dist/
+          node scripts/version-pages-assets.mjs
+          grep -q 'terminal-ui.js?v=' dist/index.html
+          ! grep -q 'Comando muito longo' dist/terminal-ui.js
 
       - name: Deploy Pages and Functions
         uses: cloudflare/wrangler-action@v4

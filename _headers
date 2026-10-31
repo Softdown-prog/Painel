@@ -1,0 +1,10 @@
+# Control panel entrypoint: browsers must revalidate to receive new frontend versions.
+/
+  Cache-Control: no-cache, max-age=0, must-revalidate
+/index.html
+  Cache-Control: no-cache, max-age=0, must-revalidate
+# Particularly important while updating the administrative terminal.
+/terminal-ui.js
+  Cache-Control: no-cache, max-age=0, must-revalidate
+/terminal.css
+  Cache-Control: no-cache, max-age=0, must-revalidate
