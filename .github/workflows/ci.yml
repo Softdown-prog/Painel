@@ -43,6 +43,8 @@ jobs:
       - run: bash -n server/postgres-mtls-prepare-vps.sh
       - run: bash -n server/postgres-mtls-preflight-vps.sh
       - run: bash -n server/deploy-panel-api-postgres-vps.sh
+      - run: bash -n server/build-panel-api-release-vps.sh
+      - run: bash -n server/panel-api-deploy-check-vps.sh
       - run: docker compose -f server/tunnel.compose.yaml config --quiet
       - name: Verify independent control-plane configuration
         run: |
