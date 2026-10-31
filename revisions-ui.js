@@ -6,6 +6,58 @@
         em_uso: 'Em uso', reserva: 'Backup protegido', recente: 'Recente · manter', protegida: 'Protegida',
         antiga: 'Antiga · pode limpar', ausente: 'Não encontrada na VPS'
     };
+    let reportCache = null;
+    let liveRuns = [];
+    function stateBadge(kind, title) {
+        const badge = document.createElement('span');
+        badge.className = 'revision-ci-stage revision-ci-' + (['running','success','failed','warning'].includes(kind)?kind:'neutral');
+        const icon = document.createElement('span');
+        icon.className = 'revision-ci-dot';
+        icon.textContent = kind==='success'?'✓':kind==='failed'?'×':kind==='warning'?'!':'';
+        icon.setAttribute('aria-hidden','true');
+        const text=document.createElement('span'); text.textContent=title;
+        badge.append(icon,text);
+        return badge;
+    }
+    function renderRevisionRows(){
+        const target=get('revisionsEntries');target.replaceChildren();
+        const imports=reportCache?.entries||[];
+        const shown=new Set();
+        for(const run of liveRuns.slice(0,30)){
+            const imported=imports.find(entry=>entry.slug===run.slug && entry.revision.toLowerCase()===run.sha);
+            if(imported)shown.add(imported.slug+'/'+imported.revision);
+            const row=document.createElement('tr');row.className='revision-live-row';
+            const revisionCell=document.createElement('td');
+            const link=document.createElement('a');link.href=run.url;link.target='_blank';link.rel='noopener noreferrer';
+            link.textContent=run.sha.slice(0,10)+' · GitHub #'+run.runId;
+            revisionCell.append(link);
+            const stageCell=document.createElement('td');stageCell.className='revision-pipeline-cell';
+            stageCell.append(stateBadge(run.ci.kind,run.ci.label),stateBadge(run.vps.kind,run.vps.label));
+            const retainCell=document.createElement('td');
+            retainCell.append(imported?stateBadge(imported.status==='ausente'||imported.status==='antiga'?'warning':'neutral',
+                label[imported.status]||imported.status):stateBadge('neutral','Imagem não registrada'));
+            row.append(cell('td',run.slug),revisionCell,stageCell,retainCell,
+                cell('td',imported?bytes(imported.sizeBytes):'—'),cell('td',date(run.createdAt)));
+            row.title=imported?.reason||'Execução observada no GitHub. Não é prova de importação ou ativação na VPS.';
+            target.append(row);
+        }
+        for(const entry of imports){
+            if(shown.has(entry.slug+'/'+entry.revision))continue;
+            const row=document.createElement('tr');
+            const pipeline=document.createElement('td');pipeline.className='revision-pipeline-cell';
+            pipeline.append(stateBadge('neutral','Execução GitHub não vinculada'));
+            const retention=document.createElement('td');
+            retention.append(stateBadge(entry.status==='ausente'||entry.status==='antiga'?'warning':'neutral',
+                label[entry.status]||entry.status));
+            row.append(cell('td',entry.slug),cell('td',entry.revision.slice(0,10)),pipeline,retention,
+                cell('td',bytes(entry.sizeBytes)),cell('td',date(entry.importedAt)));
+            row.title=entry.reason;target.append(row);
+        }
+        if(!target.children.length){
+            const row=document.createElement('tr'),empty=cell('td','Nenhuma revisão recebida. Consulte a conexão com o GitHub e a VPS.');
+            empty.setAttribute('colspan','6');row.append(empty);target.append(row);
+        }
+    }
     async function call(path, options = {}) {
         return window.panelApi.request(path, options);
     }
@@ -33,17 +85,8 @@
         const button = get('revisionsCleanupButton');
         button.disabled = !report.enabled || report.oldCount === 0;
         button.title = !report.enabled ? 'A limpeza precisa ser habilitada pelo administrador na VPS.' : report.oldCount === 0 ? 'Não há imagens antigas elegíveis.' : 'Excluir apenas imagens antigas verificadas';
-        const entries = get('revisionsEntries');
-        entries.replaceChildren();
-        if (!report.entries.length) {
-            entries.textContent = 'Nenhuma revisão de imagem foi importada por este painel.';
-        }
-        for (const entry of report.entries) {
-            const row = document.createElement('tr');
-            row.append(cell('td', entry.slug), cell('td', entry.revision.slice(0, 10)), cell('td', label[entry.status] || entry.status), cell('td', bytes(entry.sizeBytes)), cell('td', date(entry.importedAt)));
-            row.title = entry.reason;
-            entries.append(row);
-        }
+        reportCache=report;
+        renderRevisionRows();
         const host = report.hostInventory;
         const hostTable = get('revisionsHostImages');
         hostTable.replaceChildren();
@@ -92,6 +135,8 @@
             render(await call('/maintenance/revisions'));
         }
         catch (error) {
+            reportCache=null;
+            renderRevisionRows();
             get('revisionsCleanupButton').setAttribute('disabled', '');
             info('A API ainda não oferece esta consulta ou a VPS está indisponível: ' +
                 (error instanceof Error ? error.message : 'falha inesperada') +
