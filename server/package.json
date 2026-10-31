@@ -7,6 +7,9 @@
   },
   "scripts": {
     "start": "node api.mjs",
-    "test": "node --experimental-strip-types --test api.test.mjs github.test.mjs apps.test.mjs projects.test.mjs releases.test.mjs image-import.test.mjs domains.test.mjs executor-policy.test.mjs executor.integration.test.mjs terminal-ssh.test.mjs revision-maintenance.test.mjs publications.test.mjs secrets.test.mjs deploy-verification.test.mjs deploy-public-health.test.mjs"
+    "test": "node --experimental-strip-types --test api.test.mjs github.test.mjs apps.test.mjs projects.test.mjs releases.test.mjs image-import.test.mjs domains.test.mjs executor-policy.test.mjs executor.integration.test.mjs terminal-ssh.test.mjs revision-maintenance.test.mjs publications.test.mjs secrets.test.mjs deploy-verification.test.mjs deploy-public-health.test.mjs database.test.mjs"
+  },
+  "dependencies": {
+    "pg": "8.23.1"
   }
 }
