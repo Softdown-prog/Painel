@@ -1,7 +1,7 @@
 /* Acompanhamento somente leitura: CI aprovado não comprova deploy na VPS. */
 (() => {
-  const panel = document.getElementById('revisionActivity');
-  const summary = document.getElementById('revisionActivitySummary');
+  const panel = document.getElementById('revisionActivity')!;
+  const summary = document.getElementById('revisionActivitySummary')!;
   if (!panel || !summary) return;
   const phases = new Map([
     ['queued', 'Na fila da publicação'], ['importing', 'Importando imagem'],
