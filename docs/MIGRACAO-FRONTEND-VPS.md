@@ -23,16 +23,35 @@ O repositório agora possui um **segundo caminho de publicação opcional** para
 
 ## Preparar uma revisão sem afetar outros containers
 
-Execute em um **canal administrativo independente**, com operador autorizado na VPS. O script não altera o Caddy, DNS, Pages nem API/executor. O SHA deve ser uma revisão publicada no GitHub com 40 caracteres hexadecimais.
+O próximo comando deve rodar **no host da VPS** por um operador autorizado (root), preferencialmente usando uma sessão administrativa de recuperação independente do painel. Antes de instalar, inspecione os serviços existentes:
 
 ```bash
-PANEL_PUBLIC_ORIGIN=https://panel-staging.analysepro.com \
+bash web/inspect-vps.sh
+```
+
+`web/inspect-vps.sh` é somente leitura: mostra os estados dos quatro serviços do painel, as redes usadas pelo Caddy e, se houver frontend instalado, valida o endpoint de saúde e `/api/session` sem imprimir tokens.
+
+Com o repositório disponível na VPS, e após conferir o SHA completo aprovado no GitHub:
+
+```bash
+PANEL_PUBLIC_ORIGIN=https://panel.analysepro.com \
   bash web/deploy-staging-vps.sh <SHA40>
 ```
 
-O hostname acima é **exemplo**, não implica DNS ou staging existente. O script baixa o commit fixo do GitHub no diretório `/opt/vps-panel/web-releases/<SHA40>`, compila a imagem, aplica `docker compose -f compose.yaml -f compose.web.yaml up -d --no-deps --no-build panel-web`, verifica container healthy e testa internamente `GET /` e `GET /api/session`. Não acessa shell dentro de outros containers, não altera volumes, não faz `prune` e não cria backups de dados.
+O comando não altera o domínio: `PANEL_PUBLIC_ORIGIN` configura apenas a validação de origem para futuras operações administrativas. Para testar um domínio de staging real, defina exatamente esse domínio no momento de instalação e reconfigure para o domínio final **antes** do corte público. Não considere `panel-staging.analysepro.com` existente sem confirmar DNS, TLS e acesso.
 
-O projeto Compose é `softload-panel`. O serviço usa a rede administrativa **já existente**; se ela estiver ausente, o script interrompe sem recriá-la. Configurações e segredos dos outros serviços permanecem sob os overlays de produção atuais. Para executar a partir de outro checkout, use o caminho correto para o script.
+Se o script não estiver no host, um operador pode baixar **somente o script da revisão aprovada** de `https://raw.githubusercontent.com/Softdown-prog/Painel/<SHA40>/web/deploy-staging-vps.sh`, inspecioná-lo e executá-lo com o mesmo SHA (nunca `curl | bash` a partir de uma branch variável).
+
+O instalador:
+1. recusa versões não rastreáveis, segredo inexistente, API parada ou rede ausente e usa lock para impedir deploys simultâneos;
+2. baixa código de uma revisão imutável para `/opt/vps-panel/web-releases/<SHA40>` e compila **somente `panel-web`**;
+3. executa a nova imagem como **candidata temporária** na rede privada, sem publicar portas, e valida frontend, commit, HTML e API `/session`;
+4. somente depois substitui o container de staging `softload-panel-web` e verifica novamente;
+5. caso a promoção falhe, tenta restaurar a imagem/revisão anterior de `panel-web`; se era a primeira instalação, remove apenas a instalação com falha.
+
+O controle de rollback não substitui um acesso externo independente. Caso nem a reversão consiga subir, o script registra a falha e o operador precisa recuperar o serviço. **Não há `docker prune`, limpeza de volumes, reinicialização da API ou alteração nos serviços de terceiros.**
+
+O projeto Compose é `softload-panel`. O serviço usa a rede administrativa já existente; se ela estiver ausente, a execução interrompe sem recriá-la.
 
 ## Expor o staging e trocar o domínio depois
 
@@ -56,6 +75,6 @@ Enquanto o Pages for a rota principal, rollback consiste em deixar a rota/DNS ex
 
 `npm run typecheck`, `npm test`, `npm run build:frontend`, `npm run check:js`, `docker compose -f server/compose.yaml -f server/compose.web.yaml config --quiet` e `docker build -f web/Dockerfile --build-arg PANEL_WEB_REVISION=<SHA40> -t vps-panel-web:test .`.
 
-Testes `web/server.test.mjs` cobrem estáticos, acesso a arquivos proibidos, privacidade do segredo, `Origin` de POST/DELETE, cookie da sessão, rota /api, rejeição de métodos e saúde local. O CI também verifica que não há portas publicadas nem montagem do socket Docker.
+Testes `web/server.test.mjs` cobrem estáticos, acesso a arquivos proibidos, privacidade do segredo, `Origin` de POST/DELETE, cookie da sessão, rota /api, rejeição de métodos e saúde local. O CI também executa `web/ci-network-smoke.sh`, com API simulada e container Docker reais em rede isolada, testando cookie, chave e proteção de origem; verifica que não há portas publicadas nem montagem do socket Docker.
 
 **Separar estados no relato:** código pronto; CI aprovado; imagem testada no CI; frontend instalado na VPS; rota HTTPS pública validada; Pages desligado. Os quatro últimos nunca são inferidos apenas de CI verde.
