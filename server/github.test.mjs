@@ -52,7 +52,7 @@ test('GitHub linking and dispatch use a server-side token and registered workflo
   try {
     const first = await invoke('/repositories');
     assert.equal(first.status, 200);
-    assert.deepEqual(first.data.repositories.map(repo=>repo.fullName),['Softdown-prog/Painel']);
+    assert.deepEqual(first.data.repositories,[]);
     assert.equal(first.data.tokenConfigured, true);
 
     const forbidden = await invoke('/repositories', 'POST', { fullName: 'outside/Demo', branch: 'main', workflow: 'deploy.yml' });
@@ -61,7 +61,7 @@ test('GitHub linking and dispatch use a server-side token and registered workflo
 
     const connected = await invoke('/repositories', 'POST', { fullName: 'Softdown-prog/Demo', branch: 'main', workflow: 'deploy.yml' });
     assert.equal(connected.status, 201);
-    assert.equal((await invoke('/repositories')).data.repositories.length, 2);
+    assert.equal((await invoke('/repositories')).data.repositories.length, 1);
     assert.equal((await invoke('/repositories', 'POST', { fullName: 'Softdown-prog/Demo' })).status, 409);
 
     const dispatch = await invoke('/repositories/Softdown-prog/Demo/deploy', 'POST');
@@ -78,6 +78,8 @@ test('GitHub linking and dispatch use a server-side token and registered workflo
     assert.equal(jobs.status, 200);
     assert.equal(jobs.data.jobs[0].steps[0].name, 'Compile');
     assert.equal((await invoke('/repositories/Softdown-prog/Painel', 'DELETE')).status, 409);
+    assert.equal((await invoke('/repositories/Softdown-prog/Painel/deploy', 'POST')).status, 404);
+    assert.equal((await invoke('/repositories/Softdown-prog/Painel/runs-all')).status, 200);
     assert.equal((await invoke('/repositories/Softdown-prog/Other/runs-all')).status, 404);
 
     assert.equal((await invoke('/repositories/Softdown-prog/Demo', 'DELETE')).status, 200);
