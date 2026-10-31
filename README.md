@@ -4,9 +4,11 @@ Painel: https://panel.analysepro.com (alternativo: https://softload-vps-panel.pa
 
 Cada push na `main` executa `.github/workflows/deploy-pages.yml`: testes, build do frontend e publicação no projeto Cloudflare Pages `softload-vps-panel`. O workflow usa um token exclusivo `Pages Write` armazenado em `CLOUDFLARE_API_TOKEN` nos segredos GitHub. `CLOUDFLARE_ACCOUNT_ID` está no mesmo local. As credenciais da API privada da VPS permanecem nos segredos do Cloudflare Pages.
 
+O backend agora tem publicação independente: `.github/workflows/deploy-vps.yml` testa, constrói API/executor no GitHub, publica no GHCR por digest e usa executor SSH/OIDC exclusivo na VPS. Só confirma sucesso com SHA instalado, saúde e resposta HTTPS correspondentes, preservando overlays/dados e revertendo o projeto em falha. [Evidências reais e inventário](docs/VPS-DEPLOY-VALIDACAO.md). Diagnóstico pelo GitHub: workflow **VPS operations** ou ponte de issue administrativa somente leitura.
+
 ## Novo frontend Angular 22 na VPS (prévia incremental)
 
-A aplicação `angular/` usa Angular 22 e TypeScript 6 em um projeto separado, preservando TypeScript 7 do backend e do frontend legado. O Dockerfile do `panel-web` compila Angular e entrega a prévia em `/angular/`: login com sessão existente, indicadores reais da API e inventário de containers. As demais áreas continuam no frontend atual (`/`). Nenhum token da Cloudflare é colocado no Angular. **O frontend Angular ainda precisa ser publicado e testado na VPS; o merge no GitHub não faz essa instalação.** Veja [Migração do frontend para VPS](docs/MIGRACAO-FRONTEND-VPS.md).
+A aplicação `angular/` usa Angular 22 e TypeScript 6 em um projeto separado, preservando TypeScript 7 do backend e do frontend legado. O Pages agora compila e publica a prévia em `/angular/`: login com sessão existente, indicadores reais da API e inventário de containers. As demais áreas continuam no frontend atual (`/`). Nenhum token da Cloudflare é colocado no Angular. **Angular está publicado no Pages e usa a API real da VPS.** O Dockerfile opcional `panel-web` também o compila, mas a migração pública do frontend para a VPS continua separada. Veja [Migração do frontend para VPS](docs/MIGRACAO-FRONTEND-VPS.md).
 
 ## Frontend na VPS (migração preparada, sem troca do domínio)
 
