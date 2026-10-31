@@ -6,12 +6,28 @@
   <meta name="theme-color" content="#10121a">
   <meta name="description" content="Gerenciamento de servidores, aplicações e publicações de vários projetos.">
   <title>Painel VPS</title>
-  <!-- Angular is the main entrypoint; legacy deep links continue to work at /#view. -->
+  <!-- Angular is canonical; only explicitly named advanced tools use the legacy compatibility shell. -->
   <script>
-    if ((location.pathname === '/' || location.pathname === '/index.html') &&
-        !location.hash && new URLSearchParams(location.search).get('interface') !== 'classica') {
-      location.replace('/angular/' + location.search);
-    }
+    (() => {
+      if (location.pathname !== '/' && location.pathname !== '/index.html') return;
+      const fragment = location.hash.slice(1);
+      const pages = { overview:'overview', apps:'apps', containers:'containers',
+        deployments:'deployments', deploys:'deployments' };
+      const tools = new Set(['projects','terminal','database','revisions','domains',
+        'traffic','secrets','settings','services','logs']);
+      const params = new URLSearchParams(location.search);
+      const classic = params.get('interface') === 'classica';
+      if (classic && (tools.has(fragment) || fragment === 'apps' || fragment === 'containers' || fragment === 'deploys')) {
+        document.documentElement.classList.add('legacy-tools');
+        return;
+      }
+      if (!classic && tools.has(fragment)) {
+        location.replace('/?interface=classica#' + fragment);
+        return;
+      }
+      // No second start screen: old dashboard/deploy links land in Angular.
+      location.replace('/angular/#' + (pages[fragment] || 'overview'));
+    })();
   </script>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="panel.css">
@@ -37,7 +53,7 @@
       <div class="workspace-label">MINHA VPS <span>PAINEL</span></div>
       <div class="workspace-card"><span class="workspace-icon">V</span><span><strong>Minha VPS</strong><small>Projetos e serviços</small></span><span class="chevron">⌄</span></div>
 
-      <p style="margin:2px 10px 12px"><a href="/angular/" style="display:block;padding:12px;border:1px solid #7560c8;border-radius:12px;background:#292541;color:#e8ddff;font-weight:700">✦ Abrir painel Angular atualizado</a></p>
+      <p style="margin:2px 10px 12px"><a href="/angular/#overview" style="display:block;min-height:44px;padding:12px;border:1px solid #7560c8;border-radius:12px;background:#292541;color:#e8ddff;font-weight:700">← Voltar ao painel principal</a></p>
       <nav class="nav" aria-label="Navegação principal">
         <div class="nav-group-title">GERENCIAR VPS</div>
         <a class="nav-item active" href="#overview" data-view="overview"><span class="nav-icon">▦</span> Visão geral</a>
@@ -71,7 +87,7 @@
       </header>
 
       <div class="content">
-        <div class="demo-banner" id="demoBanner"><span class="demo-icon">✦</span><span id="bannerText"><strong>Prévia visual</strong> · Conectando à API da VPS...</span><button id="bannerClose" aria-label="Fechar aviso">×</button></div>
+        <div class="demo-banner" id="demoBanner"><span class="demo-icon">✦</span><span id="bannerText"><strong>Ferramentas de compatibilidade</strong> · <a href="/angular/#overview">Abrir painel principal Angular</a></span><button id="bannerClose" aria-label="Fechar aviso">×</button></div>
 
         <section class="view active" id="overview" data-title="Visão geral">
           <div class="page-heading"><div><div class="eyebrow">CENTRAL DA VPS</div><h1>Visão geral <span class="heading-accent">✳</span></h1><p>Entenda a situação do servidor, o que merece atenção e o próximo passo.</p></div><a class="primary-button" href="#apps"><span>＋</span> Criar aplicação</a></div>
