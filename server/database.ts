@@ -1,5 +1,5 @@
-import { randomBytes } from "node:crypto";
-import { constants, existsSync, lstatSync, mkdirSync, openSync, closeSync, writeSync, readFileSync, unlinkSync } from "node:fs";
+import { adminTls, signerReady, issueCertificate, type TlsMaterial, type IssuedCertificate } from "./postgres-cert.ts";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
@@ -11,7 +11,7 @@ type Client = {
 };
 type ClientFactory = (options: Record<string, unknown>) => Client;
 type Security = {
-  hostAuthentication: "trust" | "scram-sha-256" | "other" | "unknown";
+  hostAuthentication: "trust" | "cert" | "other" | "unknown";
   provisioningEnabled: boolean;
   message: string;
 };
@@ -32,24 +32,14 @@ const SLUG = /^[a-z][a-z0-9-]{1,29}$/;
 const MAX_MANAGED = 40;
 let provisioning = false;
 
-function passwordFile(env: Environment): string | undefined {
-  const file = env.PANEL_POSTGRES_PASSWORD_FILE;
-  if (!file || !file.startsWith("/") || !existsSync(file)) return;
-  try {
-    const info = lstatSync(file);
-    if (!info.isFile() || info.isSymbolicLink() || (info.mode & 0o077) !== 0) return;
-    const password = readFileSync(file, "utf8").trim();
-    if (password.length >= 24 && password.length <= 512 && !/[\u0000-\u001f]/.test(password)) return password;
-  } catch { /* Missing private admin credential. */ }
-}
-function options(env: Environment, password?: string): Record<string, unknown> {
+function options(env: Environment, ssl?: TlsMaterial, role?: string, database?: string): Record<string, unknown> {
   const port = Number(env.PANEL_POSTGRES_PORT || 5432);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("invalid port");
   return {
     host: env.PANEL_POSTGRES_HOST || "vps-postgres", port,
-    user: env.PANEL_POSTGRES_USER || "postgres",
-    database: env.PANEL_POSTGRES_DB || "postgres",
-    ...(password !== undefined ? { password } : {}),
+    user: role || env.PANEL_POSTGRES_USER || "postgres",
+    database: database || env.PANEL_POSTGRES_DB || "postgres",
+    ...(ssl ? { ssl: { ...ssl, servername: env.PANEL_POSTGRES_HOST || "vps-postgres" } } : {}),
     connectionTimeoutMillis: 3000, query_timeout: 4000, statement_timeout: 4000,
     application_name: "vps-panel-database",
   };
@@ -65,20 +55,21 @@ function assessRules(rows: Record<string, unknown>[]): Security["hostAuthenticat
   const hosts = rows.filter(r => typeof r.type === "string" && r.type.startsWith("host"));
   if (!hosts.length) return "unknown";
   if (hosts.some(r => r.auth_method === "trust")) return "trust";
-  if (hosts.every(r => r.auth_method === "scram-sha-256" || r.auth_method === "reject") &&
-      hosts.some(r => r.auth_method === "scram-sha-256")) return "scram-sha-256";
+  if (hosts.every(r => r.auth_method === "reject" ||
+      (r.type === "hostssl" && r.auth_method === "cert")) &&
+      hosts.some(r => r.type === "hostssl" && r.auth_method === "cert")) return "cert";
   return "other";
 }
 function security(auth: Security["hostAuthentication"], env: Environment): Security {
-  const configured = env.PANEL_POSTGRES_WRITE_ENABLED === "1" && Boolean(passwordFile(env));
-  const provisioningEnabled = auth === "scram-sha-256" && configured;
+  const configured = env.PANEL_POSTGRES_WRITE_ENABLED === "1" && signerReady(env);
+  const provisioningEnabled = auth === "cert" && configured;
   const message = auth === "trust"
-    ? "Atenção: PostgreSQL permite conexão sem senha (trust). Não há isolamento real entre projetos; criação bloqueada."
-    : auth === "scram-sha-256" && !configured
-      ? "Autenticação SCRAM encontrada. Falta habilitar provisionamento e instalar uma credencial administrativa privada."
+    ? "Atenção: PostgreSQL ainda usa trust. Qualquer container na rede pode assumir outra identidade. Criação bloqueada."
+    : auth === "cert" && !configured
+      ? "Autenticação por certificado detectada. Falta ativar o provisionamento e instalar os certificados privados."
       : provisioningEnabled
-        ? "Autenticação SCRAM e provisionamento habilitados. Uma conta diferente será criada para cada banco."
-        : "O método de autenticação não foi confirmado como seguro para criar contas. Provisionamento bloqueado.";
+        ? "Autenticação por certificados ativa. Cada projeto terá banco e identidade próprios, sem senhas."
+        : "Certificados TLS obrigatórios ainda não foram confirmados. Criação bloqueada, sem exigir senhas.";
   return { hostAuthentication: auth, provisioningEnabled, message };
 }
 export async function getDatabaseStatus(
@@ -95,7 +86,7 @@ export async function getDatabaseStatus(
   let client: Client | undefined;
   try {
     const create = await factoryOrPg(factory);
-    client = create(options(env, passwordFile(env)));
+    client = create(options(env, adminTls(env)));
     await client.connect();
     await client.query("SET default_transaction_read_only = on");
     const info = await client.query(
@@ -156,60 +147,53 @@ function names(slug: string): { db: string; role: string } {
   const name = slug.replaceAll("-", "_");
   return { db: "p_" + name, role: "u_" + name };
 }
-function credentialDirectory(dataDir: string): string {
-  const dir = join(dataDir, "database-credentials");
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const stat = lstatSync(dir);
-  if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0)
-    throw new ProvisionError(503, "Diretório de credenciais sem proteção adequada na VPS.");
-  return dir;
-}
-function saveCredential(dir: string, slug: string, record: Record<string, string>): string {
-  const file = join(dir, slug + ".json");
-  const fd = openSync(file, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
-  try { writeSync(fd, JSON.stringify(record) + "\n"); }
-  catch (error) { try { unlinkSync(file); } catch { /* already removed */ } throw error; }
-  finally { closeSync(fd); }
-  return file;
-}
 export async function createProjectDatabase(
-  slug: string, dataDir: string, env: Environment = process.env, factory?: ClientFactory,
+  slug: string, dataDir: string, env: Environment = process.env,
+  factory?: ClientFactory, issuer: typeof issueCertificate = issueCertificate,
 ): Promise<{ project: string; database: string; username: string; credentialsStored: boolean }> {
   if (!SLUG.test(slug)) throw new ProvisionError(400, "Use 2 a 30 caracteres: letras minúsculas, números e traços.");
   if (env.PANEL_POSTGRES_ENABLED !== "1" || env.PANEL_POSTGRES_WRITE_ENABLED !== "1")
     throw new ProvisionError(403, "Criação de bancos ainda não habilitada nesta VPS.");
-  const adminPassword = passwordFile(env);
-  if (!adminPassword) throw new ProvisionError(403, "Credencial administrativa SCRAM privada ainda não configurada.");
+  if (!signerReady(env))
+    throw new ProvisionError(403, "Certificados PostgreSQL ainda não estão instalados. Nenhuma senha é necessária.");
   if (provisioning) throw new ProvisionError(429, "Outra criação de banco está em andamento.");
   provisioning = true;
   let client: Client | undefined;
-  let createdRole = false, createdDb = false, secretFile: string | undefined;
+  let createdRole = false, createdDb = false, issued: IssuedCertificate | undefined;
   const pair = names(slug);
+  const create = await factoryOrPg(factory);
+  const connectAs = async (ssl?: TlsMaterial, role?: string, database?: string): Promise<Client> => {
+    const session = create(options(env, ssl, role, database));
+    try { await session.connect(); return session; }
+    catch (error) { await session.end().catch(() => {}); throw error; }
+  };
+  const expectedDenial = (error: unknown): boolean =>
+    !!error && typeof error === "object" && "code" in error &&
+    error.code === "28000";
   try {
-    const create = await factoryOrPg(factory);
-    const dir = credentialDirectory(dataDir);
-    if (existsSync(join(dir, slug + ".json")))
-      throw new ProvisionError(409, "Projeto já possui credenciais registradas nesta VPS.");
-    client = create(options(env, adminPassword));
-    await client.connect();
+    const admin = adminTls(env);
+    if (!admin) throw new ProvisionError(403, "Conexão administrativa por certificado não configurada.");
+    if (existsSync(join(dataDir, "database-credentials", slug)))
+      throw new ProvisionError(409, "Projeto já possui certificados registrados nesta VPS.");
+    client = await connectAs(admin);
     const rules = await client.query("SELECT type, auth_method, error FROM pg_hba_file_rules ORDER BY line_number");
-    if (assessRules(rules.rows) !== "scram-sha-256")
-      throw new ProvisionError(403, "Autenticação host SCRAM não confirmada. Nenhum banco foi criado.");
-    // Check ACTIVE authentication: a wrong password MUST fail as 28P01.
-    // Merely reading the HBA file can misreport a pending (unreloaded) change.
-    let bad: Client | undefined;
-    let denied = false;
+    if (assessRules(rules.rows) !== "cert")
+      throw new ProvisionError(403, "O PostgreSQL ainda aceita conexões sem certificado. Criação bloqueada.");
+    const live = await client.query("SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()");
+    if (live.rows[0]?.ssl !== true)
+      throw new ProvisionError(403, "A conexão administrativa não usa TLS.");
+    // HBA view alone can show an unreloaded file. Prove the live server rejects
+    // the existing administrative user when no client certificate is presented.
+    let rejected = false;
     try {
-      bad = create(options(env, randomBytes(48).toString("base64url")));
-      await bad.connect();
-    } catch (error) {
-      denied = Boolean(error && typeof error === "object" && "code" in error && error.code === "28P01");
-    } finally { if (bad) await bad.end().catch(() => {}); }
-    if (!denied)
-      throw new ProvisionError(403, "Não foi confirmado que o PostgreSQL rejeita senha incorreta. Operação bloqueada.");
-    const admin = await client.query("SELECT rolsuper AS superuser FROM pg_roles WHERE rolname = current_user");
-    if (admin.rows[0]?.superuser !== true)
-      throw new ProvisionError(403, "Conta administrativa PostgreSQL não possui privilégio para criar bancos.");
+      const bare = await connectAs({ ca: admin.ca, cert: "", key: "", rejectUnauthorized: true });
+      await bare.end();
+    } catch (error) { rejected = expectedDenial(error); }
+    if (!rejected)
+      throw new ProvisionError(403, "O servidor não confirmou a recusa de clientes sem certificado.");
+    const authority = await client.query("SELECT rolsuper AS superuser FROM pg_roles WHERE rolname=current_user");
+    if (authority.rows[0]?.superuser !== true)
+      throw new ProvisionError(403, "Identidade administrativa não pode criar bancos.");
     const existing = await client.query(
       "SELECT (SELECT COUNT(*)::int FROM pg_database WHERE left(datname,2) = 'p_') AS databases, " +
       "(SELECT COUNT(*)::int FROM pg_database WHERE datname = '" + pair.db + "') AS database_exists, " +
@@ -218,37 +202,53 @@ export async function createProjectDatabase(
     if (Number(existing.rows[0]?.databases) >= MAX_MANAGED)
       throw new ProvisionError(409, "Limite de 40 bancos gerenciados atingido.");
     if (Number(existing.rows[0]?.database_exists) !== 0 || Number(existing.rows[0]?.role_exists) !== 0)
-      throw new ProvisionError(409, "Banco ou conta já existe. Nada foi alterado.");
-    const generated = randomBytes(48).toString("base64url");
-    // Identifiers derive exclusively from a strict ASCII slug. Generated password
-    // is base64url, so it cannot contain SQL delimiters. No browser-supplied SQL.
+      throw new ProvisionError(409, "Banco ou conta já existe; nada foi alterado.");
+    // CA private key stays in the Panel's private mounted volume; neither
+    // the key nor the issued certificate is returned to the browser.
+    issued = issuer(pair.role, dataDir, env);
+    // Identifiers are derived only from the strictly validated ASCII slug.
+    // No SQL or password supplied by the browser is interpolated.
     await client.query("CREATE ROLE " + pair.role +
-      " LOGIN PASSWORD '" + generated + "' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS");
+      " LOGIN PASSWORD NULL NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS");
     createdRole = true;
     await client.query("CREATE DATABASE " + pair.db + " OWNER " + pair.role);
     createdDb = true;
     await client.query("REVOKE ALL ON DATABASE " + pair.db + " FROM PUBLIC");
-    secretFile = saveCredential(dir, slug, {
-      project: slug, database: pair.db, username: pair.role, password: generated,
-      host: env.PANEL_POSTGRES_HOST || "vps-postgres", port: String(env.PANEL_POSTGRES_PORT || 5432),
-      createdAt: new Date().toISOString(),
-    });
-    console.log(JSON.stringify({ event: "postgres_project_created", project: slug, database: pair.db }));
+    // Prove role isolation: the admin's valid certificate must not authenticate
+    // as the new project user because CN != requested database username.
+    let crossDenied = false;
+    try {
+      const cross = await connectAs(admin, pair.role, pair.db);
+      await cross.end();
+    } catch (error) { crossDenied = expectedDenial(error); }
+    if (!crossDenied)
+      throw new ProvisionError(403, "Não foi possível comprovar isolamento dos certificados.");
+    const projectClient = await connectAs(issued.client, pair.role, pair.db);
+    try {
+      const identity = await projectClient.query("SELECT current_user AS username, current_database() AS db");
+      if (identity.rows[0]?.username !== pair.role || identity.rows[0]?.db !== pair.db)
+        throw new ProvisionError(403, "Identidade do projeto não foi confirmada.");
+    } finally { await projectClient.end().catch(() => {}); }
+    issued.publish();
+    console.log(JSON.stringify({ event: "postgres_project_certificate_created", project: slug, database: pair.db }));
     return { project: slug, database: pair.db, username: pair.role, credentialsStored: true };
   } catch (error) {
     if (client) {
+      // A partially failed transaction is not silently classified as success.
       if (createdDb) {
-        try { await client.query("DROP DATABASE " + pair.db); } catch { /* inspect manually */ }
+        try { await client.query("DROP DATABASE " + pair.db); }
+        catch { console.error("PostgreSQL rollback requires manual inspection:", pair.db); }
       }
       if (createdRole) {
-        try { await client.query("DROP ROLE " + pair.role); } catch { /* inspect manually */ }
+        try { await client.query("DROP ROLE " + pair.role); }
+        catch { console.error("PostgreSQL rollback requires manual inspection:", pair.role); }
       }
     }
-    if (secretFile) { try { unlinkSync(secretFile); } catch { /* inspect manually */ } }
     if (error instanceof ProvisionError) throw error;
-    console.warn("PostgreSQL provisioning failed:", error instanceof Error ? error.name : "unknown");
-    throw new ProvisionError(502, "Não foi possível criar o banco. Confira o PostgreSQL antes de repetir.");
+    console.warn("PostgreSQL certificate provisioning failed:", error instanceof Error ? error.name : "unknown");
+    throw new ProvisionError(502, "Falha ao criar o banco. Confira o estado antes de repetir.");
   } finally {
+    issued?.cleanup();
     if (client) await client.end().catch(() => {});
     provisioning = false;
   }
@@ -277,7 +277,7 @@ export async function handleDatabaseRoute(
       if (!input || Object.keys(input).join(",") !== "project" || typeof input.project !== "string")
         throw new ProvisionError(400, "Informe somente o identificador do projeto.");
       const created = await (create || ((slug: string) => createProjectDatabase(slug, dataDir)))(input.project);
-      send(res, 201, { ok: true, ...created, message: "Banco criado. Credencial gerada e armazenada somente na VPS." });
+      send(res, 201, { ok: true, ...created, message: "Banco criado; certificado de acesso sem senha guardado somente na VPS." });
     } catch (error) {
       if (error instanceof ProvisionError) send(res, error.status, { error: error.message });
       else {
