@@ -17,7 +17,7 @@ const str=(v:unknown,max:number):string=>typeof v==='string'?v.slice(0,max):'';
 
 export function parseOverview(raw:unknown):HostOverview{
   if(!record(raw)||!date(raw['updatedAt'])||!record(raw['containerSummary'])||
-     typeof raw['containerSummary'].available!=='boolean')
+     typeof raw['containerSummary']['available']!=='boolean')
     throw Error('A API não confirmou as métricas da VPS.');
   const summary=raw['containerSummary'];
   const available=summary['available']===true;
