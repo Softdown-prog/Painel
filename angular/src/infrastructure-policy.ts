@@ -27,6 +27,7 @@ export function parseInfraSnapshot(value:unknown):InfraSnapshot{
     !integer(limits['maxClusterReplicas'])||limits['maxClusterReplicas']>32||
     limits['maxClusterReplicas']<1)
    throw Error('Capacidades de infraestrutura inválidas.');
+ const maxClusterReplicas=limits['maxClusterReplicas'];
  if(!value['projects'].every((p:unknown)=>typeof p==='string'&&validInfraSlug(p))||
     !value['plans'].every((plan:unknown)=>{
       if(!record(plan)||typeof plan['projectSlug']!=='string'||!validInfraSlug(plan['projectSlug'])||
@@ -34,7 +35,7 @@ export function parseInfraSnapshot(value:unknown):InfraSnapshot{
         (plan['kind']!=='mcp'&&plan['kind']!=='cluster')||
         plan['id']!==plan['projectSlug']+'.'+plan['kind']+'.'+plan['name']||
         !integer(plan['replicas'])||plan['replicas']<1||
-        plan['replicas']>limits['maxClusterReplicas']||
+        plan['replicas']>maxClusterReplicas||
         (plan['topology']!=='single-node'&&plan['topology']!=='regional')||
         plan['runtime']!=='not-provisioned'||plan['exposure']!=='private'||
         typeof plan['projectLinked']!=='boolean'||
