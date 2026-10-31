@@ -16,6 +16,23 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run typecheck
       - run: npm test
+      - run: docker compose -f server/compose.yaml -f server/compose.web.yaml config --quiet
+      - name: Enforce staging frontend isolation
+        run: |
+          docker compose -f server/compose.yaml -f server/compose.web.yaml config --format json | python3 -c '
+          import json,sys
+          c=json.load(sys.stdin);w=c["services"]["panel-web"]
+          assert set(w["networks"])=={"proxy"}
+          assert not w.get("ports")
+          assert all("/var/run/docker.sock" not in v.get("source","") for v in w.get("volumes",[]))
+          assert w["read_only"] and w["cap_drop"]==["ALL"]
+          assert c["services"]["executor"]["network_mode"]=="none"
+          assert "proxy" in c["services"]["api"]["networks"]
+          print("PASS: frontend stays on private control network without Docker socket or public ports")
+          '
+      - run: bash -n web/deploy-staging-vps.sh
+      - name: Build independent VPS frontend image
+        run: docker build -f web/Dockerfile --build-arg PANEL_WEB_REVISION="$GITHUB_SHA" -t vps-panel-web:test .
       - run: docker compose -f server/compose.yaml -f server/compose.apps.yaml -f server/compose.routing.yaml config --quiet
       - run: docker compose -f server/compose.yaml -f server/compose.ssh-terminal.yaml config --quiet
       - run: docker compose -f server/compose.yaml -f server/compose.revisions.yaml config --quiet
