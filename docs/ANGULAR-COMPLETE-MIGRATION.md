@@ -18,8 +18,8 @@
 | GitHub e publicações | Angular parcial | Todas as ações e paridade de seleção/histórico/vínculos |
 | Terminal VPS | Migrando nesta branch | Comparar com CLI de compatibilidade, SSH, confirmações, script longo, acessibilidade |
 | Revisões e espaço | Migrando nesta branch | Limpeza manual/automática, inventário, histórico, atividades GitHub e status VPS |
-| PostgreSQL | Clássico | Status, listagem de bancos, criação isolada, consultas permitidas |
-| Domínios e DNS | Clássico | Cadastro, publicação, Caddy/DNS, validação HTTPS |
+| PostgreSQL | Angular em desenvolvimento | Inventário real e criação isolada com certificado; revisar estados, integração, validações e paridade mobile |
+| Domínios e DNS | Angular em desenvolvimento | Reserva, publicação, remoção e confirmação HTTPS; revisar DNS, gateway, estados e paridade mobile |
 | Tráfego e recursos | Clássico | Séries temporais, transferências e histórico |
 | Chaves e segredos | Clássico | Listar/cadastrar/remover com confirmação, nunca exibir valores |
 | Configurações e conta | Clássico | Autenticação inicial, alteração de senha, limites e preferências |
@@ -44,3 +44,10 @@
 - Chamadas `fetch` só incluem propriedade `body` quando há payload. Índices de arrays, parâmetros de URL e rótulos dinâmicos precisam ser validados antes do uso; não usar `as any` ou desabilitar regras para corrigir erros.
 - O comando `build:frontend` de compatibilidade ainda usa `--ignoreConfig`. Isto será removido quando todas as telas legadas forem migradas. Até lá `npm run typecheck` verifica os arquivos TS legados sob o `tsconfig.json` rigoroso.
 - O CI valida os dois compilares separadamente: `npm run typecheck` na raiz e `ng build` por meio da imagem frontend Docker. O código nesta branch não deve entrar em produção antes da migração integral e da autorização para merge.
+
+## Incremento PostgreSQL e Domínios em Angular (31/10/2026)
+
+- `/angular/#database`: inventário, métricas, identidades e criação de banco isolado com confirmação digitada, somente se a API confirmar provisionamento por certificado (sem senha). Endpoints `GET /database/status` e `POST /database/projects` existentes.
+- `/angular/#domains`: listagem de aplicações elegíveis na rede isolada, reserva, publicação DNS/HTTPS e remoção com confirmação digitada; estado `published` vem da última verificação da API, não é disponibilidade contínua. Endpoints `GET /domains`, `GET /apps`, `GET /domains/caddy`, `POST /domains`, `POST /domains/:slug/publish`, `DELETE /domains/:slug`.
+- Rotas antigas `/#database`, `/#domains` migram para Angular. Modo clássico explícito preservado até paridade integral.
+- Sem novos privilégios, SQL arbitrário, token no browser, PR, merge ou deploy. Pendências: auditoria final, testes em aparelhos reais e migração dos demais módulos.

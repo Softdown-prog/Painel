@@ -4,6 +4,8 @@ import { AppsComponent } from './apps.component';
 import { GithubProjectsComponent } from './github-projects.component';
 import { TerminalComponent } from './terminal.component';
 import { RevisionsComponent } from './revisions.component';
+import { PostgresComponent } from './postgres.component';
+import { DomainsComponent } from './domains.component';
 
 type Session = {authenticated: boolean; setupRequired: boolean};
 type Summary = {available: boolean; running: number | null; total: number | null; truncated?: boolean};
@@ -23,12 +25,12 @@ type Inventory = {containers?: ManagedContainer[]; readOnly?: boolean; updatedAt
 @Component({
   selector: 'panel-app',
   standalone: true,
-  imports: [DeploymentsComponent, AppsComponent, GithubProjectsComponent, TerminalComponent, RevisionsComponent],
+  imports: [DeploymentsComponent, AppsComponent, GithubProjectsComponent, TerminalComponent, RevisionsComponent, PostgresComponent, DomainsComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
 export class AppComponent implements OnInit {
-  readonly page = signal<'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions'>('overview');
+  readonly page = signal<'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains'>('overview');
   readonly menuOpen = signal(false);
   readonly session = signal<Session | null>(null);
   readonly overview = signal<Overview | null>(null);
@@ -61,7 +63,8 @@ export class AppComponent implements OnInit {
     const hash = window.location.hash.replace(/^#\/?/, '');
     if (hash === 'overview' || hash === 'containers' ||
         hash === 'deployments' || hash === 'apps' || hash === 'projects' ||
-        hash === 'terminal' || hash === 'revisions') this.page.set(hash);
+        hash === 'terminal' || hash === 'revisions' ||
+        hash === 'database' || hash === 'domains') this.page.set(hash);
     else this.page.set('overview');
   }
 
@@ -141,7 +144,7 @@ export class AppComponent implements OnInit {
     } finally { this.loading.set(false); }
   }
 
-  selectPage(page: 'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions'): void {
+  selectPage(page: 'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains'): void {
     this.page.set(page);
     this.menuOpen.set(false);
     if (window.location.hash !== '#' + page) window.location.hash = page;
