@@ -21,7 +21,8 @@ const ID=/^[a-z0-9]+(?:-[a-z0-9]+)*\.(?:mcp|cluster)\.[a-z0-9]+(?:-[a-z0-9]+)*$/
 const MAX_PLANS=32;
 const MAX_PER_PROJECT=8;
 class RegistryError extends Error{
-  constructor(readonly status:number,message:string){super(message);}
+  readonly status:number;
+  constructor(status:number,message:string){super(message);this.status=status;}
 }
 const record=(value:unknown):value is Record<string,unknown>=>value!==null&&typeof value==='object'&&!Array.isArray(value);
 const slug=(value:unknown):value is string=>typeof value==='string'&&value.length<=48&&SLUG.test(value);
