@@ -1,36 +1,79 @@
 {
-  "actor_ids": ["189416996"],
+  "actor_ids": [
+    "189416996"
+  ],
   "repositories": {
     "1433232532": {
       "name": "Softdown-prog/Painel",
-      "workflows": ["deploy-vps.yml", "vps-command.yml"],
-      "projects": ["panel", "infrastructure", "terrania"],
-      "operations": ["deploy", "verify", "inventory"]
+      "workflows": [
+        "deploy-vps.yml",
+        "vps-command.yml"
+      ],
+      "projects": [
+        "panel",
+        "infrastructure",
+        "terrania"
+      ],
+      "operations": [
+        "deploy",
+        "verify",
+        "inventory"
+      ]
     },
     "1438758092": {
       "name": "Softdown-prog/Terrania",
-      "workflows": ["deploy-vps.yml"],
-      "projects": ["terrania"],
-      "operations": ["deploy", "verify"]
+      "workflows": [
+        "deploy-vps.yml",
+        "deploy-go-shadow.yml"
+      ],
+      "projects": [
+        "terrania",
+        "terrania-go-shadow"
+      ],
+      "operations": [
+        "deploy",
+        "verify"
+      ]
     }
   },
   "projects": {
     "panel": {
       "repository": "Softdown-prog/Painel",
       "adapter": "panel",
-      "containers": {"api": "softload-panel-api", "executor": "softload-panel-executor"},
-      "images": {"api": "ghcr.io/softdown-prog/painel-api", "executor": "ghcr.io/softdown-prog/painel-executor"},
+      "containers": {
+        "api": "softload-panel-api",
+        "executor": "softload-panel-executor"
+      },
+      "images": {
+        "api": "ghcr.io/softdown-prog/painel-api",
+        "executor": "ghcr.io/softdown-prog/painel-executor"
+      },
       "releases": "/opt/vps-panel/releases",
       "public_url": "https://panel.analysepro.com/api/session"
     },
     "terrania": {
       "repository": "Softdown-prog/Terrania",
       "adapter": "compose",
-      "containers": {"multiplayer": "terrania-origins-multiplayer-1"},
-      "images": {"multiplayer": "ghcr.io/softdown-prog/terrania-multiplayer"},
+      "containers": {
+        "multiplayer": "terrania-origins-multiplayer-1"
+      },
+      "images": {
+        "multiplayer": "ghcr.io/softdown-prog/terrania-multiplayer"
+      },
       "releases": "/opt/vps-projects/terrania/releases",
       "env_file": "/root/Terrania/server/.env",
       "public_url": "https://api-rpg.analysepro.com/health"
+    },
+    "terrania-go-shadow": {
+      "repository": "Softdown-prog/Terrania",
+      "adapter": "shadow",
+      "containers": {
+        "engine-go": "terrania-go-shadow"
+      },
+      "images": {
+        "engine-go": "ghcr.io/softdown-prog/terrania-go"
+      },
+      "releases": "/opt/vps-projects/terrania-go-shadow/releases"
     }
   }
 }
