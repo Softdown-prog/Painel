@@ -149,7 +149,8 @@ export async function getDatabaseStatus(
   }
 }
 class ProvisionError extends Error {
-  constructor(readonly status: number, message: string) { super(message); }
+  readonly status: number;
+  constructor(status: number, message: string) { super(message); this.status = status; }
 }
 function names(slug: string): { db: string; role: string } {
   const name = slug.replaceAll("-", "_");
