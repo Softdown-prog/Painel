@@ -38,9 +38,10 @@ export class TrafficComponent implements OnInit,OnDestroy{
  readonly points=computed(()=>{
    const metric=this.selectedMetric();
    const rows=this.history()?.samples??[];
-   return rows.filter(p=>p&&Number.isFinite(Date.parse(p.at))&&
-     typeof p[metric]==='number'&&Number.isFinite(p[metric])&&p[metric]>=0&&p[metric]<=100)
-     .map(p=>({time:Date.parse(p.at),value:p[metric] as number})).sort((a,b)=>a.time-b.time);
+   return rows.map(p=>({time:Date.parse(p.at),value:p[metric]}))
+     .filter((p):p is {time:number;value:number}=>Number.isFinite(p.time)&&
+       typeof p.value==='number'&&Number.isFinite(p.value)&&p.value>=0&&p.value<=100)
+     .sort((a,b)=>a.time-b.time);
  });
  readonly path=computed(()=>{
    const values=this.points();

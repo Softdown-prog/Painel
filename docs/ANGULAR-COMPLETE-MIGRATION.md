@@ -20,7 +20,7 @@
 | Revisões e espaço | Migrando nesta branch | Limpeza manual/automática, inventário, histórico, atividades GitHub e status VPS |
 | PostgreSQL | Angular em desenvolvimento | Inventário real e criação isolada com certificado; revisar estados, integração, validações e paridade mobile |
 | Domínios e DNS | Angular em desenvolvimento | Reserva, publicação, remoção e confirmação HTTPS; revisar DNS, gateway, estados e paridade mobile |
-| Tráfego e recursos | Clássico | Séries temporais, transferências e histórico |
+| Tráfego e recursos | Angular em desenvolvimento | RX/TX, referência mensal, histórico de rede, gráfico de RAM/disco; validar dados reais e responsividade |
 | Chaves e segredos | Clássico | Listar/cadastrar/remover com confirmação, nunca exibir valores |
 | Configurações e conta | Clássico | Autenticação inicial, alteração de senha, limites e preferências |
 | Detalhes do site e serviços | Clássico | Detalhes, ações confirmadas e estados reais |
@@ -51,3 +51,9 @@
 - `/angular/#domains`: listagem de aplicações elegíveis na rede isolada, reserva, publicação DNS/HTTPS e remoção com confirmação digitada; estado `published` vem da última verificação da API, não é disponibilidade contínua. Endpoints `GET /domains`, `GET /apps`, `GET /domains/caddy`, `POST /domains`, `POST /domains/:slug/publish`, `DELETE /domains/:slug`.
 - Rotas antigas `/#database`, `/#domains` migram para Angular. Modo clássico explícito preservado até paridade integral.
 - Sem novos privilégios, SQL arbitrário, token no browser, PR, merge ou deploy. Pendências: auditoria final, testes em aparelhos reais e migração dos demais módulos.
+
+## Incremento — Tráfego e recursos (31/10/2026)
+
+- `/angular/#traffic` consulta os contadores reais `GET /traffic` e o histórico de memória/disco no `GET /overview`. Mostra RX/TX, ciclo de referência, alertas e gráfico de até 31 dias + 24h, com coleta automática de leitura a cada 60s enquanto a aba estiver visível.
+- `POST /traffic` muda apenas a franquia de referência e o dia de renovação (1–28), com confirmação digitada `ATUALIZAR`; não altera contrato com o provedor. Não inventar medição de faturamento. Frontend não envia segredos.
+- Os atalhos `/#traffic` apontam para o Angular, mantendo modo clássico explícito para comparação durante a migração. Sem deploy ou merge.
