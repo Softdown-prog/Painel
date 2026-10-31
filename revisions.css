@@ -23,3 +23,29 @@
 .revision-host-groups{margin:4px 20px;display:flex;flex-wrap:wrap;gap:7px}
 .revision-host-groups span{border:1px solid #554466;background:#2d2839;color:#dac9f3;border-radius:7px;font-size:11px;padding:6px 9px;overflow-wrap:anywhere}
 @media(max-width:580px){.revision-host-groups{margin:10px 12px}}
+
+/* GitHub Actions e revisão efetivamente em execução na VPS. */
+.revision-ci-panel .panel-head{align-items:center}
+.revision-ci-list{display:grid;gap:11px;margin:6px 20px 18px}
+.revision-ci-card{border:1px solid #3a4357;background:#1c2331;border-radius:11px;padding:14px 16px;min-width:0}
+.revision-ci-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.revision-ci-card-title{display:flex;flex-direction:column;gap:4px;min-width:0}
+.revision-ci-card-title strong{color:#eaf0fb;font-size:13px;overflow-wrap:anywhere}
+.revision-ci-card-title small,.revision-ci-date{font-size:11px;color:#aeb9cb}
+.revision-ci-link{color:#c6aaff;font-size:12px;white-space:nowrap;text-decoration:underline;text-underline-offset:3px}
+.revision-ci-stages{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:15px 0 9px}
+.revision-ci-stage{display:inline-flex;align-items:center;gap:8px;border:1px solid #43495b;background:#262c3a;border-radius:999px;padding:7px 11px;color:#c7d0dc;font-size:11px;font-weight:600}
+.revision-ci-dot{display:inline-grid;place-items:center;flex:none;width:16px;height:16px;border-radius:50%;border:1.5px solid currentColor;line-height:1;font-size:13px}
+.revision-ci-running{color:#80bdff;border-color:#365c88;background:#192d46}
+.revision-ci-running .revision-ci-dot{border:2px solid #3e648f;border-top-color:#8dccff;color:transparent;animation:revision-ci-spin .8s linear infinite}
+.revision-ci-success{color:#8ce1b1;background:#193a32;border-color:#286f53}
+.revision-ci-success .revision-ci-dot{background:#246d4c;color:#e3fff0;border-color:#57c58c}
+.revision-ci-failed{color:#ffa8a8;background:#43252e;border-color:#824252}
+.revision-ci-warning{color:#f3d093;background:#433822;border-color:#836934}
+.revision-ci-arrow{color:#8895ab;font-size:19px}
+.revision-ci-empty{padding:13px 15px;border:1px dashed #49536b;border-radius:9px;color:#c0cadb;font-size:12px;line-height:1.5}
+.revision-ci-footnote{margin:8px 20px 18px;color:#afbbcc;font-size:11px;line-height:1.5}
+.revision-ci-footnote a{color:#c6aaff}
+@keyframes revision-ci-spin{to{transform:rotate(360deg)}}
+@media(max-width:580px){.revision-ci-panel .panel-head{flex-wrap:wrap;gap:10px}.revision-ci-list{margin:8px 12px 15px}.revision-ci-card{padding:12px}.revision-ci-card-head{flex-direction:column;gap:7px}.revision-ci-stage{padding:6px 9px}.revision-ci-arrow{font-size:14px}.revision-ci-footnote{margin:8px 12px 15px}}
+@media(prefers-reduced-motion:reduce){.revision-ci-running .revision-ci-dot{animation:none;border-style:dashed;color:#80bdff;background:transparent}}

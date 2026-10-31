@@ -645,7 +645,7 @@ function showView(name) {
   if (view.id === 'projects' && authenticated) window.refreshManagedProjects?.();
   if (view.id === 'domains' && authenticated) window.refreshManagedDomains?.();
   if (view.id === 'terminal') window.refreshTerminalConnection?.();
-  if (view.id === 'revisions' && authenticated) window.refreshManagedRevisions?.();
+  if (view.id === 'revisions' && authenticated) { window.refreshManagedRevisions?.(); window.refreshRevisionActivity?.(); }
   if (view.id === 'secrets' && authenticated) window.refreshPanelSecrets?.();
   if (view.id === 'database' && authenticated) window.refreshDatabasePanel?.();
   if (view.id === 'traffic' && authenticated) window.refreshTraffic?.();
@@ -687,7 +687,7 @@ document.getElementById('authForm').addEventListener('submit', async event => {
       if (location.hash === '#terminal') window.refreshTerminalConnection?.();
     if (location.hash === '#secrets') window.refreshPanelSecrets?.();
       if (location.hash === '#traffic') window.refreshTraffic?.();
-      if (location.hash === '#revisions') window.refreshManagedRevisions?.();
+      if (location.hash === '#revisions') { window.refreshManagedRevisions?.(); window.refreshRevisionActivity?.(); }
     }
   } catch (error) { errorBox.textContent = error.message; }
   finally { button.disabled = false; }
