@@ -86,22 +86,26 @@
       "panel-api": {
         "project": "panel",
         "service": "api",
-        "compose_project": "softload-panel"
+        "compose_project": "softload-panel",
+        "compose_service": "api"
       },
       "panel-executor": {
         "project": "panel",
         "service": "executor",
-        "compose_project": "softload-panel"
+        "compose_project": "softload-panel",
+        "compose_service": "executor"
       },
       "panel-web": {
         "project": "panel-web",
         "service": "web",
-        "compose_project": "softload-panel"
+        "compose_project": "softload-panel",
+        "compose_service": "panel-web"
       },
       "terrania-multiplayer": {
         "project": "terrania",
         "service": "multiplayer",
-        "compose_project": "terrania-origins"
+        "compose_project": "terrania-origins",
+        "compose_service": "multiplayer"
       }
     }
   }
