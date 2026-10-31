@@ -91,9 +91,12 @@ export class DeploymentsComponent implements OnInit, OnDestroy {
       const data=await this.api<{repositories?:Repository[]}>('/repositories');
       if (!Array.isArray(data.repositories))
         throw new Error('A API não confirmou a lista de repositórios.');
-      const repos=data.repositories.filter(repo=>repo &&
+      const linkedRepos=data.repositories.filter(repo=>repo &&
         typeof repo.fullName==='string' && REPO.test(repo.fullName) &&
-        typeof repo.branch==='string' && typeof repo.workflow==='string').slice(0,8);
+        typeof repo.branch==='string' && typeof repo.workflow==='string');
+      const panel=linkedRepos.find(repo=>repo.fullName==='Softdown-prog/Painel') ??
+        {fullName:'Softdown-prog/Painel',branch:'main',workflow:'deploy-vps.yml'};
+      const repos=[panel,...linkedRepos.filter(repo=>repo.fullName!==panel.fullName)].slice(0,8);
       const [projectResponse,historyResponse]=await Promise.allSettled([
         this.api<{projects?:LinkedProject[]}>('/projects'),
         this.api<{history?:PublicationJob[]}>('/publications')
