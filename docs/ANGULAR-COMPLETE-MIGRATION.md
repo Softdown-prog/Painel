@@ -115,3 +115,10 @@
 - Um contador de geração impede que uma confirmação tardia restaure a interface após logout. Tentativas de login limpam a senha também em caso de falha.
 - Logout bloqueia a interface imediatamente, mas não declara sucesso do servidor sem `{ok:true}`; em falha mantém o aviso e um botão explícito para repetir `POST /logout`. Configuração inicial e alteração de senha preservam suas confirmações.
 - Testes unitários cobrem validação da sessão, erros 401/403 e vínculos do fluxo no Angular. Pendente teste autenticado em navegador e Android, com a VPS desligada e sessões expiradas. **Somente branch:** nenhum deploy.
+
+## Correção — logout pendente não libera novo login (31/10/2026)
+
+- Um logout em andamento usa estado próprio `logoutPending`; confirmação negativa ou erro mantém `logoutUnconfirmed` e bloqueia formulário e submissão direta de `login()`, incluindo configurações iniciais.
+- Em vez de renderizar simultaneamente o formulário de entrada, o Angular mostra apenas a confirmação pendente ou a ação de tentar encerrar novamente. `GET /session` também fica bloqueado até obter confirmação de saída do backend.
+- O predicado puro `maySubmitAdminLogin` tem testes para sessão desconhecida, usuário autenticado, setup, entrada em andamento, validação de sessão pendente, logout em andamento e logout não confirmado. No frontend, a senha continua limpa em qualquer tentativa de login.
+- Somente a branch Angular; testes E2E com cookies reais e cenários de perda de rede ainda pendentes. Nenhuma alteração de API/VPS/produção.

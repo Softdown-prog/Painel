@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {parseOverview,parseInventory,capacityAlerts,readingFresh} from '../angular/src/overview-state.ts';
-import {parseAdminSession,expiredProtectedSession} from '../angular/src/session-state.ts';
+import {parseAdminSession,expiredProtectedSession,maySubmitAdminLogin} from '../angular/src/session-state.ts';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const stamp='2026-10-31T17:00:00.000Z';
 const good=()=>({updatedAt:stamp,containerSummary:{available:true,running:2,total:3},cpu:{load1:1.5,cores:4},disk:{used:1024,total:2048}});
@@ -134,4 +134,29 @@ test('Angular revalidates every visible session and refuses unconfirmed logout',
  assert.match(html,/Tentar encerrar sessão novamente/);
  assert.match(html,/Verificar sessão/);
  assert.doesNotMatch(component,/localStorage|sessionStorage/);
+});
+
+test('login is impossible during an unconfirmed or pending logout, even without UI guards',()=>{
+ const anonymous={authenticated:false,setupRequired:false};
+ assert.equal(maySubmitAdminLogin(anonymous,false,false,false,false),true);
+ for(const flags of [
+   [true,false,false,false],
+   [false,true,false,false],
+   [false,false,true,false],
+   [false,false,false,true]
+ ]){
+   assert.equal(maySubmitAdminLogin(anonymous,...flags),false);
+ }
+ assert.equal(maySubmitAdminLogin(null,false,false,false,false),false);
+ assert.equal(maySubmitAdminLogin({authenticated:true,setupRequired:false},false,false,false,false),false);
+ assert.equal(maySubmitAdminLogin({authenticated:false,setupRequired:true},false,false,false,false),false);
+ const src=read('angular/src/app.component.ts'),html=read('angular/src/app.component.html');
+ assert.match(src,/if\(!this\.loginAllowed\(\)\)return/);
+ assert.match(src,/this\.logoutPending\.set\(true\)/);
+ assert.match(src,/this\.logoutUnconfirmed\.set\(true\)/);
+ assert.match(src,/if\(this\.destroyed\|\|this\.logoutUnconfirmed\(\)\|\|this\.logoutPending\(\)\)return false/);
+ assert.match(html,/@else if\(logoutUnconfirmed\(\)\)/);
+ assert.match(html,/@else if \(!session\(\)\)/);
+ assert.match(html,/\[disabled\]="!loginAllowed\(\) \|\| !password\(\)"/);
+ assert.match(html,/Confirmando a saída com o servidor/);
 });

@@ -9,6 +9,15 @@ export function parseAdminSession(raw:unknown):AdminSession {
   return {authenticated:value['authenticated'],setupRequired:value['setupRequired']};
 }
 /** 401 on protected endpoints means reauthentication, not a failed password or a permission check. */
+/** An unverified logout must never be bypassed by a concurrent login. */
+export function maySubmitAdminLogin(
+  session:AdminSession|null,logoutPending:boolean,logoutUnconfirmed:boolean,
+  busy:boolean,sessionChecking:boolean
+):boolean{
+  return session?.authenticated===false&&!session.setupRequired&&
+    !logoutPending&&!logoutUnconfirmed&&!busy&&!sessionChecking;
+}
+
 export function expiredProtectedSession(status:number,path:string):boolean {
   return status===401&&path!=='/login'&&path!=='/setup'&&path!=='/logout'&&path!=='/session';
 }

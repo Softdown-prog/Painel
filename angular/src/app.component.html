@@ -53,11 +53,12 @@
       } @else if (!signedIn()) {
         <section class="panel login">
           <h2>Acesso administrativo</h2>
-          @if(logoutUnconfirmed()){
+          @if(logoutPending()){
+            <p role="status">Confirmando a saída com o servidor da VPS...</p>
+          } @else if(logoutUnconfirmed()){
             <p role="alert">A saída ainda não foi confirmada pela VPS. Não deixe o dispositivo sem tentar novamente.</p>
-            <button type="button" class="secondary" [disabled]="submitting()" (click)="retryLogout()">Tentar encerrar sessão novamente</button>
-          }
-          @if (!session()) {
+            <button type="button" class="secondary" (click)="retryLogout()">Tentar encerrar sessão novamente</button>
+          } @else if (!session()) {
             <p>O estado da sessão não pôde ser confirmado. Verifique a conexão com a API antes de usar o painel.</p>
             <button type="button" class="secondary" [disabled]="sessionChecking() || logoutUnconfirmed()" (click)="checkSession()">{{sessionChecking() ? 'Verificando…' : 'Verificar sessão'}}</button>
           } @else if (session()?.setupRequired) {
@@ -89,9 +90,9 @@
           } @else {
             <p>Use suas credenciais existentes. A senha não fica armazenada no Angular.</p>
             <form (submit)="login($event)">
-              <label>Usuário<input [value]="username()" (input)="username.set($any($event.target).value)" autocomplete="username" required></label>
-              <label>Senha<input type="password" [value]="password()" (input)="password.set($any($event.target).value)" autocomplete="current-password" required></label>
-              <button type="submit" class="primary" [disabled]="submitting() || !password()">{{submitting() ? 'Entrando...' : 'Entrar'}}</button>
+              <label>Usuário<input [value]="username()" (input)="username.set($any($event.target).value)" autocomplete="username" required [disabled]="!loginAllowed()"></label>
+              <label>Senha<input type="password" [value]="password()" (input)="password.set($any($event.target).value)" autocomplete="current-password" required [disabled]="!loginAllowed()"></label>
+              <button type="submit" class="primary" [disabled]="!loginAllowed() || !password()">{{submitting() ? 'Entrando...' : 'Entrar'}}</button>
             </form>
           }
         </section>

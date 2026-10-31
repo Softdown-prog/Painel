@@ -397,3 +397,6 @@ Guia de uso: [GUIA-RAPIDO.md](GUIA-RAPIDO.md). Domínios técnicos: [domain-rout
 
 ### Angular — validade da sessão e confirmação do logout (branch, 31/10/2026)
 **Implementado:** revalidação periódica do `/session` mesmo fora da visão geral, checagem ao retornar à aba/navegar, bloqueio do UI quando sessão não é confirmada, distinção de 401 de autenticação e 403 de autorização, segurança contra resultado atrasado e repetição explícita do logout quando a VPS não confirmou. A senha de login é limpa mesmo se a tentativa falhar. **Testes:** `server/angular-overview.test.mjs`. **Pendente:** verificação de fluxos reais e celular, CI do commit final. **Sem publicação ou merge.**
+
+### Angular — correção da concorrência de logout (branch, 31/10/2026)
+**Implementado no código:** impedir que login/setup ou revalidação ocorram enquanto `POST /logout` está pendente ou sem confirmação do servidor. A interface exibe nova tentativa em vez de formulário de entrada. `maySubmitAdminLogin` testado em `server/angular-overview.test.mjs`. **CI:** conferir no SHA final. **VPS/produção:** intactas. Pendente teste real com perda de rede e cookies.

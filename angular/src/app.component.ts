@@ -14,7 +14,7 @@ import { SiteDetailComponent } from './site-detail.component';
 import { validAppSlug } from './apps-policy';
 import {parseOverview,parseInventory,capacityAlerts,readingFresh,type HostOverview,type HostInventory} from './overview-state';
 import {filterInventory,inventoryProjects,type InventoryStatusFilter} from './inventory-view';
-import {parseAdminSession,expiredProtectedSession,type AdminSession} from './session-state';
+import {parseAdminSession,expiredProtectedSession,maySubmitAdminLogin,type AdminSession} from './session-state';
 
 @Component({
   selector: 'panel-app',
@@ -43,6 +43,11 @@ export class AppComponent implements OnInit,OnDestroy {
   private sessionCheckId=0;
   readonly sessionChecking=signal(false);
   readonly logoutUnconfirmed=signal(false);
+  readonly logoutPending=signal(false);
+  readonly loginAllowed=computed(()=>maySubmitAdminLogin(
+    this.session(),this.logoutPending(),this.logoutUnconfirmed(),
+    this.submitting(),this.sessionChecking()
+  ));
   private timer:ReturnType<typeof setInterval>|null=null;
   private destroyed=false;
   readonly clock=signal(Date.now());
@@ -184,7 +189,7 @@ export class AppComponent implements OnInit,OnDestroy {
   }
 
   async checkSession():Promise<boolean> {
-    if(this.destroyed||this.logoutUnconfirmed())return false;
+    if(this.destroyed||this.logoutUnconfirmed()||this.logoutPending())return false;
     const checkId=++this.sessionCheckId;
     const epoch=this.authEpoch;
     this.sessionChecking.set(true);
@@ -224,7 +229,8 @@ export class AppComponent implements OnInit,OnDestroy {
 
   prepareSetup(event:Event):void{
     event.preventDefault();
-    if(this.submitting()||!this.session()?.setupRequired||!this.setupValid())return;
+    if(this.submitting()||this.logoutPending()||this.logoutUnconfirmed()||
+       !this.session()?.setupRequired||!this.setupValid())return;
     this.error.set('');this.setupPending.set(true);
   }
 
@@ -234,7 +240,8 @@ export class AppComponent implements OnInit,OnDestroy {
   }
 
   async completeSetup():Promise<void>{
-    if(!this.setupPending()||!this.session()?.setupRequired||!this.setupValid()||this.submitting())return;
+    if(!this.setupPending()||!this.session()?.setupRequired||!this.setupValid()||
+       this.submitting()||this.logoutPending()||this.logoutUnconfirmed())return;
     this.submitting.set(true);this.error.set('');
     try{
       const data=await this.request<{ok:boolean}>('/setup','POST',{
@@ -254,6 +261,7 @@ export class AppComponent implements OnInit,OnDestroy {
     this.authEpoch++;
     this.sessionCheckId++;
     this.logoutUnconfirmed.set(false);
+    this.logoutPending.set(false);
     this.session.set({authenticated:false,setupRequired:false});
     this.clearReadings();
     this.password.set('');
@@ -266,7 +274,7 @@ export class AppComponent implements OnInit,OnDestroy {
 
   async login(event: Event): Promise<void> {
     event.preventDefault();
-    if(this.submitting())return;
+    if(!this.loginAllowed())return;
     const epoch=this.authEpoch;
     this.submitting.set(true);
     this.error.set('');
@@ -288,7 +296,9 @@ export class AppComponent implements OnInit,OnDestroy {
   }
 
   async logout():Promise<void> {
+    if(!this.signedIn()||this.logoutPending()||this.logoutUnconfirmed())return;
     this.lockSession('');
+    this.logoutPending.set(true);
     this.logoutUnconfirmed.set(false);
     try{
       const result=await this.request<{ok:boolean}>('/logout','POST');
@@ -297,12 +307,12 @@ export class AppComponent implements OnInit,OnDestroy {
     }catch{
       this.logoutUnconfirmed.set(true);
       this.error.set('A interface foi bloqueada, mas o servidor não confirmou a saída. Tente encerrar a sessão novamente antes de deixar este dispositivo.');
-    }
+    }finally{this.logoutPending.set(false);}
   }
 
   async retryLogout():Promise<void> {
-    if(!this.logoutUnconfirmed()||this.submitting())return;
-    this.submitting.set(true);
+    if(!this.logoutUnconfirmed()||this.logoutPending()||this.submitting())return;
+    this.logoutPending.set(true);
     this.error.set('');
     try{
       const result=await this.request<{ok:boolean}>('/logout','POST');
@@ -311,7 +321,7 @@ export class AppComponent implements OnInit,OnDestroy {
       this.notice.set('Saída confirmada pelo servidor.');
     }catch{
       this.error.set('O servidor ainda não confirmou a saída. Verifique sua conexão e tente novamente.');
-    }finally{this.submitting.set(false);}
+    }finally{this.logoutPending.set(false);}
   }
 
   async refresh(automatic=false):Promise<void>{
