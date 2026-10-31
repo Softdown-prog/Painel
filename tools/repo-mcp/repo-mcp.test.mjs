@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,writeFile,mkdir,readFile,symlink,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {spawn} from 'node:child_process';
+import {spawn,spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {RepoNavigator} from './indexer.mjs';
 const sha=data=>createHash('sha256').update(data).digest('hex');
@@ -56,14 +56,30 @@ test('edits default to preview, require opt-in and compare file hashes',async()=
   assert.equal(preview.changed,true);assert.equal(preview.dryRun,true);
   assert.equal(await readFile(full,'utf8'),original);
   await assert.rejects(nav.replace({...args,dryRun:false}),/Escrita desabilitada/);
-  const writer=new RepoNavigator(root,{writable:true});
-  await assert.rejects(writer.replace({...args,expectedSha256:'0'.repeat(64),dryRun:false}),/mudou/);
-  const result=await writer.replace({...args,dryRun:false});
-  assert.equal(result.dryRun,false);
+  const actionsWriter=new RepoNavigator(root,{writable:true});
+  if(process.env.GITHUB_ACTIONS==='true'){
+   assert.equal(actionsWriter.writable,false);
+   await assert.rejects(actionsWriter.replace({...args,dryRun:false}),/Escrita desabilitada/);
+  }
+  // Verify opt-in write behavior in a separate local-mode process: never enable writes in Actions.
+  const script=[
+   "import {RepoNavigator} from "+JSON.stringify(new URL('./indexer.mjs',import.meta.url).href)+";",
+   "const nav=new RepoNavigator("+JSON.stringify(root)+",{writable:true});",
+   "const args="+JSON.stringify(args)+";",
+   "try { await nav.replace({...args,expectedSha256:'0'.repeat(64),dryRun:false}); process.exit(2); }",
+   "catch(e) { if(!String(e).includes('mudou'))process.exit(3); }",
+   "const out=await nav.replace({...args,dryRun:false});",
+   "if(out.dryRun)process.exit(4);",
+   "try {await nav.replace({...args,dryRun:false});process.exit(5);}",
+   "catch(e){if(!String(e).includes('mudou'))process.exit(6);}",
+   "try {await nav.replace({path:'.github/workflows/build.yml',expectedSha256:"+JSON.stringify(sha('name: Build\n'))+",oldText:'Build',newText:'Attack',dryRun:false});process.exit(7);}",
+   "catch(e){if(!String(e).includes('não são permitidas'))process.exit(8);}"
+  ].join('\n');
+  const local=spawnSync(process.execPath,['--input-type=module','-e',script],{
+   cwd:root,env:{...process.env,GITHUB_ACTIONS:'false'},encoding:'utf8'
+  });
+  assert.equal(local.status,0,local.stderr||local.stdout);
   assert.ok((await readFile(full,'utf8')).includes('function start'));
-  await assert.rejects(writer.replace({...args,dryRun:false}),/mudou/);
-  await assert.rejects(writer.replace({path:'.github/workflows/build.yml',expectedSha256:sha('name: Build\n'),
-    oldText:'Build',newText:'Attack',dryRun:false}),/não são permitidas/);
  }finally{await rm(root,{recursive:true,force:true});}
 });
 test('MCP stdio initialize, discover and call tools; cannot write with default settings',async()=>{
