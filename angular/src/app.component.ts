@@ -1,4 +1,4 @@
-import { Component, HostListener, OnInit, computed, signal } from '@angular/core';
+import { Component, HostListener, OnInit, OnDestroy, computed, signal } from '@angular/core';
 import { DeploymentsComponent } from './deployments.component';
 import { AppsComponent } from './apps.component';
 import { GithubProjectsComponent } from './github-projects.component';
@@ -12,7 +12,7 @@ import { SettingsComponent } from './settings.component';
 import { LegacyServicesComponent } from './legacy-services.component';
 import { SiteDetailComponent } from './site-detail.component';
 import { validAppSlug } from './apps-policy';
-import {parseOverview,parseInventory,type HostOverview,type HostInventory} from './overview-state';
+import {parseOverview,parseInventory,capacityAlerts,readingFresh,type HostOverview,type HostInventory} from './overview-state';
 
 type Session = {authenticated: boolean; setupRequired: boolean};
 @Component({
@@ -22,7 +22,7 @@ type Session = {authenticated: boolean; setupRequired: boolean};
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
-export class AppComponent implements OnInit {
+export class AppComponent implements OnInit,OnDestroy {
   readonly page = signal<'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains' | 'traffic' | 'secrets' | 'settings' | 'site'>('overview');
   readonly selectedSiteSlug=signal<string|null>(null);
   readonly menuOpen = signal(false);
@@ -32,6 +32,11 @@ export class AppComponent implements OnInit {
   readonly overviewIssue=signal('');
   readonly inventoryIssue=signal('');
   private authEpoch=0;
+  private timer:ReturnType<typeof setInterval>|null=null;
+  private destroyed=false;
+  readonly clock=signal(Date.now());
+  readonly overviewFresh=computed(()=>readingFresh(this.overview()?.updatedAt,this.clock())&&!this.overviewIssue());
+  readonly alerts=computed(()=>this.overviewFresh()?capacityAlerts(this.overview()):[]);
   readonly loading = signal(false);
   readonly submitting = signal(false);
   readonly error = signal('');
@@ -50,13 +55,38 @@ export class AppComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     this.syncPageFromLocation();
+    // A host is polled only while its metrics/inventory screen is visible and the admin is signed in.
+    this.timer=setInterval(()=>{
+      this.clock.set(Date.now());
+      if(document.visibilityState==='visible'&&this.signedIn()&&
+        (this.page()==='overview'||this.page()==='containers'))void this.refresh(true);
+    },60_000);
     await this.checkSession();
+  }
+
+  ngOnDestroy():void {
+    this.destroyed=true;
+    this.authEpoch++;
+    if(this.timer!==null)clearInterval(this.timer);
+    this.timer=null;
+    this.clearReadings();
+  }
+
+  @HostListener('document:visibilitychange')
+  onVisibilityChange():void {
+    this.clock.set(Date.now());
+    if(document.visibilityState==='visible'&&this.signedIn()&&
+      (this.page()==='overview'||this.page()==='containers'))void this.refresh(true);
   }
 
   @HostListener('window:hashchange')
   onRouteChange(): void {
+    const previous=this.page();
     this.syncPageFromLocation();
     this.menuOpen.set(false);
+    if(previous!==this.page()&&this.signedIn()&&
+       (this.page()==='overview'||this.page()==='containers')&&document.visibilityState==='visible')
+      void this.refresh(true);
   }
 
   @HostListener('document:keydown.escape')
@@ -187,8 +217,8 @@ export class AppComponent implements OnInit {
     catch{this.error.set('Não foi possível confirmar a saída no servidor. Tente novamente antes de deixar o dispositivo.');}
   }
 
-  async refresh():Promise<void>{
-    if(this.loading()||!this.signedIn())return;
+  async refresh(automatic=false):Promise<void>{
+    if(this.loading()||!this.signedIn()||this.destroyed)return;
     const epoch=this.authEpoch;
     this.loading.set(true);this.error.set('');
     try{
@@ -196,7 +226,7 @@ export class AppComponent implements OnInit {
       const [metrics,containers]=await Promise.allSettled([
         this.request<unknown>('/overview'),this.request<unknown>('/containers')
       ]);
-      if(epoch!==this.authEpoch||!this.signedIn())return;
+      if(epoch!==this.authEpoch||!this.signedIn()||this.destroyed)return;
       let failed=0;
       try{
         if(metrics.status==='rejected')throw metrics.reason;
@@ -208,10 +238,11 @@ export class AppComponent implements OnInit {
         this.inventory.set(parseInventory(containers.value));
         this.inventoryIssue.set('');
       }catch(error){failed++;this.inventoryIssue.set(this.message(error));}
-      this.notice.set(failed===0?'Métricas e inventário consultados com sucesso.':
+      this.clock.set(Date.now());
+      if(!automatic)this.notice.set(failed===0?'Métricas e inventário consultados com sucesso.':
         failed===1?'Consulta parcial: veja abaixo o que não respondeu.':
         'As duas consultas falharam. Dados anteriores, se houver, permanecem identificados.');
-    }finally{if(epoch===this.authEpoch)this.loading.set(false);}
+    }finally{if(epoch===this.authEpoch&&!this.destroyed)this.loading.set(false);}
   }
 
   selectPage(page: 'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains' | 'traffic' | 'secrets' | 'settings'): void {

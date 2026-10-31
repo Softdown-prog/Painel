@@ -93,3 +93,10 @@
 ## Reprodutibilidade Angular
 
 - `angular/package-lock.json` é gerado a partir da instalação real do workspace, versionado na branch e conferido com `npm ci` tanto no CI quanto no estágio Angular do Dockerfile. Sem instalar em produção.
+
+## Incremento — RAM, alertas de capacidade e leitura automática (31/10/2026)
+
+- A visão geral Angular exibe RAM real do `GET /overview` com a fonte (MemAvailable ou fallback identificado), sem confundir cache recuperável com consumo. Validação de totais inválidos bloqueia valores não confirmados.
+- Alertas informativos de disco >= 85%, RAM >= 85% apenas com MemAvailable e carga média de 1 minuto >= quantidade de núcleos. Carga não é porcentagem instantânea de CPU, disco indica o volume monitorado; dados antigos/ausentes não recebem confirmação verde.
+- Atualização a cada 60s somente na visão geral/inventário, com sessão autenticada e aba visível; também ao voltar para o navegador. O timer é limpo ao destruir o componente. Somente endpoints GET existentes, nenhum comando de container.
+- Testes cobrindo porcentagens, fallback de RAM, dados ausentes, amostras antigas/futuras e restrições de atualização. **Código na branch apenas**; ainda exige revisão em navegador autenticado e dispositivos móveis. Sem deploy.

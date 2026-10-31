@@ -93,10 +93,24 @@
           <div class="metrics">
             <article class="metric"><span>Containers em execução</span><strong>{{overview()?.containerSummary?.available ? (overview()?.containerSummary?.running ?? '—') : 'Indisponível'}}</strong><small>Total: {{overview()?.containerSummary?.total ?? '—'}}</small></article>
             <article class="metric"><span>Carga de CPU · 1 min</span><strong>{{overview()?.cpu?.load1 === undefined ? '—' : overview()?.cpu?.load1?.toFixed(2)}}</strong><small>{{overview()?.cpu?.cores ?? '—'}} núcleos</small></article>
-            <article class="metric"><span>Disco em uso</span><strong>{{gb(overview()?.disk?.used)}}</strong><small>De {{gb(overview()?.disk?.total)}}</small></article>
+            <article class="metric"><span>RAM em uso</span><strong>{{gb(overview()?.memory?.used)}}</strong><small>De {{gb(overview()?.memory?.total)}} · {{overview()?.memory?.source === 'memavailable' ? 'Cache descontado' : overview()?.memory?.source === 'os-freemem' ? 'Estimativa sem descontar cache' : 'Sem confirmação'}}</small></article>
+            <article class="metric"><span>Disco em uso</span><strong>{{gb(overview()?.disk?.used)}}</strong><small>De {{gb(overview()?.disk?.total)}} · volume monitorado</small></article>
           </div>
           <section class="panel">
             <h2>Conexão com o servidor</h2>
+            @if(overviewFresh()){
+              @if(alerts().length){
+                <div class="host-alerts" aria-label="Alertas de capacidade da VPS">
+                  @for(alert of alerts();track alert.message){
+                    <p role="status" class="host-alert" [class.danger]="alert.kind==='danger'">{{alert.message}}</p>
+                  }
+                </div>
+              }@else{
+                <p class="hint">Nenhum limite de capacidade atingido nesta leitura. Isso não confirma a saúde de todos os serviços.</p>
+              }
+            }@else{
+              <p class="fetch-error" role="status">Alertas de capacidade não confirmados: leitura ausente, antiga ou com falha.</p>
+            }
             @if(overviewIssue()){
               <p role="alert" class="fetch-error">{{overview() ? 'Dados anteriores: atualização falhou.' : 'Métricas indisponíveis.'}} {{overviewIssue()}}</p>
             } @else if(loading()){
@@ -104,7 +118,7 @@
             } @else {
               <p>{{overview() ? 'Métricas recebidas e validadas da API' : 'Aguardando uma leitura confirmada da API'}}</p>
             }
-            <small>Última leitura válida: {{formatDate(overview()?.updatedAt)}}</small>
+            <small>Última leitura válida: {{formatDate(overview()?.updatedAt)}} · atualização automática a cada 60 segundos enquanto esta aba estiver visível.</small>
             <p class="hint">Leituras antigas não confirmam o estado atual do servidor.</p>
             <button type="button" class="secondary" (click)="selectPage('containers')">Ver inventário de containers</button>
           </section>

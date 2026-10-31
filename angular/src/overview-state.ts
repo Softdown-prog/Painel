@@ -3,6 +3,7 @@ export type HostOverview={
   containerSummary:{available:boolean;running:number|null;total:number|null;truncated:boolean};
   cpu?:{load1:number;cores:number};
   disk?:{used:number;total:number};
+  memory?:{used:number;total:number;available:number;source:'memavailable'|'os-freemem'};
   updatedAt:string;
 };
 export type HostInventory={
@@ -36,6 +37,14 @@ export function parseOverview(raw:unknown):HostOverview{
     result.cpu={load1:raw['cpu']['load1'],cores:raw['cpu']['cores']};
   if(record(raw['disk'])&&number(raw['disk']['used'])&&number(raw['disk']['total'])&&raw['disk']['total']>0&&raw['disk']['used']<=raw['disk']['total'])
     result.disk={used:raw['disk']['used'],total:raw['disk']['total']};
+  if(record(raw['memory'])&&number(raw['memory']['used'])&&number(raw['memory']['total'])&&
+     number(raw['memory']['available'])&&raw['memory']['total']>0&&
+     raw['memory']['used']<=raw['memory']['total']&&raw['memory']['available']<=raw['memory']['total']&&
+     Math.abs(raw['memory']['used']+raw['memory']['available']-raw['memory']['total'])<=1024&&
+     (raw['memory']['source']==='memavailable'||raw['memory']['source']==='os-freemem')){
+    result.memory={used:raw['memory']['used'],total:raw['memory']['total'],
+      available:raw['memory']['available'],source:raw['memory']['source']};
+  }
   return result;
 }
 export function parseInventory(raw:unknown):HostInventory{
@@ -52,4 +61,35 @@ export function parseInventory(raw:unknown):HostInventory{
     });
   }
   return {readOnly:true,updatedAt:raw['updatedAt'],truncated:raw['truncated']===true,containers};
+}
+
+export type CapacityAlert={kind:'warning'|'danger';message:string};
+/** Show capacity alerts only for validated real readings. Never infer a healthy host from missing data. */
+export function capacityAlerts(overview:HostOverview|null):CapacityAlert[]{
+  if(!overview)return [];
+  const alerts:CapacityAlert[]=[];
+  const disk=overview.disk;
+  if(disk){
+    const percent=disk.used/disk.total*100;
+    if(percent>=85)alerts.push({kind:percent>=95?'danger':'warning',
+      message:'Disco com '+Math.round(percent)+'% de uso no volume monitorado.'});
+  }
+  const memory=overview.memory;
+  if(memory?.source==='memavailable'){
+    const percent=memory.used/memory.total*100;
+    if(percent>=85)alerts.push({kind:percent>=95?'danger':'warning',
+      message:'RAM com '+Math.round(percent)+'% de uso (cache recuperável descontado).'});
+  }
+  const cpu=overview.cpu;
+  if(cpu){
+    const load=cpu.load1/cpu.cores;
+    if(load>=1)alerts.push({kind:load>=1.5?'danger':'warning',
+      message:'Carga média de 1 minuto acima ou igual à capacidade de núcleos. Não é percentual de CPU.'});
+  }
+  return alerts;
+}
+export function readingFresh(updatedAt:string|undefined,now:number,maxAgeMs=120_000):boolean{
+  if(!updatedAt||!Number.isFinite(now))return false;
+  const at=Date.parse(updatedAt);
+  return Number.isFinite(at)&&now-at>=-30_000&&now-at<=maxAgeMs;
 }
