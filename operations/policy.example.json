@@ -18,7 +18,25 @@
         "deploy",
         "verify",
         "inventory"
-      ]
+      ],
+      "workflow_scopes": {
+        "deploy-vps.yml": {
+          "panel": [
+            "deploy"
+          ]
+        },
+        "vps-command.yml": {
+          "panel": [
+            "verify"
+          ],
+          "terrania": [
+            "verify"
+          ],
+          "infrastructure": [
+            "inventory"
+          ]
+        }
+      }
     },
     "1438758092": {
       "name": "Softdown-prog/Terrania",
@@ -33,7 +51,21 @@
       "operations": [
         "deploy",
         "verify"
-      ]
+      ],
+      "workflow_scopes": {
+        "deploy-vps.yml": {
+          "terrania": [
+            "deploy",
+            "verify"
+          ]
+        },
+        "deploy-go-shadow.yml": {
+          "terrania-go-shadow": [
+            "deploy",
+            "verify"
+          ]
+        }
+      }
     }
   },
   "projects": {
