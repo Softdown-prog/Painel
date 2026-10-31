@@ -1,3 +1,6 @@
+### 2026-10-30: impedir terminal antigo em cache no Pages
+A publicação da interface do PR #24 foi bem-sucedida, mas o erro exato "Comando muito longo." pertence apenas ao JavaScript anterior. A publicação Pages agora carimba as URLs de JS/CSS com o SHA do commit e envia _headers de revalidação para HTML/terminal. A API da VPS permanece um deploy separado; **não declarar terminal de 4 MB operacional na VPS até substituição e verificação da API**. Verificar status do deploy Pages/CI e o navegador, sem pressupor atualização do container de produção.
+
 # Tarefas para o Codex — Painel da VPS Softload
 
 > **Leia primeiro:** este documento registra o que falta fazer ou validar. Não marque itens como concluídos sem testes e provas no GitHub. O objetivo é transformar o painel em um gerenciador de hospedagem **rápido, amigável e seguro**, que comece em uma VPS pequena e possa crescer até vários servidores, sites e clientes.
