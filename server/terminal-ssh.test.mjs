@@ -41,12 +41,18 @@ test('SSH Linux terminal executes with the already authenticated API session and
     send:()=>{},body:async()=>({password:'unused'}),enabled:true,execute:async()=>result.data
   }),false);
 });
-test('SSH executor denies oversized or control-character commands without forwarding them',async()=>{
-  const c=client();
-  for(const command of ['z'.repeat(601),'line\u0000cmd',' leading-space','trailing-space ']){
+test('SSH executor accepts 100KB multi-line commands and rejects invalid input',async()=>{
+  const c=client(async command=>({exitCode:0,output:'length='+command.length,truncated:false,timedOut:false}));
+  const script='echo start\n'+'#'.repeat(100_000)+'\necho end';
+  assert.equal((await c.call('/terminal/ssh/exec','POST',{command:script})).status,200);
+  assert.deepEqual(c.executions,[script]);
+  const indented='  echo início\n\techo fim\n';
+  assert.equal((await c.call('/terminal/ssh/exec','POST',{command:indented})).status,200);
+  assert.equal(c.executions[1],indented);
+  for(const command of ['z'.repeat(4*1024*1024+1),'line\u0000cmd','  ']){
     assert.equal((await c.call('/terminal/ssh/exec','POST',{command})).status,400);
   }
   assert.equal((await c.call('/terminal/ssh/exec','POST',{command:'uptime',token:'legacy'})).status,400);
   assert.equal((await c.call('/terminal/ssh/exec','POST',{command:'uptime',password:'secret'})).status,400);
-  assert.equal(c.executions.length,0);
+  assert.equal(c.executions.length,2);
 });

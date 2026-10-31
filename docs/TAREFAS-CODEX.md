@@ -4,6 +4,9 @@
 >
 > **Estado de referência:** GitHub `Softdown-prog/Painel`, branch `main`, interface Cloudflare Pages, backend Node 24/TypeScript e Docker Compose na pasta `server/`.
 
+### Terminal VPS — correção de comandos longos (proposta)
+Substituído input por textarea, removido bloqueio de 600/605 caracteres, aceitos scripts multiline de até 4 MB, incluindo API SSH com JSON maior. Os demais endpoints preservam 64 KiB de corpo, shell mantém 18s e 24 KiB de saída. Scripts grandes não entram no histórico. CI e publicação precisam de confirmação; *merge não atualiza sozinho a API da VPS*.
+
 **Limite atual de capacidade:** são permitidas até **8 aplicações gerenciadas** por instalação. Esse teto é uma proteção temporária do protótipo, não o desenho final de hospedagem de clientes. Aumentar o limite exige controle por servidor, cotas, separação de clientes e observabilidade (tarefa C07).
 
 ### Ativação PostgreSQL — preflight e proteção das redes (nova etapa)

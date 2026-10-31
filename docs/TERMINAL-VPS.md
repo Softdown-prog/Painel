@@ -43,7 +43,7 @@ Também implementei o comando `linux <comando>`. Exemplo: `linux uptime`, `linux
 
 O funcionamento é simples: o administrador ativa o modo SSH, você entra no Painel e digita `linux uptime`. O terminal usa a sessão administrativa já autenticada, sem pedir a senha novamente nem aplicar um desbloqueio de dez minutos. A sessão do Painel dura até 12 horas; sair do Painel encerra o acesso. Cada resposta tem um botão **Copiar saída**, inclusive no celular. O resultado inclui o código de saída da operação.
 
-Esse primeiro modo SSH **executa um comando por vez**, espera até 18 segundos e devolve até 24 KB de saída. Ainda não é uma sessão interativa do tipo `vim`, `htop` ou `nano`, nem mantém o diretório entre comandos `cd`. Para operações demoradas use ferramentas apropriadas (por exemplo `systemctl`, `docker compose` ou um job no host), com os privilégios que a conta SSH realmente possui.
+O terminal agora **aceita colar comandos e scripts de várias linhas de até 4 MB**, com Ctrl+Enter ou o botão Executar. Ele continua executando um comando de cada vez via SSH, espera até 18 segundos e devolve até 24 KB de saída. O limite de 600 caracteres foi removido da interface e do backend; os demais endpoints mantêm o teto de 64 KiB. Scripts longos não são exibidos nem guardados no histórico. Ainda não é uma sessão interativa do tipo `vim`, `htop` ou `nano`, nem mantém o diretório entre comandos `cd`. Para operações demoradas use ferramentas apropriadas (por exemplo `systemctl`, `docker compose` ou um job no host), com os privilégios que a conta SSH realmente possui.
 
 ### Instalação inicial na VPS (administrador do servidor)
 

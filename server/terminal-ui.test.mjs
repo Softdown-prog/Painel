@@ -121,3 +121,23 @@ test('each terminal response has a mobile copy button that copies only that resp
   assert.equal(button.textContent,'Copiado');
   assert.deepEqual(cli.copied,[response.textContent]);
 });
+
+test('CLI submits long multi-line script verbatim without echoing or saving it',async()=>{
+  const cli=mount({
+    '/api/terminal/ssh/status':{enabled:true,configured:true},
+    'POST /api/terminal/ssh/exec':{exitCode:0,output:'ok',timedOut:false,truncated:false}
+  });
+  const script='echo começo\n' + '#'.repeat(90_000) + '\necho fim';
+  const output=await cli.command(script);
+  assert.match(output,/SHELL DA VPS/);
+  assert.match(output,/não exibido nem salvo no histórico/);
+  assert.doesNotMatch(output,/#{100}/);
+  const request=cli.requested.find(x=>x.url==='/api/terminal/ssh/exec');
+  assert.equal(JSON.parse(request.options.body).command,script);
+});
+test('terminal page contains multiline textarea without 605-character maxlength',()=>{
+  const page=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  assert.match(page,/<textarea id="terminalInput"/);
+  assert.doesNotMatch(page,/id="terminalInput"[^>]*maxlength=/);
+  assert.doesNotMatch(source,/Comando muito longo/);
+});
