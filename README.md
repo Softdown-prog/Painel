@@ -307,3 +307,7 @@ A aba **Chaves e acessos** (`#secrets`) permite ao administrador cadastrar, troc
 ### Staging Angular da VPS via GHCR
 
 O [guia de publicação da interface Angular](docs/PANEL-WEB-GHCR-VPS.md) documenta o workflow dedicado que compila a imagem no GitHub Actions, publica em GHCR por SHA/digest e instala somente `softload-panel-web` após a autorização root inicial do broker. Enquanto essa autorização não for instalada e o deploy não for confirmado com SHA/saúde reais, **Cloudflare Pages continua sendo o frontend público**, não o container VPS.
+
+### Administração de VPS pelo executor já instalado
+
+O workflow de [manutenção aprovada do `vpsops`](docs/VPSOPS-MANUTENCAO-APROVADA.md) usa o mesmo canal SSH/OIDC para host, saúde e reinício restrito de serviços registrados. Exige atualização inicial do broker root-owned e ambiente protegido no GitHub; não abre comandos Shell arbitrários.
