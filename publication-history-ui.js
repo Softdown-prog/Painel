@@ -1,3 +1,4 @@
+"use strict";
 (() => {
     const phases = {
         queued: 'NA FILA', importing: 'IMPORTANDO IMAGEM', staging: 'PREPARANDO VERSÃO',

@@ -1,3 +1,4 @@
+"use strict";
 (() => {
     let items = [];
     let enabled = false;

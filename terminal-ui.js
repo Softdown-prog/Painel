@@ -1,3 +1,4 @@
+"use strict";
 (() => {
     const input = document.getElementById('terminalInput');
     const form = document.getElementById('terminalForm');

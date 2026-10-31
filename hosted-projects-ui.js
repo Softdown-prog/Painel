@@ -1,3 +1,4 @@
+"use strict";
 (() => {
     async function refreshHostedProjects() {
         const host = document.getElementById('hostedProjects');

@@ -1,3 +1,4 @@
+"use strict";
 (() => {
     const ns = 'http://www.w3.org/2000/svg';
     const el = (id) => document.getElementById(id);

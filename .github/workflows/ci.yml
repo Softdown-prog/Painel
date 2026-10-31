@@ -16,6 +16,11 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run typecheck
       - run: npm test
+      - name: Test private VPS operations and project isolation
+        run: |
+          python3 -m pip install 'cryptography>=43,<50'
+          python3 -m unittest discover -s operations -p 'test_*.py' -v
+          bash -n operations/install-vps.sh
       - run: docker compose -f server/compose.yaml -f server/compose.web.yaml config --quiet
       - name: Enforce staging frontend isolation
         run: |

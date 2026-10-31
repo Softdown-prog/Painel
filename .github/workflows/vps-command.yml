@@ -1,0 +1,59 @@
+name: VPS operations (authenticated private executor)
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        type: choice
+        options: [inventory, verify]
+        default: inventory
+      project:
+        type: choice
+        options: [infrastructure, panel, terrania]
+        default: infrastructure
+      sha:
+        description: Full installed commit expected for verify
+        type: string
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+concurrency:
+  group: vps-operations-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  command:
+    # Issue bridge lets the connected GitHub tool request ONLY a read-only inventory.
+    # Creating an arbitrary issue/PR never grants a shell or deployment permission.
+    if: github.repository == 'Softdown-prog/Painel' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.issue.user.id == 189416996 && github.event.issue.title == '[VPS] inventory'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute on the VPS (no dependency on Pages)
+        env:
+          VPS_OPERATION: ${{ inputs.operation || 'inventory' }}
+          VPS_PROJECT: ${{ inputs.project || 'infrastructure' }}
+          VPS_SHA: ${{ inputs.sha }}
+          VPS_SSH_KEY: ${{ secrets.VPS_OPERATIONS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_OPERATIONS_KNOWN_HOSTS }}
+        run: python3 operations/client.py
+      - name: Return result to requesting issue
+        if: always() && github.event_name == 'issues'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUEST_ISSUE: ${{ github.event.issue.number }}
+        run: |
+          python3 -c 'from pathlib import Path; p=Path("vps-result.json"); Path("result.md").write_text("Resultado real da VPS\n```json\n" + (p.read_text() if p.exists() else "{\"exitCode\":1,\"error\":\"No executor result\"}") + "\n```\n")'
+          gh issue comment "$REQUEST_ISSUE" --repo "$GITHUB_REPOSITORY" --body-file result.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vps-operation-${{ github.run_id }}
+          path: vps-result.json
+          retention-days: 30

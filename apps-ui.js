@@ -1,3 +1,4 @@
+"use strict";
 (() => {
     let enabled = false;
     function element(id) {

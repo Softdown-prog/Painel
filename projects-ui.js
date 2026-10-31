@@ -1,3 +1,4 @@
+"use strict";
 (() => {
     let projects = [];
     let buildsEnabled = false;
