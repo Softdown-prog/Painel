@@ -31,6 +31,6 @@ A instância existente foi criada com POSTGRES_HOST_AUTH_METHOD=trust para funci
 
 ## Testes e validação real
 
-Validar typecheck, build:frontend, npm test, check:js e Compose. Após deploy coordenado da API: abrir Sistema → Banco de Dados, clicar Verificar situação e confirmar dados reais. Testar também a API sem sessão (401), sem flag (not_configured), com rede interrompida (unavailable) e os controles de escrita desabilitados.
+Console CI e Docker integration smoke passaram para eb994e7 (runs 41151858886 e 41151858841), mas o teste extra do overlay e a revisão final ainda exigem novo CI. Validar typecheck, build:frontend, npm test, check:js e Compose. Após deploy coordenado da API: abrir Sistema → Banco de Dados, clicar Verificar situação e confirmar dados reais. Testar também a API sem sessão (401), sem flag (not_configured), com rede interrompida (unavailable) e os controles de escrita desabilitados.
 
 Não classificar API conectada ou recurso publicado apenas porque CI passou. A implantação e conexão real na VPS ainda devem ser confirmadas separadamente.
