@@ -2,6 +2,10 @@
 
 O objetivo do painel é permitir administrar uma VPS pequena hoje e vários sites, clientes e servidores no futuro. A interface deve falar a linguagem de quem quer colocar um site no ar, e deixar os detalhes técnicos para o administrador ou para o Codex.
 
+## Interface Angular em migração
+
+A prévia em `/angular/` já possui **Sites e apps**: criação desligada, consulta de limites e registros, início/parada/reinício, ajuste autorizado de limites e inatividade, e exclusão com confirmação. Apenas containers explicitamente gerenciados pelo Painel podem receber essas ações. Containers externos continuam somente para consulta. O caminho antigo de `/#apps` permanece disponível. O menu Angular não altera a autorização do backend nem a publicação real dos sites.
+
 ## O que posso fazer hoje
 
 **Visão geral:** acompanhar a utilização da VPS, os projetos e os containers de todo o servidor. Um projeto parado não impede o acesso ao painel.

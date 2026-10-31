@@ -8,6 +8,9 @@ O backend agora tem publicação independente: `.github/workflows/deploy-vps.yml
 
 ## Novo frontend Angular 22 na VPS (prévia incremental)
 
+A prévia Angular também tem **Sites e apps**, usando os endpoints administrativos já existentes para listar aplicações gerenciadas, criar containers desligados, consultar logs, iniciar/parar/reiniciar, atualizar limites de CPU/RAM e inatividade e remover com confirmação. A API segue responsável por validar propriedade, imagem, quotas, isolamento e impedimentos de domínio. Containers de outros projetos não recebem controles. O consumo em tempo real não é inferido a partir dos limites definidos.
+
+
 A prévia Angular também apresenta **Publicações** com dois estados independentes por revisão: CI/CD no GitHub e confirmação da revisão em execução na VPS por SHA real. Erros de consulta não são pintados como sucesso, e todas as ações destrutivas permanecem no backend/telas existentes. A aba é somente leitura e atualizada manualmente; nenhuma versão é declarada acessível por HTTPS apenas por executar no Docker.
 
 
