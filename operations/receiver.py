@@ -49,6 +49,14 @@ def validate_claims(claims, policy, project, operation, now=None):
         raise ValueError('Workflow rejected')
     if project not in repo['projects'] or operation not in repo['operations']:
         raise ValueError('Project/operation not authorized')
+    if operation == 'maintain':
+        gate = policy.get('maintenance') or {}
+        if (project != 'infrastructure' or claims.get('repository') != 'Softdown-prog/Painel'
+            or str(claims.get('actor_id')) not in gate.get('actor_ids',[])
+            or claims.get('event_name') != 'workflow_dispatch'
+            or claims.get('environment') != 'vps-maintenance'
+            or claims.get('workflow_ref') != 'Softdown-prog/Painel/.github/workflows/vps-maintenance.yml@refs/heads/main'):
+            raise ValueError('Maintenance requires the approved administrative workflow')
     if not re.fullmatch(r'[0-9a-f]{40}', claims.get('sha', '')):
         raise ValueError('Invalid commit')
     return repo
@@ -149,6 +157,9 @@ def main():
         elif operation == 'verify':
             from driver import verify_project
             result.update(verify_project(policy['projects'][project], args))
+        elif operation == 'maintain':
+            from maintenance import run_maintenance
+            result.update(run_maintenance(policy, args, ROOT))
         else:
             raise ValueError('Operation unavailable')
         result['exitCode'] = 0
