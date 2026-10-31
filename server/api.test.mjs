@@ -21,7 +21,8 @@ test('setup, login, session and logout require the edge key', async () => {
   writeFileSync(keyPath, key);
   const port = await freePort();
   const child = spawn(process.execPath, ['--experimental-strip-types', join(import.meta.dirname, 'api.mjs')], {
-    env: { ...process.env, PORT: String(port), PANEL_DATA_DIR: dir, PANEL_EDGE_KEY_FILE: keyPath },
+    env: { ...process.env, PORT: String(port), PANEL_DATA_DIR: dir, PANEL_EDGE_KEY_FILE: keyPath,
+      PANEL_RELEASE_SHA: 'c'.repeat(40) },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   const request = async (path, method = 'GET', data, edge = key, cookie = '') => {
@@ -47,9 +48,14 @@ test('setup, login, session and logout require the edge key', async () => {
     const login = await request('/login', 'POST', { username: 'admin', password: 'A long password!123' });
     assert.equal(login.response.status, 200);
     const cookie = login.response.headers.get('set-cookie').split(';')[0];
+    const runtimeVersion=await request('/panel-version','GET',undefined,key,cookie);
+    assert.equal(runtimeVersion.response.status,200);
+    assert.deepEqual(runtimeVersion.data.current,{state:'running',revision:'c'.repeat(40)});
+    assert.equal(runtimeVersion.data.source,'panel-api-process');
     assert.match(login.response.headers.get('set-cookie'), /HttpOnly; Secure; SameSite=Strict/);
     assert.equal((await request('/session', 'GET', undefined, key, cookie)).data.authenticated, true);
     assert.equal((await request('/services')).response.status, 401);
+    assert.equal((await request('/panel-version')).response.status, 401);
     assert.equal((await request('/terminal/ssh/exec', 'POST', { command:'whoami' })).response.status, 401);
     assert.equal((await request('/secrets')).response.status, 401);
     const secrets = await request('/secrets', 'GET', undefined, key, cookie);

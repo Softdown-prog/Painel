@@ -311,3 +311,7 @@ O [guia de publicação da interface Angular](docs/PANEL-WEB-GHCR-VPS.md) docume
 ### Administração de VPS pelo executor já instalado
 
 O workflow de [manutenção aprovada do `vpsops`](docs/VPSOPS-MANUTENCAO-APROVADA.md) usa o mesmo canal SSH/OIDC para host, saúde e reinício restrito de serviços registrados. Exige atualização inicial do broker root-owned e ambiente protegido no GitHub; não abre comandos Shell arbitrários.
+
+### Interface Angular principal e acompanhamento de deploys
+
+A rota inicial do painel abre `/angular/` automaticamente, exceto links explícitos da interface clássica (`/#...`). A tela Publicações usa consultas periódicas do GitHub Actions e distingue resultado do workflow, entrega e revisão realmente informada pela VPS. Consulte os estados nos cartões; abra **Ver etapas** para conferir os jobs. A API ainda precisa de deploy bem-sucedido para disponibilizar novas rotas como `/repositories/{owner}/{repo}/runs-all` e `/panel-version`.

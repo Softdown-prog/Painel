@@ -29,8 +29,13 @@ test('GitHub linking and dispatch use a server-side token and registered workflo
     if (options.method === 'POST') return new Response(null, { status: 204 });
     if (String(url).endsWith('/actions/workflows/deploy.yml'))
       return Response.json({ state: 'active' });
+    if (String(url).includes('/actions/runs/7/jobs?'))
+      return Response.json({ jobs: [{ id: 11, name: 'build', status: 'completed', conclusion: 'failure',
+        steps: [{number: 1, name: 'Compile', status: 'completed', conclusion: 'failure'}] }] });
     if (String(url).includes('/runs?'))
-      return Response.json({ workflow_runs: [{ id: 7, head_sha: 'a'.repeat(40), head_branch: 'main', status: 'completed', conclusion: 'success', created_at: '2026-01-01T00:00:00Z', html_url: 'https://github.com/Softdown-prog/Demo/actions/runs/7' }] });
+      return Response.json({ workflow_runs: [{ id: 7, head_sha: 'a'.repeat(40), head_branch: 'main', status: 'completed', conclusion: 'success',
+        name: 'Deploy Panel to VPS', event:'push', created_at: '2026-01-01T00:00:00Z',
+        html_url: 'https://github.com/Softdown-prog/Demo/actions/runs/7' }] });
     return Response.json({});
   };
   const invoke = async (url, method = 'GET', input = {}) => {
@@ -47,7 +52,7 @@ test('GitHub linking and dispatch use a server-side token and registered workflo
   try {
     const first = await invoke('/repositories');
     assert.equal(first.status, 200);
-    assert.deepEqual(first.data.repositories, []);
+    assert.deepEqual(first.data.repositories,[]);
     assert.equal(first.data.tokenConfigured, true);
 
     const forbidden = await invoke('/repositories', 'POST', { fullName: 'outside/Demo', branch: 'main', workflow: 'deploy.yml' });
@@ -66,6 +71,16 @@ test('GitHub linking and dispatch use a server-side token and registered workflo
     const runs = await invoke('/repositories/Softdown-prog/Demo/runs');
     assert.equal(runs.status, 200);
     assert.equal(runs.data.runs[0].id, 7);
+    const all = await invoke('/repositories/Softdown-prog/Demo/runs-all');
+    assert.equal(all.status, 200);
+    assert.equal(all.data.runs[0].name, 'Deploy Panel to VPS');
+    const jobs = await invoke('/repositories/Softdown-prog/Demo/runs/7/jobs');
+    assert.equal(jobs.status, 200);
+    assert.equal(jobs.data.jobs[0].steps[0].name, 'Compile');
+    assert.equal((await invoke('/repositories/Softdown-prog/Painel', 'DELETE')).status, 409);
+    assert.equal((await invoke('/repositories/Softdown-prog/Painel/deploy', 'POST')).status, 404);
+    assert.equal((await invoke('/repositories/Softdown-prog/Painel/runs-all')).status, 200);
+    assert.equal((await invoke('/repositories/Softdown-prog/Other/runs-all')).status, 404);
 
     assert.equal((await invoke('/repositories/Softdown-prog/Demo', 'DELETE')).status, 200);
     assert.equal((await invoke('/repositories/Softdown-prog/Demo/deploy', 'POST')).status, 404);

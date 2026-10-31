@@ -15,6 +15,22 @@ type Dependencies = {
   body: (req: IncomingMessage) => Promise<Record<string, unknown>>;
 };
 const initial: LinkedRepository = { fullName: 'Softdown-prog/Softloadv4', branch: 'main', workflow: 'deploy.yml' };
+const panelRepository: LinkedRepository = { fullName: 'Softdown-prog/Painel', branch: 'main', workflow: 'deploy-vps.yml' };
+const runsCache = new Map<string,{expires:number; data:unknown}>();
+function visibleRepositories(dataDir: string): LinkedRepository[] {
+  const saved=readRepositories(dataDir);
+  return saved.some(repo=>repo.fullName.toLowerCase()===panelRepository.fullName.toLowerCase())
+    ? saved : [panelRepository,...saved];
+}
+async function cachedGithub(path:string):Promise<any> {
+  const last=runsCache.get(path);
+  if (last && last.expires>Date.now()) return last.data;
+  const data=await github(path);
+  runsCache.set(path,{expires:Date.now()+30000,data});
+  if (runsCache.size>100) runsCache.clear();
+  return data;
+}
+
 const allowedOwner = process.env.PANEL_GITHUB_ALLOWED_OWNER || 'Softdown-prog';
 
 function token(): string | null {
@@ -113,25 +129,59 @@ export async function handleGitHubRoute(req: IncomingMessage, res: ServerRespons
       send(201, { repository: item });
       return true;
     }
-    const match = /^\/repositories\/([^/]+)\/([^/]+)(?:\/(deploy|runs))?$/.exec(path);
+    const match = /^\/repositories\/([^/]+)\/([^/]+)(?:\/(deploy|runs|runs-all|runs\/[0-9]+\/jobs))?$/.exec(path);
     if (!match) { send(404, { error: 'Rota não encontrada' }); return true; }
     const fullName = match[1] + '/' + match[2];
     if (!validRepository(fullName)) throw new GitHubError(400, 'Repositório inválido.');
     const linked = readRepositories(deps.dataDir);
-    const repo = linked.find(item => item.fullName.toLowerCase() === fullName.toLowerCase());
+    const visible = visibleRepositories(deps.dataDir);
+    const repo = visible.find(item => item.fullName.toLowerCase() === fullName.toLowerCase());
     if (!repo) throw new GitHubError(404, 'Conecte este repositório antes de operá-lo.');
     if (!match[3] && req.method === 'DELETE') {
-      saveRepositories(deps.dataDir, linked.filter(item => item !== repo));
+      if (repo.fullName === panelRepository.fullName && !linked.some(item=>item.fullName===repo.fullName))
+        throw new GitHubError(409, 'O Painel é monitorado como repositório principal.');
+      saveRepositories(deps.dataDir, linked.filter(item => item.fullName.toLowerCase() !== repo.fullName.toLowerCase()));
       console.log('GitHub repository disconnected: ' + fullName);
       send(200, { ok: true });
       return true;
     }
+    const registered=linked.some(item=>item.fullName.toLowerCase()===repo.fullName.toLowerCase());
+    // Built-in Panel monitoring is GET-only. It never authorizes workflow dispatch
+    // or legacy operations unless the admin explicitly registers that repository.
+    if (!registered && !['runs-all'].includes(match[3] || '') &&
+        !/^runs\/[1-9][0-9]{0,15}\/jobs$/.test(match[3] || ''))
+      throw new GitHubError(404, 'Conecte este repositório antes de operá-lo.');
     const root = '/repos/' + repo.fullName + '/actions/workflows/' + encodeURIComponent(repo.workflow);
     if (match[3] === 'runs' && req.method === 'GET') {
       const data = await github(root + '/runs?per_page=10&branch=' + encodeURIComponent(repo.branch));
       send(200, { runs: (data.workflow_runs || []).map((run: any) => ({
         id: run.id, sha: run.head_sha, branch: run.head_branch, status: run.status,
         conclusion: run.conclusion, createdAt: run.created_at, url: run.html_url
+      })) });
+      return true;
+    }
+    // All workflows are shown together so Pages, backend and staging cannot
+    // be mistaken for one another. Only registered repositories are queryable.
+    if (match[3] === 'runs-all' && req.method === 'GET') {
+      const data = await cachedGithub('/repos/' + repo.fullName + '/actions/runs?per_page=20&branch=' + encodeURIComponent(repo.branch));
+      send(200, { runs: (Array.isArray(data.workflow_runs) ? data.workflow_runs : []).map((run: any) => ({
+        id: run.id, sha: run.head_sha, branch: run.head_branch, status: run.status,
+        conclusion: run.conclusion, createdAt: run.created_at, updatedAt: run.updated_at,
+        name: run.name, workflowId: run.workflow_id, event: run.event, url: run.html_url
+      })) });
+      return true;
+    }
+    const jobsMatch = /^runs\/([1-9][0-9]{0,15})\/jobs$/.exec(match[3] || '');
+    if (jobsMatch && req.method === 'GET') {
+      const id = Number(jobsMatch[1]);
+      if (!Number.isSafeInteger(id)) throw new GitHubError(400, 'ID de execução inválido.');
+      const data = await cachedGithub('/repos/' + repo.fullName + '/actions/runs/' + id + '/jobs?per_page=50');
+      send(200, { jobs: (Array.isArray(data.jobs) ? data.jobs : []).map((job: any) => ({
+        id: job.id, name: job.name, status: job.status, conclusion: job.conclusion,
+        startedAt: job.started_at, completedAt: job.completed_at,
+        steps: (Array.isArray(job.steps) ? job.steps : []).slice(0, 30).map((step: any) => ({
+          name: step.name, status: step.status, conclusion: step.conclusion, number: step.number
+        }))
       })) });
       return true;
     }

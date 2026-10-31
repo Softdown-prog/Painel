@@ -1,37 +1,37 @@
 <div class="layout">
   <aside class="sidebar">
-    <a href="/#overview" class="brand" aria-label="Voltar ao painel atual">
+    <a href="/angular/" class="brand" aria-label="Ir para início do painel Angular">
       <span class="brand-icon">V✦</span>
-      <span><strong>Painel VPS</strong><small>ANGULAR 22 · PRÉVIA</small></span>
+      <span><strong>Painel VPS</strong><small>CENTRAL ANGULAR 22</small></span>
     </a>
-    <p class="group-label">NOVA INTERFACE</p>
+    <p class="group-label">PAINEL DE CONTROLE</p>
     <nav aria-label="Navegação Angular">
       <button type="button" [class.active]="page() === 'overview'" (click)="selectPage('overview')">▦ &nbsp; Visão geral</button>
       <button type="button" [class.active]="page() === 'containers'" (click)="selectPage('containers')">▣ &nbsp; Containers</button>
       <button type="button" [class.active]="page() === 'apps'" (click)="selectPage('apps')">⬡ &nbsp; Sites e apps</button>
       <button type="button" [class.active]="page() === 'deployments'" (click)="selectPage('deployments')">⇅ &nbsp; Publicações</button>
     </nav>
-    <p class="group-label">OUTRAS FERRAMENTAS</p>
+    <p class="group-label">MÓDULOS CLÁSSICOS</p>
     <nav aria-label="Ferramentas do painel anterior">
       <a href="/#projects">⌘ &nbsp; GitHub</a>
       <a href="/#terminal">›_ &nbsp; Terminal</a>
       <a href="/#database">▤ &nbsp; PostgreSQL</a>
       <a href="/#revisions">◴ &nbsp; Revisões</a>
     </nav>
-    <p class="note">As outras telas permanecem no painel atual até sua migração. Nenhum serviço da VPS é alterado nesta prévia.</p>
+    <p class="note">Ferramentas ainda não migradas continuam disponíveis no painel anterior. Os estados de publicação são verificados separadamente no GitHub e na VPS.</p>
   </aside>
   <main class="main">
     <header class="topbar">
       <span class="breadcrumb">Workspace / <strong>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers' : page() === 'apps' ? 'Sites e apps' : 'Publicações'}}</strong></span>
       <div class="actions">
-        <span class="mode">Angular 22</span>
+        <span class="mode">● Angular 22 · central ativa</span>
         @if (signedIn()) { <button type="button" class="secondary" (click)="logout()">Sair</button> }
       </div>
     </header>
     <div class="content">
       <div class="heading">
         <div><small>GERENCIAMENTO MULTIPROJETOS</small><h1>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers da VPS' : page() === 'apps' ? 'Sites e apps' : 'Publicações'}}</h1>
-          <p>Interface Angular em migração incremental, utilizando a mesma API protegida do painel.</p></div>
+          <p>Interface principal Angular · administração multiprojetos · status consultados na API e no GitHub.</p></div>
         @if (signedIn() && (page() === 'overview' || page() === 'containers')) { <button type="button" class="primary" [disabled]="loading()" (click)="refresh()">{{loading() ? 'Consultando…' : '↻ Atualizar dados'}}</button> }
       </div>
       @if (error()) { <div role="alert" class="alert error">{{error()}}</div> }
@@ -67,6 +67,7 @@
             <p class="hint">Os valores vêm do backend existente. Nenhum número de demonstração é exibido.</p>
             <button type="button" class="secondary" (click)="selectPage('containers')">Ver inventário de containers</button>
           </section>
+          <panel-deployments />
         } @else if (page() === 'containers') {
           <section class="panel">
             <h2>Inventário Docker <span class="tag">SOMENTE LEITURA</span></h2>
@@ -88,7 +89,7 @@
           <panel-deployments />
         }
       }
-      <footer>Frontend Angular isolado · Backend Node.js/TypeScript existente · <a href="/#overview">Voltar à interface completa</a></footer>
+      <footer>Angular 22 · API Node.js/TypeScript existente · <a href="/#overview">Abrir interface clássica</a></footer>
     </div>
   </main>
 </div>

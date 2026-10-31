@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ciStatus,vpsStatus,validRun} from '../angular/src/deployment-status.ts';
+import {ciStatus,deliveryStatus,statusIcon,vpsStatus,validRun} from '../angular/src/deployment-status.ts';
 const sha='a'.repeat(40),other='b'.repeat(40),repo='Softdown-prog/Terrania',slug='terrania';
 const run=(more={})=>({id:42,sha,status:'completed',conclusion:'success',...more});
 test('CI approved is not VPS installed even for a green workflow',()=>{
@@ -39,4 +39,13 @@ test('only coherent GitHub runs may be rendered',()=>{
   assert.equal(validRun(run({id:0})),false);
   assert.equal(validRun(run({sha:'short'})),false);
   assert.equal(validRun(run({sha:other})),true);
+});
+
+test('pipeline differentiates GitHub completion from actual deployment',()=>{
+  assert.equal(deliveryStatus(run({name:'Deploy VPS'}),vpsStatus(run(),repo,slug,null,[])).tone,'warning');
+  assert.equal(deliveryStatus(run({name:'Deploy VPS'}),{tone:'success',label:'Installed'}).tone,'success');
+  assert.equal(deliveryStatus(run({name:'Deploy VPS',conclusion:'failure'}),{tone:'muted',label:'Unknown'}).tone,'danger');
+  assert.equal(deliveryStatus(run({name:'Build',status:'in_progress',conclusion:null}),{tone:'muted',label:'Unknown'}).tone,'running');
+  assert.equal(statusIcon({tone:'success',label:'ok'}),'✓');
+  assert.equal(statusIcon({tone:'danger',label:'error'}),'×');
 });

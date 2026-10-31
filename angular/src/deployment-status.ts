@@ -10,6 +10,9 @@ export type WorkflowRun = {
   status: string;
   conclusion: string | null;
   createdAt?: string;
+  updatedAt?: string;
+  name?: string;
+  event?: string;
 };
 export type LinkedProject = {slug: string; repository: string};
 export type ReleaseSnapshot = {current?: {state?: string; revision?: string | null}} | null;
@@ -62,4 +65,25 @@ export function vpsStatus(
     return {label:'Outra revisão em execução',tone:'warning'};
   if (job?.phase === 'completed') return {label:'Concluído; conferir container',tone:'warning'};
   return {label:'Não confirmada na VPS',tone:'muted'};
+}
+
+/** GitHub execution details, not evidence of VPS installation. */
+export type ActionStep={name:string;status:string;conclusion:string|null;number:number};
+export type ActionJob={id:number;name:string;status:string;conclusion:string|null;steps:ActionStep[]};
+export function statusIcon(stage:Stage):string {
+  return stage.tone==='success'?'✓':stage.tone==='danger'?'×':
+    stage.tone==='running'?'↻':stage.tone==='warning'?'!':'·';
+}
+export function deliveryStatus(run:WorkflowRun, vps:Stage):Stage {
+  if(run.status!=='completed') {
+    return {label:run.status==='in_progress'?'Workflow em execução':'Aguardando execução',tone:'running'};
+  }
+  if(run.conclusion==='failure'||run.conclusion==='timed_out'||run.conclusion==='startup_failure')
+    return {label:'Workflow falhou',tone:'danger'};
+  if(run.conclusion==='cancelled')return {label:'Execução cancelada',tone:'warning'};
+  if(vps.tone==='success')return {label:'Revisão confirmada',tone:'success'};
+  if(run.conclusion==='success'&&/deploy|publish|page|release|publica/i.test(run.name||''))
+    return {label:'Workflow terminou; destino não verificado',tone:'warning'};
+  if(run.conclusion==='success')return {label:'Workflow concluído',tone:'muted'};
+  return {label:'Entrega não confirmada',tone:'muted'};
 }

@@ -220,6 +220,16 @@ async function handler(req, res) {
     console.log(`Administrator password changed from ${ip}`);
     return send(res, 200, { ok: true }, { 'set-cookie': cookie('', 0) });
   }
+  // Runtime-reported revision of this API process. Deliberately does not
+  // claim that the executor, public site or all projects share the same SHA.
+  if (path === '/panel-version' && req.method === 'GET') {
+    const sha = process.env.PANEL_RELEASE_SHA || '';
+    return send(res, 200, {
+      current: /^[0-9a-f]{40}$/.test(sha) ? { state: 'running', revision: sha } : null,
+      source: 'panel-api-process',
+      updatedAt: new Date().toISOString()
+    });
+  }
   if (path === '/overview' && req.method === 'GET') {
     const list = await containers().catch(() => []);
     let containerSummary = { available: false, running: null, total: null };
