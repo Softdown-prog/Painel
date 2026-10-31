@@ -76,3 +76,9 @@
 - Leitura autorizada `GET /apps`, `GET /apps/:slug`, `GET /projects`, `GET /projects/:slug/releases`, `GET /domains`. Caso projetos ou domínios falhem, a tela mostra 'consulta indisponível', **nunca** 'não vinculado'. Domínio reservado não equivale a HTTPS confirmado.
 - Comandos de container apenas sob `/apps/:slug/(start|stop|restart)`, opções válidas de RAM/CPU por `/resources`, ociosidade por `/idle` e leitura de logs por `/logs`. Identidade validada no inventário autenticado; exige digitação do identificador e revalidação da permissão no backend. Nunca administra containers externos da VPS.
 - Os metadados e o status das releases não autorizam disparar deploys. Revisão mobile e testes de integração ponta a ponta com API real ainda são pendências da migração integral.
+
+## Incremento — visão geral com falhas parciais (31/10/2026)
+
+- `/overview` e `/containers` são consultados separadamente: falha de um não impede a leitura do outro. Os estados mostram dados antigos de forma explícita e nunca os apresentam como saúde atual.
+- `overview-state.ts` valida horário, métricas numéricas e inventário somente leitura; atributos Docker inesperados não são repassados à interface. Respostas assíncronas de uma sessão encerrada são descartadas.
+- Novos testes em `server/angular-overview.test.mjs`. **Código apenas nesta branch:** CI e teste autenticado/mobile devem ser verificados; não há publicação nem merge.

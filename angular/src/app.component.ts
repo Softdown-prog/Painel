@@ -12,22 +12,9 @@ import { SettingsComponent } from './settings.component';
 import { LegacyServicesComponent } from './legacy-services.component';
 import { SiteDetailComponent } from './site-detail.component';
 import { validAppSlug } from './apps-policy';
+import {parseOverview,parseInventory,type HostOverview,type HostInventory} from './overview-state';
 
 type Session = {authenticated: boolean; setupRequired: boolean};
-type Summary = {available: boolean; running: number | null; total: number | null; truncated?: boolean};
-type Overview = {
-  containerSummary?: Summary;
-  cpu?: {load1: number; cores: number};
-  memory?: {used?: number; total?: number};
-  disk?: {used: number; total: number};
-  updatedAt?: string;
-};
-type ManagedContainer = {
-  name?: string; image?: string; state?: string; status?: string;
-  project?: string; ownership?: string;
-};
-type Inventory = {containers?: ManagedContainer[]; readOnly?: boolean; updatedAt?: string; truncated?: boolean};
-
 @Component({
   selector: 'panel-app',
   standalone: true,
@@ -40,8 +27,11 @@ export class AppComponent implements OnInit {
   readonly selectedSiteSlug=signal<string|null>(null);
   readonly menuOpen = signal(false);
   readonly session = signal<Session | null>(null);
-  readonly overview = signal<Overview | null>(null);
-  readonly inventory = signal<Inventory | null>(null);
+  readonly overview = signal<HostOverview | null>(null);
+  readonly inventory = signal<HostInventory | null>(null);
+  readonly overviewIssue=signal('');
+  readonly inventoryIssue=signal('');
+  private authEpoch=0;
   readonly loading = signal(false);
   readonly submitting = signal(false);
   readonly error = signal('');
@@ -111,14 +101,23 @@ export class AppComponent implements OnInit {
   }
 
   async checkSession(): Promise<void> {
+    const epoch=this.authEpoch;
     this.error.set('');
     try {
-      const session = await this.request<Session>('/session');
-      if (typeof session.authenticated !== 'boolean' || typeof session.setupRequired !== 'boolean')
-        throw new Error('Não foi possível validar a sessão administrativa.');
+      const session=await this.request<Session>('/session');
+      if(epoch!==this.authEpoch)return;
+      if(typeof session.authenticated!=='boolean'||typeof session.setupRequired!=='boolean')
+        throw Error('Não foi possível validar a sessão administrativa.');
       this.session.set(session);
-      if (session.authenticated) await this.refresh();
-    } catch (err) { this.error.set(this.message(err)); }
+      if(session.authenticated)await this.refresh();
+      else{this.authEpoch++;this.clearReadings();}
+    }catch(error){if(epoch===this.authEpoch)this.error.set(this.message(error));}
+  }
+
+  private clearReadings():void{
+    this.overview.set(null);this.inventory.set(null);
+    this.overviewIssue.set('');this.inventoryIssue.set('');
+    this.loading.set(false);this.notice.set('');
   }
 
   prepareSetup(event:Event):void{
@@ -150,8 +149,9 @@ export class AppComponent implements OnInit {
   }
   
   onPasswordChanged():void {
+    this.authEpoch++;
     this.session.set({authenticated:false,setupRequired:false});
-    this.overview.set(null);this.inventory.set(null);
+    this.clearReadings();
     this.password.set('');
     this.cancelSetup();
     this.menuOpen.set(false);
@@ -176,34 +176,42 @@ export class AppComponent implements OnInit {
   }
 
   async logout(): Promise<void> {
+    this.authEpoch++;
     this.error.set('');
-    try { await this.request('/logout', 'POST'); }
-    catch (err) { this.error.set(this.message(err)); }
     this.session.set({authenticated:false,setupRequired:false});
-    this.overview.set(null);
-    this.inventory.set(null);
+    this.clearReadings();
     this.password.set('');
     this.cancelSetup();
     this.menuOpen.set(false);
+    try{await this.request('/logout','POST');}
+    catch{this.error.set('Não foi possível confirmar a saída no servidor. Tente novamente antes de deixar o dispositivo.');}
   }
 
-  async refresh(): Promise<void> {
-    if (this.loading() || !this.signedIn()) return;
-    this.loading.set(true);
-    this.error.set('');
-    try {
-      const [overview, inventory] = await Promise.all([
-        this.request<Overview>('/overview'), this.request<Inventory>('/containers')
+  async refresh():Promise<void>{
+    if(this.loading()||!this.signedIn())return;
+    const epoch=this.authEpoch;
+    this.loading.set(true);this.error.set('');
+    try{
+      // Each source is independent; one failed service must not hide the other reading.
+      const [metrics,containers]=await Promise.allSettled([
+        this.request<unknown>('/overview'),this.request<unknown>('/containers')
       ]);
-      if (inventory.readOnly !== true || !Array.isArray(inventory.containers))
-        throw new Error('O inventário da VPS está indisponível.');
-      this.overview.set(overview);
-      this.inventory.set(inventory);
-      this.notice.set('Dados atualizados da VPS');
-    } catch (err) {
-      this.error.set(this.message(err));
-      this.notice.set('Não foi possível atualizar; dados anteriores mantidos.');
-    } finally { this.loading.set(false); }
+      if(epoch!==this.authEpoch||!this.signedIn())return;
+      let failed=0;
+      try{
+        if(metrics.status==='rejected')throw metrics.reason;
+        this.overview.set(parseOverview(metrics.value));
+        this.overviewIssue.set('');
+      }catch(error){failed++;this.overviewIssue.set(this.message(error));}
+      try{
+        if(containers.status==='rejected')throw containers.reason;
+        this.inventory.set(parseInventory(containers.value));
+        this.inventoryIssue.set('');
+      }catch(error){failed++;this.inventoryIssue.set(this.message(error));}
+      this.notice.set(failed===0?'Métricas e inventário consultados com sucesso.':
+        failed===1?'Consulta parcial: veja abaixo o que não respondeu.':
+        'As duas consultas falharam. Dados anteriores, se houver, permanecem identificados.');
+    }finally{if(epoch===this.authEpoch)this.loading.set(false);}
   }
 
   selectPage(page: 'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains' | 'traffic' | 'secrets' | 'settings'): void {

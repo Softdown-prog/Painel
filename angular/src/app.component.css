@@ -104,3 +104,5 @@ footer a,.login a { color:#b2a2ff;text-decoration:underline;text-underline-offse
  .mobile-tabs button small { font-size:10px; }
 }
 @media (prefers-reduced-motion:reduce) { .sidebar { transition:none; } }
+
+.fetch-error { color:#ffc2bc !important; border-left:3px solid #cc687a; padding-left:12px; overflow-wrap:anywhere; }
