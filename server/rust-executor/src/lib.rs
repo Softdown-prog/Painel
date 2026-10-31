@@ -26,29 +26,47 @@ pub struct Decision {
 const OWNER: &str = "com.softload.panel.managed";
 const SLUG: &str = "com.softload.panel.slug";
 fn decide(allow: bool, reason: &'static str) -> Decision {
-    Decision { candidate_allowed: allow, enforcement_allowed: false, reason }
+    Decision {
+        candidate_allowed: allow,
+        enforcement_allowed: false,
+        reason,
+    }
 }
 fn valid_slug(v: &str) -> bool {
-    !v.is_empty() && v.len() <= 40 && !v.starts_with('-')
-        && !v.ends_with('-') && !v.contains("--")
-        && v.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+    !v.is_empty()
+        && v.len() <= 40
+        && !v.starts_with('-')
+        && !v.ends_with('-')
+        && !v.contains("--")
+        && v.bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 fn owned(target: &Target, requested: &str) -> bool {
     let name = target.name.strip_prefix('/').unwrap_or(&target.name);
     if name != requested && target.id != requested {
         return false;
     }
-    let Some(rest) = name.strip_prefix("softload-") else { return false; };
-    let Some((kind, suffix)) = rest.split_once('-') else { return false; };
+    let Some(rest) = name.strip_prefix("softload-") else {
+        return false;
+    };
+    let Some((kind, suffix)) = rest.split_once('-') else {
+        return false;
+    };
     if !matches!(kind, "app" | "candidate" | "backup") || !valid_slug(suffix) {
         return false;
     }
     if target.labels.get(OWNER).map(String::as_str) != Some("true")
-        || target.labels.get(SLUG).map(String::as_str) != Some(suffix) {
+        || target.labels.get(SLUG).map(String::as_str) != Some(suffix)
+    {
         return false;
     }
     if kind == "candidate"
-        && target.labels.get("com.softload.panel.release-role").map(String::as_str) != Some("candidate") {
+        && target
+            .labels
+            .get("com.softload.panel.release-role")
+            .map(String::as_str)
+            != Some("candidate")
+    {
         return false;
     }
     true
@@ -59,30 +77,46 @@ pub fn evaluate(p: &Probe) -> Decision {
     if p.method != "GET" {
         return decide(false, "mutations-disabled-shadow-mode");
     }
-    if matches!(p.url.as_str(),
+    if matches!(
+        p.url.as_str(),
         "/v1.45/containers/json?all=1&view=inventory"
-        | "/v1.45/containers/json?view=inventory&all=1") {
+            | "/v1.45/containers/json?view=inventory&all=1"
+    ) {
         return decide(true, "inventory-projection");
     }
-    if p.url == "/v1.45/images/json" { return decide(true, "image-list"); }
-    if p.url == "/v1.45/system/df?type=images" { return decide(true, "image-df"); }
+    if p.url == "/v1.45/images/json" {
+        return decide(true, "image-list");
+    }
+    if p.url == "/v1.45/system/df?type=images" {
+        return decide(true, "image-df");
+    }
     let Some(path) = p.url.strip_prefix("/v1.45/containers/") else {
         return decide(false, "not-allowlisted");
     };
     let Some(id) = path.strip_suffix("/json") else {
         return decide(false, "not-allowlisted");
     };
-    if id.is_empty() || !id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_') {
+    if id.is_empty()
+        || !id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    {
         return decide(false, "invalid-target");
     }
-    let Some(ref target) = p.target else { return decide(false, "unverified-container"); };
+    let Some(ref target) = p.target else {
+        return decide(false, "unverified-container");
+    };
     decide(owned(target, id), "managed-container-read")
 }
 #[cfg(test)]
 mod tests {
     use super::*;
     fn req(method: &str, url: &str) -> Probe {
-        Probe { method: method.into(), url: url.into(), target: None }
+        Probe {
+            method: method.into(),
+            url: url.into(),
+            target: None,
+        }
     }
     #[test]
     fn shadow_mode_never_enforces() {
@@ -100,17 +134,19 @@ mod tests {
             ("GET", "/v1.45/volumes"),
             ("GET", "/v1.45/containers/json?all=0&view=inventory"),
         ] {
-            assert!(!evaluate(&req(method, url)).candidate_allowed, "{method} {url}");
+            assert!(
+                !evaluate(&req(method, url)).candidate_allowed,
+                "{method} {url}"
+            );
         }
     }
     #[test]
     fn managed_container_requires_both_labels() {
         let mut p = req("GET", "/v1.45/containers/softload-app-demo/json");
         p.target = Some(Target {
-            name: "/softload-app-demo".into(), id: "abc".into(),
-            labels: BTreeMap::from([
-                (OWNER.into(), "true".into()), (SLUG.into(), "demo".into()),
-            ]),
+            name: "/softload-app-demo".into(),
+            id: "abc".into(),
+            labels: BTreeMap::from([(OWNER.into(), "true".into()), (SLUG.into(), "demo".into())]),
         });
         assert!(evaluate(&p).candidate_allowed);
         p.target.as_mut().unwrap().labels.remove(OWNER);
@@ -120,7 +156,8 @@ mod tests {
     fn fake_metadata_does_not_grant_other_container_access() {
         let mut p = req("GET", "/v1.45/containers/softload-app-demo/json");
         p.target = Some(Target {
-            name: "/softload-app-other".into(), id: "abcd".into(),
+            name: "/softload-app-other".into(),
+            id: "abcd".into(),
             labels: BTreeMap::from([(OWNER.into(), "true".into()), (SLUG.into(), "other".into())]),
         });
         assert!(!evaluate(&p).candidate_allowed);

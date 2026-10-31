@@ -16,5 +16,8 @@ fn main() {
         eprintln!("invalid probe");
         std::process::exit(2);
     };
-    println!("{}", serde_json::to_string(&evaluate(&probe)).expect("serialize decision"));
+    println!(
+        "{}",
+        serde_json::to_string(&evaluate(&probe)).expect("serialize decision")
+    );
 }
