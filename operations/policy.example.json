@@ -8,7 +8,8 @@
       "workflows": [
         "deploy-vps.yml",
         "vps-command.yml",
-        "deploy-panel-web.yml"
+        "deploy-panel-web.yml",
+        "vps-maintenance.yml"
       ],
       "projects": [
         "panel",
@@ -19,7 +20,8 @@
       "operations": [
         "deploy",
         "verify",
-        "inventory"
+        "inventory",
+        "maintain"
       ]
     },
     "1438758092": {
@@ -74,6 +76,33 @@
         "web": "ghcr.io/softdown-prog/painel-web"
       },
       "releases": "/opt/vps-panel/oci-web-releases"
+    }
+  },
+  "maintenance": {
+    "actor_ids": [
+      "189416996"
+    ],
+    "targets": {
+      "panel-api": {
+        "project": "panel",
+        "service": "api",
+        "compose_project": "softload-panel"
+      },
+      "panel-executor": {
+        "project": "panel",
+        "service": "executor",
+        "compose_project": "softload-panel"
+      },
+      "panel-web": {
+        "project": "panel-web",
+        "service": "web",
+        "compose_project": "softload-panel"
+      },
+      "terrania-multiplayer": {
+        "project": "terrania",
+        "service": "multiplayer",
+        "compose_project": "terrania-origins"
+      }
     }
   }
 }
