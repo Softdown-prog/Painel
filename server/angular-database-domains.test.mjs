@@ -42,7 +42,7 @@ test('Domain mutations require confirmation and call only allowlisted APIs',()=>
  assert.match(code,/response\.live!==false/);
  assert.match(html,/Publicar DNS e HTTPS/);
  assert.match(html,/Despublicar e remover/);
- assert.match(html,/não configura DNS nem publica/);
+ assert.match(html,/não<\/strong> configura DNS nem publica/);
  assert.doesNotMatch(code+html,/x-panel-edge-key|localStorage|sessionStorage/);
 });
 
