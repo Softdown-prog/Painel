@@ -40,7 +40,7 @@ export function parseOverview(raw:unknown):HostOverview{
   if(record(raw['memory'])&&number(raw['memory']['used'])&&number(raw['memory']['total'])&&
      number(raw['memory']['available'])&&raw['memory']['total']>0&&
      raw['memory']['used']<=raw['memory']['total']&&raw['memory']['available']<=raw['memory']['total']&&
-     Math.abs(raw['memory']['used']+raw['memory']['available']-raw['memory']['total'])<=1024&&
+     raw['memory']['used']+raw['memory']['available']===raw['memory']['total']&&
      (raw['memory']['source']==='memavailable'||raw['memory']['source']==='os-freemem')){
     result.memory={used:raw['memory']['used'],total:raw['memory']['total'],
       available:raw['memory']['available'],source:raw['memory']['source']};
