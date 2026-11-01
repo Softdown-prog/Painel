@@ -26,7 +26,7 @@ type ConfirmJob={
 };
 const SHA=/^[a-f0-9]{40}$/i;
 const REPO=/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-const ACTIVE=new Set(['queued','importing','staging','health','promoting']);
+const TERMINAL=new Set(['completed','attention','failed']);
 const message=(error:unknown)=>error instanceof Error?error.message:'Falha na consulta da API.';
 
 /**
@@ -69,7 +69,7 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
       r?.enabled===true&&r.current.state==='running'&&
       typeof r.current.revision==='string'&&SHA.test(r.current.revision)&&
       !!r.backup&&!r.candidate&&p?.enabled===true&&
-      !(p.current&&ACTIVE.has(p.current.phase));
+      (p.current===null||TERMINAL.has(p.current.phase));
   }
   private ownedProject():boolean {
     const p=this.project;
@@ -217,7 +217,7 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
            fresh.current.state!=='running'||fresh.current.revision!==job.revision||
            !fresh.backup||fresh.backup.image!==job.backupImage||fresh.candidate||
            !this.validPublication(publication)||publication.enabled!==true||
-           (publication.current&&ACTIVE.has(publication.current.phase)))
+           (publication.current!==null&&!TERMINAL.has(publication.current.phase)))
           throw Error('Estado da versão ou publicação mudou. Rollback cancelado para segurança.');
         const response=await this.api<{rolledBack?:boolean}>(
           '/projects/'+encodeURIComponent(job.slug)+'/releases/rollback','POST');
