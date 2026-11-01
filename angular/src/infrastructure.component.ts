@@ -1,4 +1,4 @@
-import {Component,OnInit,OnDestroy,computed,signal} from '@angular/core';
+import {Component,ElementRef,OnInit,OnDestroy,ViewChild,computed,signal} from '@angular/core';
 import {parseInfraSnapshot,validInfraDraft,type InfraKind,type InfraPlan,type InfraSnapshot,type InfraTopology} from './infrastructure-policy';
 
 type Pending={action:'save'|'delete';id:string;projectSlug:string;fingerprint:string};
@@ -18,6 +18,11 @@ export class InfrastructureComponent implements OnInit,OnDestroy{
  readonly editingId=signal<string|null>(null);
  readonly pending=signal<Pending|null>(null);
  readonly confirmation=signal('');
+ @ViewChild('infraConfirmInput') private confirmInput?:ElementRef<HTMLInputElement>;
+ @ViewChild('infraNameInput') private nameInput?:ElementRef<HTMLInputElement>;
+ @ViewChild('infraPrepareButton') private prepareButton?:ElementRef<HTMLButtonElement>;
+ private restoreTarget:HTMLElement|null=null;
+ private focusTimer:ReturnType<typeof setTimeout>|null=null;
  readonly mcps=computed(()=>(this.data()?.plans??[]).filter(p=>p.kind==='mcp'));
  readonly clusters=computed(()=>(this.data()?.plans??[]).filter(p=>p.kind==='cluster'));
  readonly valid=computed(()=>validInfraDraft(this.data(),this.kind(),this.projectSlug(),
@@ -28,6 +33,19 @@ export class InfrastructureComponent implements OnInit,OnDestroy{
  ngOnDestroy():void{
    this.destroyed=true;this.cancel();
    this.data.set(null);this.name.set('');this.projectSlug.set('');
+ }
+ private scheduleFocus(callback:()=>void):void{
+   if(this.focusTimer!==null)clearTimeout(this.focusTimer);
+   // The confirmation is created by Angular after its signal update.
+   this.focusTimer=setTimeout(()=>{
+     this.focusTimer=null;
+     if(!this.destroyed)callback();
+   },0);
+ }
+ private focusConfirmation():void{
+   this.scheduleFocus(()=>{
+     if(this.pending())this.confirmInput?.nativeElement.focus({preventScroll:true});
+   });
  }
  private fingerprint():string {
    return JSON.stringify([this.kind(),this.projectSlug(),this.name(),this.replicas(),this.topology(),this.editingId()]);
@@ -98,18 +116,35 @@ export class InfrastructureComponent implements OnInit,OnDestroy{
  }
  prepare(event:Event):void{
    event.preventDefault();
-   if(this.working()||this.loading()||!this.valid())return;
+   if(this.destroyed||this.working()||this.loading()||!this.valid())return;
    const id=this.projectSlug()+'.'+this.kind()+'.'+this.name();
+   this.restoreTarget=this.editingId()?this.prepareButton?.nativeElement??null:
+     this.nameInput?.nativeElement??null;
    this.pending.set({action:'save',id,projectSlug:this.projectSlug(),fingerprint:this.fingerprint()});
    this.confirmation.set('');this.error.set('');this.notice.set('');
+   this.focusConfirmation();
  }
- prepareDelete(plan:InfraPlan):void{
-   if(this.working()||this.loading()||!this.data()?.plans.some(p=>p.id===plan.id))return;
+ prepareDelete(plan:InfraPlan,event?:Event):void{
+   if(this.destroyed||this.working()||this.loading()||!this.data()?.plans.some(p=>
+     p.id===plan.id&&p.projectSlug===plan.projectSlug&&p.kind===plan.kind))return;
    this.cancel();
+   this.restoreTarget=event?.currentTarget instanceof HTMLElement?event.currentTarget:null;
    this.pending.set({action:'delete',id:plan.id,projectSlug:plan.projectSlug,fingerprint:''});
    this.confirmation.set('');this.error.set('');this.notice.set('');
+   this.focusConfirmation();
  }
- cancel():void{this.pending.set(null);this.confirmation.set('');}
+ cancel(restoreFocus=false):void{
+   const source=this.restoreTarget;
+   this.pending.set(null);this.confirmation.set('');this.restoreTarget=null;
+   if(this.focusTimer!==null)clearTimeout(this.focusTimer);
+   this.focusTimer=null;
+   if(restoreFocus)this.scheduleFocus(()=>{
+     if(!this.pending()&&source?.isConnected&&
+       !(source instanceof HTMLButtonElement&&source.disabled)&&
+       !(source instanceof HTMLInputElement&&source.disabled))
+       source?.focus({preventScroll:true});
+   });
+ }
  async confirm():Promise<void>{
    const pending=this.pending(),data=this.data();
    if(!pending||!data||this.working()||this.loading()||this.destroyed||
@@ -137,7 +172,7 @@ export class InfrastructureComponent implements OnInit,OnDestroy{
        this.editingId.set(null);this.name.set('');
      }
    }catch(e){if(!this.destroyed)this.error.set(this.message(e));}
-   finally{this.working.set(false);}
+   finally{if(!this.destroyed)this.working.set(false);}
    if(!this.destroyed)await this.refresh();
  }
  private message(error:unknown):string{
