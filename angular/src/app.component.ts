@@ -141,6 +141,10 @@ export class AppComponent implements OnInit,OnDestroy {
       if(!this.destroyed&&!this.menuOpen())this.pageTitle?.nativeElement.focus({preventScroll:true});
     });
   }
+  skipToContent(event:MouseEvent):void {
+    event.preventDefault();
+    this.focusPageTitle();
+  }
 
   private syncPageFromLocation(): void {
     const hash = window.location.hash.replace(/^#\/?/, '');
