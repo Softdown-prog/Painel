@@ -41,7 +41,7 @@
       <section class="publication-progress" aria-label="Acompanhamento da publicação persistente">
         <div class="release-heading">
           <strong>Publicação persistente</strong>
-          <button type="button" [disabled]="loading()||working()||polling" (click)="refreshPublication()">↻ Atualizar andamento</button>
+          <button type="button" [disabled]="loading()||working()" (click)="refreshPublication()">↻ Atualizar andamento</button>
         </div>
         @if(!p.enabled){<p class="release-warning">Publicação persistente desabilitada pela API.</p>}
         @if(p.current;as current){
