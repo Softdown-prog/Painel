@@ -137,6 +137,16 @@
 - Consultas atrasadas não restauram o inventário após `OnDestroy`. Uma gravação já enviada não é cancelada pelo fechamento da tela; o servidor continua sendo a fonte de verdade, e a próxima abertura deve consultar o inventário.
 - Testes de confirmação, revisão do formulário, cadastro/substituição/exclusão e limpeza após destruição em `server/angular-secrets-settings.test.mjs`. Ainda pendente validação em navegador real e celular, sem API/produção alteradas.
 
+## Paridade da interface — Projetos GitHub, Terminal e Revisões (31/10/2026)
+
+Esta etapa compara `projects-ui.ts`, `github-ui.ts`, `terminal-ui.ts` e `revisions-ui.ts` com as telas Angular, mantendo a VPS e as APIs intocadas.
+
+- **Projetos GitHub (incremento concluído nesta branch):** a lista Angular passa a consultar `GET /projects` e mostrar vínculos de aplicações, repositórios, serviços e link validado para `/angular/#site?slug=...`. Essa consulta é somente leitura, independente da lista de repositórios, e distingue falha da API de ausência de vínculos. O histórico de execuções é protegido por identificador de requisição e limpeza em `ngOnDestroy`, impedindo que respostas atrasadas de outro repositório substituam a seleção atual ou encerrem o indicador de carregamento errado.
+- **Terminal (já existente, com teste E2E acrescentado):** `GET /terminal/ssh/status` e `POST /terminal/ssh/exec` exigem confirmação revisada antes do envio. A CLI interpretativa local (ajuda, atalhos e fluxos assistidos) da interface clássica continua diferente do terminal Bash Angular. **Não afirmar paridade funcional completa** até inventariar os comandos legados que devem ou não virar ações seguras.
+- **Revisões (incremento concluído nesta branch):** mostrar informações informadas pelo agendador Compose e repositórios com múltiplas versões locais, sem confundir a preferência de limpeza automática com a execução confirmada da rotina. O Angular continua oferecendo consulta, confirmação para mudança e remoção controlada por API existente. **Falta** comparação de versões com execuções GitHub + estados da publicação por revisão como no legado, além de paridade visual/mobile final.
+- **Projetos gerenciados (pendência):** o frontend clássico também possui vínculo/desvínculo de aplicação, seleção de serviços, solicitação de build, importação GHCR, preparação, promoção, rollback, descarte e recuperação persistente. Algumas informações podem aparecer na área de detalhes do site, mas as ações não devem ser consideradas migradas sem auditoria e testes de autorização por projeto.
+- **Cobertura:** `angular/e2e/operations-parity.spec.mjs` acrescenta testes de vínculos, falha parcial, respostas antigas ao trocar repositório, confirmação do Terminal, confirmação `LIMPAR` e responsividade de 320px, usando somente API simulada. Esses testes não autorizam deploy, merge nem limpeza da interface antiga.
+
 ## Testes E2E de navegador — Angular (31/10/2026)
 
 - Suite Playwright isolada em `angular/e2e/` usa Chromium num GitHub runner efêmero, build Angular de produção e servidor local em `127.0.0.1:4175`. O servidor **não funciona como proxy para a VPS**: chamadas `/api` sem interceptação retornam 503; o teste intercepta chamadas com fixtures.
