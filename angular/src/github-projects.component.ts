@@ -1,6 +1,8 @@
-import { Component, OnInit, computed, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, computed, signal } from '@angular/core';
+import { validAppSlug } from './apps-policy';
 
 type Repo = {fullName:string; branch:string; workflow:string};
+type ProjectLink = {slug:string; repository:string; branch:string|null; workflow:string|null; services:string[]};
 type Run = {id:number; sha:string; branch:string; status:string; conclusion:string|null; createdAt:string};
 type Notice = {text:string; kind:'success'|'warning'};
 const REPO_NAME = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
@@ -13,7 +15,7 @@ const WORKFLOW = /^[A-Za-z0-9_.-]{1,80}\.ya?ml$/;
   templateUrl:'./github-projects.component.html',
   styleUrl:'./github-projects.component.css'
 })
-export class GithubProjectsComponent implements OnInit {
+export class GithubProjectsComponent implements OnInit, OnDestroy {
   readonly loading=signal(false);
   readonly working=signal(false);
   readonly runsLoading=signal(false);
@@ -22,6 +24,9 @@ export class GithubProjectsComponent implements OnInit {
   readonly tokenConfigured=signal(false);
   readonly allowedOwner=signal('Softdown-prog');
   readonly repositories=signal<Repo[]>([]);
+  readonly projectLinks=signal<ProjectLink[]>([]);
+  readonly linksLoading=signal(false);
+  readonly linksIssue=signal('');
   readonly chosen=signal('');
   readonly repoName=signal('');
   readonly branch=signal('main');
@@ -38,7 +43,21 @@ export class GithubProjectsComponent implements OnInit {
       WORKFLOW.test(this.workflow().trim());
   });
 
+  private destroyed=false;
+  private runsRequestId=0;
+  private linksRequestId=0;
+
   ngOnInit():void { void this.refresh(); }
+  ngOnDestroy():void {
+    this.destroyed=true;
+    this.runsRequestId++;
+    this.linksRequestId++;
+    this.action.set(null);
+    this.runs.set([]);
+    this.projectLinks.set([]);
+    this.runsLoading.set(false);
+    this.linksLoading.set(false);
+  }
 
   private async api<T>(path:string,method='GET',data?:object):Promise<T> {
     const res=await fetch('/api'+path,{
@@ -60,11 +79,12 @@ export class GithubProjectsComponent implements OnInit {
   }
 
   async refresh():Promise<void> {
-    if(this.loading()||this.working())return;
+    if(this.loading()||this.working()||this.destroyed)return;
     this.loading.set(true);
     this.error.set('');
     try{
       const response=await this.api<{repositories?:Repo[];tokenConfigured?:boolean;allowedOwner?:string}>('/repositories');
+      if(this.destroyed)return;
       if(!Array.isArray(response.repositories))throw new Error('O servidor não informou os repositórios cadastrados.');
       const list=response.repositories.filter(repo=>repo&&typeof repo.fullName==='string'&&
         REPO_NAME.test(repo.fullName)&&typeof repo.branch==='string'&&typeof repo.workflow==='string');
@@ -74,11 +94,43 @@ export class GithubProjectsComponent implements OnInit {
       this.chosen.set(list.some(repo=>repo.fullName===this.chosen())?this.chosen():list[0]?.fullName??'');
       this.action.set(null);
       await this.refreshRuns();
-    }catch(e){this.repositories.set([]);this.runs.set([]);this.error.set(this.message(e));}
-    finally{this.loading.set(false);}
+    }catch(e){
+      if(!this.destroyed){this.repositories.set([]);this.runs.set([]);this.error.set(this.message(e));}
+    }finally{if(!this.destroyed)this.loading.set(false);}
+    if(!this.destroyed)await this.refreshLinks();
+  }
+
+  async refreshLinks():Promise<void>{
+    if(this.destroyed)return;
+    const requestId=++this.linksRequestId;
+    this.linksLoading.set(true);
+    this.linksIssue.set('');
+    try{
+      const response=await this.api<{projects?:unknown}>('/projects');
+      if(this.destroyed||requestId!==this.linksRequestId)return;
+      if(!Array.isArray(response.projects))throw Error('O servidor não confirmou os vínculos de aplicações.');
+      const links:ProjectLink[]=response.projects.filter((item:unknown):item is ProjectLink=>{
+        if(!item||typeof item!=='object'||Array.isArray(item))return false;
+        const value=item as Partial<ProjectLink>;
+        return typeof value.slug==='string'&&validAppSlug(value.slug)&&
+          typeof value.repository==='string'&&REPO_NAME.test(value.repository)&&
+          (value.branch===null||typeof value.branch==='string')&&
+          (value.workflow===null||typeof value.workflow==='string')&&
+          Array.isArray(value.services)&&value.services.every(service=>typeof service==='string'&&validAppSlug(service));
+      });
+      this.projectLinks.set(links);
+    }catch(e){
+      if(!this.destroyed&&requestId===this.linksRequestId){
+        this.projectLinks.set([]);
+        this.linksIssue.set('Vínculos indisponíveis: '+this.message(e));
+      }
+    }finally{
+      if(!this.destroyed&&requestId===this.linksRequestId)this.linksLoading.set(false);
+    }
   }
 
   choose(value:string):void {
+    if(this.destroyed||!this.repositories().some(repo=>repo.fullName===value))return;
     this.chosen.set(value);
     this.action.set(null);
     this.notice.set(null);
@@ -86,18 +138,25 @@ export class GithubProjectsComponent implements OnInit {
   }
 
   async refreshRuns():Promise<void> {
+    if(this.destroyed)return;
+    const requestId=++this.runsRequestId;
     const repo=this.selected();
     this.runs.set([]);
-    if(!repo)return;
+    if(!repo){this.runsLoading.set(false);return;}
     this.runsLoading.set(true);
     try{
       const result=await this.api<{runs?:Run[]}>('/repositories/'+repo.fullName+'/runs');
-      if(this.chosen()!==repo.fullName)return;
+      if(this.destroyed||requestId!==this.runsRequestId||this.chosen()!==repo.fullName)return;
       if(!Array.isArray(result.runs))throw new Error('O GitHub não informou o histórico desta branch.');
-      this.runs.set(result.runs.filter(r=>Number.isSafeInteger(r.id)&&
-        typeof r.sha==='string'&&typeof r.status==='string').slice(0,10));
-    }catch(e){if(this.chosen()===repo.fullName)this.error.set(this.message(e));}
-    finally{this.runsLoading.set(false);}
+      this.runs.set(result.runs.filter(r=>r&&Number.isSafeInteger(r.id)&&r.id>0&&
+        typeof r.sha==='string'&&/^[a-f0-9]{40}$/i.test(r.sha)&&
+        typeof r.status==='string'&&typeof r.createdAt==='string').slice(0,10));
+    }catch(e){
+      if(!this.destroyed&&requestId===this.runsRequestId&&this.chosen()===repo.fullName)
+        this.error.set(this.message(e));
+    }finally{
+      if(!this.destroyed&&requestId===this.runsRequestId)this.runsLoading.set(false);
+    }
   }
 
   async connect(event:Event):Promise<void> {
