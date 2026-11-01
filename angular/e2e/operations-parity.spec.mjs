@@ -49,8 +49,13 @@ async function fixture(page,{failLinks=false,holdFirstRun=false}={}){
       body={runs:[run(202)]};
     }else if(method==='GET'&&path==='/terminal/ssh/status'){
       body={enabled:true,configured:true};
-    }else if(method==='POST'&&path==='/terminal/ssh/exec'){
-      body={exitCode:0,output:'saída de teste, sem VPS',truncated:false,timedOut:false};
+    }else if(method==='GET'&&path==='/terminal/ssh/jobs/current'){
+      body={job:null};
+    }else if(method==='POST'&&path==='/terminal/ssh/jobs'){
+      body={job:{id:'a'.repeat(32),state:'completed',startedAt:'2026-10-31T12:00:00Z',
+        finishedAt:'2026-10-31T12:00:01Z',exitCode:0,
+        output:'saída de teste, sem VPS',truncated:false,durationMs:1000,
+        error:null,fingerprint:'test-only'}};
     }else if(method==='GET'&&path==='/maintenance/revisions'){
       body=revisionReport;
     }else if(method==='POST'&&path==='/maintenance/revisions/cleanup'){
@@ -108,7 +113,8 @@ test('Terminal Angular não executa comando antes da confirmação explícita',a
   await page.getByRole('button',{name:'Preparar execução'}).click();
   await page.getByRole('button',{name:'Confirmar execução'}).click();
   await expect(page.getByText('saída de teste, sem VPS')).toBeVisible();
-  expect(state.requests.filter(r=>r.method==='POST'&&r.path==='/terminal/ssh/exec')).toHaveLength(1);
+  expect(state.requests.filter(r=>r.method==='POST'&&r.path==='/terminal/ssh/jobs')).toHaveLength(1);
+  expect(state.requests.some(r=>r.path==='/terminal/ssh/exec')).toBe(false);
 });
 
 test('Revisões exige digitar LIMPAR para habilitar limpeza de imagens',async ({page})=>{
