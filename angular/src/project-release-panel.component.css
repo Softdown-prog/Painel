@@ -23,3 +23,12 @@
 .release-run small{font-size:11px;color:#b3bad1}
 .release-panel button:focus-visible,.release-panel input:focus-visible,.release-panel a:focus-visible{outline:3px solid #bea5ff;outline-offset:2px}
 @media(max-width:560px){.release-grid{grid-template-columns:1fr}.release-heading{flex-direction:column}.release-heading button,.release-actions button{width:100%}.release-run{align-items:stretch;flex-direction:column}}
+
+
+.publication-progress{border:1px solid #5d5584;border-radius:11px;padding:12px;background:#22273b;min-width:0;margin:12px 0}
+.publication-progress .release-heading{align-items:center}
+.publication-progress strong,.publication-progress p{overflow-wrap:anywhere}
+.publication-history{border-top:1px solid #40465e;margin-top:12px;padding-top:9px}
+.publication-history summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:12px;color:#ded2ff}
+.publication-history p{border-top:1px solid #394057;margin:0;padding:10px 0}
+.release-actions .publish-button{background:#36355e;border-color:#8a79c5}
