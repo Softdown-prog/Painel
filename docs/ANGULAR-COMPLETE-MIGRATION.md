@@ -137,6 +137,13 @@
 - Consultas atrasadas não restauram o inventário após `OnDestroy`. Uma gravação já enviada não é cancelada pelo fechamento da tela; o servidor continua sendo a fonte de verdade, e a próxima abertura deve consultar o inventário.
 - Testes de confirmação, revisão do formulário, cadastro/substituição/exclusão e limpeza após destruição em `server/angular-secrets-settings.test.mjs`. Ainda pendente validação em navegador real e celular, sem API/produção alteradas.
 
+## Incremento Angular — foco acessível em confirmações de segredos e senha (31/10/2026)
+
+- **Chaves e segredos:** os botões **Excluir** agora usam nomes acessíveis específicos de cada chave. A abertura da confirmação coloca o foco no campo apropriado após o bloco condicional ser renderizado: senha administrativa ao excluir e nome digitado ao preparar gravação. O grupo de confirmação referencia o aviso de risco com `aria-describedby`. Ao cancelar uma exclusão, o foco volta ao botão de origem, quando ainda presente; ao cancelar gravação, volta ao campo de nome, que permanece habilitado mesmo após limpar a senha.
+- **Configurações administrativas:** preparar troca de senha foca o campo de confirmação; cancelar ou receber erro de API limpa as senhas e devolve foco ao campo da senha atual. A confirmação é identificada e relacionada à explicação de risco para leitores de tela. O fluxo só faz `POST /password` após confirmação explícita; código de autenticação, API e permissões não foram alterados.
+- Foram adicionados `angular/e2e/secrets-accessibility.spec.mjs` e `angular/e2e/settings-accessibility.spec.mjs`, com **9 casos de navegador** inteiramente mockados: diferenciação de botões, foco, cancelamento, ausência de mutações antecipadas, confirmação exata, limpeza de dados sensíveis, falha de API e 320px.
+- **Pendente:** conferir o CI completo no commit final; validar TalkBack/NVDA em aparelho e navegador reais; revisar os demais diálogos e formulários Angular. Sem PR, merge, deploy ou uso de segredo verdadeiro.
+
 ## Incremento Angular — acessibilidade de navegação mobile e teclado (31/10/2026)
 
 - O menu mobile da casca Angular agora expõe `role="dialog"` e `aria-modal="true"` **somente enquanto aberto**, isola o conteúdo principal e a navegação inferior via `inert`, direciona o foco ao controle de fechar, mantém `Tab`/`Shift+Tab` circulando entre os controles visíveis do painel e restaura o foco ao botão de abrir quando fecha com **Esc**, botão de fechar, marca do painel ou fundo do menu. Se a viewport mudar para desktop com o drawer aberto, o estado modal é encerrado e o conteúdo é desbloqueado.
