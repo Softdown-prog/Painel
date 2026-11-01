@@ -386,9 +386,13 @@ binario Rust sem crates externos/unsafe para RAM e selecao de rotas cadastradas,
 transporte stdin limitado, equivalencia verificada, fallback Node e circuito de
 falhas. `/runtime` exige sessao administrativa; limites reais continuam no Docker.
 Dockerfiles da API e app-wake compilam/testam Rust sem levar compilador para VPS.
-**Codigo implementado:** sim, nesta branch. **CI aprovado:** pendente. **Frontend
-publicado:** nao houve alteracao visual. **Backend instalado:** nao. **Roteador
+**Codigo implementado:** PR #62, `b431160`. **CI aprovado:** Console CI
+[41262771858](https://github.com/Softdown-prog/Painel/actions/runs/41262771858),
+Rust real/Clippy/fmt e gateway Docker
+[41262771759](https://github.com/Softdown-prog/Painel/actions/runs/41262771759),
+API/executor Docker [41262771752](https://github.com/Softdown-prog/Painel/actions/runs/41262771752).
+Cinco testes Rust e contratos reais Node/Rust aprovados, assim como os testes
+Linux do painel e 25 testes Python. **Frontend publicado:** nao houve alteracao visual. **Backend instalado:** nao. **Roteador
 nativo instalado:** nao; o deploy padrao nao atualiza app-wake. **Producao
 validada:** somente inventario inicial read-only no run `41261846891`; API e
 executor existentes `467bcad` saudaveis. Ver [Node e Rust](NODE-RUST-RUNTIME.md).
-
