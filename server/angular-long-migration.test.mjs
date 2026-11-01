@@ -15,13 +15,17 @@ test('Angular migration stays isolated and cannot deploy on feature pushes',()=>
  }
  assert.match(read('docs/ANGULAR-COMPLETE-MIGRATION.md'),/Não abrir PR, não fazer merge/);
 });
-test('Angular terminal uses only existing authenticated SSH endpoints and confirmation',()=>{
+test('Angular terminal uses authenticated background SSH job endpoints and confirmation',()=>{
  const code=read('angular/src/terminal.component.ts');
  const html=read('angular/src/terminal.component.html');
  assert.match(code,/\/terminal\/ssh\/status/);
- assert.match(code,/\/terminal\/ssh\/exec/);
+ assert.match(code,/\/terminal\/ssh\/jobs/);
  assert.match(code,/this\.pending\(\)/);
  assert.match(html,/Confirmar execução/);
+ assert.match(html,/Saída em tempo real/);
+ assert.match(code,/setInterval/);
+ assert.match(code,/pollJob/);
+ assert.match(code,/stopJob/);
  assert.match(html,/\(click\)="execute\(\)"/);
  assert.match(code,/credentials:'same-origin'/);
  assert.doesNotMatch(code,/localStorage|sessionStorage|x-panel-edge-key/);

@@ -3,6 +3,9 @@ import {confirmedTerminalCommand,validTerminalCommand} from './terminal-command'
 
 type SshStatus={enabled:boolean;configured:boolean};
 type Execution={exitCode:number;output:string;truncated:boolean;timedOut:boolean};
+type TerminalJob={id:string;state:'running'|'completed'|'failed'|'cancelled'|'timed_out';
+ startedAt:string;finishedAt:string|null;exitCode:number|null;output:string;
+ truncated:boolean;durationMs:number;error:string|null;fingerprint:string};
 @Component({selector:'panel-vps-terminal',standalone:true,
   templateUrl:'./terminal.component.html',styleUrl:'./terminal.component.css'})
 export class TerminalComponent implements OnInit,OnDestroy {
@@ -13,18 +16,28 @@ export class TerminalComponent implements OnInit,OnDestroy {
   readonly pending=signal(false);
   readonly output=signal('');
   readonly result=signal<Execution|null>(null);
+  readonly job=signal<TerminalJob|null>(null);
+  readonly stopping=signal(false);
+  readonly stopPending=signal(false);
+  private polling:ReturnType<typeof setInterval>|null=null;
   readonly error=signal('');
   readonly executedAt=signal<string|null>(null);
   private preparedCommand:string|null=null;
   private destroyed=false;
   readonly snippets=['uname -a','df -h /','free -h','docker ps --format "{{.Names}}: {{.Status}}"'];
-  ngOnInit():void {void this.refresh();}
+  ngOnInit():void {
+    this.polling=setInterval(()=>{if(this.job()?.state==='running'&&!this.busy()&&!this.destroyed)void this.pollJob();},2000);
+    void this.refresh();
+  }
   ngOnDestroy():void {
     this.destroyed=true;
+    if(this.polling!==null)clearInterval(this.polling);
+    this.polling=null;
     this.cancel();
     this.command.set('');
     this.output.set('');
     this.result.set(null);
+    this.job.set(null);
     this.status.set(null);
   }
   private async api<T>(path:string,method='GET',data?:object):Promise<T>{
@@ -49,6 +62,7 @@ export class TerminalComponent implements OnInit,OnDestroy {
       if(this.destroyed)return;
       this.status.set(status);
       if(!status.enabled||!status.configured)this.cancel();
+      else await this.pollJob();
     }catch(e){if(!this.destroyed){this.status.set(null);this.cancel();this.error.set(this.message(e));}}
     finally{this.checking.set(false);}
   }
@@ -79,7 +93,7 @@ export class TerminalComponent implements OnInit,OnDestroy {
   }
   cancel():void {this.pending.set(false);this.preparedCommand=null;}
   async execute():Promise<void>{
-    if(this.busy()||this.destroyed)return;
+    if(this.busy()||this.destroyed||this.job()?.state==='running')return;
     const value=this.command();
     const status=this.status();
     if(!confirmedTerminalCommand(this.preparedCommand,value,
@@ -92,18 +106,53 @@ export class TerminalComponent implements OnInit,OnDestroy {
     this.busy.set(true);this.error.set('');
     this.result.set(null);this.output.set('');
     try{
-      const result=await this.api<Execution>('/terminal/ssh/exec','POST',{command:value});
+      const response=await this.api<{job:TerminalJob}>('/terminal/ssh/jobs','POST',{command:value});
       if(this.destroyed)return;
-      if(!Number.isSafeInteger(result.exitCode)||typeof result.output!=='string'||
-         typeof result.truncated!=='boolean'||typeof result.timedOut!=='boolean')
-        throw Error('Resultado SSH inválido.');
-      this.output.set(result.output);
-      this.result.set(result);
-      this.executedAt.set(new Date().toISOString());
+      this.applyJob(response.job);
       this.command.set('');
     }catch(e){if(!this.destroyed)this.error.set(this.message(e));}
     finally{this.busy.set(false);}
   }
-  clear():void {this.result.set(null);this.output.set('');this.error.set('');}
+  async pollJob():Promise<void>{
+    if(this.destroyed||this.busy()||!this.status()?.configured)return;
+    try{
+      const response=await this.api<{job:TerminalJob|null}>('/terminal/ssh/jobs/current');
+      if(!this.destroyed&&response.job)this.applyJob(response.job);
+    }catch(e){
+      if(!this.destroyed&&this.job()?.state==='running')
+        this.error.set('Não foi possível consultar o andamento. A tarefa pode continuar na VPS. '+this.message(e));
+    }
+  }
+  private applyJob(job:TerminalJob):void{
+    if(!job||!/^[a-f0-9]{32}$/.test(job.id)||
+      !['running','completed','failed','cancelled','timed_out'].includes(job.state)||
+      typeof job.output!=='string'||typeof job.truncated!=='boolean'||
+      !Number.isFinite(job.durationMs)||typeof job.startedAt!=='string')
+      throw Error('Estado da tarefa SSH inválido.');
+    this.job.set(job);
+    this.output.set(job.output);
+    this.executedAt.set(job.startedAt);
+    if(job.state==='running')this.result.set(null);
+    else this.result.set({exitCode:job.exitCode??-1,output:job.output,
+      truncated:job.truncated,timedOut:job.state==='timed_out'});
+  }
+  requestStop():void{
+    if(this.job()?.state==='running'&&!this.busy())this.stopPending.set(true);
+  }
+  async stopJob():Promise<void>{
+    const job=this.job();
+    if(!job||job.state!=='running'||!this.stopPending()||this.busy())return;
+    this.stopPending.set(false);
+    this.stopping.set(true);this.error.set('');
+    try{
+      const response=await this.api<{job:TerminalJob}>('/terminal/ssh/jobs/'+job.id+'/cancel','POST');
+      if(!this.destroyed)this.applyJob(response.job);
+    }catch(e){if(!this.destroyed)this.error.set(this.message(e));}
+    finally{this.stopping.set(false);}
+  }
+  clear():void {
+    if(this.job()?.state==='running')return;
+    this.result.set(null);this.output.set('');this.error.set('');
+  }
   private message(e:unknown):string {return e instanceof Error?e.message:'Falha na consulta do terminal.';}
 }

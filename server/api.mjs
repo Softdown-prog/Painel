@@ -8,6 +8,7 @@ import { handleReleaseRoute } from './releases.ts';
 import { handleImageImportRoute } from './image-import.ts';
 import { handleDomainRoute } from './domains.ts';
 import { executeSshCommand, handleSshTerminalRoute } from './terminal-ssh.ts';
+import {handleSshTerminalJobRoute} from './terminal-jobs.ts';
 import { handleRevisionRoute, startRevisionMonitor } from './revision-maintenance.ts';
 import { handlePublicationRoute, readPublicationHistory, startPublicationWorker } from './publications.ts';
 import { handleSecretsRoute } from './secrets.ts';
@@ -50,7 +51,8 @@ function send(res, status, data, extra = {}) {
 }
 async function body(req) {
   // Only authenticated SSH execution accepts bigger multi-line JSON bodies.
-  const terminal = new URL(req.url || '/', 'http://panel.local').pathname === '/terminal/ssh/exec';
+  const terminalPath = new URL(req.url || '/', 'http://panel.local').pathname;
+  const terminal = terminalPath === '/terminal/ssh/exec' || terminalPath === '/terminal/ssh/jobs';
   const maxBytes = terminal ? 8 * 1024 * 1024 + 65536 : 65536;
   let bytes = 0;
   const chunks = [];
@@ -176,9 +178,8 @@ async function handler(req, res) {
     return send(res, 200, { ok: true }, { 'set-cookie': cookie('', 0) });
   }
   if (!session(req)) return send(res, 401, { error: 'Sessão necessária' });
-  if (await handleSshTerminalRoute(req, res, {
-    send, body
-  })) return;
+  if (await handleSshTerminalJobRoute(req, res, {send, body})) return;
+  if (await handleSshTerminalRoute(req, res, {send, body})) return;
   if (await handleSecretsRoute(req, res, {
     send, body,
     verifyPassword: password => {

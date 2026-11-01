@@ -205,3 +205,11 @@ Esta etapa compara `projects-ui.ts`, `github-ui.ts`, `terminal-ui.ts` e `revisio
 - `repo_read_file`, `repo_reindex`, edição de arquivos, comando shell, mutações Git, Docker e deploy são bloqueados. O token MCP fica exclusivamente na VPS, e o broker usa `127.0.0.1:8789`.
 - O workflow na branch roda CI, **não acessa a VPS e não altera produção**. A ponte real exige revisão e liberação posterior na `main` e atualização do receptor por execução root explicitamente autorizada.
 - Script manual `operations/upgrade-vpsops-mcp-query.sh check|apply <checkout_verificado>` preserva as outras operações; não é executado em CI.
+
+## Terminal VPS com tarefas acompanhadas — desenvolvimento isolado
+
+- Novas rotas após autenticação administrativa: `POST /terminal/ssh/jobs` retorna HTTP 202 e ID opaco; `GET /terminal/ssh/jobs/current` e `GET /terminal/ssh/jobs/:id` mostram estado e até 64.000 caracteres de saída; `POST /terminal/ssh/jobs/:id/cancel` sinaliza o SSH para terminar. Nunca armazena o texto do comando em histórico, log ou navegador.
+- A nova aba Angular acompanha a saída a cada dois segundos, permite continuar navegando e recuperar tarefa ativa ao voltar, com confirmação explícita para solicitar interrupção. Não depende do limite de 18 segundos da rota antiga.
+- Somente uma tarefa simultânea; limite de segurança de 30 minutos; histórico em memória com retenção máxima de uma hora e até 12 entradas. A saída continua sendo drenada mesmo após atingir o limite de exibição.
+- **Limitações declaradas:** tarefas existem na memória do processo API, portanto um reinício da API pode perder estado e interromper a conexão SSH; interromper a conexão SSH não garante parar processos remotos que se desvincularam. O painel antigo mantém `POST /terminal/ssh/exec` (18 segundos) temporariamente para compatibilidade; remover esta rota apenas após migração e testes.
+- Testes `server/terminal-jobs.test.mjs` verificam concorrência, polling, saída limitada sem encerrar a execução, cancelamento, autorização opt-in e limite máximo. Sem deploy até revisão final.

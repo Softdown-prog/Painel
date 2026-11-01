@@ -14,7 +14,7 @@ type Deps = {
 const MAX_COMMAND_BYTES = 4 * 1024 * 1024;
 const MAX_OUTPUT = 24 * 1024;
 let executing = false;
-function config() {
+export function terminalSshConfig() {
   const host = process.env['PANEL_TERMINAL_SSH_HOST'] || '';
   const user = process.env['PANEL_TERMINAL_SSH_USER'] || '';
   const port = Number(process.env['PANEL_TERMINAL_SSH_PORT'] || '22');
@@ -30,7 +30,7 @@ function config() {
 // This is deliberately exported only for fixed, server-generated operations.
 // Routes using it must never concatenate browser-provided shell fragments.
 export function executeSshCommand(command: string): Promise<SSHResult> {
-  const settings = config();
+  const settings = terminalSshConfig();
   if (!settings.valid) return Promise.reject(new Error('SSH da VPS ainda não foi configurado.'));
   return new Promise((resolve, reject) => {
     const args = [
@@ -82,7 +82,7 @@ export async function handleSshTerminalRoute(req: IncomingMessage, res: ServerRe
   const enabled = deps.enabled ?? process.env['PANEL_TERMINAL_SSH_ENABLED'] === '1';
   if (path === '/terminal/ssh/status' && req.method === 'GET') {
     deps.send(res, 200, {
-      enabled, configured: enabled && (deps.execute ? true : config().valid)
+      enabled, configured: enabled && (deps.execute ? true : terminalSshConfig().valid)
     });
     return true;
   }
