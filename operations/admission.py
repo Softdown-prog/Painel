@@ -114,7 +114,7 @@ def candidate_command(name, image, rule, sha, key):
                '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true',
                '--memory', '192m', '--memory-swap', '192m', '--cpus', '0.5', '--pids-limit', '64',
                '--restart', 'no', '--no-healthcheck', '--log-driver', 'local',
-               '--log-opt', 'max-size=1m', '--log-opt', 'max-file=1',
+               '--log-opt', 'max-size=1m', '--log-opt', 'max-file=2',
                '--tmpfs', '/tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777',
                '--tmpfs', '/data:rw,noexec,nosuid,nodev,size=16m,mode=0700,uid=65534,gid=65534']
     env = {'GIT_SHA': sha, 'NODE_ENV': 'production'}

@@ -77,6 +77,8 @@ class Contract(unittest.TestCase):
             self.assertNotIn('/var/run/docker.sock', ' '.join(argv))
             self.assertIn('--pids-limit', argv)
             self.assertIn('--memory-swap', argv)
+            # Docker local log compression requires at least two files.
+            self.assertIn('max-file=2', argv)
 
     def test_inspection_catches_mounts_network_or_privilege_regression(self):
         self.assertTrue(gate.isolation(isolated()))
