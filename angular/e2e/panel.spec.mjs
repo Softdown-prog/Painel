@@ -232,3 +232,20 @@ test('menu mobile fechado não permite foco de Tab na navegação invisível',as
   const width=await page.evaluate(()=>({visible:document.documentElement.clientWidth,total:document.documentElement.scrollWidth}));
   expect(width.total).toBeLessThanOrEqual(width.visible+1);
 });
+
+
+test('atalho de teclado pula o menu e foca o conteúdo sem alterar hash nem API',async ({page})=>{
+  const state=await mockApi(page,{authenticated:true});
+  await page.setViewportSize({width:1280,height:850});
+  await page.goto('/angular/#containers');
+  const skip=page.getByRole('link',{name:'Pular para o conteúdo principal'});
+  await page.keyboard.press('Tab');
+  await expect(skip).toBeFocused();
+  await expect(skip).toBeVisible();
+  const before=page.url();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('main h1')).toHaveText('Containers da VPS');
+  await expect(page.locator('main h1')).toBeFocused();
+  expect(page.url()).toBe(before);
+  expect(state.requests.some(req=>req.startsWith('POST '))).toBe(false);
+});
