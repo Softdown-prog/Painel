@@ -1,0 +1,12 @@
+[Unit]
+Description=Prune expired VPS Panel terminal artifacts after restart
+
+[Timer]
+OnBootSec=5min
+OnCalendar=*:0/15
+Persistent=true
+Unit=vps-panel-terminal-gc.service
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

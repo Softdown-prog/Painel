@@ -1,0 +1,19 @@
+[Unit]
+Description=VPS Panel terminal jobs private-state cleanup
+Documentation=https://github.com/Softdown-prog/Painel
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+ExecStart=/usr/local/libexec/vps-panel-terminal-jobs prune
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/vps-panel-terminal-jobs
+ProtectHome=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+LockPersonality=yes

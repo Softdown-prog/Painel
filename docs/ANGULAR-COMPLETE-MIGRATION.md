@@ -261,5 +261,12 @@ Esta etapa compara `projects-ui.ts`, `github-ui.ts`, `terminal-ui.ts` e `revisio
 - `PANEL_TERMINAL_PERSISTENT` permanece **desligado por padrão** até instalarmos o auxiliar e autorizarmos atualização futura da API; sem essa opção, mantém o supervisor anterior em memória. O endpoint legado síncrono mantém os 18 segundos apenas como compatibilidade técnica.
 - Os testes usam pastas temporárias locais e mocks de `systemd-run`; não executam ações no host real nem publicam comandos ao GitHub.
 
-- Retenção automática independente da API: antes de iniciar o comando, o host agenda `vps-panel-terminal-clean-<id>` via `systemd-run --on-active=5400`. Após no máximo 30 min de execução, a coleta vence pelo menos 60 min depois da conclusão, mesmo sem novas consultas ao Painel. A verificação manual também faz limpeza oportunista. Um reboot do próprio host reinicia o ciclo operacional e requer auditoria das tarefas interrompidas.
+- Retenção independente da API e de reinicializações do Ubuntu: instalação administrativa cria `vps-panel-terminal-gc.timer` com `Persistent=true`, `OnBootSec=5min` e `OnCalendar=*:0/15`. A coleta percorre os estados finais e remove scripts/saídas expirados; uma reinicialização do host não desativa a coleta. Não se criam unidades de timer por comando. A coleta oportunista por consulta permanece.
 - O overlay `server/compose.ssh-terminal.yaml` expõe somente a opção desativada por padrão `PANEL_TERMINAL_PERSISTENT=0`. Configurar como `1` requer primeiro instalação e testes do auxiliar no host, com usuário SSH autorizado; nada é ativado por este commit.
+
+### Homologação de recuperação do supervisor do host
+
+- Teste isolado abre **outro interpretador Python** e reconstrói estado da tarefa apenas a partir dos arquivos privados do host, sem conexão com a API. Teste adicional simula reinício completo da VPS: a unidade desaparece e uma tarefa antiga não pode permanecer eternamente em `running`; os scripts órfãos são apagados.
+- Uma tarefa só inicia se `vps-panel-terminal-gc.timer` estiver ativo. Na ausência do timer, a chamada falha antes de gravar o script, impedindo arquivos secretos órfãos.
+- O instalador `operations/install-terminal-host-jobs.sh` configura o serviço/timer do `systemd` **somente com `apply` autorizado como root**; `check` realiza validações sem modificar o host. Isso não reinicia nem publica a API, não faz merge na `main` e não é executado pela CI.
+- A limpeza periódica roda a cada quinze minutos; o limite para elegibilidade é uma hora após finalizar. O arquivo pode durar um pouco mais até a próxima execução da coleta, portanto não colar segredos nos comandos ou na saída.

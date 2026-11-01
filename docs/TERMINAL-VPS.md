@@ -71,3 +71,9 @@ O histórico fica apenas na memória da página e não é persistido no navegado
 A branch `feat/angular-complete-migration` contém um supervisor de tarefas SSH que usa unidades transitórias `systemd` no próprio host, capazes de continuar durante reinícios da API. Ele requer **instalação manual** do auxiliar `operations/install-terminal-host-jobs.sh` no host e `PANEL_TERMINAL_PERSISTENT=1` na configuração da API. Não altere a produção até homologar a segurança, a identidade SSH e os caminhos de implantação.
 
 O host armazena o script temporariamente em arquivos root:root 0600, e os apaga quando a execução termina. A saída parcial e metadados ficam protegidos no diretório root 0700, com coleta automática via timer do `systemd`, executada mesmo com a API fora do ar. Não coloque senhas ou tokens nos comandos ou na saída; não é uma sessão interativa. O endpoint síncrono antigo de 18 segundos permanece para compatibilidade até a migração final.
+
+### Supervisor de tarefas persistentes — preparação sem deploy
+
+A versão em desenvolvimento adiciona unidades `systemd` no Ubuntu, executadas independentemente da API do Painel. O host mantém os metadados, a saída parcial e o script (temporário e restrito a root). O instalador possui dois modos: `check` apenas verifica e `apply` instala o auxiliar e o timer privado de limpeza `vps-panel-terminal-gc.timer`. O timer é persistente em reinicializações do Ubuntu e executa a coleta a cada 15 minutos, removendo material expirado. Se ele estiver desativado, novos comandos são recusados antes de armazenar o script.
+
+O modo `PANEL_TERMINAL_PERSISTENT` continua **desligado por padrão**. Sua ativação exige homologação de permissões, instalação manual no host e publicação futura da API, tudo separado da migração Angular. A produção atual não recebe estas alterações com commits nesta branch.

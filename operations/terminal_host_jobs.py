@@ -165,6 +165,12 @@ def start(job_id, fingerprint):
         raise ValueError('Invalid script length or content')
     if hashlib.sha256(script).hexdigest()[:16]!=fingerprint:
         raise ValueError('Fingerprint does not match script')
+    # A persistent, periodic timer is installed separately on the host.
+    # Fail closed if it is not running: avoid orphaned sensitive artifacts.
+    gc=subprocess.run(['systemctl','is-active','--quiet','vps-panel-terminal-gc.timer'],
+                      stdin=subprocess.DEVNULL,capture_output=True,timeout=5)
+    if gc.returncode != 0:
+        raise RuntimeError('Host cleanup timer is not active')
     script_path=ROOT/('script-'+job_id+'.sh')
     # Never log the command or put it in systemd unit arguments.
     fd=os.open(script_path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
@@ -175,17 +181,10 @@ def start(job_id, fingerprint):
           'finishedAt':None,'exitCode':None,'error':None,'truncated':False,
           'cancelRequested':False}
     save(data)
-    # Host timer is independent of the API and will prune sensitive artifacts.
-    # A job is capped at 30min, so at +90min every finished job is >=60min old.
-    cleanup=['systemd-run','--quiet','--collect','--on-active=5400',
-             '--unit=vps-panel-terminal-clean-'+job_id,
-             '/usr/bin/python3', SELF, 'prune']
     cmd=['systemd-run','--quiet','--collect','--unit='+unit(job_id),
          '--property=RuntimeMaxSec=1800','--property=MemoryMax=2147483648',
          '/usr/bin/python3', SELF, 'run',job_id]
     try:
-        subprocess.run(cleanup,stdin=subprocess.DEVNULL,check=True,timeout=10,
-                       capture_output=True)
         subprocess.run(cmd,stdin=subprocess.DEVNULL,check=True,timeout=10,
                        capture_output=True)
     except (subprocess.SubprocessError,OSError):

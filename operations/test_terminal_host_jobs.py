@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import subprocess
 import stat
 import sys
 import tempfile
@@ -49,14 +50,57 @@ class TestHostTerminalJobs(unittest.TestCase):
         self.assertEqual(script.stat().st_mode&0o777,0o600)
         self.assertEqual(script.read_bytes(),command+b'\n')
         self.assertEqual(len(calls),2)
-        self.assertIn('--on-active=5400',calls[0])
-        self.assertEqual(calls[0][-3:],['/usr/bin/python3',host.SELF,'prune'])
-        call=calls[-1]
+        self.assertEqual(calls[0],['systemctl','is-active','--quiet','vps-panel-terminal-gc.timer'])
+        call=calls[1]
         self.assertEqual(call[-4:],['/usr/bin/python3',host.SELF,'run',ID])
         self.assertNotIn('printf ready',' '.join(call))
         self.assertIn('--property=RuntimeMaxSec=1800',call)
         self.assertFalse(any('sh -c' in a for a in call))
         self.assertEqual(host.read_meta(ID)['fingerprint'],fingerprint)
+    def test_inactive_cleanup_timer_rejects_start_without_storing_script(self):
+        import hashlib
+        command=b'echo no-secret-leak'
+        fingerprint=hashlib.sha256(command).hexdigest()[:16]
+        stdin=TextIOWrapper(BytesIO(command))
+        with patch.object(sys,'stdin',stdin),patch.object(host.subprocess,'run',
+            return_value=MagicMock(returncode=3)):
+            with self.assertRaisesRegex(RuntimeError,'cleanup timer'):
+                host.start(ID,fingerprint)
+        self.assertEqual(list(self.root.glob('script-*.sh')),[])
+        self.assertEqual(list(self.root.glob('job-*.json')),[])
+
+    def test_new_interpreter_rehydrates_running_job_after_api_restart(self):
+        host.save({'id':ID,'fingerprint':'a'*16,'state':'running','startedAt':host.now(),
+                   'finishedAt':None,'exitCode':None,'error':None,
+                   'truncated':False,'cancelRequested':False})
+        # This subprocess has a fresh Python interpreter and a new module instance.
+        # It only inspects files in a disposable test directory; never calls systemd.
+        script="""import importlib.util,sys
+from pathlib import Path
+spec=importlib.util.spec_from_file_location('host',sys.argv[1])
+host=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(host)
+host.ROOT=Path(sys.argv[2])
+host.systemd_state=lambda _id: ('active','success')
+print(host.public(host.prune()[0])['state'])
+"""
+        result=subprocess.run([sys.executable,'-c',script,str(SCRIPT),str(self.root)],
+                              check=True,capture_output=True,text=True,timeout=5)
+        self.assertEqual(result.stdout.strip(),'running')
+
+    def test_reboot_reconciliation_fails_closed_and_erases_orphaned_script(self):
+        from datetime import datetime,timedelta,timezone
+        old=(datetime.now(timezone.utc)-timedelta(minutes=5)).isoformat()
+        host.save({'id':ID,'fingerprint':'a'*16,'state':'running','startedAt':old,
+                   'finishedAt':None,'exitCode':None,'error':None,
+                   'truncated':False,'cancelRequested':False})
+        (self.root/('script-'+ID+'.sh')).write_bytes(b'old secret')
+        with patch.object(host,'systemd_state',return_value=('unknown','unknown')):
+            entry=host.prune()[0]
+        self.assertEqual(entry['state'],'failed')
+        self.assertIsNone(entry['exitCode'])
+        self.assertFalse((self.root/('script-'+ID+'.sh')).exists())
+
     def test_run_writes_output_and_erases_stored_command(self):
         import hashlib
         command=b'printf hello-from-host'
