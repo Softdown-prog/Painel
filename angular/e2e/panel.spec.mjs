@@ -160,3 +160,73 @@ for (const width of [320,360,390,768,1280]) {
     }
   });
 }
+
+
+test('menu mobile gerencia foco inicial, impede Tab sair e restaura foco com Escape',async ({page})=>{
+  const state=await mockApi(page,{authenticated:true});
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('/angular/#overview');
+  const trigger=page.getByRole('button',{name:'Abrir ferramentas e navegação'});
+  const main=page.locator('main');
+  await trigger.click();
+  const sidebar=page.getByRole('dialog',{name:'Navegação e ferramentas'});
+  await expect(sidebar).toBeVisible();
+  await expect(sidebar.getByRole('button',{name:'Fechar menu'})).toBeFocused();
+  await expect(main).toHaveAttribute('inert','');
+  await expect(page.getByRole('navigation',{name:'Navegação rápida',includeHidden:true})).toHaveAttribute('inert','');
+  // Both ends of the drawer's keyboard traversal wrap inside the menu.
+  const first=sidebar.locator('a[href]').first();
+  await first.focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(sidebar.getByRole('button',{name:'Fechar menu'})).toBeFocused();
+  await sidebar.getByRole('button',{name:'Fechar menu'}).focus();
+  await page.keyboard.press('Tab');
+  await expect(first).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(sidebar).toBeHidden();
+  await expect(main).not.toHaveAttribute('inert','');
+  await expect(trigger).toBeFocused();
+  expect(state.requests.some(req=>req.startsWith('POST '))).toBe(false);
+});
+
+test('selecionar página no drawer fecha o menu e leva foco ao título da tela',async ({page})=>{
+  const state=await mockApi(page,{authenticated:true});
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('/angular/#overview');
+  await page.getByRole('button',{name:'Abrir ferramentas e navegação'}).click();
+  const sidebar=page.getByRole('dialog',{name:'Navegação e ferramentas'});
+  await sidebar.getByRole('navigation',{name:'Ferramentas de administração'}).getByRole('button',{name:/Terminal VPS/}).click();
+  await expect(page).toHaveURL(/#terminal$/);
+  await expect(page.locator('main h1')).toHaveText('Terminal VPS');
+  await expect(page.locator('main h1')).toBeFocused();
+  await expect(sidebar).toBeHidden();
+  await expect(page.locator('main')).not.toHaveAttribute('inert','');
+  expect(state.requests.some(req=>req.startsWith('POST '))).toBe(false);
+});
+
+test('revisões e terminal identificam menu ativo para leitores de tela',async ({page})=>{
+  await mockApi(page,{authenticated:true});
+  await page.setViewportSize({width:1280,height:800});
+  await page.goto('/angular/#terminal');
+  const navigation=page.getByRole('navigation',{name:'Ferramentas de administração'});
+  await expect(navigation.getByRole('button',{name:/Terminal VPS/})).toHaveAttribute('aria-current','page');
+  await navigation.getByRole('button',{name:/Revisões e espaço/}).click();
+  await expect(navigation.getByRole('button',{name:/Revisões e espaço/})).toHaveAttribute('aria-current','page');
+  await expect(navigation.getByRole('button',{name:/Terminal VPS/})).not.toHaveAttribute('aria-current','page');
+  await expect(page.locator('main h1')).toBeFocused();
+});
+
+test('menu mobile fechado não permite foco de Tab na navegação invisível',async ({page})=>{
+  await mockApi(page,{authenticated:true});
+  await page.setViewportSize({width:320,height:740});
+  await page.goto('/angular/#overview');
+  const trigger=page.getByRole('button',{name:'Abrir ferramentas e navegação'});
+  await trigger.focus();
+  await page.keyboard.press('Tab');
+  const active=await page.evaluate(()=>document.activeElement?.closest('aside#navigationPanel')!==null);
+  expect(active).toBe(false);
+  await expect(page.locator('#navigationPanel')).toBeHidden();
+  await expect(page.locator('main')).not.toHaveAttribute('inert','');
+  const width=await page.evaluate(()=>({visible:document.documentElement.clientWidth,total:document.documentElement.scrollWidth}));
+  expect(width.total).toBeLessThanOrEqual(width.visible+1);
+});
