@@ -87,7 +87,7 @@ export async function handleSshTerminalRoute(req: IncomingMessage, res: ServerRe
     return true;
   }
   if (!enabled) { deps.send(res, 403, { error: 'Terminal Linux não habilitado na VPS.' }); return true; }
-  if (!deps.execute && !config().valid) {
+  if (!deps.execute && !terminalSshConfig().valid) {
     deps.send(res, 503, { error: 'Falta configurar o acesso SSH da VPS. Confira o manual do Terminal.' }); return true;
   }
   if (path === '/terminal/ssh/exec' && req.method === 'POST') {
