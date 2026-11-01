@@ -379,3 +379,16 @@ Guia de uso: [GUIA-RAPIDO.md](GUIA-RAPIDO.md). Domínios técnicos: [domain-rout
 **Implementado no código, sem publicação na VPS:** o módulo de histórico coleta a cada 5 minutos somente RAM ocupada (por MemAvailable) e percentual de espaço do sistema de arquivos usado pelo volume do Painel, gravando no volume privado /data um JSON limitado a 288 pontos e 24h com gravação atômica e permissões 0600. Quando o arquivo está inválido, o painel mostra indisponível e não o apaga. O endpoint autenticado /overview entrega o histórico sem novos comandos administrativos. O frontend mostra dois gráficos adaptáveis ao celular, com lacunas em interrupções, horários e ausência honesta de dados. O histórico começa após instalar a nova API e depende de ela permanecer em execução; **não cria medições retroativas nem identifica qual aplicação consumiu disco ou RAM**.
 
 **Código proposto:** PR #12, commit `d7e6e56` (correção de deduplicação), testes unitários de retenção, erros, limites e Docker smoke. **CI de código aprovado:** [Console CI #40664693398](https://github.com/Softdown-prog/Painel/actions/runs/40664693398) (TypeScript, testes, JS e build). **Docker real isolado aprovado:** [smoke #40664693362](https://github.com/Softdown-prog/Painel/actions/runs/40664693362). **Frontend publicado:** não. **API instalada / VPS real validada:** não. Antes de instalar a API na VPS, executar preflight e backup verificável de /data; conferir que o novo arquivo aparece no volume, sem leitura de segredos ou alterações em Caddy/DNS/containers da Softload. Confirmar frontend e API separadamente; até a instalação da API, a tela informa “Histórico não confirmado”.
+### 2026-10-31 — Camada Rust compativel com Node (em revisao)
+
+Branch `feat/rust-runtime-resource-routing`, base `467bcad`: API Node preservada,
+binario Rust sem crates externos/unsafe para RAM e selecao de rotas cadastradas,
+transporte stdin limitado, equivalencia verificada, fallback Node e circuito de
+falhas. `/runtime` exige sessao administrativa; limites reais continuam no Docker.
+Dockerfiles da API e app-wake compilam/testam Rust sem levar compilador para VPS.
+**Codigo implementado:** sim, nesta branch. **CI aprovado:** pendente. **Frontend
+publicado:** nao houve alteracao visual. **Backend instalado:** nao. **Roteador
+nativo instalado:** nao; o deploy padrao nao atualiza app-wake. **Producao
+validada:** somente inventario inicial read-only no run `41261846891`; API e
+executor existentes `467bcad` saudaveis. Ver [Node e Rust](NODE-RUST-RUNTIME.md).
+

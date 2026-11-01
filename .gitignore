@@ -5,6 +5,7 @@ dist/
 node_modules/
 __pycache__/
 *.pyc
+server/native-runtime/target/
 
 # Angular workspace independente
 angular/node_modules/

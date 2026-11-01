@@ -43,11 +43,16 @@ test('generic API boots, authenticates and preserves projects without Softload f
     assert.deepEqual((await api.call('/session')).data, {authenticated: false, setupRequired: true, legacySoftload: false, revision: 'a'.repeat(40)});
     assert.equal((await api.call('/publications')).status, 401);
     assert.equal((await api.call('/database/status')).status, 401, 'O status administrativo exige sessão');
+    assert.equal((await api.call('/runtime')).status, 401, 'O runtime administrativo exige sessão');
     const setupToken = readFileSync(join(dir, 'setup-token'), 'utf8').trim();
     assert.equal((await api.call('/setup', 'POST', {setupToken, password})).status, 201);
     const login = await api.call('/login', 'POST', {username: 'admin', password});
     assert.equal(login.status, 200);assert.equal(login.data.legacySoftload, false);
     const cookie = login.headers.get('set-cookie').split(';')[0];
+    const runtime = await api.call('/runtime', 'GET', undefined, cookie);
+    assert.equal(runtime.status, 200);
+    assert.equal(runtime.data.resourceLimitsEnforcedBy, 'docker-cgroups');
+    assert.equal(typeof runtime.data.native.configured, 'boolean');
     assert.deepEqual((await api.call('/services', 'GET', undefined, cookie)).data.services, []);
     const database = await api.call('/database/status', 'GET', undefined, cookie);
     assert.equal(database.status, 200);

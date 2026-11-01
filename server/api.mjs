@@ -19,7 +19,7 @@ import { cachedPublicHealth } from './deploy-public-health.mjs';
 import { readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, existsSync, statfsSync } from 'node:fs';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { totalmem, freemem, loadavg, cpus } from 'node:os';
-import { memorySnapshot } from './host-metrics.ts';
+import { nativeRuntime } from './native-runtime.mjs';
 import { readResourceHistory, startResourceHistoryMonitor } from './resource-history.ts';
 import { join } from 'node:path';
 
@@ -175,6 +175,9 @@ async function handler(req, res) {
     return send(res, 200, { ok: true }, { 'set-cookie': cookie('', 0) });
   }
   if (!session(req)) return send(res, 401, { error: 'Sessão necessária' });
+  if (path === '/runtime' && req.method === 'GET') return send(res, 200,
+    { node: process.versions.node, native: await nativeRuntime.probe(),
+      resourceLimitsEnforcedBy: 'docker-cgroups' });
   if (await handleSshTerminalRoute(req, res, {
     send, body
   })) return;
@@ -256,7 +259,8 @@ async function handler(req, res) {
       const dockerDisk = await dockerJson('/system/df?type=images');
       diskBytes = dockerDisk?.Images?.reduce((sum, image) => sum + (image.Size || 0), 0) || 0;
     } catch { /* Docker disk accounting is optional */ }
-    return send(res, 200, { services: list, containerSummary, memory: memorySnapshot(total, freemem(), meminfo), cpu: { load1: loadavg()[0], cores: cpus().length }, disk, imagesBytes: diskBytes, currentSha: null, updatedAt: new Date().toISOString(), resourceHistory: readResourceHistory(dataDir) });
+    const memory = await nativeRuntime.memory(total, freemem(), meminfo);
+    return send(res, 200, { services: list, containerSummary, memory, nativeRuntime: nativeRuntime.status(), cpu: { load1: loadavg()[0], cores: cpus().length }, disk, imagesBytes: diskBytes, currentSha: null, updatedAt: new Date().toISOString(), resourceHistory: readResourceHistory(dataDir) });
   }
   if (path === '/containers' && req.method === 'GET') {
     // The isolated executor strips labels and metadata before returning the list.
