@@ -28,6 +28,8 @@ const record=(value:unknown):value is Record<string,unknown>=>value!==null&&type
 const slug=(value:unknown):value is string=>typeof value==='string'&&value.length<=48&&SLUG.test(value);
 const topology=(value:unknown):value is InfrastructureTopology=>value==='single-node'||value==='regional';
 const count=(value:unknown):value is number=>typeof value==='number'&&Number.isSafeInteger(value)&&value>=1&&value<=8;
+const revision=(value:unknown):value is string=>
+  typeof value==='string'&&value.length<=40&&Number.isFinite(Date.parse(value));
 const knownFields=(data:Record<string,unknown>,allowed:string[]):boolean=>
   Object.keys(data).every(key=>allowed.includes(key));
 function idOf(projectSlug:string,kind:InfrastructureKind,name:string):string{
@@ -128,20 +130,23 @@ export async function handleInfrastructureRoute(
     const id=match[1] as string;
     if(req.method==='PUT'){
       const input=await deps.body(req);
-      if(!record(input)||!knownFields(input,['projectSlug','replicas','topology','transport'])||
-        !slug(input['projectSlug']))
+      if(!record(input)||!knownFields(input,['projectSlug','replicas','topology','transport','expectedUpdatedAt'])||
+        !slug(input['projectSlug'])||!revision(input['expectedUpdatedAt']))
         throw new RegistryError(400,'Atualização inválida.');
       const updated=await exclusive(()=>{
         const plans=readInfrastructurePlans(deps.dataDir);
         const current=plans.find(p=>p.id===id);
         if(!current)throw new RegistryError(404,'Configuração não encontrada.');
         if(current.projectSlug!==input['projectSlug'])throw new RegistryError(409,'Projeto diferente do proprietário.');
+        if(current.updatedAt!==input['expectedUpdatedAt'])
+          throw new RegistryError(409,'Cadastro modificado por outra sessão. Atualize antes de editar.');
         if(!projectNames(deps.dataDir).includes(current.projectSlug))
           throw new RegistryError(409,'Projeto desvinculado. Refaça o vínculo antes de editar.');
         if(!validConfiguration(input,current.kind))throw new RegistryError(400,'Capacidade ou transporte inválido.');
         const plan:InfrastructurePlan={...current,
           replicas:input['replicas'] as number,topology:input['topology'] as InfrastructureTopology,
-          updatedAt:new Date().toISOString()};
+          // Keep the revision strictly increasing even for writes within one millisecond.
+          updatedAt:new Date(Math.max(Date.now(),Date.parse(current.updatedAt)+1)).toISOString()};
         writePlans(deps.dataDir,plans.map(p=>p.id===id?plan:p));
         return plan;
       });
@@ -150,14 +155,16 @@ export async function handleInfrastructureRoute(
     }
     if(req.method==='DELETE'){
       const input=await deps.body(req);
-      if(!record(input)||!knownFields(input,['projectSlug','confirmId'])||
-         !slug(input['projectSlug'])||input['confirmId']!==id)
+      if(!record(input)||!knownFields(input,['projectSlug','confirmId','expectedUpdatedAt'])||
+         !slug(input['projectSlug'])||!revision(input['expectedUpdatedAt'])||input['confirmId']!==id)
         throw new RegistryError(400,'Digite o identificador completo e informe o projeto proprietário.');
       await exclusive(()=>{
         const plans=readInfrastructurePlans(deps.dataDir);
         const current=plans.find(p=>p.id===id);
         if(!current)throw new RegistryError(404,'Configuração não encontrada.');
         if(current.projectSlug!==input['projectSlug'])throw new RegistryError(409,'Projeto diferente do proprietário.');
+        if(current.updatedAt!==input['expectedUpdatedAt'])
+          throw new RegistryError(409,'Cadastro modificado por outra sessão. Atualize antes de remover.');
         writePlans(deps.dataDir,plans.filter(p=>p.id!==id));
       });
       send(200,{ok:true,message:'Somente o cadastro foi removido. Nenhum container foi tocado.'});

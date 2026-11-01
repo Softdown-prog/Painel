@@ -1,7 +1,7 @@
 import {Component,ElementRef,OnInit,OnDestroy,ViewChild,computed,signal} from '@angular/core';
 import {parseInfraSnapshot,validInfraDraft,type InfraKind,type InfraPlan,type InfraSnapshot,type InfraTopology} from './infrastructure-policy';
 
-type Pending={action:'save'|'delete';id:string;projectSlug:string;fingerprint:string;baseline:string|null};
+type Pending={action:'save'|'delete';id:string;projectSlug:string;fingerprint:string;baseline:string|null;version:string|null};
 @Component({selector:'panel-infrastructure',standalone:true,
  templateUrl:'./infrastructure.component.html',styleUrl:'./infrastructure.component.css'})
 export class InfrastructureComponent implements OnInit,OnDestroy{
@@ -122,7 +122,7 @@ export class InfrastructureComponent implements OnInit,OnDestroy{
      this.nameInput?.nativeElement??null;
    const original=this.editingId()?this.data()?.plans.find(plan=>plan.id===id):null;
    this.pending.set({action:'save',id,projectSlug:this.projectSlug(),
-     fingerprint:this.fingerprint(),baseline:original?JSON.stringify(original):null});
+     fingerprint:this.fingerprint(),baseline:original?JSON.stringify(original):null,version:original?.updatedAt??null});
    this.confirmation.set('');this.error.set('');this.notice.set('');
    this.focusConfirmation();
  }
@@ -131,7 +131,7 @@ export class InfrastructureComponent implements OnInit,OnDestroy{
      p.id===plan.id&&p.projectSlug===plan.projectSlug&&p.kind===plan.kind))return;
    this.cancel();
    this.restoreTarget=event?.currentTarget instanceof HTMLElement?event.currentTarget:null;
-   this.pending.set({action:'delete',id:plan.id,projectSlug:plan.projectSlug,fingerprint:'',baseline:JSON.stringify(plan)});
+   this.pending.set({action:'delete',id:plan.id,projectSlug:plan.projectSlug,fingerprint:'',baseline:JSON.stringify(plan),version:plan.updatedAt});
    this.confirmation.set('');this.error.set('');this.notice.set('');
    this.focusConfirmation();
  }
@@ -152,6 +152,7 @@ export class InfrastructureComponent implements OnInit,OnDestroy{
    if(!pending||!data||this.working()||this.loading()||this.destroyed||
        this.confirmation()!==pending.id)return;
    if(pending.action==='save'&&(!this.valid()||pending.fingerprint!==this.fingerprint()))return;
+   if(pending.action==='delete'&&!pending.version)return;
    if(pending.action==='delete'&&!data.plans.some(p=>
       p.id===pending.id&&p.projectSlug===pending.projectSlug))return;
    const kind=this.kind(),name=this.name(),editingId=this.editingId();
@@ -170,7 +171,7 @@ export class InfrastructureComponent implements OnInit,OnDestroy{
           JSON.stringify(current)!==pending.baseline)
          throw Error('Cadastro alterado em outra sessão. Revise o inventário antes de remover.');
        const result=await this.api<{ok?:unknown}>('/infrastructure/'+encodeURIComponent(pending.id),'DELETE',
-         {projectSlug:pending.projectSlug,confirmId:pending.id});
+         {projectSlug:pending.projectSlug,confirmId:pending.id,expectedUpdatedAt:pending.version});
        if(this.destroyed)return;
        if(result.ok!==true)throw Error('A exclusão do cadastro não foi confirmada.');
        this.notice.set('Cadastro removido. Nenhum serviço da VPS foi alterado.');
@@ -182,7 +183,7 @@ export class InfrastructureComponent implements OnInit,OnDestroy{
          throw Error('Cadastro ou vínculo do projeto alterado em outra sessão. Revise antes de salvar.');
        const path=editingId?'/infrastructure/'+encodeURIComponent(pending.id):'/infrastructure';
        const result=await this.api<{plan?:{id?:unknown}}>(path,editingId?'PUT':'POST',
-         editingId?payload:{...payload,kind,name});
+         editingId?{...payload,expectedUpdatedAt:pending.version}:{...payload,kind,name});
        if(this.destroyed)return;
        if(result.plan?.id!==pending.id)throw Error('A API não confirmou a configuração.');
        this.notice.set('Configuração salva; não há serviço provisionado na VPS.');

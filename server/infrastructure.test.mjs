@@ -24,6 +24,7 @@ function fixture(){
 }
 const mcp={kind:'mcp',projectSlug:'terrania',name:'navigation',replicas:1,topology:'single-node',transport:'streamable-http'};
 const cluster={kind:'cluster',projectSlug:'painel',name:'jobs',replicas:3,topology:'regional',transport:null};
+const version=(f,id)=>readInfrastructurePlans(f.dataDir).find(p=>p.id===id)?.updatedAt;
 test('MCP and cluster plans are persisted and explicitly do not provision resources',async()=>{
  const f=fixture();
  try{
@@ -69,15 +70,19 @@ test('editing and removing a plan verifies project identity and exact confirmati
    await f.request('/infrastructure','POST',mcp);
    await f.request('/infrastructure','POST',cluster);
    const path='/infrastructure/painel.cluster.jobs';
-   assert.equal((await f.request(path,'PUT',{projectSlug:'terrania',replicas:4,topology:'regional',transport:null})).status,409);
-   assert.equal((await f.request(path,'PUT',{projectSlug:'painel',replicas:9,topology:'regional',transport:null})).status,400);
-   assert.equal((await f.request(path,'PUT',{projectSlug:'painel',replicas:2,topology:'single-node',transport:null})).status,200);
+   const expectedUpdatedAt=version(f,'painel.cluster.jobs');
+   assert.equal((await f.request(path,'PUT',{projectSlug:'terrania',replicas:4,topology:'regional',transport:null,expectedUpdatedAt})).status,409);
+   assert.equal((await f.request(path,'PUT',{projectSlug:'painel',replicas:9,topology:'regional',transport:null,expectedUpdatedAt})).status,400);
+   assert.equal((await f.request(path,'PUT',{projectSlug:'painel',replicas:2,topology:'single-node',transport:null,expectedUpdatedAt})).status,200);
    assert.equal(readInfrastructurePlans(f.dataDir).find(p=>p.id==='painel.cluster.jobs').replicas,2);
-   assert.equal((await f.request(path,'DELETE',{projectSlug:'terrania',confirmId:'painel.cluster.jobs'})).status,409);
-   assert.equal((await f.request(path,'DELETE',{projectSlug:'painel',confirmId:'wrong'})).status,400);
-   assert.equal((await f.request(path,'DELETE',{projectSlug:'painel',confirmId:'painel.cluster.jobs'})).status,200);
+   const latest=version(f,'painel.cluster.jobs');
+   assert.notEqual(latest,expectedUpdatedAt);
+   assert.equal((await f.request(path,'DELETE',{projectSlug:'painel',confirmId:'painel.cluster.jobs',expectedUpdatedAt})).status,409);
+   assert.equal((await f.request(path,'DELETE',{projectSlug:'terrania',confirmId:'painel.cluster.jobs',expectedUpdatedAt:latest})).status,409);
+   assert.equal((await f.request(path,'DELETE',{projectSlug:'painel',confirmId:'wrong',expectedUpdatedAt:latest})).status,400);
+   assert.equal((await f.request(path,'DELETE',{projectSlug:'painel',confirmId:'painel.cluster.jobs',expectedUpdatedAt:latest})).status,200);
    assert.deepEqual(readInfrastructurePlans(f.dataDir).map(p=>p.id),['terrania.mcp.navigation']);
-   assert.equal((await f.request(path,'DELETE',{projectSlug:'painel',confirmId:'painel.cluster.jobs'})).status,404);
+   assert.equal((await f.request(path,'DELETE',{projectSlug:'painel',confirmId:'painel.cluster.jobs',expectedUpdatedAt:latest})).status,404);
  }finally{f.close();}
 });
 test('concurrent creation is serialized and cannot overwrite a plan',async()=>{
@@ -93,13 +98,14 @@ test('orphan plans remain visible and removable but not editable',async()=>{
  const f=fixture();
  try{
    await f.request('/infrastructure','POST',mcp);
+   const expectedUpdatedAt=version(f,'terrania.mcp.navigation');
    writeFileSync(join(f.dataDir,'projects.json'),'[]');
    const result=(await f.request('/infrastructure')).data;
    assert.equal(result.plans[0].projectLinked,false);
    assert.equal((await f.request('/infrastructure/terrania.mcp.navigation','PUT',
-     {projectSlug:'terrania',replicas:1,topology:'single-node',transport:'streamable-http'})).status,409);
+     {projectSlug:'terrania',replicas:1,topology:'single-node',transport:'streamable-http',expectedUpdatedAt})).status,409);
    assert.equal((await f.request('/infrastructure/terrania.mcp.navigation','DELETE',
-     {projectSlug:'terrania',confirmId:'terrania.mcp.navigation'})).status,200);
+     {projectSlug:'terrania',confirmId:'terrania.mcp.navigation',expectedUpdatedAt})).status,200);
  }finally{f.close();}
 });
 test('corrupted registry does not get silently overwritten by a new request',async()=>{
@@ -110,5 +116,39 @@ test('corrupted registry does not get silently overwritten by a new request',asy
    assert.equal((await f.request('/infrastructure')).status,502);
    assert.equal((await f.request('/infrastructure','POST',mcp)).status,502);
    assert.equal(readFileSync(file,'utf8'),'{"plans":[]}');
+ }finally{f.close();}
+});
+\ntest('stale and missing revision preconditions reject edits and removals before changing registry',async()=>{
+ const f=fixture();
+ try{
+   await f.request('/infrastructure','POST',mcp);
+   await f.request('/infrastructure','POST',cluster);
+   const id='painel.cluster.jobs',path='/infrastructure/'+id;
+   const initial=version(f,id);
+   assert.equal((await f.request(path,'PUT',{projectSlug:'painel',replicas:2,topology:'regional',transport:null})).status,400);
+   assert.equal((await f.request(path,'DELETE',{projectSlug:'painel',confirmId:id})).status,400);
+   assert.equal((await f.request(path,'DELETE',{projectSlug:'painel',confirmId:id,expectedUpdatedAt:'not-a-date'})).status,400);
+   assert.equal((await f.request(path,'PUT',{projectSlug:'painel',replicas:2,topology:'regional',transport:null,expectedUpdatedAt:'2001-01-01T00:00:00Z'})).status,409);
+   assert.equal(version(f,id),initial);
+   assert.equal((await f.request(path,'PUT',{projectSlug:'painel',replicas:2,topology:'regional',transport:null,expectedUpdatedAt:initial})).status,200);
+   const latest=version(f,id);
+   assert.notEqual(latest,initial);
+   assert.equal((await f.request(path,'DELETE',{projectSlug:'painel',confirmId:id,expectedUpdatedAt:initial})).status,409);
+   assert.equal((await f.request(path,'DELETE',{projectSlug:'painel',confirmId:id,expectedUpdatedAt:latest})).status,200);
+   assert.deepEqual(readInfrastructurePlans(f.dataDir).map(p=>p.id),['terrania.mcp.navigation']);
+ }finally{f.close();}
+});
+test('parallel edits using the same revision allow exactly one writer',async()=>{
+ const f=fixture();
+ try{
+   await f.request('/infrastructure','POST',cluster);
+   const id='painel.cluster.jobs',path='/infrastructure/'+id,expectedUpdatedAt=version(f,id);
+   const attempts=await Promise.all(Array.from({length:7},(_,i)=>f.request(path,'PUT',{
+     projectSlug:'painel',replicas:i+1,topology:'regional',transport:null,expectedUpdatedAt
+   })));
+   assert.equal(attempts.filter(x=>x.status===200).length,1);
+   assert.equal(attempts.filter(x=>x.status===409).length,6);
+   assert.notEqual(version(f,id),expectedUpdatedAt);
+   assert.equal(readInfrastructurePlans(f.dataDir).length,1);
  }finally{f.close();}
 });
