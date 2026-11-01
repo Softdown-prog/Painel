@@ -8,7 +8,7 @@ const makeJob=(state='running',output='')=>({
  durationMs:10000,error:null,fingerprint:'a'.repeat(16)
 });
 
-async function fixture(page,{onCurrent,onCancel}={}){
+async function fixture(page,{onCurrent,onCancel,initialOutput=''}={}){
  const requests=[];
  let started=false;
  await page.route('**/api/**',async route=>{
@@ -25,7 +25,7 @@ async function fixture(page,{onCurrent,onCancel}={}){
    body=started?(await onCurrent?.())??{job:null}:{job:null};
   }else if(path==='/terminal/ssh/jobs'&&method==='POST'){
    started=true;
-   body={job:makeJob('running','')};
+   body={job:makeJob('running',initialOutput)};
    status=202;
   }else if(path==='/terminal/ssh/jobs/'+id+'/cancel'&&method==='POST'){
    body=onCancel?await onCancel():{job:makeJob('cancelled','interrompida')};
@@ -105,4 +105,57 @@ test('Terminal recupera atualização confirmada depois de consulta incerta',asy
  await expect(page.getByRole('button',{name:'Preparar execução'})).toBeDisabled(); // Empty command after success.
  await page.locator('#sshCommand').fill('uptime');
  await expect(page.getByRole('button',{name:'Preparar execução'})).toBeEnabled();
+});
+
+test('Botão copiar no final da saída parcial e concluída transfere texto exato para a área de transferência',async({page,context})=>{
+ await context.grantPermissions(['clipboard-read','clipboard-write']);
+ const partial='linha um\n{ "status": "ok" }\n<texto puro>\n';
+ const final=partial+'final: sucesso\n';
+ let completed=false;
+ await fixture(page,{
+  initialOutput:partial,
+  onCurrent:async()=>({job:makeJob(completed?'completed':'running',completed?final:partial)})
+ });
+ await startJob(page);
+ const running=page.getByRole('region',{name:'Saída parcial do terminal'});
+ await expect(running.locator('pre')).toHaveText(partial);
+ const copyPartial=running.getByRole('button',{name:'Copiar saída'});
+ await expect(copyPartial).toBeVisible();
+ await copyPartial.click();
+ await expect(running.getByRole('button',{name:/Copiado/})).toBeVisible();
+ expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe(partial);
+
+ completed=true;
+ await page.getByRole('button',{name:'Atualizar saída'}).click();
+ const result=page.getByRole('region',{name:'Resultado do terminal'});
+ await expect(result.locator('pre')).toHaveText(final);
+ await expect(running).toHaveCount(0);
+ const copyFinal=result.getByRole('button',{name:'Copiar saída'});
+ await expect(copyFinal).toBeVisible(); // feedback reiniciado após nova saída
+ await copyFinal.click();
+ await expect(result.getByRole('button',{name:/Copiado/})).toBeVisible();
+ expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe(final);
+});
+
+test('Falha na permissão de clipboard exibe erro sem anunciar cópia concluída',async({page})=>{
+ await page.addInitScript(()=>{
+  Object.defineProperty(navigator,'clipboard',{
+   configurable:true,value:{writeText:async()=>{throw new Error('Permissão bloqueada');}}
+  });
+ });
+ await fixture(page,{initialOutput:'saída administrativa'});
+ await startJob(page);
+ const running=page.getByRole('region',{name:'Saída parcial do terminal'});
+ await running.getByRole('button',{name:'Copiar saída'}).click();
+ await expect(running.getByRole('alert')).toContainText('Não foi possível copiar');
+ await expect(running.getByRole('button',{name:'Copiar saída'})).toBeVisible();
+ await expect(running.getByRole('button',{name:/Copiado/})).toHaveCount(0);
+});
+
+test('Não oferece cópia de texto fictício enquanto saída está vazia',async({page})=>{
+ await fixture(page);
+ await startJob(page);
+ const running=page.getByRole('region',{name:'Saída parcial do terminal'});
+ await expect(running.locator('pre')).toContainText('aguardando saída');
+ await expect(running.getByRole('button',{name:'Copiar saída'})).toBeDisabled();
 });

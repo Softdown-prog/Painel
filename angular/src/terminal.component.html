@@ -60,7 +60,16 @@
   }
   @if(job()?.state==='running'){<section class="result" aria-label="Saída parcial do terminal"><strong>Saída em tempo real</strong>
     @if(job()?.truncated){<p class="warning">Exibição limitada a 64 mil caracteres; a tarefa continua.</p>}
-    <pre tabindex="0">{{output()||'(aguardando saída)'}}</pre></section>}
+    <pre tabindex="0">{{output()||'(aguardando saída)'}}</pre>
+    <div class="copy-output-row">
+      <button type="button" class="copy-output" (click)="copyOutput()" [disabled]="!output()">
+        {{copyFeedback()==='copied' ? '✓ Copiado' : 'Copiar saída'}}
+      </button>
+      @if(copyFeedback()==='failed'){
+        <span class="copy-feedback error" role="alert">Não foi possível copiar. Verifique a permissão da área de transferência.</span>
+      }
+    </div>
+  </section>}
   @if(result();as r){
     <section class="result" aria-label="Resultado do terminal">
       <div class="result-bar"><strong [class.failed]="r.exitCode!==0">Saída · código {{r.exitCode}}</strong>
@@ -68,6 +77,14 @@
       @if(r.timedOut){<p class="error">Tempo limite atingido; a execução foi interrompida.</p>}
       @if(r.truncated){<p class="warning">Saída limitada pelo servidor. Alguns dados foram omitidos.</p>}
       <pre tabindex="0">{{output()||'(nenhuma saída)'}}</pre>
+    <div class="copy-output-row">
+      <button type="button" class="copy-output" (click)="copyOutput()" [disabled]="!output()">
+        {{copyFeedback()==='copied' ? '✓ Copiado' : 'Copiar saída'}}
+      </button>
+      @if(copyFeedback()==='failed'){
+        <span class="copy-feedback error" role="alert">Não foi possível copiar. Verifique a permissão da área de transferência.</span>
+      }
+    </div>
     </section>
   }
 </section>
