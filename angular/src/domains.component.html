@@ -52,9 +52,9 @@
             }
           </div>
           <div class="domain-actions">
-            <button type="button" (click)="prepareRoute('publish',route)" [disabled]="!d.publicationEnabled||working()||loading()">
+            <button type="button" (click)="prepareRoute('publish',route,$event)" [disabled]="!d.publicationEnabled||working()||loading()">
               {{publication(route).state==='published'?'Verificar publicação':'Publicar DNS e HTTPS'}}</button>
-            <button type="button" class="domain-danger" (click)="prepareRoute('remove',route)" [disabled]="!d.enabled||working()||loading()">Despublicar e remover</button>
+            <button type="button" class="domain-danger" (click)="prepareRoute('remove',route,$event)" [disabled]="!d.enabled||working()||loading()">Despublicar e remover</button>
           </div>
         </article>
       }@empty{<p>Nenhuma reserva cadastrada.</p>}
@@ -66,19 +66,19 @@
       @if(showCaddy()){<pre tabindex="0">{{caddy()||'(sem rotas cadastradas)'}}</pre>}
     </section>
     @if(pending();as action){
-      <div class="domain-confirm" role="group" aria-label="Confirmar operação de domínio">
+      <div class="domain-confirm" role="group" aria-label="Confirmar operação de domínio" aria-describedby="domain-operation-warning">
         <strong>{{action.operation==='reserve'?'Reservar '+action.host:action.operation==='publish'?'Publicar '+action.host:'Despublicar e remover '+action.host}}</strong>
-        <p>
+        <p id="domain-operation-warning">
           @if(action.operation==='reserve'){O endereço será reservado. Isso <strong>não</strong> configura DNS nem publica o site.}
           @else if(action.operation==='publish'){Esta operação configura DNS/gateway e solicita HTTPS. O resultado público poderá levar algum tempo para ficar disponível.}
           @else {O endereço deixará de responder após a remoção de DNS/gateway. A aplicação e seus arquivos permanecem intactos.}
         </p>
         <label>Digite o nome da aplicação <strong>{{action.slug}}</strong> para confirmar
-          <input [value]="confirmation()" (input)="confirmation.set($any($event.target).value)"
+          <input #domainConfirmInput [value]="confirmation()" (input)="confirmation.set($any($event.target).value)"
             autocapitalize="off" autocomplete="off" spellcheck="false" [disabled]="working()"/>
         </label>
         <div class="domain-confirm-actions">
-          <button type="button" (click)="cancel()" [disabled]="working()">Cancelar</button>
+          <button type="button" (click)="cancel(true)" [disabled]="working()">Cancelar</button>
           <button type="button" [class.domain-danger]="action.operation==='remove'"
             (click)="confirm()" [disabled]="working()||confirmation()!==action.slug">
             {{working()?'Processando…':'Confirmar operação'}}</button>
