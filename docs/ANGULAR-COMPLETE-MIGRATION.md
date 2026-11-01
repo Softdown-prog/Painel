@@ -137,6 +137,14 @@
 - Consultas atrasadas não restauram o inventário após `OnDestroy`. Uma gravação já enviada não é cancelada pelo fechamento da tela; o servidor continua sendo a fonte de verdade, e a próxima abertura deve consultar o inventário.
 - Testes de confirmação, revisão do formulário, cadastro/substituição/exclusão e limpeza após destruição em `server/angular-secrets-settings.test.mjs`. Ainda pendente validação em navegador real e celular, sem API/produção alteradas.
 
+## Incremento Angular — histórico global de publicações persistentes (31/10/2026)
+
+- A central **GitHub Actions e VPS** em `angular/src/deployments.component.{ts,html,css}` agora exibe uma lista independente das últimas 12 tarefas persistidas retornadas por `GET /publications`. Isso permite encontrar publicações do backend mesmo quando `GET /repositories/:repo/runs-all` falha, não retorna o build ou o repositório não está associado na tela. O cadastro de repositórios ainda é necessário para o restante da central.
+- Os registros trazem slug, repositório, número do build, etapa do worker, detalhe textual e revisão informada. Classificações: `queued/importing/staging/health/promoting` são **em andamento**; `attention/failed` **exigem atenção**; `completed` **confirma apenas o término do worker**, nunca a instalação/saúde ou acesso público. Uma revisão na VPS só fica verde depois da verificação independente do container em execução com o SHA correspondente.
+- Os jobs são validados antes de exibição: ID, aplicação, repositório, runId, fase, revisão opcional e datas. Estados desconhecidos ou registros malformados são descartados e sinalizados; falha de `GET /publications` é apresentada como **histórico não confirmado**, nunca lista vazia legítima. Um refresh que falha não deixa trabalhos antigos aparentando status atual.
+- O painel permanece **somente leitura** e usa atualização periódica de 30s do monitoramento existente; não acrescenta POST, shell, deploy, nem execução na VPS. Testes em `angular/e2e/deployments-history.spec.mjs` exercitam histórico vazio, tarefas de múltiplos projetos sem run GitHub, erro parcial de GitHub, fase desconhecida, API indisponível, atualização que falha e largura 320px com todas as chamadas interceptadas.
+- **Pendente:** homologação autenticada da API com dados reais, comparação de links legados, revisão de acessibilidade e verificação visual em Android físico. Sem PR, merge ou deploy nesta etapa.
+
 ## Incremento Angular — publicação persistente de revisão aprovada (31/10/2026)
 
 - A paridade de **Projetos GitHub → Publicar revisão** agora oferece um terceiro fluxo, além de importar GHCR e preparar a candidata manualmente: a publicação persistente solicitada ao `POST /projects/:slug/publication`. O worker da API (não o navegador) controla importação, preparação, HEALTHCHECK, promoção e registro do estado.
