@@ -1,0 +1,43 @@
+name: Temporary Angular minimatch lockfile regeneration
+on:
+  pull_request:
+    paths:
+      - 'angular/package.json'
+      - 'angular/package-lock.json'
+      - '.github/workflows/minimatch-lock-repro.yml'
+jobs:
+  reproduce-lock:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Re-resolve lockfile in ephemeral runner
+        run: npm --prefix angular install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Emit precise lockfile delta for reviewed commit
+        run: |
+          git show HEAD:angular/package-lock.json > /tmp/angular-old-lock.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const a=JSON.parse(fs.readFileSync('/tmp/angular-old-lock.json','utf8'));
+          const b=JSON.parse(fs.readFileSync('angular/package-lock.json','utf8'));
+          const updates={};const removed=[];
+          for(const [key,value] of Object.entries(b.packages??{})){
+            if(JSON.stringify(a.packages?.[key])!==JSON.stringify(value))updates[key]=value;
+          }
+          for(const key of Object.keys(a.packages??{})){
+            if(!(key in b.packages))removed.push(key);
+          }
+          console.log('LOCK_DIFF_START');
+          console.log(JSON.stringify({updates,removed,rootChanges:Object.fromEntries(Object.entries(b).filter(([k])=>k!=='packages'&&JSON.stringify(a[k])!==JSON.stringify(b[k])))}));
+          console.log('LOCK_DIFF_END');
+          console.log('Resolved minimatch packages:',Object.entries(b.packages).filter(([k])=>k.endsWith('node_modules/minimatch')).map(([k,v])=>k+':'+v.version).join(', '));
+          NODE
+      - name: Install pinned dependencies and smoke-test ESLint API
+        run: |
+          npm --prefix angular ci --no-audit --no-fund
+          npm --prefix angular run lint
+          npm --prefix angular run build
