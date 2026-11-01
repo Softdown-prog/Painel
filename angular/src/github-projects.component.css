@@ -9,3 +9,7 @@
 .managed-link small{margin-top:5px}
 .managed-link a{min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding:9px 12px;border:1px solid #645b91;border-radius:9px;color:#d3bfff;text-decoration:underline;white-space:nowrap}
 @media(max-width:480px){.managed-link{flex-direction:column;align-items:stretch}.managed-link a{width:100%}.links-refresh{width:100%}}
+
+.managed-link-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.managed-link-actions button{display:inline-flex;min-height:44px;align-items:center;border:1px solid #645b91;background:#302a49;border-radius:9px;color:#efe5ff;padding:9px 12px;font-size:12px}
+@media(max-width:620px){.managed-link{flex-direction:column;align-items:stretch}.managed-link-actions{flex-direction:column;align-items:stretch}.managed-link-actions button,.managed-link-actions a{width:100%}}
