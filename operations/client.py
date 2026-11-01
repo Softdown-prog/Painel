@@ -31,7 +31,11 @@ def main():
         if not isinstance(args, dict):
             raise ValueError('MCP request must be a JSON object')
     elif operation == 'sac_worker':
-        args = {'action': os.environ.get('VPS_SAC_ACTION', '')}
+        action = os.environ.get('VPS_SAC_ACTION', '')
+        if action == 'job':
+            args = {'action': action, 'job_id': os.environ.get('VPS_SAC_JOB_ID', '').strip()}
+        else:
+            args = {'action': action}
     elif operation == 'sac_submit':
         raw = os.environ.get('VPS_SAC_ARGS', '')
         if raw:
