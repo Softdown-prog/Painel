@@ -37,6 +37,16 @@
 
 **Situação atual:** MIGRAÇÃO EM ANDAMENTO. Não há liberação de produção desta branch.
 
+## Consolidação de branches e última validação (01/11/2026)
+
+- **Branch única de desenvolvimento:** `feat/angular-complete-migration`. A linha `ops/rust-gateway-7202ad1` foi incorporada pelo merge commit [`2cdba8b8`](https://github.com/Softdown-prog/Painel/commit/2cdba8b80e43cf34df82bd36559d63c977b628c6), PR #65; PR #63 foi fechado sem merge na `main`. Preservados frontend Angular, terminal SSH, índices MCP, runtime Node/Rust, testes e relatórios.
+- **Última revisão de código validada:** [`02e7758d`](https://github.com/Softdown-prog/Painel/commit/02e7758d32ff77864ed04658ae7ea9981daf3200).
+- **Console CI** [41267833847](https://github.com/Softdown-prog/Painel/actions/runs/41267833847): **aprovado** (90/90 Playwright com API interceptada, 270 testes da suíte Node aprovados e 1 ignorado, mais 6/6 testes adicionais; typecheck, lint, builds, smoke Docker, testes Python e verificação de isolamento também concluídos com sucesso).
+- **Rust runtime e Node contracts** [41267833740](https://github.com/Softdown-prog/Painel/actions/runs/41267833740): **aprovado**, incluindo Rustfmt, Clippy, Rust offline, integração Node/Rust e gateway Docker restrito. **Índice MCP** [41267833784](https://github.com/Softdown-prog/Painel/actions/runs/41267833784): **aprovado**.
+- Os últimos ajustes de foco após mudanças de sinais Angular e a asserção do fluxo assíncrono de terminal SSH estão incluídos nesses testes aprovados. Não reduzir cobertura, não suprimir falhas e não declarar deploy com base em sucesso no CI.
+- **Pendências impeditivas da liberação:** paridade funcional final com interface clássica; homologação autenticada de API/VPS em ambiente autorizado; testes Android físico/TalkBack/NVDA; inspeção completa de segredos, autenticação, CSRF, XSS e reversão; instalação/ativação separada do supervisor de terminal persistente **somente se autorizada**; validação de instalação real e SHA. O modo clássico continua disponível.
+- **Nenhum deploy, PR para `main` ou merge em produção autorizado por esta validação.** A branch principal permanece separada. Futuros chats devem continuar nesta mesma branch até o checklist de saída estar fechado.
+
 ## Tipagem rigorosa no desenvolvimento (31/10/2026)
 
 - `tsconfig.json` (Node/API e código TS legado) e `angular/tsconfig.json` agora habilitam `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride` e `noFallthroughCasesInSwitch`.
