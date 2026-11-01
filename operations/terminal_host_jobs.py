@@ -74,8 +74,12 @@ def read_meta(job_id):
     if not path.is_file() or path.is_symlink():
         return None
     data=json.loads(path.read_text())
-    if data.get('id') != job_id:
+    if not isinstance(data,dict) or data.get('id')!=job_id:
         raise ValueError('Job identity mismatch')
+    if data.get('state') not in ('running','completed','failed','cancelled','timed_out'):
+        raise ValueError('Invalid persisted job state')
+    if not isinstance(data.get('startedAt'),str) or not FP.fullmatch(str(data.get('fingerprint',''))):
+        raise ValueError('Invalid persisted job metadata')
     return data
 
 def save(data):
@@ -133,8 +137,14 @@ def reconcile(data):
         (ROOT/('script-'+data['id']+'.sh')).unlink(missing_ok=True)
     return data
 
-def prune():
+def prune(strict=False):
+    """Prune finished jobs and expired orphaned private files.
+
+    In start mode, fail closed if metadata cannot be read: an unknown active
+    unit must never be mistaken for an available execution slot.
+    """
     entries=[]
+    now=time.time()
     for path in ROOT.glob('job-*.json'):
         match=re.fullmatch(r'job-([0-9a-f]{32})\.json',path.name)
         if not match or path.is_symlink():
@@ -143,7 +153,9 @@ def prune():
             data=read_meta(match.group(1))
             data=reconcile(data)
             entries.append(data)
-        except (OSError,ValueError,KeyError,json.JSONDecodeError):
+        except (OSError,ValueError,KeyError,TypeError,json.JSONDecodeError):
+            if strict:
+                raise ValueError('Private job metadata is invalid; manual inspection required')
             continue
     entries.sort(key=lambda d:d['startedAt'],reverse=True)
     for i, entry in enumerate(entries):
@@ -157,6 +169,21 @@ def prune():
             for name in ('job-'+entry['id']+'.json','output-'+entry['id']+'.txt',
                          'script-'+entry['id']+'.sh'):
                 (ROOT/name).unlink(missing_ok=True)
+    # Clean up only files lacking metadata, after the maximum runtime plus
+    # retention and a safety margin. Do not remove symlinks or unknown files.
+    # Corrupt metadata is intentionally retained for administrator inspection.
+    for kind,extension in (('script','sh'),('output','txt')):
+        for path in ROOT.glob(kind+'-*.'+extension):
+            match=re.fullmatch(kind+r'-([0-9a-f]{32})\.'+extension,path.name)
+            if not match or path.is_symlink() or not path.is_file():
+                continue
+            if meta_path(match.group(1)).exists():
+                continue
+            try:
+                if now - path.stat().st_mtime > MAX_RUNTIME + MAX_AGE + 300:
+                    path.unlink()
+            except OSError:
+                pass
     return [entry for entry in entries if meta_path(entry['id']).exists()]
 
 def public(data):
@@ -178,7 +205,7 @@ def start(job_id, fingerprint):
     if not FP.fullmatch(fingerprint):
         raise ValueError('Invalid command fingerprint')
     # Shared across API replicas and restarts; do not accept two simultaneous jobs.
-    existing=prune()
+    existing=prune(strict=True)
     if any(entry['state']=='running' for entry in existing):
         return {'busy':True}
     if read_meta(job_id):

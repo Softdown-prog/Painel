@@ -95,7 +95,7 @@ print(host.public(host.prune()[0])['state'])
                    'finishedAt':None,'exitCode':None,'error':None,
                    'truncated':False,'cancelRequested':False})
         (self.root/('script-'+ID+'.sh')).write_bytes(b'old secret')
-        with patch.object(host,'systemd_state',return_value=('unknown','unknown')):
+        with patch.object(host,'systemd_state',return_value=('not-found','unknown')):
             entry=host.prune()[0]
         self.assertEqual(entry['state'],'failed')
         self.assertIsNone(entry['exitCode'])
@@ -131,7 +131,7 @@ print(host.public(host.prune()[0])['state'])
         with patch.object(host.subprocess,'run',return_value=MagicMock(returncode=1,stdout='')):
             self.assertEqual(host.systemd_state(ID),('unavailable','unknown'))
         with patch.object(host.subprocess,'run',return_value=MagicMock(
-            returncode=0,stdout='LoadState=not-found\\nActiveState=inactive\\nResult=success\\n')):
+            returncode=0,stdout='LoadState=not-found\nActiveState=inactive\nResult=success\n')):
             self.assertEqual(host.systemd_state(ID),('not-found','unknown'))
 
     def test_run_writes_output_and_erases_stored_command(self):
@@ -185,6 +185,45 @@ print(host.public(host.prune()[0])['state'])
         self.assertEqual(host.read_meta(ID)['state'],'completed')
         self.assertTrue(host.read_meta(ID)['truncated'])
         self.assertEqual(len((self.root/('output-'+ID+'.txt')).read_bytes()),host.MAX_OUTPUT)
+    def test_abandoned_private_script_and_output_are_pruned_without_metadata(self):
+        import time
+        for kind,ext in [('script','sh'),('output','txt')]:
+            file=self.root/(kind+'-'+ID+'.'+ext)
+            file.write_bytes(b'sensitive-data')
+            age=time.time()-(host.MAX_RUNTIME+host.MAX_AGE+360)
+            os.utime(file,(age,age))
+        host.prune()
+        self.assertEqual(list(self.root.glob('script-*')),[])
+        self.assertEqual(list(self.root.glob('output-*')),[])
+
+    def test_recent_orphan_and_unknown_file_names_are_preserved(self):
+        recent=self.root/('script-'+ID+'.sh')
+        recent.write_bytes(b'still recent')
+        foreign=self.root/('script-'+ID+'.other')
+        foreign.write_bytes(b'other project')
+        host.prune()
+        self.assertTrue(recent.exists())
+        self.assertTrue(foreign.exists())
+
+    def test_invalid_structured_metadata_blocks_second_command(self):
+        for value in ['[]', '{"id":"'+ID+'","state":"unknown","startedAt":"2026-01-01","fingerprint":"'+('a'*16)+'"}']:
+            with self.subTest(value=value):
+                path=self.root/('job-'+ID+'.json')
+                path.write_text(value)
+                with self.assertRaisesRegex(ValueError,'metadata is invalid'):
+                    host.start('b'*32,'c'*16)
+                path.unlink()
+
+    def test_invalid_private_metadata_blocks_second_command_until_inspected(self):
+        import time
+        malformed=self.root/('job-'+ID+'.json')
+        malformed.write_text('not-json')
+        with self.assertRaisesRegex(ValueError,'metadata is invalid'):
+            host.start('b'*32,'c'*16)
+        # Ordinary read/maintenance does not delete unknown metadata.
+        host.prune()
+        self.assertTrue(malformed.exists())
+
     def test_retention_removes_old_sensitive_artifacts(self):
         from datetime import datetime,timedelta,timezone
         old=(datetime.now(timezone.utc)-timedelta(hours=2)).isoformat()
