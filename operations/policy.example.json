@@ -24,7 +24,8 @@
         "inventory",
         "maintain",
         "code_mcp",
-        "mcp_query"
+        "mcp_query",
+        "sac_worker"
       ]
     },
     "1438758092": {
@@ -162,5 +163,13 @@
     ],
     "endpoint": "127.0.0.1:8789",
     "output": "metadata-only"
+  },
+  "sac_worker": {
+    "enabled": true,
+    "actor_ids": [
+      "189416996"
+    ],
+    "state_dir": "/var/lib/data-library-worker/state",
+    "output": "summary-only"
   }
 }

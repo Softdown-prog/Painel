@@ -4,8 +4,13 @@ on:
     inputs:
       operation:
         type: choice
-        options: [inventory, verify, mcp_query]
+        options: [inventory, verify, mcp_query, sac_worker]
         default: inventory
+      sac_action:
+        type: choice
+        options: [status, report]
+        default: status
+        description: 'Consulta somente leitura ao checkpoint/resumo do One Worker'
       project:
         type: choice
         options: [infrastructure, panel, panel-web, terrania]
@@ -29,7 +34,7 @@ jobs:
   command:
     # Issue bridge lets the connected GitHub tool request ONLY a read-only inventory.
     # Creating an arbitrary issue/PR never grants a shell or deployment permission.
-    if: github.repository == 'Softdown-prog/Painel' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.issue.user.id == 189416996 && (github.event.issue.title == '[VPS] inventory' || github.event.issue.title == '[VPS] mcp-query')))
+    if: github.repository == 'Softdown-prog/Painel' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.issue.user.id == 189416996 && (github.event.issue.title == '[VPS] inventory' || github.event.issue.title == '[VPS] mcp-query' || github.event.issue.title == '[VPS] sac-status' || github.event.issue.title == '[VPS] sac-report')))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -40,7 +45,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Execute on the VPS (no dependency on Pages)
         env:
-          VPS_OPERATION: ${{ github.event_name == 'issues' && github.event.issue.title == '[VPS] mcp-query' && 'mcp_query' || inputs.operation || 'inventory' }}
+          VPS_OPERATION: ${{ github.event_name == 'issues' && (github.event.issue.title == '[VPS] sac-status' || github.event.issue.title == '[VPS] sac-report') && 'sac_worker' || github.event_name == 'issues' && github.event.issue.title == '[VPS] mcp-query' && 'mcp_query' || inputs.operation || 'inventory' }}
+          VPS_SAC_ACTION: ${{ github.event_name == 'issues' && github.event.issue.title == '[VPS] sac-report' && 'report' || github.event_name == 'issues' && github.event.issue.title == '[VPS] sac-status' && 'status' || inputs.sac_action || '' }}
           VPS_MCP_ARGS: ${{ github.event_name == 'issues' && github.event.issue.body || inputs.mcp_request || '' }}
           VPS_PROJECT: ${{ inputs.project || 'infrastructure' }}
           VPS_SHA: ${{ inputs.sha }}

@@ -1,0 +1,121 @@
+"""SAC-008: private read-only worker checkpoint queries via authenticated GitHub Actions.
+
+This module never executes shell, docker, compilers, code or remote commands.
+Only the root-owned broker reads the dedicated worker's pre-existing metadata.
+"""
+from __future__ import annotations
+import json
+from pathlib import Path
+import re
+
+RUN_ID = re.compile(r"[0-9]{1,15}-[0-9a-f]{16}\Z")
+SIGNATURE = re.compile(r"[0-9a-f]{64}\Z")
+SHA = re.compile(r"[0-9a-f]{40}\Z")
+MAX_INPUT_BYTES = 32768
+WORKER_STATE_ROOT = Path("/var/lib/data-library-worker/state")
+
+
+def validate_args(policy, args):
+    settings = policy.get("sac_worker") or {}
+    if not settings.get("enabled") or settings.get("output") != "summary-only":
+        raise PermissionError("SAC query disabled")
+    if not isinstance(args, dict) or set(args) != {"action"}:
+        raise ValueError("Only fixed SAC query action accepted")
+    if args["action"] not in ("status", "report"):
+        raise ValueError("Unsupported SAC query action")
+    # Installed policy is root-owned; refuse arbitrary paths even if it was misconfigured.
+    if settings.get("state_dir") != str(WORKER_STATE_ROOT):
+        raise ValueError("SAC query state path differs from dedicated worker")
+    return args["action"]
+
+
+def read_json(path):
+    if path.is_symlink() or not path.is_file():
+        return None
+    with path.open("rb") as handle:
+        raw = handle.read(MAX_INPUT_BYTES + 1)
+    if len(raw) > MAX_INPUT_BYTES:
+        raise ValueError("Worker metadata too large")
+    value = json.loads(raw)
+    if type(value) is not dict:
+        raise ValueError("Invalid worker metadata")
+    return value
+
+
+def _count(value):
+    return value if type(value) is int and 0 <= value <= 1000000 else None
+
+
+def _checkpoint(state):
+    raw = read_json(state / "checkpoint.json")
+    if raw is None:
+        return None
+    if (raw.get("schema_version") != 1
+            or not isinstance(raw.get("run_id"), str)
+            or not RUN_ID.fullmatch(raw["run_id"])
+            or not isinstance(raw.get("signature"), str)
+            or not SIGNATURE.fullmatch(raw["signature"])
+            or not isinstance(raw.get("revision"), str)
+            or not SHA.fullmatch(raw["revision"])):
+        raise ValueError("Invalid worker checkpoint")
+    finished = raw.get("finished_at")
+    if finished is not None and (type(finished) not in (int, float) or not 0 <= finished <= 99999999999):
+        raise ValueError("Invalid worker finish timestamp")
+    return raw
+
+
+def _counts(raw):
+    if type(raw) is not dict or not {"pass", "fail", "compile-only"}.issubset(raw):
+        return None
+    values = {k: _count(raw.get(k)) for k in ("pass", "fail", "compile-only")}
+    return values if all(v is not None for v in values.values()) else None
+
+
+def query_sac_worker(policy, args, *, state_dir=None):
+    action = validate_args(policy, args)
+    state = WORKER_STATE_ROOT if state_dir is None else Path(state_dir)
+    if state.is_symlink():
+        raise ValueError("Symlink worker state forbidden")
+    checkpoint = _checkpoint(state)
+    if checkpoint is None:
+        return {"sacWorker": {"available": False, "action": action, "code": "checkpoint-not-found",
+                              "readOnly": True}}
+    run_id = checkpoint["run_id"]
+    current = {
+        "available": True, "action": action, "readOnly": True,
+        "runId": run_id, "sourceSha": checkpoint["revision"],
+        "checkpointRecorded": True,
+        # A checkpoint is not a health check: do not infer systemd is online.
+        "serviceRunning": "unknown",
+        "cycleFinished": checkpoint.get("finished_at") is not None,
+    }
+    if action == "status":
+        if checkpoint.get("finished_at") is not None:
+            counts = _counts(checkpoint.get("counts"))
+            if counts is not None:
+                current["counts"] = counts
+        return {"sacWorker": current}
+    if checkpoint.get("finished_at") is None:
+        current["code"] = "cycle-not-finished"
+        return {"sacWorker": current}
+    # No caller path, run id or source text can choose a report location.
+    runs = state / "runs"
+    if runs.is_symlink() or (runs / run_id).is_symlink():
+        raise ValueError("Worker report path is a symlink")
+    summary = read_json(runs / run_id / "summary.json")
+    if summary is None:
+        current["code"] = "report-not-found"
+        return {"sacWorker": current}
+    counts = _counts(summary.get("counts"))
+    if (summary.get("schema_version") != 1 or summary.get("source_sha") != checkpoint["revision"]
+            or counts is None or _count(summary.get("total_queued")) is None
+            or _count(summary.get("completed")) is None
+            or summary["completed"] > summary["total_queued"]):
+        raise ValueError("Invalid worker summary")
+    current["summary"] = {
+        "totalQueued": summary["total_queued"],
+        "completed": summary["completed"],
+        "counts": counts,
+        "queueExhausted": summary.get("queue_exhausted") is True,
+    }
+    return {"sacWorker": current}
