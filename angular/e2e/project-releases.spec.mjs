@@ -112,12 +112,14 @@ test('rollback só envia POST após digitação exata e verificações da versã
   await expect(panel.getByText('Em execução · '+OTHER.slice(0,12))).toBeVisible();
 });
 
-test('rollback é bloqueado se publicação persistente estiver em andamento',async ({page})=>{
-  const state=await mockReleaseApi(page,{publicationPhase:'health'});
-  const panel=await openReleasePanel(page);
-  await expect(panel.getByRole('button',{name:'Restaurar versão anterior'})).toBeDisabled();
-  expect(state.requests.some(r=>r.startsWith('POST '))).toBe(false);
-});
+for(const phase of ['health','indefinido']){
+  test('rollback é bloqueado se a publicação está ativa ou em fase desconhecida: '+phase,async ({page})=>{
+    const state=await mockReleaseApi(page,{publicationPhase:phase});
+    const panel=await openReleasePanel(page);
+    await expect(panel.getByRole('button',{name:'Restaurar versão anterior'})).toBeDisabled();
+    expect(state.requests.some(r=>r.startsWith('POST '))).toBe(false);
+  });
+}
 
 test('rollback cancela se revisão mudou após exibir o botão de confirmação',async ({page})=>{
   const state=await mockReleaseApi(page);
