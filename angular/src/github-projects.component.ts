@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, computed, signal } from '@angular/core';
 import { validAppSlug } from './apps-policy';
+import { ProjectReleasePanelComponent } from './project-release-panel.component';
 
 type Repo = {fullName:string; branch:string; workflow:string};
 type ProjectLink = {slug:string; repository:string; branch:string|null; workflow:string|null; services:string[]};
@@ -12,6 +13,7 @@ const WORKFLOW = /^[A-Za-z0-9_.-]{1,80}\.ya?ml$/;
 @Component({
   selector:'panel-github-projects',
   standalone:true,
+  imports:[ProjectReleasePanelComponent],
   templateUrl:'./github-projects.component.html',
   styleUrl:'./github-projects.component.css'
 })
@@ -25,6 +27,9 @@ export class GithubProjectsComponent implements OnInit, OnDestroy {
   readonly allowedOwner=signal('Softdown-prog');
   readonly repositories=signal<Repo[]>([]);
   readonly projectLinks=signal<ProjectLink[]>([]);
+  readonly buildsEnabled=signal(false);
+  readonly requiredWorkflow=signal('');
+  readonly expandedProject=signal<string|null>(null);
   readonly linksLoading=signal(false);
   readonly linksIssue=signal('');
   readonly chosen=signal('');
@@ -55,6 +60,7 @@ export class GithubProjectsComponent implements OnInit, OnDestroy {
     this.action.set(null);
     this.runs.set([]);
     this.projectLinks.set([]);
+    this.expandedProject.set(null);
     this.runsLoading.set(false);
     this.linksLoading.set(false);
   }
@@ -106,7 +112,7 @@ export class GithubProjectsComponent implements OnInit, OnDestroy {
     this.linksLoading.set(true);
     this.linksIssue.set('');
     try{
-      const response=await this.api<{projects?:unknown}>('/projects');
+      const response=await this.api<{projects?:unknown;buildsEnabled?:unknown;requiredWorkflow?:unknown}>('/projects');
       if(this.destroyed||requestId!==this.linksRequestId)return;
       if(!Array.isArray(response.projects))throw Error('O servidor não confirmou os vínculos de aplicações.');
       const links:ProjectLink[]=response.projects.filter((item:unknown):item is ProjectLink=>{
@@ -119,14 +125,25 @@ export class GithubProjectsComponent implements OnInit, OnDestroy {
           Array.isArray(value.services)&&value.services.every(service=>typeof service==='string'&&validAppSlug(service));
       });
       this.projectLinks.set(links);
+      this.buildsEnabled.set(response.buildsEnabled===true);
+      this.requiredWorkflow.set(response.requiredWorkflow==='panel-app-build.yml'?'panel-app-build.yml':'');
+      if(!links.some(link=>link.slug===this.expandedProject()))this.expandedProject.set(null);
     }catch(e){
       if(!this.destroyed&&requestId===this.linksRequestId){
         this.projectLinks.set([]);
+        this.buildsEnabled.set(false);
+        this.requiredWorkflow.set('');
+        this.expandedProject.set(null);
         this.linksIssue.set('Vínculos indisponíveis: '+this.message(e));
       }
     }finally{
       if(!this.destroyed&&requestId===this.linksRequestId)this.linksLoading.set(false);
     }
+  }
+
+  toggleProjectDetails(slug:string):void{
+    if(this.working()||this.linksLoading()||!this.projectLinks().some(p=>p.slug===slug))return;
+    this.expandedProject.set(this.expandedProject()===slug?null:slug);
   }
 
   choose(value:string):void {
