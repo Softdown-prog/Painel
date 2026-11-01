@@ -75,7 +75,12 @@ export function streamSsh(command:string,onData:(chunk:string)=>void,signal:Abor
 export class TerminalJobManager {
  private readonly jobs=new Map<string,Job>();
  private activeId:string|null=null;
- constructor(private readonly run:Runner=streamSsh,private readonly maxRuntimeMs=MAX_RUNTIME_MS){}
+ private readonly run:Runner;
+ private readonly maxRuntimeMs:number;
+ constructor(run:Runner=streamSsh,maxRuntimeMs=MAX_RUNTIME_MS){
+  this.run=run;
+  this.maxRuntimeMs=maxRuntimeMs;
+ }
  private prune():void{
   const now=Date.now();
   for(const [id,job] of this.jobs){
