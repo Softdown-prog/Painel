@@ -49,7 +49,10 @@ fn slug(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 40
         && value.split('-').all(|part| {
-            !part.is_empty() && part.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+            !part.is_empty()
+                && part
+                    .bytes()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
         })
 }
 
@@ -121,15 +124,25 @@ mod tests {
 
     #[test]
     fn measured_memory_excludes_reclaimable_cache() {
-        assert_eq!(memory("8192\n1024\nMemAvailable: 6 kB\n"),
-            Some("{\"total\":8192,\"used\":2048,\"available\":6144,\"source\":\"memavailable\"}".into()));
+        assert_eq!(
+            memory("8192\n1024\nMemAvailable: 6 kB\n"),
+            Some(
+                "{\"total\":8192,\"used\":2048,\"available\":6144,\"source\":\"memavailable\"}"
+                    .into()
+            )
+        );
     }
 
     #[test]
     fn unavailable_invalid_and_overflowing_memory_use_bounded_fallback() {
         for data in ["", "MemAvailable: 999999999999999 kB", "MemAvailable: 8 MB"] {
-            assert_eq!(memory(&format!("1000\n2000\n{data}")),
-                Some("{\"total\":1000,\"used\":0,\"available\":1000,\"source\":\"os-freemem\"}".into()));
+            assert_eq!(
+                memory(&format!("1000\n2000\n{data}")),
+                Some(
+                    "{\"total\":1000,\"used\":0,\"available\":1000,\"source\":\"os-freemem\"}"
+                        .into()
+                )
+            );
         }
         assert!(memory("18446744073709551615\n1\n").is_none());
         assert!(memory("-1\n1\n").is_none());
@@ -139,16 +152,28 @@ mod tests {
     #[test]
     fn routes_are_exact_and_isolated() {
         let table = "alpha.example.test\talpha\t3000\nbeta.example.test\tbeta\t4000\n";
-        assert_eq!(route(&format!("beta.example.test\n{table}")),
-            Some("{\"slug\":\"beta\",\"port\":4000}".into()));
-        for request in ["evil.test", "alpha.example.test.evil", "127.0.0.1:22", "../alpha"] {
+        assert_eq!(
+            route(&format!("beta.example.test\n{table}")),
+            Some("{\"slug\":\"beta\",\"port\":4000}".into())
+        );
+        for request in [
+            "evil.test",
+            "alpha.example.test.evil",
+            "127.0.0.1:22",
+            "../alpha",
+        ] {
             assert_eq!(route(&format!("{request}\n{table}")), Some("null".into()));
         }
     }
 
     #[test]
     fn invalid_target_and_duplicate_first_match_cannot_authorize_another_route() {
-        for target in ["../alpha\t3000", "alpha\t22", "alpha\t65536", "alpha\t3000\textra"] {
+        for target in [
+            "../alpha\t3000",
+            "alpha\t22",
+            "alpha\t65536",
+            "alpha\t3000\textra",
+        ] {
             let result = route(&format!("alpha.example.test\nalpha.example.test\t{target}"));
             assert!(result == Some("null".into()) || result.is_none());
         }
@@ -158,7 +183,11 @@ mod tests {
 
     #[test]
     fn bounded_route_table_and_slug() {
-        assert!(route(&format!("alpha.example.test\n{}", "other.example.test\tx\t3000\n".repeat(257))).is_none());
+        assert!(route(&format!(
+            "alpha.example.test\n{}",
+            "other.example.test\tx\t3000\n".repeat(257)
+        ))
+        .is_none());
         assert!(!slug(&"a".repeat(41)));
         assert!(!slug("a-"));
         assert!(!host("x\r\nInjected"));
