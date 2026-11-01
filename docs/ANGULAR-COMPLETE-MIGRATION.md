@@ -240,3 +240,13 @@ Esta etapa compara `projects-ui.ts`, `github-ui.ts`, `terminal-ui.ts` e `revisio
 - `linux status` consulta `GET /terminal/ssh/jobs/current` e mostra estado/saída, enquanto `linux cancelar` exige confirmação antes de sinalizar interrupção.
 - O endpoint síncrono antigo `/terminal/ssh/exec` continua disponível apenas por compatibilidade temporária, mas o navegador clássico e o Angular adotam o fluxo assíncrono.
 - Histórico das tarefas existe somente na memória do processo API; reinícios podem perder acompanhamento. Cancelamento da conexão SSH não garante interromper subprocessos desvinculados na VPS.
+
+## Terminal VPS persistente no Ubuntu — componente preparado na branch
+
+- Com `PANEL_TERMINAL_PERSISTENT=1`, o Painel solicita operações por SSH ao auxiliar fixo `/usr/local/libexec/vps-panel-terminal-jobs` instalado no host, e não mais ao supervisor em memória da API. O host cria unidades `systemd-run` independentes do container/API. A API pode reiniciar, e `GET /terminal/ssh/jobs/current` recupera o estado verdadeiro.
+- **Requer instalação manual separada no host**: `operations/install-terminal-host-jobs.sh check|apply /checkout/verificado` como root, após auditoria. CI nunca instala, roda supervisor ou muda systemd na VPS. Falhas de SSH/supervisor retornam 503, sem disparar script novamente automaticamente.
+- Um único comando ativo por VPS, com lock do host; IDs aleatórios de 128 bits; só os quatro verbos fixos `start`, `current`, `status`, `cancel`. Scripts passam somente via stdin da conexão autenticada SSH e são executados pela unidade transitória, jamais por interpolação de nome de unit/env/argv.
+- Para **persistir entre reinícios**, o script precisa existir temporariamente no disco do host. Fica em `/var/lib/vps-panel-terminal-jobs`, diretório root:root 0700, arquivo 0600, apagado após o comando; a saída parcial até 64 KB e os metadados de execução são mantidos por até 1 hora. **Não cole tokens ou senhas:** a saída pode conter conteúdo sensível. Não existe backup criado pelo supervisor.
+- Limite de 30 minutos aplicado pelo `systemd`, sem depender de um processo da API ativo; a API nunca declara sucesso se a unidade terminar sem status confiável. Interromper serviço é best effort e não impede processos externos iniciados fora da unidade (por exemplo containers ou serviços separados).
+- `PANEL_TERMINAL_PERSISTENT` permanece **desligado por padrão** até instalarmos o auxiliar e autorizarmos atualização futura da API; sem essa opção, mantém o supervisor anterior em memória. O endpoint legado síncrono mantém os 18 segundos apenas como compatibilidade técnica.
+- Os testes usam pastas temporárias locais e mocks de `systemd-run`; não executam ações no host real nem publicam comandos ao GitHub.

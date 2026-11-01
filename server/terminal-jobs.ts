@@ -7,6 +7,7 @@ import {spawn} from 'node:child_process';
 import {randomBytes,createHash} from 'node:crypto';
 import type {IncomingMessage,ServerResponse} from 'node:http';
 import {terminalSshConfig} from './terminal-ssh.ts';
+import {PersistentTerminalJobManager} from './terminal-persistent.ts';
 
 const MAX_COMMAND_BYTES=4*1024*1024;
 const MAX_OUTPUT_CHARS=64000;
@@ -22,7 +23,7 @@ type Job=Result&{controller:AbortController;timeout:ReturnType<typeof setTimeout
 type Deps={
  send:(res:ServerResponse,status:number,data:unknown)=>void;
  body:(req:IncomingMessage)=>Promise<Record<string,unknown>>;
- enabled?:boolean;configured?:boolean;manager?:TerminalJobManager;
+ enabled?:boolean;configured?:boolean;manager?:TerminalJobManager|PersistentTerminalJobManager;
 };
 
 export function validJobCommand(data:Record<string,unknown>):data is {command:string}{
@@ -165,6 +166,7 @@ export class TerminalJobManager {
 }
 
 const manager=new TerminalJobManager();
+const persistentManager=new PersistentTerminalJobManager();
 export async function handleSshTerminalJobRoute(req:IncomingMessage,res:ServerResponse,deps:Deps):Promise<boolean>{
  const path=new URL(req.url||'/','http://panel.local').pathname;
  if(!path.startsWith('/terminal/ssh/jobs'))return false;
@@ -173,16 +175,18 @@ export async function handleSshTerminalJobRoute(req:IncomingMessage,res:ServerRe
  if(!(deps.configured??terminalSshConfig().valid)){
   deps.send(res,503,{error:'Acesso SSH ainda não configurado.'});return true;
  }
- const jobs=deps.manager??manager;
+ const jobs=deps.manager??(process.env['PANEL_TERMINAL_PERSISTENT']==='1'?persistentManager:manager);
+ const respondFailure=()=>deps.send(res,503,{error:'Não foi possível consultar o supervisor SSH. Se a tarefa já foi enviada, verifique o estado antes de tentar novamente.'});
  if(path==='/terminal/ssh/jobs/current'&&req.method==='GET'){
-  deps.send(res,200,{job:jobs.current()});return true;
+  try{deps.send(res,200,{job:await jobs.current()});}catch{respondFailure();}return true;
  }
  if(path==='/terminal/ssh/jobs'&&req.method==='POST'){
   const input=await deps.body(req);
   if(!validJobCommand(input)){
    deps.send(res,400,{error:'Comando inválido (máximo de 4 MB).'});return true;
   }
-  const job=jobs.start(input.command);
+  let job;
+  try{job=await jobs.start(input.command);}catch{respondFailure();return true;}
   if(!job){deps.send(res,429,{error:'Já existe uma tarefa SSH em execução. Consulte o andamento antes de iniciar outra.'});return true;}
   deps.send(res,202,{job});return true;
  }
@@ -191,12 +195,17 @@ export async function handleSshTerminalJobRoute(req:IncomingMessage,res:ServerRe
   const id=match[1];
   if(!id){deps.send(res,404,{error:'Tarefa não encontrada.'});return true;}
   if(!match[2]&&req.method==='GET'){
-   const job=jobs.get(id);
-   deps.send(res,job?200:404,job?{job}:{error:'Tarefa não encontrada.'});return true;
+   try{
+    const job=await jobs.get(id);
+    deps.send(res,job?200:404,job?{job}:{error:'Tarefa não encontrada.'});
+   }catch{respondFailure();}
+   return true;
   }
   if(match[2]&&req.method==='POST'){
-   const job=jobs.cancel(id);
-   deps.send(res,job?200:404,job?{job,warning:'Interromper SSH não garante o encerramento de processos remotos desvinculados.'}:{error:'Tarefa não encontrada.'});
+   try{
+    const job=await jobs.cancel(id);
+    deps.send(res,job?200:404,job?{job,warning:'Interromper SSH não garante o encerramento de processos remotos desvinculados.'}:{error:'Tarefa não encontrada.'});
+   }catch{respondFailure();}
    return true;
   }
  }

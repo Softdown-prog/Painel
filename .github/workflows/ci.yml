@@ -26,6 +26,7 @@ jobs:
           bash -n operations/upgrade-vpsops-maintenance.sh
           bash -n operations/upgrade-vpsops-code-mcp.sh
           bash -n operations/upgrade-vpsops-mcp-query.sh
+          bash -n operations/install-terminal-host-jobs.sh
           bash -n tools/repo-mcp/install-vps-from-source.sh
           node --test tools/repo-mcp/edge-network.test.mjs
       - run: docker compose -f server/compose.yaml -f server/compose.web.yaml config --quiet
