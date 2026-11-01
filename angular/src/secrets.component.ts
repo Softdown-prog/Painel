@@ -25,6 +25,7 @@ export class SecretsComponent implements OnInit,OnDestroy{
  @ViewChild('deletePasswordInput') private deletePasswordInput?:ElementRef<HTMLInputElement>;
  @ViewChild('saveSecretButton') private saveSecretButton?:ElementRef<HTMLButtonElement>;
  private deleteSource:HTMLButtonElement|null=null;
+ private focusTimer:ReturnType<typeof setTimeout>|null=null;
  private revision=0;
  private destroyed=false;
  readonly canSave=computed(()=>{
@@ -40,16 +41,21 @@ export class SecretsComponent implements OnInit,OnDestroy{
  ngOnInit():void{void this.refresh();}
  ngOnDestroy():void{
    this.destroyed=true;
+   if(this.focusTimer!==null)clearTimeout(this.focusTimer);
+   this.focusTimer=null;
    this.deleteSource=null;
    this.clearSensitive();
    this.info.set(null);
  }
  private focusConfirmation():void {
-   queueMicrotask(()=>{
+   // A conditional @if must render before its focus target becomes a ViewChild.
+   if(this.focusTimer!==null)clearTimeout(this.focusTimer);
+   this.focusTimer=setTimeout(()=>{
+     this.focusTimer=null;
      if(this.destroyed||!this.pending())return;
      const field=this.pending()?.kind==='delete'?this.deletePasswordInput:this.confirmationNameInput;
      field?.nativeElement.focus({preventScroll:true});
-   });
+   },0);
  }
  private returnFocus(source:HTMLButtonElement|null):void{
    queueMicrotask(()=>{
@@ -130,6 +136,8 @@ export class SecretsComponent implements OnInit,OnDestroy{
  cancel():void{
    const source=this.deleteSource??this.saveSecretButton?.nativeElement??null;
    this.deleteSource=null;
+   if(this.focusTimer!==null)clearTimeout(this.focusTimer);
+   this.focusTimer=null;
    this.clearSensitive();
    this.returnFocus(source);
  }
