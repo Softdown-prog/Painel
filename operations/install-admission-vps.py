@@ -95,12 +95,15 @@ def install(src, expected_driver, expected_receiver):
         if 'admission' in project and project['admission'] != desired:
             raise ValueError('Existing admission contract differs')
         project['admission'] = desired
-    changes = {'driver.py': patch_driver(old_driver.decode()).encode(),
-               'receiver.py': patch_receiver(old_receiver.decode()).encode()}
+    # Publish dependencies before their consumers; even a concurrent import must
+    # never see a new driver/receiver with a missing admission module.
+    changes = {}
     for name in ('admission.py', 'admission_probe.py'):
         data = (src / name).read_bytes()
         ast.parse(data.decode())
         changes[name] = data
+    changes.update({'driver.py': patch_driver(old_driver.decode()).encode(),
+                    'receiver.py': patch_receiver(old_receiver.decode()).encode()})
     backup = Path('/var/lib/vps-operations/admission-v1-before')
     backup.mkdir(mode=0o700)  # Existing backup means stop, never overwrite it.
     originals = {name: (directory / name).read_bytes() if (directory / name).exists() else None for name in changes}

@@ -82,6 +82,7 @@ testes próprios. O inventário por si só não representa cobertura de deploy.
 ## Estado desta revisão
 
 - Código: implementado na branch `feat/deploy-admission-guard`.
-- Testes locais: 16 testes novos aprovados; suíte completa exige Linux (`fcntl`).
-- CI, instalação real e retorno GitHub: registrar após executar, sem presumir sucesso.
+- Testes: 16 novos locais e 41 Python no Ubuntu aprovados; TypeScript, build frontend e sintaxe JS aprovados.
+- Ensaio real na VPS: API/executor do Painel, Terrânia Node e Go aprovados; contrato inválido rejeitado, 12 IDs de produção preservados. Duração total: 49,89 s.
+- CI final, instalação do receptor e retorno GitHub do deploy: ainda pendentes nesta anotação.
 - Frontend: nenhuma alteração; não existe um botão novo nesta etapa.
