@@ -17,11 +17,12 @@ function run(id){
 const revisionReport={
   checkedAt:'2026-10-31T12:00:00Z',enabled:true,automatic:false,
   ageDays:14,keepPerApp:2,oldCount:1,oldBytesEstimate:1048576,totalImports:1,
+  scheduler:{intervalHours:6,enabledByCompose:true,automaticDefault:false},
   entries:[{slug:'alpha-app',revision:'a'.repeat(40),importedAt:'2026-10-01T12:00:00Z',
     sizeBytes:1048576,status:'antiga',reason:'Imagem antiga elegível'}],
   history:[],
   hostInventory:{available:true,total:1,untagged:0,totalBytesEstimate:1048576,
-    images:[],multipleVersionRepositories:[]}
+    images:[],multipleVersionRepositories:[{repository:'ghcr.io/softdown-prog/alpha',versions:3}]}
 };
 
 async function fixture(page,{failLinks=false,holdFirstRun=false}={}){
@@ -114,6 +115,8 @@ test('Revisões exige digitar LIMPAR para habilitar limpeza de imagens',async ({
   const state=await fixture(page);
   await page.goto('/angular/#revisions');
   await expect(page.getByText('Imagem antiga elegível')).toBeVisible();
+  await expect(page.getByText(/Agendador VPS: habilitado no Compose/)).toBeVisible();
+  await expect(page.getByText('ghcr.io/softdown-prog/alpha · 3 versões listadas')).toBeVisible();
   await page.getByRole('button',{name:'Limpar imagens antigas elegíveis'}).click();
   const confirm=page.getByRole('group',{name:'Confirmar alteração de revisões'});
   await expect(confirm.getByRole('button',{name:'Confirmar alteração'})).toBeDisabled();
