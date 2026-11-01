@@ -5,6 +5,7 @@ type Entry={slug:string;revision:string;importedAt:string;sizeBytes:number;
 type History={at:string;source:string;removed:number;failed:number;bytesEstimate:number;message:string};
 type Image={id:string;tags:string[];sizeBytes:number;createdAt:string|null;containers:number|null};
 type Report={checkedAt:string;enabled:boolean;automatic:boolean;ageDays:number;keepPerApp:number;
+ scheduler?:{intervalHours:number;enabledByCompose:boolean;automaticDefault:boolean};
  oldCount:number;oldBytesEstimate:number;totalImports:number;entries:Entry[];history:History[];
  hostInventory:{available:boolean;total:number;untagged:number;totalBytesEstimate:number;images:Image[];
  multipleVersionRepositories:{repository:string;versions:number}[]}};
