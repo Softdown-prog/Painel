@@ -1,4 +1,4 @@
-import { Component, HostListener, OnInit, OnDestroy, computed, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, OnInit, OnDestroy, ViewChild, computed, signal } from '@angular/core';
 import { DeploymentsComponent } from './deployments.component';
 import { AppsComponent } from './apps.component';
 import { GithubProjectsComponent } from './github-projects.component';
@@ -28,6 +28,9 @@ export class AppComponent implements OnInit,OnDestroy {
   readonly page = signal<'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains' | 'traffic' | 'secrets' | 'settings' | 'site' | 'infrastructure'>('overview');
   readonly selectedSiteSlug=signal<string|null>(null);
   readonly menuOpen = signal(false);
+  @ViewChild('sidebarPanel') sidebarPanel?:ElementRef<HTMLElement>;
+  @ViewChild('menuTrigger') menuTrigger?:ElementRef<HTMLButtonElement>;
+  @ViewChild('pageTitle') pageTitle?:ElementRef<HTMLHeadingElement>;
   readonly session = signal<AdminSession | null>(null);
   readonly overview = signal<HostOverview | null>(null);
   readonly inventory = signal<HostInventory | null>(null);
@@ -107,12 +110,37 @@ export class AppComponent implements OnInit,OnDestroy {
     const previous=this.page();
     this.syncPageFromLocation();
     this.menuOpen.set(false);
+    if(previous!==this.page())this.focusPageTitle();
     if(previous!==this.page()&&this.signedIn()&&document.visibilityState==='visible')
       void this.revalidateVisiblePage();
   }
 
   @HostListener('document:keydown.escape')
-  onEscape(): void { this.menuOpen.set(false); }
+  onEscape(): void {
+    if(this.menuOpen())this.closeMenu(true);
+  }
+
+  /** A modal navigation drawer must keep keyboard focus inside while open. */
+  onSidebarKeydown(event:KeyboardEvent):void{
+    if(!this.menuOpen()||event.key!=='Tab')return;
+    const sidebar=this.sidebarPanel?.nativeElement;
+    if(!sidebar)return;
+    const items=Array.from(sidebar.querySelectorAll<HTMLElement>(
+      'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])'
+    )).filter(item=>item.getClientRects().length>0);
+    const first=items[0],last=items[items.length-1];
+    if(!first||!last)return;
+    if(event.shiftKey&&(document.activeElement===first||!sidebar.contains(document.activeElement))){
+      event.preventDefault();last.focus();
+    }else if(!event.shiftKey&&(document.activeElement===last||!sidebar.contains(document.activeElement))){
+      event.preventDefault();first.focus();
+    }
+  }
+  private focusPageTitle():void{
+    queueMicrotask(()=>{
+      if(!this.destroyed&&!this.menuOpen())this.pageTitle?.nativeElement.focus({preventScroll:true});
+    });
+  }
 
   private syncPageFromLocation(): void {
     const hash = window.location.hash.replace(/^#\/?/, '');
@@ -154,8 +182,21 @@ export class AppComponent implements OnInit,OnDestroy {
     this.inventoryProject.set('');
   }
 
-  toggleMenu(): void { this.menuOpen.update(open => !open); }
-  closeMenu(): void { this.menuOpen.set(false); }
+  toggleMenu(): void {
+    if(this.menuOpen()){this.closeMenu(true);return;}
+    this.menuOpen.set(true);
+    queueMicrotask(()=>{
+      if(this.menuOpen()&&!this.destroyed)
+        this.sidebarPanel?.nativeElement.querySelector<HTMLButtonElement>('.menu-close')?.focus();
+    });
+  }
+  closeMenu(restoreFocus=false): void {
+    const wasOpen=this.menuOpen();
+    this.menuOpen.set(false);
+    if(wasOpen&&restoreFocus)queueMicrotask(()=>{
+      if(!this.destroyed&&!this.menuOpen())this.menuTrigger?.nativeElement.focus({preventScroll:true});
+    });
+  }
 
 
   async request<T>(path: string, method = 'GET', payload?: object): Promise<T> {
@@ -358,6 +399,7 @@ export class AppComponent implements OnInit,OnDestroy {
     this.menuOpen.set(false);
     if (window.location.hash !== '#' + page) window.location.hash = page;
     window.scrollTo(0, 0);
+    this.focusPageTitle();
   }
   formatDate(value?: string): string {
     if (!value) return 'Sem leitura confirmada';
