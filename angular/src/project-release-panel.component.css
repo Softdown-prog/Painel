@@ -1,0 +1,25 @@
+:host{display:block;min-width:0}.release-panel{margin:10px 0 16px;padding:15px;border:1px solid #65518c;border-radius:13px;background:#171b2e;color:#e7eafd;min-width:0}
+.release-heading,.release-actions,.release-run{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.release-heading h4{font-size:16px;margin:0}.release-heading p,.release-panel p{font-size:12px;line-height:1.55;overflow-wrap:anywhere}
+.release-panel button,.release-run a{min-height:44px;border:1px solid #65548d;border-radius:10px;padding:10px 13px;background:#302a49;color:#f5edff;font:inherit}
+.release-panel button:disabled{opacity:.5;cursor:not-allowed}.release-panel .danger{background:#633047;border-color:#94506a}
+.release-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:15px 0}
+.release-grid>div{padding:12px;border:1px solid #3f4767;border-radius:11px;background:#1d2339;min-width:0}
+.release-grid small,.release-grid strong,.release-grid span{display:block;overflow-wrap:anywhere}
+.release-grid small{font-size:10px;color:#b5bbd3}
+.release-grid strong{font-size:13px;margin:7px 0;color:#edecff}
+.release-grid span{font-size:11px;color:#b8c2d9}
+.release-warning{display:block;color:#f2ce8e!important;overflow-wrap:anywhere}
+.release-error,.release-notice{padding:10px;border-radius:10px;line-height:1.5}
+.release-error{background:#452436;border:1px solid #98526b;color:#ffd0df}
+.release-notice{background:#223f39;border:1px solid #397664;color:#beffdd}
+.release-confirm{margin:16px 0;padding:14px;border-radius:11px;border:1px solid #947cae;background:#30273f}
+.release-confirm label{display:grid;gap:8px;font-size:12px;color:#e5daf7}
+.release-confirm input{width:100%;min-width:0;min-height:44px;padding:10px 12px;border-radius:9px;border:1px solid #77658f;background:#101423;color:white;font:inherit}
+.release-actions{justify-content:flex-start;margin:14px 0}
+.release-runs h5{font-size:14px;margin:18px 0 7px}
+.release-run{align-items:center;border-top:1px solid #363b57;padding:8px 0}
+.release-run a{display:inline-flex;align-items:center;min-width:0;overflow-wrap:anywhere}
+.release-run small{font-size:11px;color:#b3bad1}
+.release-panel button:focus-visible,.release-panel input:focus-visible,.release-panel a:focus-visible{outline:3px solid #bea5ff;outline-offset:2px}
+@media(max-width:560px){.release-grid{grid-template-columns:1fr}.release-heading{flex-direction:column}.release-heading button,.release-actions button{width:100%}.release-run{align-items:stretch;flex-direction:column}}
