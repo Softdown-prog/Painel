@@ -11,16 +11,18 @@ const REPOS=[
   {fullName:'Softdown-prog/Painel',branch:'main',workflow:'deploy-vps.yml'},
   {fullName:'Softdown-prog/alpha',branch:'main',workflow:'panel-app-build.yml'}
 ];
-async function fixture(page,{history=[],historyError=false,runError=false}={}){
-  const state={history,historyError,runError,requests:[]};
+async function fixture(page,{history=[],historyError=false,runError=false,repositoryError=false}={}){
+  const state={history,historyError,runError,repositoryError,requests:[]};
   await page.route('**/api/**',async route=>{
     const request=route.request(),path=new URL(request.url()).pathname.slice('/api'.length);
     const method=request.method();
     state.requests.push(method+' '+path);
     let status=200,body;
     if(method==='GET'&&path==='/session')body={authenticated:true,setupRequired:false};
-    else if(method==='GET'&&path==='/repositories')
-      body={repositories:REPOS,tokenConfigured:true,allowedOwner:'Softdown-prog'};
+    else if(method==='GET'&&path==='/repositories'){
+      if(state.repositoryError){status=503;body={error:'GitHub repositórios indisponível'};}
+      else body={repositories:REPOS,tokenConfigured:true,allowedOwner:'Softdown-prog'};
+    }
     else if(method==='GET'&&path==='/projects')
       body={projects:[{slug:'alpha-app',repository:'Softdown-prog/alpha',
         branch:'main',workflow:'panel-app-build.yml',services:['alpha-app']}],
@@ -121,4 +123,27 @@ test('histórico permanece responsivo em 320px sem scroll horizontal',async ({pa
     visible:document.documentElement.clientWidth,total:document.documentElement.scrollWidth
   }));
   expect(width.total).toBeLessThanOrEqual(width.visible+1);
+});
+
+test('histórico persistente não depende de GET /repositories responder',async ({page})=>{
+  const state=await fixture(page,{repositoryError:true,history:[
+    job('job-9','alpha-app','attention',{detail:'Intervenção no serviço'})]});
+  const section=await open(page);
+  await expect(section.locator('.durable-row')).toHaveCount(1);
+  await expect(section.locator('.durable-row')).toContainText('Intervenção no serviço');
+  await expect(page.getByText('Não foi possível confirmar os repositórios GitHub nesta consulta.')).toBeVisible();
+  await expect(page.getByText('Nenhum repositório encontrado')).toHaveCount(0);
+  expect(state.requests).toContain('GET /publications');
+  expect(state.requests.some(x=>!x.startsWith('GET '))).toBe(false);
+});
+
+test('um trabalho inválido impede classificação até dos registros válidos na mesma resposta',async ({page})=>{
+  await fixture(page,{history:[
+    job('job-10','alpha-app','completed'),
+    job('job-11','beta-app','unexpected-phase')
+  ]});
+  const section=await open(page);
+  await expect(section.getByText('Histórico não confirmado')).toBeVisible();
+  await expect(section.locator('.durable-row')).toHaveCount(0);
+  await expect(section.getByText('O histórico contém registros desconhecidos ou inválidos;', {exact:false})).toBeVisible();
 });
