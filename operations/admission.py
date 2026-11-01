@@ -102,7 +102,7 @@ assert.equal((await call('/v1.45/containers/foreign/stop','POST')).status,403);
 
 def docker(argv, *, timeout=20, input=None):
     # Candidate output is never published. Docker logs are capped at creation.
-    return subprocess.check_output(['docker', *argv], input=input, stderr=subprocess.DEVNULL, timeout=timeout)
+    return subprocess.check_output(['docker', *argv], input=input, stderr=subprocess.PIPE, timeout=timeout)
 
 
 def candidate_command(name, image, rule, sha, key):

@@ -16,6 +16,16 @@ def image(service):
 
 
 def main(sha):
+    # CI fixtures contain no real environment or credentials. Production never prints this.
+    real_docker = admission.docker
+    def ci_docker(argv, **kwargs):
+        try:
+            return real_docker(argv, **kwargs)
+        except subprocess.CalledProcessError as error:
+            if error.stderr:
+                print('CI Docker fixture:', error.stderr.decode(errors='replace')[:2000], flush=True)
+            raise
+    admission.docker = ci_docker
     policy = {'repository': 'Softdown-prog/Painel', 'containers': {'api': 'never-activate-api', 'executor': 'never-activate-executor'},
               'images': {x: '127.0.0.1:5000/admission/' + x for x in ('api', 'executor')},
               'admission': {'version': 1, 'services': {'api': {'profile': 'panel-api'}, 'executor': {'profile': 'panel-executor'}}}}
