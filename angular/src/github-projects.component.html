@@ -96,7 +96,10 @@
         }
       }
     </div>
-    <p class="github-footnote">Os vínculos e as operações de publicação dependem de autorização do servidor. Importação de imagens, versões e rollback ainda precisam de auditoria de paridade antes da remoção da interface clássica.</p>
+    <panel-project-bindings [projects]="projectLinks()" [repositories]="repositories()"
+      [ready]="!linksLoading()&&!linksIssue()&&!loading()"
+      (changed)="refreshLinks()"></panel-project-bindings>
+    <p class="github-footnote">Vínculos, versões e publicação dependem da autorização da API. Mantenha a interface clássica até a auditoria completa de paridade e homologação.</p>
   </section>
   <section class="github-panel" aria-labelledby="connect-title">
     <h3 id="connect-title">Conectar repositório</h3>
