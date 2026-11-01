@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, computed, signal } from '@angular/core';
 import { validAppSlug } from './apps-policy';
 import { ProjectReleasePanelComponent } from './project-release-panel.component';
+import { ProjectBindingsComponent } from './project-bindings.component';
 
 type Repo = {fullName:string; branch:string; workflow:string};
 type ProjectLink = {slug:string; repository:string; branch:string|null; workflow:string|null; services:string[]};
@@ -13,7 +14,7 @@ const WORKFLOW = /^[A-Za-z0-9_.-]{1,80}\.ya?ml$/;
 @Component({
   selector:'panel-github-projects',
   standalone:true,
-  imports:[ProjectReleasePanelComponent],
+  imports:[ProjectReleasePanelComponent,ProjectBindingsComponent],
   templateUrl:'./github-projects.component.html',
   styleUrl:'./github-projects.component.css'
 })
