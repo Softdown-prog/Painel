@@ -120,6 +120,15 @@ export class AppComponent implements OnInit,OnDestroy {
     if(this.menuOpen())this.closeMenu(true);
   }
 
+  @HostListener('window:resize')
+  onResize():void {
+    // At desktop widths the drawer becomes a regular sidebar. Never leave main inert.
+    if(this.menuOpen()&&window.innerWidth>900){
+      this.closeMenu();
+      this.focusPageTitle();
+    }
+  }
+
   /** A modal navigation drawer must keep keyboard focus inside while open. */
   onSidebarKeydown(event:KeyboardEvent):void{
     if(!this.menuOpen()||event.key!=='Tab')return;
