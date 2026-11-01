@@ -137,6 +137,13 @@
 - Consultas atrasadas não restauram o inventário após `OnDestroy`. Uma gravação já enviada não é cancelada pelo fechamento da tela; o servidor continua sendo a fonte de verdade, e a próxima abertura deve consultar o inventário.
 - Testes de confirmação, revisão do formulário, cadastro/substituição/exclusão e limpeza após destruição em `server/angular-secrets-settings.test.mjs`. Ainda pendente validação em navegador real e celular, sem API/produção alteradas.
 
+## Incremento Angular — isolamento de histórico frente a falha do GitHub (31/10/2026)
+
+- A central Angular consulta agora **GET /repositories**, **GET /projects** e **GET /publications** independentemente, via `Promise.allSettled`. Uma falha de repositórios não apaga nem impede o histórico persistente da VPS, enquanto a integração GitHub fica explicitamente como **não confirmada**.
+- Registros do worker precisam formar um conjunto íntegro: se a API entrega qualquer item inválido (ID, SHA, slug, fase ou data), **nenhum job desse lote** é classificado como conhecido. A interface não sinaliza ausência real de repositórios quando a consulta falha. Atualizações não preservam trabalho antigo como estado atual.
+- Acrescentados dois testes browser em `angular/e2e/deployments-history.spec.mjs`: queda simultânea da listagem de repositórios com histórico funcional e lote misto com registro inválido. O restante da suíte continua com APIs totalmente interceptadas e sem executar comandos na VPS.
+- **Aprovação necessária antes de deploy:** CI completo no HEAD da branch e homologação administrativa isolada. Não antecipar PR/merge nem remover a UI clássica.
+
 ## Incremento Angular — histórico global de publicações persistentes (31/10/2026)
 
 - A central **GitHub Actions e VPS** em `angular/src/deployments.component.{ts,html,css}` agora exibe uma lista independente das últimas 12 tarefas persistidas retornadas por `GET /publications`. Isso permite encontrar publicações do backend mesmo quando `GET /repositories/:repo/runs-all` falha, não retorna o build ou o repositório não está associado na tela. O cadastro de repositórios ainda é necessário para o restante da central.
