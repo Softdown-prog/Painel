@@ -1,4 +1,4 @@
-import {Component, OnInit, computed, signal} from '@angular/core';
+import {Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, signal} from '@angular/core';
 
 type Database = {name:string;owner:string;sizeBytes:number};
 type Role = {name:string;canLogin:boolean;superuser:boolean};
@@ -26,7 +26,7 @@ function validStatus(v:unknown):v is DbStatus {
 }
 @Component({selector:'panel-postgres',standalone:true,
   templateUrl:'./postgres.component.html',styleUrl:'./postgres.component.css'})
-export class PostgresComponent implements OnInit {
+export class PostgresComponent implements OnInit, OnDestroy {
   readonly status=signal<DbStatus|null>(null);
   readonly loading=signal(false);
   readonly working=signal(false);
@@ -36,6 +36,10 @@ export class PostgresComponent implements OnInit {
   readonly confirmation=signal('');
   readonly pending=signal(false);
   readonly view=signal<'databases'|'roles'>('databases');
+  @ViewChild('dbConfirmInput') private confirmInput?:ElementRef<HTMLInputElement>;
+  @ViewChild('dbProjectInput') private projectInput?:ElementRef<HTMLInputElement>;
+  private focusTimer:ReturnType<typeof setTimeout>|null=null;
+  private destroyed=false;
   readonly enabled=computed(()=>{
     const s=this.status();
     return s?.integration==='connected' && s.security?.hostAuthentication==='cert' &&
@@ -43,6 +47,21 @@ export class PostgresComponent implements OnInit {
   });
   readonly validProject=computed(()=>PROJECT.test(this.project()));
   ngOnInit():void {void this.refresh();}
+  ngOnDestroy():void{
+    this.destroyed=true;
+    if(this.focusTimer!==null)clearTimeout(this.focusTimer);
+    this.focusTimer=null;
+    this.pending.set(false);
+    this.confirmation.set('');
+  }
+  private scheduleFocus(focus:()=>void):void{
+    if(this.focusTimer!==null)clearTimeout(this.focusTimer);
+    // Wait until Angular renders the conditional confirmation and updates disabled fields.
+    this.focusTimer=setTimeout(()=>{
+      this.focusTimer=null;
+      if(!this.destroyed)focus();
+    },0);
+  }
   private async api<T>(path:string,method='GET',body?:object):Promise<T>{
     const response=await fetch('/api'+path,{method,credentials:'same-origin',
       redirect:'error',cache:'no-store',
@@ -57,31 +76,45 @@ export class PostgresComponent implements OnInit {
     return data as T;
   }
   async refresh():Promise<void>{
-    if(this.loading()||this.working())return;
+    if(this.destroyed||this.loading()||this.working())return;
     this.loading.set(true);this.error.set('');
     try{
       const status=await this.api<unknown>('/database/status');
+      if(this.destroyed)return;
       if(!validStatus(status))throw Error('A API informou um estado do banco inválido.');
       this.status.set(status);
       if(status.integration!=='connected'||!status.security?.provisioningEnabled)this.cancel();
     }catch(e){
-      this.status.set(null);this.cancel();
-      this.error.set(e instanceof Error?e.message:'Não foi possível consultar PostgreSQL.');
-    }finally{this.loading.set(false);}
+      if(!this.destroyed){
+        this.status.set(null);this.cancel();
+        this.error.set(e instanceof Error?e.message:'Não foi possível consultar PostgreSQL.');
+      }
+    }finally{if(!this.destroyed)this.loading.set(false);}
   }
   prepare(event:Event):void{
     event.preventDefault();
     if(this.working()||this.loading()||!this.enabled()||!this.validProject())return;
     this.error.set('');this.notice.set('');this.pending.set(true);this.confirmation.set('');
+    this.scheduleFocus(()=>{
+      if(this.pending())this.confirmInput?.nativeElement.focus({preventScroll:true});
+    });
   }
-  cancel():void{this.pending.set(false);this.confirmation.set('');}
+  cancel(restoreFocus=false):void{
+    this.pending.set(false);this.confirmation.set('');
+    if(this.focusTimer!==null)clearTimeout(this.focusTimer);
+    this.focusTimer=null;
+    if(restoreFocus)this.scheduleFocus(()=>{
+      if(!this.pending())this.projectInput?.nativeElement.focus({preventScroll:true});
+    });
+  }
   async create():Promise<void>{
     const slug=this.project();
-    if(!this.pending()||!this.enabled()||!this.validProject()||this.confirmation()!==slug||
+    if(this.destroyed||!this.pending()||!this.enabled()||!this.validProject()||this.confirmation()!==slug||
       this.working()||this.loading())return;
     this.working.set(true);this.error.set('');this.notice.set('');
     try{
       const result=await this.api<DbCreated>('/database/projects','POST',{project:slug});
+      if(this.destroyed)return;
       if(result.ok!==true||result.project!==slug||result.credentialsStored!==true||
         typeof result.database!=='string'||typeof result.username!=='string')
         throw Error('Não foi possível confirmar o provisionamento. Consulte o inventário antes de repetir.');
@@ -91,9 +124,11 @@ export class PostgresComponent implements OnInit {
       this.working.set(false);
       await this.refresh();
     }catch(e){
-      this.error.set(e instanceof Error?e.message:'Falha no provisionamento. Confira o inventário antes de repetir.');
-      this.cancel();
-    }finally{this.working.set(false);}
+      if(!this.destroyed){
+        this.error.set(e instanceof Error?e.message:'Falha no provisionamento. Confira o inventário antes de repetir.');
+        this.cancel();
+      }
+    }finally{if(!this.destroyed)this.working.set(false);}
   }
   bytes(value:number|null|undefined):string {
     if(typeof value!=='number'||!Number.isFinite(value)||value<0)return '—';
