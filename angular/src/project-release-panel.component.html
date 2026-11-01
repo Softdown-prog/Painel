@@ -1,0 +1,92 @@
+<section class="release-panel" [attr.aria-label]="'Builds e versões de '+project.slug">
+  <header class="release-heading">
+    <div>
+      <h4>Builds e versões · {{project.slug}}</h4>
+      <p>Informações verificadas pela API. Build aprovado no GitHub não significa versão instalada na VPS.</p>
+    </div>
+    <button type="button" [disabled]="loading()||working()" (click)="refresh()">↻ Conferir versões</button>
+  </header>
+  @if(error()){<p class="release-error" role="alert">{{error()}}</p>}
+  @if(notice()){<p class="release-notice" role="status">{{notice()}}</p>}
+  @if(!supported()){
+    <p class="release-warning" role="status">Este vínculo tem múltiplos serviços, foi desconectado ou usa workflow diferente de panel-app-build.yml. Builds e releases gerenciados não são autorizados para este projeto.</p>
+  } @else {
+    @if(loading()){<p role="status">Consultando o estado das versões, importação e builds…</p>}
+    <div class="release-grid">
+      <div>
+        <small>VERSÃO ATIVA</small>
+        <strong>{{status()}}</strong>
+        @if(releaseIssue()){<span class="release-warning">{{releaseIssue()}}</span>}
+      </div>
+      <div>
+        <small>CANDIDATA</small>
+        <strong>{{release()?.candidate?.revision?.slice(0,12)??'Não confirmada'}}</strong>
+        @if(release()?.candidate;as candidate){
+          <span>{{candidate.health??'Saúde não confirmada'}} · {{candidate.state??'Estado desconhecido'}}</span>
+        }
+      </div>
+      <div>
+        <small>BACKUP / ROLLBACK</small>
+        <strong>{{release()?.backup?.image??'Sem backup confirmado'}}</strong>
+        @if(release()?.backup;as backup){<span>{{backup.state??'Estado desconhecido'}}</span>}
+      </div>
+      <div>
+        <small>GHCR</small>
+        <strong>{{image()?.enabled===false?'Desabilitado':image()?.job?.status??(image()?.imported?'Importação registrada':'Não confirmado')}}</strong>
+        @if(image()?.imported;as imported){<span>Imagem {{imported.revision.slice(0,12)}} · digest {{imported.digest.slice(0,20)}}…</span>}
+        @if(imageIssue()){<span class="release-warning">{{imageIssue()}}</span>}
+      </div>
+    </div>
+    @if(publication();as p){
+      <p class="publication" role="status">Publicação persistente:
+        {{p.enabled?(p.current?.phase??'nenhuma execução registrada'):'desabilitada pela API'}}
+        @if(p.current){· {{p.current.detail}}}
+      </p>
+    }@else{
+      <p class="release-warning" role="status">{{publicationIssue()||'Estado de publicação não confirmado.'}}</p>
+    }
+    <div class="release-actions">
+      <button type="button" (click)="prepare('build')" [disabled]="!canBuild()">Solicitar novo build</button>
+      <button type="button" class="danger" (click)="prepare('rollback')" [disabled]="!canRollback()">Restaurar versão anterior</button>
+    </div>
+    @if(!buildsEnabled){<p class="release-warning">Builds estão desabilitados nesta configuração da API.</p>}
+    @if(!canRollback()){
+      <p class="release-warning">Rollback só pode ser preparado com revisão atual em execução, backup confirmado, nenhum candidato pendente e publicação persistente verificada sem atividade em andamento.</p>
+    }
+    @if(pending();as job){
+      <section class="release-confirm" role="group" aria-label="Confirmação de build ou rollback">
+        <strong>{{job.action==='build'?'Solicitar build ao GitHub':'Restaurar versão anterior na VPS'}}</strong>
+        <p>@if(job.action==='build'){
+          A solicitação executará o workflow autorizado e não substituirá o container diretamente.
+        }@else{
+          A versão anterior poderá substituir o container atual e interromper usuários. Verifique se nenhuma manutenção externa está ocorrendo.
+        }</p>
+        <p>Projeto: {{job.slug}} · Repositório: {{job.repository}}.</p>
+        <label>Digite exatamente <strong>{{expected()}}</strong>
+          <input [value]="typed()" (input)="typed.set($any($event.target).value)"
+            [disabled]="working()" autocomplete="off" spellcheck="false" autocapitalize="off">
+        </label>
+        <div class="release-actions">
+          <button type="button" (click)="cancel()" [disabled]="working()">Cancelar</button>
+          <button type="button" class="danger" (click)="confirm()"
+            [disabled]="working()||typed()!==expected()">
+            {{working()?'Revalidando na API…':job.action==='build'?'Confirmar build':'Confirmar rollback'}}
+          </button>
+        </div>
+      </section>
+    }
+    <div class="release-runs">
+      <h5>Builds do projeto</h5>
+      @if(runsIssue()){<p class="release-warning" role="status">{{runsIssue()}}</p>}
+      @for(run of runs();track run.id){
+        <div class="release-run">
+          <a [href]="'https://github.com/'+project.repository+'/actions/runs/'+run.id"
+            target="_blank" rel="noopener noreferrer">#{{run.id}} · {{run.sha.slice(0,10)}}</a>
+          <small>{{run.status==='completed'?(run.conclusion??'Sem conclusão'):run.status}} · não implica publicação na VPS</small>
+        </div>
+      }@empty{
+        @if(!loading()&&!runsIssue()){<p>Nenhum build registrado pela API nesta consulta.</p>}
+      }
+    </div>
+  }
+</section>
