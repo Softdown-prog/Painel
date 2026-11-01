@@ -271,7 +271,7 @@ test('fechar drawer pelo fundo devolve foco ao controle de abertura',async ({pag
   await page.goto('/angular/#overview');
   const trigger=page.getByRole('button',{name:'Abrir ferramentas e navegação'});
   await trigger.click();
-  await page.getByRole('button',{name:'Fechar menu',exact:true}).first().click({force:true});
+  await page.locator('.menu-backdrop').click({position:{x:375,y:200}});
   await expect(page.locator('#navigationPanel')).toBeHidden();
   await expect(trigger).toBeFocused();
 });
