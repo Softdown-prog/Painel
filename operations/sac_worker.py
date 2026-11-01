@@ -11,8 +11,8 @@ import re
 RUN_ID = re.compile(r"[0-9]{1,15}-[0-9a-f]{16}\Z")
 SIGNATURE = re.compile(r"[0-9a-f]{64}\Z")
 SHA = re.compile(r"[0-9a-f]{40}\Z")
-JOB_ID = re.compile(r"gha-[0-9]{1,15}-[1-9][0-9]{0,3}\\Z")
-RESULT_CODE = re.compile(r"[a-z][a-z0-9-]{0,63}\\Z")
+JOB_ID = re.compile(r"gha-[0-9]{1,15}-[1-9][0-9]{0,3}\Z")
+RESULT_CODE = re.compile(r"[a-z][a-z0-9-]{0,63}\Z")
 MAX_INPUT_BYTES = 32768
 WORKER_STATE_ROOT = Path("/var/lib/data-library-worker/state")
 
