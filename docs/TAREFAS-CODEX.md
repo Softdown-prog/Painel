@@ -1,3 +1,11 @@
+### 2026-10-31 — Node + Rust instalado; canal GitHub ↔ VPS comprovado
+
+**Código implementado:** PR #62, main `7202ad14551947d039d13a5a0c04451c6b143223`. **CI aprovado:** seis workflows da main, incluindo Rustfmt/Clippy, Rust, Node e Docker. **Frontend publicado:** Pages nessa revisão, sem alteração visual específica. **Backend instalado:** API e executor GHCR por digest, healthy; [deploy real 41263717377](https://github.com/Softdown-prog/Painel/actions/runs/41263717377), SHA e HTTPS verificados. **Gateway instalado:** imagem local vps-panel-wake:7202ad1 (tag completa no relatório), healthy, reutilizando camadas da API; 14 overlays, limites, volumes e IDs dos demais containers preservados. Backup apenas do override (544 bytes) em /run; imagem anterior mantida.
+
+**Produção validada:** login existente, indicadores reais, /api/runtime autenticado com engine=rust e zero fallbacks, terminal e smoke nativo na API/gateway. Teste isolado com Rust real passou HTTP, SSE, WebSocket, dois projetos e 404 para host desconhecido. **Canal do chat:** conector GitHub → issue #64 → workflow 41265987589 → VPS → comentário lido pelo conector, exit 0 e 12 containers. **Limite:** o deploy padrão atualiza API/executor; futuras revisões do gateway ainda exigem ativação separada. A rotina/testes/relatório estão no PR #63, não mesclado nesta etapa.
+
+**Agente seguinte:** auditoria do vps-code-mcp existente confirmou protocolo e oito ferramentas de consulta/indexação, 401 sem token e shell recusado. Execução administrativa/escrita e conexão direta do ChatGPT comum ainda não implementadas. Ver [relatório real](RELATORIO-NODE-RUST-2026-10-31.md) e [escopo do agente](AGENTE-ADMINISTRATIVO-MCP.md). Nenhum modelo novo instalado.
+
 ### 2026-10-31 — Projetos GitHub migrados para Angular no mobile
 
 Novo componente `angular/src/github-projects.component.{ts,html,css}`: a tela `/angular/#projects` agora lista os repositórios vinculados, permite cadastrar apenas nomes da conta autorizada, mostra branch/workflow e últimas execuções do GitHub. Conectar não dispara publicação; iniciar `workflow_dispatch` requer confirmação explícita de repositório, branch e workflow. A desconexão também pede confirmação e não altera containers. Token permanece exclusivamente no backend da VPS, como antes. O painel usa `/api/repositories`, `/api/repositories/:owner/:repo/runs` e a operação `deploy` já existente; sem criar endpoints privilegiados nem novos direitos.
@@ -422,3 +430,25 @@ Cadastro multiprojetos persistente em `PANEL_DATA_DIR/infrastructure-plans.json`
 - [ ] MCP HTTPS remoto: rede privada `vps_code_mcp_edge` com modo prévia/aplicar/reverter por `tools/repo-mcp/edge-network.mjs` e testes no Actions **(código na branch, VPS ainda não modificada)**. Aplicação via Shell root explícita, Cloudflare hostname/tunnel route, smoke HTTP externo e OAuth 2.1 para clientes que exigirem. Não assumir que Bearer estático é suficiente para ChatGPT. Não expor serviços em produção sem autorização.
 
 - [ ] Rust executor: protótipo shadow `server/rust-executor` somente decisões de leitura sem Docker socket (não implantado). Garantir paridade ampla com Node, testes de escalonamento e identidade real, memória/CPU/latência comparativas, depois preparar migração com rollback aprovado.
+
+### Registro histórico — implementação Rust antes da implantação
+
+Este trecho descreve o estágio anterior ao registro de instalação acima e foi mantido apenas para rastreabilidade da branch de origem.
+
+### 2026-10-31 — Camada Rust compativel com Node (em revisao)
+
+Branch `feat/rust-runtime-resource-routing`, base `467bcad`: API Node preservada,
+binario Rust sem crates externos/unsafe para RAM e selecao de rotas cadastradas,
+transporte stdin limitado, equivalencia verificada, fallback Node e circuito de
+falhas. `/runtime` exige sessao administrativa; limites reais continuam no Docker.
+Dockerfiles da API e app-wake compilam/testam Rust sem levar compilador para VPS.
+**Codigo implementado:** PR #62, `b431160`. **CI aprovado:** Console CI
+[41262771858](https://github.com/Softdown-prog/Painel/actions/runs/41262771858),
+Rust real/Clippy/fmt e gateway Docker
+[41262771759](https://github.com/Softdown-prog/Painel/actions/runs/41262771759),
+API/executor Docker [41262771752](https://github.com/Softdown-prog/Painel/actions/runs/41262771752).
+Cinco testes Rust e contratos reais Node/Rust aprovados, assim como os testes
+Linux do painel e 25 testes Python. **Frontend publicado:** nao houve alteracao visual. **Backend instalado:** nao. **Roteador
+nativo instalado:** nao; o deploy padrao nao atualiza app-wake. **Producao
+validada:** somente inventario inicial read-only no run `41261846891`; API e
+executor existentes `467bcad` saudaveis. Ver [Node e Rust](NODE-RUST-RUNTIME.md).

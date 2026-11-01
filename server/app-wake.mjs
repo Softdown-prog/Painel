@@ -1,6 +1,7 @@
 import http from 'node:http';
 import net from 'node:net';
 import { readFileSync } from 'node:fs';
+import { nativeRuntime } from './native-runtime.mjs';
 
 const ROUTES = process.env.PANEL_ROUTES_FILE || '/config/panel/domain-routes.json';
 const SOCKET = process.env.PANEL_EXECUTOR_SOCKET || '/run/panel-executor/docker.sock';
@@ -79,9 +80,9 @@ export function wakeOnce(route, request = executorRequest) {
   return task;
 }
 
-function readRoute(host) {
+async function readRoute(host) {
   const routes = JSON.parse(readFileSync(ROUTES, 'utf8'));
-  return routeForHost(host, routes);
+  return nativeRuntime.route(host, routes, routeForHost);
 }
 
 export function createWakeServer({ getRoute = readRoute, wake = wakeOnce,
@@ -91,7 +92,7 @@ export function createWakeServer({ getRoute = readRoute, wake = wakeOnce,
       res.writeHead(200, { 'content-type': 'text/plain' }); res.end('ok'); return;
     }
     let route;
-    try { route = getRoute(req.headers.host); }
+    try { route = await getRoute(req.headers.host); }
     catch { res.writeHead(503); res.end('Routes unavailable'); return; }
     if (!route) { res.writeHead(404); res.end('Application not found'); return; }
     try {
@@ -114,7 +115,7 @@ export function createWakeServer({ getRoute = readRoute, wake = wakeOnce,
   });
   server.on('upgrade', async (req, socket, head) => {
     let route;
-    try { route = getRoute(req.headers.host); }
+    try { route = await getRoute(req.headers.host); }
     catch { socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n'); return; }
     if (!route) { socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n'); return; }
     try {
