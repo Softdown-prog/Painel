@@ -82,8 +82,18 @@
             <small>{{project.services.length}} {{project.services.length===1?'serviço vinculado':'serviços vinculados'}}:
               {{project.services.join(', ')||'nenhum'}}</small>
           </div>
-          <a [href]="'/angular/#site?slug='+project.slug">Ver aplicação</a>
+          <div class="managed-link-actions">
+            <a [href]="'/angular/#site?slug='+project.slug">Ver aplicação</a>
+            <button type="button" [attr.aria-expanded]="expandedProject()===project.slug"
+              [disabled]="linksLoading()||working()" (click)="toggleProjectDetails(project.slug)">
+              {{expandedProject()===project.slug?'Ocultar versões':'Consultar builds e versões'}}
+            </button>
+          </div>
         </article>
+        @if(expandedProject()===project.slug){
+          <panel-project-release [project]="project" [buildsEnabled]="buildsEnabled()"
+            [requiredWorkflow]="requiredWorkflow()" />
+        }
       }
     </div>
     <p class="github-footnote">Os vínculos e as operações de publicação dependem de autorização do servidor. Importação de imagens, versões e rollback ainda precisam de auditoria de paridade antes da remoção da interface clássica.</p>
