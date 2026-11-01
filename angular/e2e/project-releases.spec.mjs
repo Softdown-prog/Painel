@@ -70,7 +70,7 @@ test('inspeção de versões e build aprovado é estritamente somente leitura',a
   const panel=await openReleasePanel(page);
   await expect(panel.getByText('ghcr.io/softdown-prog/alpha:backup')).toBeVisible();
   await expect(panel.getByText('Imagem '+SHA.slice(0,12),{exact:false})).toBeVisible();
-  await expect(panel.getByText(/#414/)).toBeVisible();
+  await expect(panel.locator('.release-run a').filter({hasText:'#414'})).toBeVisible();
   expect(state.requests.some(r=>r.startsWith('POST ')||r.startsWith('DELETE '))).toBe(false);
 });
 
