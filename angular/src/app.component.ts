@@ -53,6 +53,7 @@ export class AppComponent implements OnInit,OnDestroy {
     this.submitting(),this.sessionChecking()
   ));
   private timer:ReturnType<typeof setInterval>|null=null;
+  private focusTimer:ReturnType<typeof setTimeout>|null=null;
   private destroyed=false;
   readonly clock=signal(Date.now());
   readonly overviewFresh=computed(()=>readingFresh(this.overview()?.updatedAt,this.clock())&&!this.overviewIssue());
@@ -96,6 +97,8 @@ export class AppComponent implements OnInit,OnDestroy {
     this.sessionCheckId++;
     if(this.timer!==null)clearInterval(this.timer);
     this.timer=null;
+    if(this.focusTimer!==null)clearTimeout(this.focusTimer);
+    this.focusTimer=null;
     this.clearReadings();
   }
 
@@ -145,9 +148,18 @@ export class AppComponent implements OnInit,OnDestroy {
       event.preventDefault();first.focus();
     }
   }
+  private scheduleFocus(callback:()=>void):void{
+    if(this.focusTimer!==null)clearTimeout(this.focusTimer);
+    // Angular applies signals to the DOM after the event callback. Focus must run
+    // after inert/visibility attributes have been committed, not in a microtask.
+    this.focusTimer=setTimeout(()=>{
+      this.focusTimer=null;
+      if(!this.destroyed)callback();
+    },0);
+  }
   private focusPageTitle():void{
-    queueMicrotask(()=>{
-      if(!this.destroyed&&!this.menuOpen())this.pageTitle?.nativeElement.focus({preventScroll:true});
+    this.scheduleFocus(()=>{
+      if(!this.menuOpen())this.pageTitle?.nativeElement.focus({preventScroll:true});
     });
   }
   skipToContent(event:MouseEvent):void {
@@ -198,16 +210,16 @@ export class AppComponent implements OnInit,OnDestroy {
   toggleMenu(): void {
     if(this.menuOpen()){this.closeMenu(true);return;}
     this.menuOpen.set(true);
-    queueMicrotask(()=>{
-      if(this.menuOpen()&&!this.destroyed)
-        this.sidebarPanel?.nativeElement.querySelector<HTMLButtonElement>('.menu-close')?.focus();
+    this.scheduleFocus(()=>{
+      if(this.menuOpen())
+        this.sidebarPanel?.nativeElement.querySelector<HTMLButtonElement>('.menu-close')?.focus({preventScroll:true});
     });
   }
   closeMenu(restoreFocus=false): void {
     const wasOpen=this.menuOpen();
     this.menuOpen.set(false);
-    if(wasOpen&&restoreFocus)queueMicrotask(()=>{
-      if(!this.destroyed&&!this.menuOpen())this.menuTrigger?.nativeElement.focus({preventScroll:true});
+    if(wasOpen&&restoreFocus)this.scheduleFocus(()=>{
+      if(!this.menuOpen())this.menuTrigger?.nativeElement.focus({preventScroll:true});
     });
   }
 
