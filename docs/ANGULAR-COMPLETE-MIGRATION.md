@@ -37,6 +37,14 @@
 
 **Situação atual:** MIGRAÇÃO EM ANDAMENTO. Não há liberação de produção desta branch.
 
+## Confirmações PostgreSQL e Domínios — foco e proteção da tela (01/11/2026)
+
+- Ao preparar **criação de banco PostgreSQL**, o campo de identificação exata recebe foco após renderização; o grupo anuncia o risco de alteração da instância compartilhada com `aria-describedby`. Cancelar devolve o foco ao identificador do projeto. O provisionamento continua restrito à política de certificado e confirmação exata; nenhuma senha é solicitada.
+- Ao preparar **reserva, publicação DNS/HTTPS ou remoção de domínio**, o campo de confirmação recebe foco. Cancelar devolve o foco ao botão que iniciou a operação, se ainda estiver disponível. Cada grupo de confirmação referencia seu aviso de risco, sem afirmar que uma reserva está publicada.
+- Os componentes ignoram respostas assíncronas após desmontagem de rota e limpam os timers de foco no `ngOnDestroy`, impedindo atualizações tardias em telas que não estão mais abertas.
+- Novos **5 cenários E2E** em `angular/e2e/database-domains-accessibility.spec.mjs`: confirmação e cancelamento sem mutação, igualdade exata, mensagens de publicação HTTPS ainda pendente e viewport de 320 px. Toda a API é interceptada no navegador; sem conexão à VPS, alterações de DNS ou banco real.
+- **Validação pendente:** CI do último commit desta etapa e testes com TalkBack/NVDA em navegador/dispositivo reais. Não autoriza deploy nem remoção do fallback clássico.
+
 ## Consolidação de branches e última validação (01/11/2026)
 
 - **Branch única de desenvolvimento:** `feat/angular-complete-migration`. A linha `ops/rust-gateway-7202ad1` foi incorporada pelo merge commit [`2cdba8b8`](https://github.com/Softdown-prog/Painel/commit/2cdba8b80e43cf34df82bd36559d63c977b628c6), PR #65; PR #63 foi fechado sem merge na `main`. Preservados frontend Angular, terminal SSH, índices MCP, runtime Node/Rust, testes e relatórios.
