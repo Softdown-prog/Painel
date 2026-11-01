@@ -130,7 +130,7 @@ jobs:
   frontend-e2e:
     name: Angular browser E2E (mock API, no VPS)
     if: github.ref == 'refs/heads/feat/angular-complete-migration' || github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
