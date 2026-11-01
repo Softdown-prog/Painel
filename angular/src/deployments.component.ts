@@ -43,6 +43,8 @@ export class DeploymentsComponent implements OnInit, OnDestroy {
   readonly publicationJobs=signal<DurableJob[]>([]);
   readonly publicationHistoryKnown=signal(false);
   readonly publicationHistoryIssue=signal('');
+  readonly repositoriesKnown=signal(false);
+  readonly repositoriesIssue=signal('');
   readonly publicationSummary=computed(()=>{
     const jobs=this.publicationJobs();
     return {active:jobs.filter(job=>['queued','importing','staging','health','promoting'].includes(job.phase)).length,
@@ -130,34 +132,46 @@ export class DeploymentsComponent implements OnInit, OnDestroy {
     this.publicationHistoryIssue.set('');
     this.publicationHistoryKnown.set(false);
     this.publicationJobs.set([]);
+    this.repositoriesKnown.set(false);
+    this.repositoriesIssue.set('');
     try {
-      const data=await this.api<{repositories?:Repository[]}>('/repositories');
-      if (!Array.isArray(data.repositories))
-        throw new Error('A API não confirmou a lista de repositórios.');
-      const linkedRepos=data.repositories.filter(repo=>repo &&
-        typeof repo.fullName==='string' && REPO.test(repo.fullName) &&
-        typeof repo.branch==='string' && typeof repo.workflow==='string');
-      const panel=linkedRepos.find(repo=>repo.fullName==='Softdown-prog/Painel') ??
-        {fullName:'Softdown-prog/Painel',branch:'main',workflow:'deploy-vps.yml'};
-      const repos=[panel,...linkedRepos.filter(repo=>repo.fullName!==panel.fullName)].slice(0,8);
-      const [projectResponse,historyResponse]=await Promise.allSettled([
+      // Global publication history does not depend on the GitHub repository API.
+      const [repositoriesResponse,projectResponse,historyResponse]=await Promise.allSettled([
+        this.api<{repositories?:Repository[]}>('/repositories'),
         this.api<{projects?:LinkedProject[]}>('/projects'),
         this.api<{history?:PublicationJob[]}>('/publications')
       ]);
+      const partial:string[]=[];
+      let repos:Repository[]=[];
+      if(repositoriesResponse.status==='fulfilled'&&
+        Array.isArray(repositoriesResponse.value.repositories)){
+        const linkedRepos=repositoriesResponse.value.repositories.filter(repo=>repo &&
+          typeof repo.fullName==='string'&&REPO.test(repo.fullName)&&
+          typeof repo.branch==='string'&&typeof repo.workflow==='string');
+        const panel=linkedRepos.find(repo=>repo.fullName==='Softdown-prog/Painel') ??
+          {fullName:'Softdown-prog/Painel',branch:'main',workflow:'deploy-vps.yml'};
+        repos=[panel,...linkedRepos.filter(repo=>repo.fullName!==panel.fullName)].slice(0,8);
+        this.repositoriesKnown.set(true);
+      }else{
+        this.repositoriesIssue.set('Não foi possível confirmar os repositórios GitHub nesta consulta.');
+        partial.push('repositórios conectados');
+      }
       const projects=projectResponse.status==='fulfilled' &&
         Array.isArray(projectResponse.value.projects) ? projectResponse.value.projects : [];
-      const partial:string[]=[];
       if(projectResponse.status==='rejected'||!Array.isArray(projectResponse.value?.projects))
         partial.push('vínculos dos projetos');
       let jobs:DurableJob[]=[];
       if(historyResponse.status==='fulfilled'&&Array.isArray(historyResponse.value.history)){
         const raw=historyResponse.value.history;
-        jobs=raw.filter((item:unknown):item is DurableJob=>this.validDurableJob(item));
-        if(jobs.length!==raw.length){
-          this.publicationHistoryIssue.set('O histórico contém registros desconhecidos ou inválidos; eles não foram classificados.');
+        const validated=raw.filter((item:unknown):item is DurableJob=>this.validDurableJob(item));
+        if(validated.length!==raw.length){
+          this.publicationHistoryIssue.set('O histórico contém registros desconhecidos ou inválidos; nenhum trabalho foi classificado.');
           partial.push('registros de publicação não confirmados');
-        }else this.publicationHistoryKnown.set(true);
-        this.publicationJobs.set(jobs.slice(0,12));
+        }else{
+          this.publicationHistoryKnown.set(true);
+          jobs=validated;
+          this.publicationJobs.set(jobs.slice(0,12));
+        }
       }else{
         this.publicationHistoryIssue.set('Histórico de publicações não confirmado. Nenhum estado de publicação pode ser presumido.');
         partial.push('histórico de publicações');
@@ -210,6 +224,8 @@ export class DeploymentsComponent implements OnInit, OnDestroy {
       this.publicationJobs.set([]);
       this.publicationHistoryKnown.set(false);
       this.publicationHistoryIssue.set('Histórico de publicações não confirmado.');
+      this.repositoriesKnown.set(false);
+      this.repositoriesIssue.set('Repositórios indisponíveis.');
       this.configured.set(false);
       this.expanded.set(null);
     }finally{if(!this.destroyed)this.loading.set(false);}
