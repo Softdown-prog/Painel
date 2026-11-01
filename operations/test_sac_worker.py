@@ -136,6 +136,27 @@ class SacWorkerQueryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             sac_worker.query_sac_worker(POLICY, {"action": "job", "job_id": job_id}, state_dir=self.state)
 
+    def test_build_and_audit_pass_requires_distinct_code(self):
+        directory = self.state / "sac-results"
+        directory.mkdir()
+        job = "gha-777-2"
+        proof = {"schema_version": 1, "job_id": job, "project_id": "demo-app",
+            "profile_id": "angular-root", "source_sha": "a" * 40, "status": "pass",
+            "static_pipeline_pass": True, "browser_pass": True,
+            "deployment_authorized": False, "execution": "sac-build-audit",
+            "code": "isolated-build-browser-pass"}
+        file = directory / (job + ".json")
+        file.write_text(json.dumps(proof))
+        result = sac_worker.query_sac_worker(POLICY, {"action": "job", "job_id": job},
+                                             state_dir=self.state)["sacWorker"]
+        self.assertEqual(result["status"], "pass")
+        self.assertEqual(result["execution"], "sac-build-audit")
+        self.assertFalse(result["deploymentAuthorized"])
+        file.write_text(json.dumps({**proof, "code": "isolated-browser-pass"}))
+        with self.assertRaises(ValueError):
+            sac_worker.query_sac_worker(POLICY, {"action": "job", "job_id": job},
+                                         state_dir=self.state)
+
     def test_oidc_only_main_approved_actor_and_workflow(self):
         c = {"iss": receiver.ISSUER, "aud": receiver.AUDIENCE, "iat": 1000,
              "nbf": 999, "exp": 1200, "actor_id": "189416996",

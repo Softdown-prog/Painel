@@ -106,18 +106,20 @@ def query_sac_worker(policy, args, *, state_dir=None):
                 or type(result.get("static_pipeline_pass")) is not bool
                 or type(result.get("browser_pass")) is not bool
                 or result.get("deployment_authorized") is not False
-                or result.get("execution") != "sac-audit"
+                or result.get("execution") not in ("sac-audit", "sac-build-audit")
                 or type(result.get("code")) is not str
                 or RESULT_CODE.fullmatch(result["code"]) is None):
             raise ValueError("Invalid SAC job result")
         if (result["browser_pass"] and not result["static_pipeline_pass"]
                 or result["status"] == "pass" and not (result["static_pipeline_pass"] and result["browser_pass"]
-                                                     and result["code"] == "isolated-browser-pass")):
+                                                     and result["code"] == ("isolated-build-browser-pass"
+                            if result["execution"] == "sac-build-audit"
+                            else "isolated-browser-pass"))):
             raise ValueError("False SAC success")
         return {"sacWorker": {
             "action": "job", "jobId": job_id, "projectId": result["project_id"],
             "profileId": result["profile_id"], "sourceSha": result["source_sha"],
-            "status": result["status"], "code": result["code"],
+            "status": result["status"], "code": result["code"], "execution": result["execution"],
             "staticPipelinePass": result["static_pipeline_pass"],
             "browserPass": result["browser_pass"], "deploymentAuthorized": False, "readOnly": True,
         }}

@@ -27,3 +27,7 @@ Repositório complementar: `Softdown-prog/Data_libray`, branch `feat/sac-008b-wo
 ## SAC-008C: consulta individual de resultado
 
 Após a instalação/habilitação administrativa separada, a Issue literal `[VPS] sac-job` no Painel pode conter **somente** `gha-<run_id>-<attempt>` no corpo; `workflow_dispatch` pode usar `operation=sac_worker`, `sac_action=job` e `sac_job_id`. O broker lê apenas `sac-results/<id>.json`, valida IDs/estado/cobertura e retorna um **resumo sanitizado** por GitHub Actions, não stdout ou arquivos de projeto. `not-recorded` significa resultado ainda não gravado, não significa Worker offline. Esta operação não executa compiladores. Para iniciar auditoria SAC-008C, o One Worker precisaria estar explicitamente configurado e aprovado, com as duas políticas/flags de execução.
+
+## Resultado de compilação efetiva (SAC-008D)
+
+A consulta `sac_worker action=job` também reconhece `execution=sac-build-audit` com o **único** código de aprovação `isolated-build-browser-pass`, que declara build Angular dentro do Docker seguido de SAC/Guardian aprovados. O código legado `isolated-browser-pass` continua exclusivo do modo auditoria sem build. Campos incompatíveis, falso browser pass e alegações de deploy continuam rejeitados. A integração está apenas na branch do PR #74; ainda precisa de homologação, merge e instalação do broker na VPS antes de funcionar.
