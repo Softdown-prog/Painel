@@ -23,7 +23,7 @@ export class SecretsComponent implements OnInit,OnDestroy{
  readonly typedName=signal('');
  @ViewChild('confirmationNameInput') private confirmationNameInput?:ElementRef<HTMLInputElement>;
  @ViewChild('deletePasswordInput') private deletePasswordInput?:ElementRef<HTMLInputElement>;
- @ViewChild('saveSecretButton') private saveSecretButton?:ElementRef<HTMLButtonElement>;
+ @ViewChild('secretNameInput') private secretNameInput?:ElementRef<HTMLInputElement>;
  private deleteSource:HTMLButtonElement|null=null;
  private focusTimer:ReturnType<typeof setTimeout>|null=null;
  private revision=0;
@@ -57,7 +57,7 @@ export class SecretsComponent implements OnInit,OnDestroy{
      field?.nativeElement.focus({preventScroll:true});
    },0);
  }
- private returnFocus(source:HTMLButtonElement|null):void{
+ private returnFocus(source:HTMLButtonElement|HTMLInputElement|null):void{
    queueMicrotask(()=>{
      if(!this.destroyed&&!this.pending()&&source?.isConnected&&!source.disabled)
        source.focus({preventScroll:true});
@@ -134,7 +134,7 @@ export class SecretsComponent implements OnInit,OnDestroy{
    this.focusConfirmation();
  }
  cancel():void{
-   const source=this.deleteSource??this.saveSecretButton?.nativeElement??null;
+   const source=this.deleteSource??this.secretNameInput?.nativeElement??null;
    this.deleteSource=null;
    if(this.focusTimer!==null)clearTimeout(this.focusTimer);
    this.focusTimer=null;
