@@ -50,7 +50,7 @@
             <small>{{job.repository}} · build #{{job.runId}} · {{formatDate(job.updatedAt)}}</small>
           </div>
           <div class="durable-progress">
-            <span class="durable-stage" [class.success]="false"
+            <span class="durable-stage"
               [class.danger]="publicationStage(job.phase).tone==='danger'"
               [class.running]="publicationStage(job.phase).tone==='running'"
               [class.warning]="publicationStage(job.phase).tone==='warning'">
@@ -67,6 +67,7 @@
     }
   </section>
 
+  @if(repositoriesIssue()){<p class="deploy-warning" role="status">{{repositoriesIssue()}}</p>}
   @if(warning()){<p class="deploy-warning" role="status">{{warning()}}</p>}
   @if(error()){
     <div role="alert" class="deploy-error"><strong>Monitoramento indisponível</strong><p>{{error()}}</p></div>
@@ -74,7 +75,7 @@
   @if(loading() && !checkedAt()){
     <p class="deploy-loading" role="status">Consultando repositórios, workflows e revisões instaladas...</p>
   }
-  @if(!loading() && !error() && !configured()){
+  @if(!loading() && !error() && repositoriesKnown() && !configured()){
     <div class="deploy-empty">
       <h3>Nenhum repositório encontrado</h3>
       <p>O Painel é monitorado automaticamente. Outros projetos podem ser conectados na área GitHub.</p>
