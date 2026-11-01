@@ -187,3 +187,12 @@ Esta etapa compara `projects-ui.ts`, `github-ui.ts`, `terminal-ui.ts` e `revisio
 4. **Homologação**: mocks, testes reais multiusuário/multiprojeto, falhas e mobile, sem executar na VPS ou retirar interface clássica até a migração integral.
 
 **Status:** plano persistido e gerenciável na branch, execução operacional não implementada. Nenhum PR/merge/deploy.
+
+## Navegação MCP pelo GitHub Actions — código preparado (sem deploy)
+
+- Operação `mcp_query` no broker `vpsops`: OIDC de `main`, workflow `vps-command.yml`, ator e repositório fixos, projeto `infrastructure` e política root-owned.
+- Via Issue administrativa com título exato `[VPS] mcp-query` e corpo JSON. Exemplo: `{"repo":"Painel","tool":"repo_find_files","query":"executor","limit":10}`. Também pode ser disparada manualmente pelo workflow depois de instalada na `main`.
+- Só ferramentas de navegação: `repo_list`, `repo_stats`, `repo_find_files`, `repo_find_symbols`, `repo_search_text`, `repo_dependencies`. O resultado público é projetado somente em estatísticas, caminhos, símbolos e números de linhas; **nunca previews nem conteúdo de arquivo**.
+- `repo_read_file`, `repo_reindex`, edição de arquivos, comando shell, mutações Git, Docker e deploy são bloqueados. O token MCP fica exclusivamente na VPS, e o broker usa `127.0.0.1:8789`.
+- O workflow na branch roda CI, **não acessa a VPS e não altera produção**. A ponte real exige revisão e liberação posterior na `main` e atualização do receptor por execução root explicitamente autorizada.
+- Script manual `operations/upgrade-vpsops-mcp-query.sh check|apply <checkout_verificado>` preserva as outras operações; não é executado em CI.

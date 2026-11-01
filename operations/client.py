@@ -23,6 +23,13 @@ def main():
                 'image': requested.get('image',''),
                 'sha': os.environ.get('GITHUB_SHA','') if os.environ['VPS_ACTION']=='install' else '',
                 'confirm': os.environ.get('VPS_CONFIRM','')}
+    elif operation == 'mcp_query':
+        raw = os.environ.get('VPS_MCP_ARGS', '')
+        if len(raw.encode('utf-8')) > 2500:
+            raise ValueError('MCP request exceeds 2500 bytes')
+        args = json.loads(raw)
+        if not isinstance(args, dict):
+            raise ValueError('MCP request must be a JSON object')
     elif operation == 'maintain':
         args = {
             'action': os.environ['VPS_ACTION'],
