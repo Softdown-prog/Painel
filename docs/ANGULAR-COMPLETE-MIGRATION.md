@@ -137,6 +137,12 @@
 - Consultas atrasadas não restauram o inventário após `OnDestroy`. Uma gravação já enviada não é cancelada pelo fechamento da tela; o servidor continua sendo a fonte de verdade, e a próxima abertura deve consultar o inventário.
 - Testes de confirmação, revisão do formulário, cadastro/substituição/exclusão e limpeza após destruição em `server/angular-secrets-settings.test.mjs`. Ainda pendente validação em navegador real e celular, sem API/produção alteradas.
 
+## Correção incremental — deep links da interface Angular (31/10/2026)
+
+- O redirecionador da raiz `index.html` agora reconhece `/#infrastructure` e envia para `/angular/#infrastructure`, como já fazia o roteador do Angular. A consulta da tela continua autenticada e nenhuma capacidade MCP/cluster foi ativada por essa alteração.
+- `server/angular-canonical-mobile.test.mjs` cobre o acesso ao módulo novo, a conversão de links `#site?slug=...`, a rejeição de identificadores inválidos e a preservação do modo clássico explícito para comparação de paridade.
+- Alteração limitada a `index.html`, testes de interface e esta documentação, sem modificações no backend, executor, workflows ou produção. **Paridade completa, testes E2E em navegador real e homologação mobile seguem pendentes.**
+
 ## Nova frente — Servidores MCP e Clusters multiprojetos (31/10/2026)
 
 **Escopo desta entrega: painel de cadastro de arquitetura, NÃO provisionamento.** A tela Angular `/angular/#infrastructure` oferece criação, edição, listagem e exclusão confirmada dos **planos** MCP e cluster. Um plano não é um processo, nó ou servidor funcionando; nenhuma métrica/estado é inventado. O backend retorna `runtime: not-provisioned` e capacidades `provisioning=false, healthMonitoring=false, lifecycle=false`.
