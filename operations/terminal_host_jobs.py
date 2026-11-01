@@ -93,10 +93,10 @@ def systemd_state(job_id):
                           '--property=LoadState,ActiveState,Result', '--no-pager'],
                          capture_output=True, text=True, timeout=5)
     props=dict(line.split('=',1) for line in result.stdout.splitlines() if '=' in line)
-    if props.get('LoadState') == 'not-found':
-        return ('not-found','unknown')
     if result.returncode:
         return ('unavailable','unknown')
+    if props.get('LoadState') == 'not-found':
+        return ('not-found','unknown')
     return props.get('ActiveState','unavailable'),props.get('Result','unknown')
 
 def reconcile(data):
@@ -263,18 +263,19 @@ def run(job_id):
                                      close_fds=True)
             assert process.stdout is not None
             total=0
-            while True:
-                block=os.read(process.stdout.fileno(),8192)
-                if not block:
-                    break
-                left=max(0,MAX_OUTPUT-total)
-                if left:
-                    file.write(block[:left])
-                    file.flush()
-                    total+=min(len(block),left)
-                if len(block)>left and not data['truncated']:
-                    data['truncated']=True
-                    save(data)
+            with process.stdout:
+                while True:
+                    block=os.read(process.stdout.fileno(),8192)
+                    if not block:
+                        break
+                    left=max(0,MAX_OUTPUT-total)
+                    if left:
+                        file.write(block[:left])
+                        file.flush()
+                        total+=min(len(block),left)
+                    if len(block)>left and not data['truncated']:
+                        data['truncated']=True
+                        save(data)
             code=process.wait()
     finally:
         script.unlink(missing_ok=True)

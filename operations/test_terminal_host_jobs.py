@@ -134,6 +134,12 @@ print(host.public(host.prune()[0])['state'])
             returncode=0,stdout='LoadState=not-found\nActiveState=inactive\nResult=success\n')):
             self.assertEqual(host.systemd_state(ID),('not-found','unknown'))
 
+    def test_failed_systemctl_cannot_confirm_missing_unit(self):
+        # A failed status query must not be used to free the active job slot.
+        with patch.object(host.subprocess,'run',return_value=MagicMock(
+            returncode=1,stdout='LoadState=not-found\nActiveState=inactive\n')):
+            self.assertEqual(host.systemd_state(ID),('unavailable','unknown'))
+
     def test_run_writes_output_and_erases_stored_command(self):
         import hashlib
         command=b'printf hello-from-host'
