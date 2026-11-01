@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """One-shot, scoped gateway migration using the already-installed hybrid API image."""
 import copy
-import fcntl
 import hashlib
 import json
 import os
@@ -16,7 +15,6 @@ NAME = 'softload-panel-app-wake'
 RECEIPT = Path('/run/panel-native-wake-7202ad1-result.json')
 BACKUP = Path('/run/panel-native-wake-7202ad1-compose.before.json')
 REPORT = {'revision': SHA, 'status': 'preflight', 'servicesChanged': []}
-os.umask(0o077)
 
 
 def run(args, timeout=60, cwd=None):
@@ -58,30 +56,36 @@ def mounts(container):
     return sorted((m['Type'], m['Source'], m['Destination'], m['RW']) for m in container['Mounts'])
 
 
-def main():
-    lock = Path('/var/lib/vps-operations/panel.lock').open('a')
-    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    api = inspect('softload-panel-api')
+def validate_sources(api, gateway, current, files):
     if api['Config']['Labels'].get('org.opencontainers.image.revision') != SHA:
         raise RuntimeError('Expected API revision is not installed')
     if api['State'].get('Health', {}).get('Status') != 'healthy':
         raise RuntimeError('API is not healthy')
-    gateway = inspect(NAME)
     if gateway['State'].get('Health', {}).get('Status') != 'healthy':
         raise RuntimeError('Existing gateway is not healthy')
     if gateway['Config']['Labels'].get('com.docker.compose.project') != 'softload-panel':
         raise RuntimeError('Unexpected gateway project')
     if gateway['Config']['Labels'].get('com.docker.compose.service') != 'app-wake':
         raise RuntimeError('Unexpected gateway service')
-    current = Path('/opt/vps-panel/current').resolve()
     if current != Path('/opt/vps-panel/releases') / SHA / 'server':
         raise RuntimeError('Current release pointer differs')
-    files = api['Config']['Labels']['com.docker.compose.project.config_files'].split(',')
     if not files or any(Path(file).parent != current for file in files):
         raise RuntimeError('API overlays are not aligned')
     install = current / 'compose.install.yaml'
     if str(install) not in files:
         raise RuntimeError('Installed image override is missing')
+    return install
+
+
+def main():
+    import fcntl
+    lock = Path('/var/lib/vps-operations/panel.lock').open('a')
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    api = inspect('softload-panel-api')
+    gateway = inspect(NAME)
+    current = Path('/opt/vps-panel/current').resolve()
+    files = api['Config']['Labels']['com.docker.compose.project.config_files'].split(',')
+    install = validate_sources(api, gateway, current, files)
     original = install.read_bytes()
     if len(original) > 1024 * 1024 or BACKUP.exists():
         raise RuntimeError('Review existing backup before repeating')
@@ -91,8 +95,8 @@ def main():
                '--env-file', '/etc/softload-panel/runtime.env']
     compose += [arg for file in files for arg in ('-f', file)]
     effective_before = json.loads(run(compose + ['config', '--format', 'json'], cwd=current))
-    all_containers = json.loads(run(['docker', 'ps', '-aq']).decode().strip() and
-                               run(['docker', 'inspect'] + run(['docker', 'ps', '-aq']).decode().split()) or b'[]')
+    container_ids = run(['docker', 'ps', '-aq']).decode().split()
+    all_containers = json.loads(run(['docker', 'inspect'] + container_ids)) if container_ids else []
     other_ids = {c['Name'].lstrip('/'): c['Id'] for c in all_containers if c['Name'] != '/' + NAME}
     source = current / 'app-wake.mjs'
     REPORT.update({'previousImage': gateway['Config']['Image'], 'previousImageId': gateway['Image'],
@@ -169,9 +173,11 @@ def main():
         raise
 
 
-try:
-    main()
-except BaseException as error:
-    REPORT.update({'status': 'stopped', 'errorType': type(error).__name__, 'error': str(error)[:500]})
-    save()
-    raise
+if __name__ == '__main__':
+    os.umask(0o077)
+    try:
+        main()
+    except BaseException as error:
+        REPORT.update({'status': 'stopped', 'errorType': type(error).__name__, 'error': str(error)[:500]})
+        save()
+        raise
