@@ -97,7 +97,7 @@ function call(path,method='GET',body){return new Promise((ok,no)=>{
 });}
 assert.equal((await call('/_executor/health')).status,200);
 const list=await call('/v1.45/containers/json?all=1&view=inventory');
-assert.equal(list.status,200);assert.deepEqual(JSON.parse(list.body),[]);
+assert.equal(list.status,200);assert.deepEqual(JSON.parse(list.body),{containers:[],truncated:false});
 assert.equal((await call('/v1.45/containers/create','POST',{Image:'evil',HostConfig:{Privileged:true}})).status,403);
 assert.equal((await call('/v1.45/containers/foreign/stop','POST')).status,403);
 """
