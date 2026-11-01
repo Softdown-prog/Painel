@@ -1,5 +1,6 @@
 import { Component, Input, OnChanges, OnDestroy, signal } from '@angular/core';
 import { validAppSlug } from './apps-policy';
+import { ReleaseMaintenanceComponent } from './release-maintenance.component';
 
 export type ManagedProjectLink={
   slug:string;repository:string;branch:string|null;workflow:string|null;services:string[];
@@ -37,6 +38,7 @@ const message=(error:unknown)=>error instanceof Error?error.message:'Falha na co
 @Component({
   selector:'panel-project-release',
   standalone:true,
+  imports:[ReleaseMaintenanceComponent],
   templateUrl:'./project-release-panel.component.html',
   styleUrl:'./project-release-panel.component.css'
 })
