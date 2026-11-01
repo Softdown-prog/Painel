@@ -21,10 +21,11 @@ type Run={
   id:number;sha:string;status:string;conclusion:string|null;createdAt:string;
 };
 type ConfirmJob={
-  action:'build'|'rollback';slug:string;repository:string;
-  revision:string|null;backupImage:string|null;
+  action:'build'|'rollback'|'import'|'stage';slug:string;repository:string;
+  revision:string|null;backupImage:string|null;runId:number|null;runSha:string|null;
 };
 const SHA=/^[a-f0-9]{40}$/i;
+const DIGEST=/^sha256:[a-f0-9]{64}$/i;
 const REPO=/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const TERMINAL=new Set(['completed','attention','failed']);
 const message=(error:unknown)=>error instanceof Error?error.message:'Falha na consulta da API.';
@@ -71,6 +72,31 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
       !!r.backup&&!r.candidate&&p?.enabled===true&&
       (p.current===null||TERMINAL.has(p.current.phase));
   }
+  private finished(run:Run):boolean {
+    return Number.isSafeInteger(run.id)&&run.id>0&&SHA.test(run.sha)&&
+      run.status==='completed'&&run.conclusion==='success';
+  }
+  private availablePublication():boolean{
+    const p=this.publication();
+    return p!==null&&(p.current===null||TERMINAL.has(p.current.phase));
+  }
+  private availableImport():boolean {
+    const i=this.image();
+    return i!==null&&i.enabled===true&&
+      (i.job===null||i.job.status==='success'||i.job.status==='error');
+  }
+  canImport(run:Run):boolean {
+    const r=this.release();
+    return this.supported()&&!this.working()&&!this.loading()&&this.finished(run)&&
+      this.availableImport()&&this.availablePublication()&&
+      r?.enabled===true&&r.current.state==='running'&&!r.candidate&&!r.backup;
+  }
+  canStage(run:Run):boolean {
+    const r=this.release(),i=this.image();
+    return this.canImport(run)&&r?.enabled===true&&r.current.state==='running'&&
+      i?.imported?.revision?.toLowerCase()===run.sha.toLowerCase()&&
+      DIGEST.test(i.imported.digest);
+  }
   private ownedProject():boolean {
     const p=this.project;
     return !!p&&validAppSlug(p.slug)&&REPO.test(p.repository)&&
@@ -89,9 +115,11 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
     this.cancel();this.release.set(null);this.image.set(null);
     this.publication.set(null);this.runs.set([]);
   }
-  private async api<T>(path:string,method:'GET'|'POST'='GET'):Promise<T>{
+  private async api<T>(path:string,method:'GET'|'POST'='GET',payload?:object):Promise<T>{
     const response=await fetch('/api'+path,{
-      method,credentials:'same-origin',cache:'no-store',redirect:'error',headers:{accept:'application/json'}
+      method,credentials:'same-origin',cache:'no-store',redirect:'error',
+      headers:payload?{accept:'application/json','content-type':'application/json'}:{accept:'application/json'},
+      ...(payload?{body:JSON.stringify(payload)}:{})
     });
     let data:unknown;
     try {data=await response.json();}
@@ -169,18 +197,34 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
     const r=this.release(),p=this.project;
     this.pending.set({
       action,slug:p.slug,repository:p.repository,
-      revision:r?.current.revision??null,backupImage:r?.backup?.image??null
+      revision:r?.current.revision??null,backupImage:r?.backup?.image??null,
+      runId:null,runSha:null
     });
     this.typed.set('');
     this.error.set('');this.notice.set('');
   }
+  prepareRun(action:'import'|'stage',runId:number):void{
+    const run=this.runs().find(item=>item.id===runId);
+    if(!run||(action==='import'?!this.canImport(run):!this.canStage(run)))return;
+    this.pending.set({action,slug:this.project.slug,repository:this.project.repository,
+      revision:this.release()?.current.revision??null,backupImage:null,
+      runId:run.id,runSha:run.sha});
+    this.typed.set('');this.error.set('');this.notice.set('');
+  }
   cancel():void{this.pending.set(null);this.typed.set('');}
   expected():string {
     const job=this.pending();
-    return job?.action==='rollback'?'RESTAURAR '+job.slug:(job?.slug??'');
+    if(!job)return '';
+    if(job.action==='rollback')return 'RESTAURAR '+job.slug;
+    if(job.action==='import')return 'IMPORTAR '+job.slug;
+    if(job.action==='stage')return 'PREPARAR '+job.slug;
+    return job.slug;
   }
   async confirm():Promise<void>{
     const job=this.pending(),project=this.project;
+    if(job?.action==='import'||job?.action==='stage'){
+      await this.confirmRun(job);return;
+    }
     if(!job||this.working()||this.loading()||
       job.slug!==project.slug||job.repository!==project.repository||
       this.typed()!==this.expected()||
@@ -227,6 +271,72 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
       accepted=true;
       this.cancel();
     }catch(e){if(!this.destroyed&&seq===this.sequence)this.error.set(message(e));}
+    finally{this.working.set(false);}
+    if(accepted&&!this.destroyed&&seq===this.sequence)await this.refresh();
+  }
+  private async confirmRun(job:ConfirmJob):Promise<void>{
+    if((job.action!=='import'&&job.action!=='stage')||
+      this.working()||this.loading()||this.destroyed||
+      job.slug!==this.project.slug||job.repository!==this.project.repository||
+      this.typed()!==this.expected()||!Number.isSafeInteger(job.runId)||
+      job.runId===null||job.runId<=0||job.runSha===null||!SHA.test(job.runSha))return;
+    const selected=this.runs().find(r=>r.id===job.runId&&r.sha===job.runSha);
+    if(!selected||(job.action==='import'?!this.canImport(selected):!this.canStage(selected)))return;
+    this.working.set(true);this.error.set('');this.notice.set('');
+    const seq=this.sequence;
+    let accepted=false;
+    const slug=encodeURIComponent(job.slug);
+    try{
+      const [projects,runs,release,image,publication]=await Promise.all([
+        this.api<{projects?:ManagedProjectLink[];requiredWorkflow?:string}>('/projects'),
+        this.api<{slug?:string;runs?:unknown}>('/projects/'+slug+'/runs'),
+        this.api<unknown>('/projects/'+slug+'/releases'),
+        this.api<unknown>('/projects/'+slug+'/images/import'),
+        this.api<unknown>('/projects/'+slug+'/publication')
+      ]);
+      if(this.destroyed||seq!==this.sequence)return;
+      const linked=Array.isArray(projects.projects)?
+        projects.projects.find(p=>p.slug===job.slug&&p.repository===job.repository):null;
+      if(!linked||linked.branch!==this.project.branch||
+        linked.workflow!=='panel-app-build.yml'||projects.requiredWorkflow!=='panel-app-build.yml'||
+        !Array.isArray(linked.services)||linked.services.length!==1||linked.services[0]!==job.slug)
+        throw Error('O vínculo, os serviços ou o workflow mudaram; operação cancelada.');
+      if(runs.slug!==job.slug||!Array.isArray(runs.runs))throw Error('Histórico do build não confirmado.');
+      const liveRun=runs.runs.find((raw:unknown)=>{
+        if(!raw||typeof raw!=='object'||Array.isArray(raw))return false;
+        const value=raw as Partial<Run>;
+        return value.id===job.runId&&value.sha===job.runSha&&
+          value.status==='completed'&&value.conclusion==='success';
+      });
+      if(!liveRun)throw Error('O build selecionado mudou ou não está aprovado.');
+      if(!this.validRelease(release)||release.enabled!==true||
+         release.current.state!=='running'||release.current.revision!==job.revision||
+         !!release.candidate||!!release.backup||
+         !this.validImage(image)||image.enabled!==true||
+         (image.job!==null&&!['success','error'].includes(image.job.status))||
+         !this.validPublication(publication)||
+         (publication.current!==null&&!TERMINAL.has(publication.current.phase)))
+        throw Error('Estado GHCR, publicação ou containers mudou; operação cancelada.');
+      if(job.action==='stage'&&
+         (image.imported?.revision?.toLowerCase()!==job.runSha.toLowerCase()||
+          !image.imported||!DIGEST.test(image.imported.digest)))
+        throw Error('A imagem desta revisão não está importada com digest confirmado.');
+      if(job.action==='import'){
+        const acceptedImport=await this.api<{accepted?:unknown;revision?:unknown;digest?:unknown}>(
+          '/projects/'+slug+'/images/import','POST',{runId:job.runId});
+        if(acceptedImport.accepted!==true||acceptedImport.revision!==job.runSha||
+          typeof acceptedImport.digest!=='string'||!DIGEST.test(acceptedImport.digest))
+          throw Error('A importação não foi confirmada; consulte a API antes de repetir.');
+        this.notice.set('Importação aceita pela API. Aguarde a verificação do GHCR; nenhuma versão foi publicada.');
+      }else{
+        const staged=await this.api<{staged?:unknown;revision?:unknown}>(
+          '/projects/'+slug+'/releases/stage','POST',{runId:job.runId});
+        if(staged.staged!==true||staged.revision!==job.runSha)
+          throw Error('Candidata não confirmada; consulte a VPS antes de repetir.');
+        this.notice.set('Candidata solicitada. Aguarde HEALTHCHECK; a versão ativa não foi substituída.');
+      }
+      accepted=true;this.cancel();
+    }catch(error){if(!this.destroyed&&seq===this.sequence)this.error.set(message(error));}
     finally{this.working.set(false);}
     if(accepted&&!this.destroyed&&seq===this.sequence)await this.refresh();
   }
