@@ -15,20 +15,23 @@ type ImportState={
   enabled:boolean;job:{status:string;message?:string}|null;
   imported:{revision:string;digest:string;importedAt:string}|null;
 };
+type PublicationJob={id?:string;slug?:string;repository?:string;runId:number;phase:string;detail:string;revision?:string|null;updatedAt?:string};
 type Publication={
-  enabled:boolean;current:{phase:string;detail:string;runId:number}|null;
+  enabled:boolean;current:PublicationJob|null;history?:PublicationJob[];
 };
 type Run={
   id:number;sha:string;status:string;conclusion:string|null;createdAt:string;
 };
 type ConfirmJob={
-  action:'build'|'rollback'|'import'|'stage';slug:string;repository:string;
+  action:'build'|'rollback'|'import'|'stage'|'publish';slug:string;repository:string;
   revision:string|null;backupImage:string|null;runId:number|null;runSha:string|null;
 };
 const SHA=/^[a-f0-9]{40}$/i;
 const DIGEST=/^sha256:[a-f0-9]{64}$/i;
 const REPO=/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const TERMINAL=new Set(['completed','attention','failed']);
+const PHASES=new Set(['queued','importing','staging','health','promoting','completed','attention','failed']);
+const POLL_MS=3000;
 const message=(error:unknown)=>error instanceof Error?error.message:'Falha na consulta da API.';
 
 /**
@@ -62,6 +65,8 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
   readonly typed=signal('');
   private sequence=0;
   private destroyed=false;
+  private publicationTimer:ReturnType<typeof setInterval>|null=null;
+  private polling=false;
   supported():boolean{return this.ownedProject();}
   canBuild():boolean{
     return this.supported()&&this.buildsEnabled&&!this.working()&&!this.loading();
@@ -104,6 +109,16 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
     return this.canHandleRun(run)&&!!imported&&
       imported.revision.toLowerCase()===run.sha.toLowerCase()&&DIGEST.test(imported.digest);
   }
+  canPublish(run:Run):boolean {
+    const release=this.release(),publication=this.publication();
+    return this.canHandleRun(run)&&publication?.enabled===true&&
+      release?.current.revision?.toLowerCase()!==run.sha.toLowerCase();
+  }
+  publicationStatus(phase:string):string {
+    return ({queued:'Na fila',importing:'Importando GHCR',staging:'Preparando candidata',
+      health:'Verificando saúde',promoting:'Promovendo',completed:'Publicado na VPS',
+      attention:'Revisão manual necessária',failed:'Falha'} as Record<string,string>)[phase]??'Estado desconhecido';
+  }
   private ownedProject():boolean {
     const p=this.project;
     return !!p&&validAppSlug(p.slug)&&REPO.test(p.repository)&&
@@ -113,11 +128,13 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
       typeof p.branch==='string'&&p.branch.length>0;
   }
   ngOnChanges():void {
+    this.stopPublicationPolling();
     this.cancel();
     this.release.set(null);this.image.set(null);this.publication.set(null);this.runs.set([]);
     void this.refresh();
   }
   ngOnDestroy():void {
+    this.stopPublicationPolling();
     this.destroyed=true;this.sequence++;
     this.cancel();this.release.set(null);this.image.set(null);
     this.publication.set(null);this.runs.set([]);
@@ -157,14 +174,54 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
       (r.imported===null||(!!r.imported&&typeof r.imported.revision==='string'&&
         typeof r.imported.digest==='string'));
   }
+  private validPublicationJob(raw:unknown):raw is PublicationJob {
+    if(!raw||typeof raw!=='object'||Array.isArray(raw))return false;
+    const job=raw as Partial<PublicationJob>;
+    return typeof job.phase==='string'&&PHASES.has(job.phase)&&
+      typeof job.detail==='string'&&Number.isSafeInteger(job.runId)&&Number(job.runId)>0;
+  }
   private validPublication(raw:unknown):raw is Publication {
     if(!raw||typeof raw!=='object'||Array.isArray(raw))return false;
     const p=raw as Partial<Publication>;
     return typeof p.enabled==='boolean'&&
-      (p.current===null||(!!p.current&&typeof p.current.phase==='string'&&
-        typeof p.current.detail==='string'&&Number.isSafeInteger(p.current.runId)));
+      (p.current===null||this.validPublicationJob(p.current))&&
+      (p.history===undefined||(Array.isArray(p.history)&&
+        p.history.every(item=>this.validPublicationJob(item))));
+  }
+  private stopPublicationPolling():void {
+    if(this.publicationTimer!==null)clearInterval(this.publicationTimer);
+    this.publicationTimer=null;
+  }
+  private armPublicationPolling():void {
+    this.stopPublicationPolling();
+    const current=this.publication()?.current;
+    if(this.destroyed||!current||TERMINAL.has(current.phase))return;
+    this.publicationTimer=setInterval(()=>{
+      if(!this.loading()&&!this.working()&&!this.polling&&document.visibilityState==='visible')
+        void this.refreshPublication();
+    },POLL_MS);
+  }
+  async refreshPublication():Promise<void>{
+    if(this.destroyed||!this.supported()||this.polling)return;
+    this.polling=true;
+    const seq=this.sequence;
+    try{
+      const value=await this.api<unknown>('/projects/'+encodeURIComponent(this.project.slug)+'/publication');
+      if(this.destroyed||seq!==this.sequence)return;
+      if(!this.validPublication(value))throw Error('Estado de publicação não confirmado.');
+      this.publication.set(value);
+      this.publicationIssue.set('');
+      this.armPublicationPolling();
+    }catch{
+      if(!this.destroyed&&seq===this.sequence){
+        this.publication.set(null);
+        this.publicationIssue.set('Não foi possível confirmar o trabalho persistente; consulte novamente.');
+        this.stopPublicationPolling();
+      }
+    }finally{this.polling=false;}
   }
   async refresh():Promise<void>{
+    this.stopPublicationPolling();
     const seq=++this.sequence;
     this.release.set(null);this.image.set(null);this.publication.set(null);this.runs.set([]);
     this.releaseIssue.set('');this.imageIssue.set('');this.publicationIssue.set('');this.runsIssue.set('');
@@ -198,6 +255,7 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
       this.runs.set(valid.slice(0,8));
     }else this.runsIssue.set('Builds GitHub indisponíveis nesta consulta.');
     this.loading.set(false);
+    this.armPublicationPolling();
   }
   prepare(action:'build'|'rollback'):void {
     if(action==='build'&&!this.canBuild()||action==='rollback'&&!this.canRollback())return;
@@ -210,9 +268,10 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
     this.typed.set('');
     this.error.set('');this.notice.set('');
   }
-  prepareRun(action:'import'|'stage',runId:number):void{
+  prepareRun(action:'import'|'stage'|'publish',runId:number):void{
     const run=this.runs().find(item=>item.id===runId);
-    if(!run||(action==='import'?!this.canImport(run):!this.canStage(run)))return;
+    if(!run||(action==='import'?!this.canImport(run):
+      action==='stage'?!this.canStage(run):!this.canPublish(run)))return;
     this.pending.set({action,slug:this.project.slug,repository:this.project.repository,
       revision:this.release()?.current.revision??null,backupImage:null,
       runId:run.id,runSha:run.sha});
@@ -225,11 +284,12 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
     if(job.action==='rollback')return 'RESTAURAR '+job.slug;
     if(job.action==='import')return 'IMPORTAR '+job.slug;
     if(job.action==='stage')return 'PREPARAR '+job.slug;
+    if(job.action==='publish')return 'PUBLICAR '+job.slug;
     return job.slug;
   }
   async confirm():Promise<void>{
     const job=this.pending(),project=this.project;
-    if(job?.action==='import'||job?.action==='stage'){
+    if(job?.action==='import'||job?.action==='stage'||job?.action==='publish'){
       await this.confirmRun(job);return;
     }
     if(!job||this.working()||this.loading()||
@@ -282,13 +342,14 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
     if(accepted&&!this.destroyed&&seq===this.sequence)await this.refresh();
   }
   private async confirmRun(job:ConfirmJob):Promise<void>{
-    if((job.action!=='import'&&job.action!=='stage')||
+    if(!['import','stage','publish'].includes(job.action)||
       this.working()||this.loading()||this.destroyed||
       job.slug!==this.project.slug||job.repository!==this.project.repository||
       this.typed()!==this.expected()||!Number.isSafeInteger(job.runId)||
       job.runId===null||job.runId<=0||job.runSha===null||!SHA.test(job.runSha))return;
     const selected=this.runs().find(r=>r.id===job.runId&&r.sha===job.runSha);
-    if(!selected||(job.action==='import'?!this.canImport(selected):!this.canStage(selected)))return;
+    if(!selected||(job.action==='import'?!this.canImport(selected):
+      job.action==='stage'?!this.canStage(selected):!this.canPublish(selected)))return;
     this.working.set(true);this.error.set('');this.notice.set('');
     const seq=this.sequence;
     let accepted=false;
@@ -322,7 +383,9 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
          !this.validImage(image)||image.enabled!==true||
          (image.job!==null&&!['success','error'].includes(image.job.status))||
          !this.validPublication(publication)||
-         (publication.current!==null&&!TERMINAL.has(publication.current.phase)))
+         (publication.current!==null&&!TERMINAL.has(publication.current.phase))||
+         (job.action==='publish'&&(publication.enabled!==true||
+           release.current.revision?.toLowerCase()===job.runSha.toLowerCase())))
         throw Error('Estado GHCR, publicação ou containers mudou; operação cancelada.');
       if(job.action==='stage'&&
          (image.imported?.revision?.toLowerCase()!==job.runSha.toLowerCase()||
@@ -335,12 +398,24 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
           typeof acceptedImport.digest!=='string'||!DIGEST.test(acceptedImport.digest))
           throw Error('A importação não foi confirmada; consulte a API antes de repetir.');
         this.notice.set('Importação aceita pela API. Aguarde a verificação do GHCR; nenhuma versão foi publicada.');
-      }else{
+      }else if(job.action==='stage'){
         const staged=await this.api<{staged?:unknown;revision?:unknown}>(
           '/projects/'+slug+'/releases/stage','POST',{runId:job.runId});
         if(staged.staged!==true||staged.revision!==job.runSha)
           throw Error('Candidata não confirmada; consulte a VPS antes de repetir.');
         this.notice.set('Candidata solicitada. Aguarde HEALTHCHECK; a versão ativa não foi substituída.');
+      }else{
+        const queued=await this.api<{ok?:unknown;alreadyExists?:unknown;job?:unknown}>(
+          '/projects/'+slug+'/publication','POST',{runId:job.runId});
+        if(queued.ok!==true||!this.validPublicationJob(queued.job))
+          throw Error('Publicação não confirmada. Consulte o histórico antes de repetir.');
+        const jobState=queued.job;
+        if(jobState.runId!==job.runId||jobState.slug!==job.slug||
+          jobState.repository!==job.repository)
+          throw Error('A API devolveu outro projeto ou build; confira antes de repetir.');
+        this.notice.set(queued.alreadyExists===true
+          ? 'Este build já possui uma publicação registrada; nenhuma nova execução foi iniciada.'
+          : 'Publicação persistente registrada. A VPS continuará o trabalho mesmo se você sair desta página.');
       }
       accepted=true;this.cancel();
     }catch(error){if(!this.destroyed&&seq===this.sequence)this.error.set(message(error));}
