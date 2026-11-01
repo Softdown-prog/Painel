@@ -11,7 +11,7 @@
     (() => {
       if (location.pathname !== '/' && location.pathname !== '/index.html') return;
       const fragment = location.hash.slice(1);
-      const pages = { overview:'overview', apps:'apps', containers:'containers', projects:'projects', terminal:'terminal', revisions:'revisions', database:'database', domains:'domains', traffic:'traffic', secrets:'secrets', settings:'settings',
+      const pages = { overview:'overview', apps:'apps', containers:'containers', projects:'projects', terminal:'terminal', revisions:'revisions', database:'database', domains:'domains', traffic:'traffic', secrets:'secrets', settings:'settings', infrastructure:'infrastructure',
         deployments:'deployments', deploys:'deployments' };
       const tools = new Set(['services','logs']);
       const params = new URLSearchParams(location.search);
