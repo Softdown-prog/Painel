@@ -85,17 +85,22 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
     return i!==null&&i.enabled===true&&
       (i.job===null||i.job.status==='success'||i.job.status==='error');
   }
-  canImport(run:Run):boolean {
+  private canHandleRun(run:Run):boolean{
     const r=this.release();
     return this.supported()&&!this.working()&&!this.loading()&&this.finished(run)&&
       this.availableImport()&&this.availablePublication()&&
-      r?.enabled===true&&r.current.state==='running'&&!r.candidate&&!r.backup;
+      r?.enabled===true&&r.current.state==='running'&&
+      typeof r.current.revision==='string'&&SHA.test(r.current.revision)&&
+      !r.candidate&&!r.backup;
+  }
+  canImport(run:Run):boolean {
+    return this.canHandleRun(run)&&
+      this.image()?.imported?.revision?.toLowerCase()!==run.sha.toLowerCase();
   }
   canStage(run:Run):boolean {
-    const r=this.release(),i=this.image();
-    return this.canImport(run)&&r?.enabled===true&&r.current.state==='running'&&
-      i?.imported?.revision?.toLowerCase()===run.sha.toLowerCase()&&
-      DIGEST.test(i.imported.digest);
+    const imported=this.image()?.imported;
+    return this.canHandleRun(run)&&!!imported&&
+      imported.revision.toLowerCase()===run.sha.toLowerCase()&&DIGEST.test(imported.digest);
   }
   private ownedProject():boolean {
     const p=this.project;
