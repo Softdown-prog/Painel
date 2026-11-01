@@ -36,7 +36,7 @@
             </select>
           </label>
           <label>Nome técnico (letras minúsculas e hífen)
-            <input [value]="name()" (input)="setName($any($event.target).value)"
+            <input #infraNameInput [value]="name()" (input)="setName($any($event.target).value)"
               placeholder="navegacao-interna" maxlength="48" pattern="[a-z0-9]+(-[a-z0-9]+)*"
               autocomplete="off" autocapitalize="off" spellcheck="false" required
               [disabled]="working()||editingId()!==null"/>
@@ -57,7 +57,7 @@
             </label>
           }
           <div class="infra-actions">
-            <button type="submit" class="primary" [disabled]="!valid()||working()">
+            <button #infraPrepareButton type="submit" class="primary" [disabled]="!valid()||working()">
               {{editingId()?'Revisar alteração':'Preparar cadastro'}}
             </button>
             @if(editingId()){<button type="button" (click)="cancelEdit()" [disabled]="working()">Cancelar edição</button>}
@@ -76,7 +76,7 @@
             <p class="infra-planned">Cadastro salvo · não provisionado</p>
             <div class="infra-actions">
               <button type="button" (click)="edit(plan)" [disabled]="working()||!plan.projectLinked">Configurar</button>
-              <button type="button" class="danger" (click)="prepareDelete(plan)" [disabled]="working()">Remover cadastro</button>
+              <button type="button" class="danger" (click)="prepareDelete(plan,$event)" [attr.aria-label]="'Remover cadastro '+plan.id" [disabled]="working()">Remover cadastro</button>
             </div>
           </article>
         } @empty{<p>Nenhum MCP cadastrado neste módulo.</p>}
@@ -91,7 +91,7 @@
             <p class="infra-planned">Cadastro salvo · não provisionado</p>
             <div class="infra-actions">
               <button type="button" (click)="edit(plan)" [disabled]="working()||!plan.projectLinked">Configurar</button>
-              <button type="button" class="danger" (click)="prepareDelete(plan)" [disabled]="working()">Remover cadastro</button>
+              <button type="button" class="danger" (click)="prepareDelete(plan,$event)" [attr.aria-label]="'Remover cadastro '+plan.id" [disabled]="working()">Remover cadastro</button>
             </div>
           </article>
         } @empty{<p>Nenhum cluster cadastrado neste módulo.</p>}
@@ -107,16 +107,16 @@
         réplicas por cluster (planejadas, sem reserva real de CPU ou memória).</p>
     </section>
     @if(pending();as job){
-      <section class="infra-confirm" role="group" aria-label="Confirmar alteração no cadastro">
+      <section class="infra-confirm" role="group" aria-label="Confirmar alteração no cadastro" aria-describedby="infra-confirm-warning">
         <h3>{{job.action==='delete'?'Remover cadastro':'Salvar configuração'}}: {{job.id}}</h3>
-        <p>Esta operação altera somente o registro administrativo.
+        <p id="infra-confirm-warning">Esta operação altera somente o registro administrativo.
           Digite o identificador completo para confirmar.</p>
         <label>Confirmação
-          <input [value]="confirmation()" (input)="confirmation.set($any($event.target).value)"
+          <input #infraConfirmInput [value]="confirmation()" (input)="confirmation.set($any($event.target).value)"
             autocomplete="off" autocapitalize="off" spellcheck="false" [disabled]="working()"/>
         </label>
         <div class="infra-actions">
-          <button type="button" (click)="cancel()" [disabled]="working()">Cancelar</button>
+          <button type="button" (click)="cancel(true)" [disabled]="working()">Cancelar</button>
           <button type="button" [class.danger]="job.action==='delete'" (click)="confirm()"
             [disabled]="working()||confirmation()!==job.id">
             {{working()?'Salvando…':'Confirmar no cadastro'}}
