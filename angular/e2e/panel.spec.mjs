@@ -176,10 +176,12 @@ test('menu mobile gerencia foco inicial, impede Tab sair e restaura foco com Esc
   await expect(page.getByRole('navigation',{name:'Navegação rápida',includeHidden:true})).toHaveAttribute('inert','');
   // Both ends of the drawer's keyboard traversal wrap inside the menu.
   const first=sidebar.locator('a[href]').first();
+  const last=sidebar.getByRole('navigation',{name:'Ferramentas de administração'})
+    .getByRole('button',{name:/Configurações/});
   await first.focus();
   await page.keyboard.press('Shift+Tab');
-  await expect(sidebar.getByRole('button',{name:'Fechar menu'})).toBeFocused();
-  await sidebar.getByRole('button',{name:'Fechar menu'}).focus();
+  await expect(last).toBeFocused();
+  await last.focus();
   await page.keyboard.press('Tab');
   await expect(first).toBeFocused();
   await page.keyboard.press('Escape');
