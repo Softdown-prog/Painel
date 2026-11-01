@@ -70,7 +70,7 @@ def _safe_dir(path, expected_uid):
     if path.is_symlink():
         raise ValueError("SAC inbox is a symlink")
     s = path.stat()
-    if not stat.S_ISDIR(s.st_mode) or s.st_uid != expected_uid or s.st_mode & stat.S_IWOTH:
+    if not stat.S_ISDIR(s.st_mode) or s.st_uid != expected_uid or s.st_mode & (stat.S_IWOTH | stat.S_IWGRP):
         raise ValueError("SAC inbox ownership/permissions invalid")
     return os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
 
