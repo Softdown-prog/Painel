@@ -249,3 +249,29 @@ test('atalho de teclado pula o menu e foca o conteúdo sem alterar hash nem API'
   expect(page.url()).toBe(before);
   expect(state.requests.some(req=>req.startsWith('POST '))).toBe(false);
 });
+
+
+test('redimensionar o drawer aberto para desktop desbloqueia o conteúdo',async ({page})=>{
+  const state=await mockApi(page,{authenticated:true});
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('/angular/#overview');
+  await page.getByRole('button',{name:'Abrir ferramentas e navegação'}).click();
+  await expect(page.locator('main')).toHaveAttribute('inert','');
+  await page.setViewportSize({width:1280,height:800});
+  await expect(page.locator('main')).not.toHaveAttribute('inert','');
+  await expect(page.locator('main h1')).toBeFocused();
+  await expect(page.getByRole('navigation',{name:'Navegação principal'})).toBeVisible();
+  await expect(page.getByRole('dialog',{name:'Navegação e ferramentas'})).toHaveCount(0);
+  expect(state.requests.some(req=>req.startsWith('POST '))).toBe(false);
+});
+
+test('fechar drawer pelo fundo devolve foco ao controle de abertura',async ({page})=>{
+  await mockApi(page,{authenticated:true});
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('/angular/#overview');
+  const trigger=page.getByRole('button',{name:'Abrir ferramentas e navegação'});
+  await trigger.click();
+  await page.getByRole('button',{name:'Fechar menu',exact:true}).first().click({force:true});
+  await expect(page.locator('#navigationPanel')).toBeHidden();
+  await expect(trigger).toBeFocused();
+});
