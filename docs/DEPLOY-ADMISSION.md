@@ -84,5 +84,12 @@ testes próprios. O inventário por si só não representa cobertura de deploy.
 - Código: implementado na branch `feat/deploy-admission-guard`.
 - Testes: 16 novos locais e 41 Python no Ubuntu aprovados; TypeScript, build frontend e sintaxe JS aprovados.
 - Ensaio real na VPS: API/executor do Painel, Terrânia Node e Go aprovados; contrato inválido rejeitado, 12 IDs de produção preservados. Duração total: 49,89 s.
-- CI final, instalação do receptor e retorno GitHub do deploy: ainda pendentes nesta anotação.
+- CI de `c92c406dc18df570a9254666b835df3aed46a8e7`: Console `41270050600`, Rust/Node `41270050665` e Docker real `41270050682`, todos aprovados.
+- Receptor instalado e contratos ativos: `panel`, `terrania`, `terrania-go-shadow`. Instalador do commit `c92c406`; testes do commit `f44f0bb` (mesmos bytes). Nenhum container reiniciado, sem candidatas restantes.
+- Módulo `admission.py`: SHA256 `6f9107c13ec57a333e0e50522bcb5025858048d75c38fe287a4f4c0c08c86f73`; probe `be290ff73452c0b473c8cc45b6a384e63c4820027fff8a25acd745a35cf108e3`.
+- Driver instalado: SHA256 `896675ef8c6ee90a7fdae0c96078adbdae0cfc201c0c876f8dac7e55c24e9752`; receiver `c1fbb5f359c41b62a75c85c2929dd344395616fef0c720517e12b1fdbaa4a765`.
+- Reversão privada: `/var/lib/vps-operations/admission-v1-before`, 26.304 bytes; preserva os adaptadores locais anteriores. IDs comparados antes/depois da instalação: nenhuma mudança.
+- Canal GitHub → receptor atualizado → GitHub: issue #67, run `41270124112`, exit 0, 1,779 s. Isso valida transporte/autenticação/inventário; não é um deploy.
+- Primeiro deploy completo pelo novo gate: pendente de merge autorizado do PR #66. O merge foi bloqueado pela revisão automática por exigir aprovação específica do usuário; não foi contornado.
+- APIs públicas continuam na revisão `7202ad14551947d039d13a5a0c04451c6b143223`; não declarar a revisão do PR como instalada dentro dos containers.
 - Frontend: nenhuma alteração; não existe um botão novo nesta etapa.
