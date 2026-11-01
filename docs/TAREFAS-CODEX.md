@@ -456,3 +456,9 @@ Linux do painel e 25 testes Python. **Frontend publicado:** nao houve alteracao 
 nativo instalado:** nao; o deploy padrao nao atualiza app-wake. **Producao
 validada:** somente inventario inicial read-only no run `41261846891`; API e
 executor existentes `467bcad` saudaveis. Ver [Node e Rust](NODE-RUST-RUNTIME.md).
+
+### 2026-11-01 — Microtarefa: copiar saída do terminal Angular (PR #71)
+- **Código integrado à main:** commit `7771b7ce88df05be034f81f7b6bc3d487af5102b`. Botão `Copiar saída` depois de `<pre>` para saída parcial e final, feedback de sucesso/erro de permissão, sem envio de comandos nem alterações SSH/backend.
+- **Testes pré-merge aprovados:** Console CI [41321150631](https://github.com/Softdown-prog/Painel/actions/runs/41321150631) e **108/108 Playwright Chromium** (API simulada), incluindo três testes novos; admission Docker [41321150574](https://github.com/Softdown-prog/Painel/actions/runs/41321150574) e Rust/Node [41321150716](https://github.com/Softdown-prog/Painel/actions/runs/41321150716) aprovados.
+- **Frontend publicado:** ainda não confirmado neste registro; publicação Pages e imagem/staging disparadas separadamente no merge.
+- **VPS validada:** não; teste de cópia foi feito em navegador isolado, não em sessão autenticada de produção.
