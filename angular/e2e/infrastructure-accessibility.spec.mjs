@@ -9,7 +9,7 @@ const plan=(projectSlug,kind,name,extra={})=>({
   createdAt:at,updatedAt:at,...extra
 });
 async function fixture(page){
-  const state={requests:[],plans:[
+  const state={requests:[],projects:['terrania','painel'],failNextRead:false,plans:[
     plan('terrania','mcp','navigator'),
     plan('painel','cluster','workers')
   ]};
@@ -23,7 +23,8 @@ async function fixture(page){
     if(method==='GET'&&path==='/session'){
       body={authenticated:true,setupRequired:false};
     }else if(method==='GET'&&path==='/infrastructure'){
-      body={projects:['terrania','painel'],plans:state.plans,
+      if(state.failNextRead){state.failNextRead=false;status=503;body={error:'Falha de consulta simulada'};}
+      else body={projects:state.projects,plans:state.plans,
         capabilities:{configuration:true,provisioning:false,healthMonitoring:false,lifecycle:false},
         limits:{total:32,perProject:8,maxClusterReplicas:8}};
     }else if(method==='POST'&&path==='/infrastructure'){
@@ -126,4 +127,58 @@ test('Remoção confirmada envia ID e projeto exatos, sem tocar em outros cadast
   await expect(page.getByRole('button',{name:'Remover cadastro painel.cluster.workers'})).toBeVisible();
   expect(writes(state)).toEqual([{method:'DELETE',path:'/infrastructure/terrania.mcp.navigator',
     payload:{projectSlug:'terrania',confirmId:'terrania.mcp.navigator'}}]);
+});
+
+test('Alteração concorrente: exclusão bloqueia quando outro administrador atualiza o plano',async ({page})=>{
+  const state=await fixture(page);
+  await page.goto('/angular/#infrastructure');
+  await page.getByRole('button',{name:'Remover cadastro terrania.mcp.navigator'}).click();
+  const group=page.getByRole('group',{name:'Confirmar alteração no cadastro'});
+  await group.getByRole('textbox',{name:'Confirmação'}).fill('terrania.mcp.navigator');
+  state.plans[0]={...state.plans[0],updatedAt:'2026-11-01T12:05:00Z'};
+  await group.getByRole('button',{name:'Confirmar no cadastro'}).click();
+  await expect(page.getByRole('alert')).toContainText('Cadastro alterado em outra sessão');
+  await expect(page.getByRole('button',{name:'Remover cadastro terrania.mcp.navigator'})).toBeVisible();
+  expect(writes(state)).toEqual([]);
+});
+
+test('Cadastro duplicado durante confirmação impede POST e mantém os registros de ambos os projetos',async ({page})=>{
+  const state=await fixture(page);
+  await page.goto('/angular/#infrastructure');
+  await page.getByLabel('Nome técnico (letras minúsculas e hífen)').fill('search-index');
+  await page.getByRole('button',{name:'Preparar cadastro'}).click();
+  const group=page.getByRole('group',{name:'Confirmar alteração no cadastro'});
+  await group.getByRole('textbox',{name:'Confirmação'}).fill('terrania.mcp.search-index');
+  state.plans.push(plan('terrania','mcp','search-index'));
+  await group.getByRole('button',{name:'Confirmar no cadastro'}).click();
+  await expect(page.getByRole('alert')).toContainText('Cadastro ou vínculo do projeto alterado');
+  await expect(page.getByRole('button',{name:'Remover cadastro painel.cluster.workers'})).toBeVisible();
+  expect(writes(state)).toEqual([]);
+});
+
+test('Desvinculação de projeto bloqueia criação sem mutação',async ({page})=>{
+  const state=await fixture(page);
+  await page.goto('/angular/#infrastructure');
+  await page.getByLabel('Nome técnico (letras minúsculas e hífen)').fill('search-index');
+  await page.getByRole('button',{name:'Preparar cadastro'}).click();
+  const group=page.getByRole('group',{name:'Confirmar alteração no cadastro'});
+  await group.getByRole('textbox',{name:'Confirmação'}).fill('terrania.mcp.search-index');
+  state.projects=['painel'];
+  state.plans=state.plans.map(p=>p.projectSlug==='terrania'?{...p,projectLinked:false}:p);
+  await group.getByRole('button',{name:'Confirmar no cadastro'}).click();
+  await expect(page.getByRole('alert')).toContainText('Cadastro ou vínculo do projeto alterado');
+  expect(writes(state)).toEqual([]);
+});
+
+test('Falha no GET de revalidação não é interpretada como autorização para apagar',async ({page})=>{
+  const state=await fixture(page);
+  await page.goto('/angular/#infrastructure');
+  await page.getByRole('button',{name:'Remover cadastro terrania.mcp.navigator'}).click();
+  const group=page.getByRole('group',{name:'Confirmar alteração no cadastro'});
+  await group.getByRole('textbox',{name:'Confirmação'}).fill('terrania.mcp.navigator');
+  state.failNextRead=true;
+  await group.getByRole('button',{name:'Confirmar no cadastro'}).click();
+  await expect(page.getByRole('alert')).toContainText('Falha de consulta simulada');
+  await expect(page.getByRole('button',{name:'Remover cadastro terrania.mcp.navigator'})).toBeVisible();
+  expect(writes(state)).toEqual([]);
 });
