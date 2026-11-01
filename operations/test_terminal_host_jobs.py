@@ -48,6 +48,9 @@ class TestHostTerminalJobs(unittest.TestCase):
         self.assertTrue(script.exists())
         self.assertEqual(script.stat().st_mode&0o777,0o600)
         self.assertEqual(script.read_bytes(),command+b'\n')
+        self.assertEqual(len(calls),2)
+        self.assertIn('--on-active=5400',calls[0])
+        self.assertEqual(calls[0][-3:],['/usr/bin/python3',host.SELF,'prune'])
         call=calls[-1]
         self.assertEqual(call[-4:],['/usr/bin/python3',host.SELF,'run',ID])
         self.assertNotIn('printf ready',' '.join(call))

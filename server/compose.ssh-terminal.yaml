@@ -5,6 +5,8 @@ services:
   api:
     environment:
       PANEL_TERMINAL_SSH_ENABLED: "${PANEL_TERMINAL_SSH_ENABLED:-0}"
+      # Requires separately installed root-owned host supervisor; off by default.
+      PANEL_TERMINAL_PERSISTENT: "${PANEL_TERMINAL_PERSISTENT:-0}"
       PANEL_TERMINAL_SSH_HOST: "${PANEL_TERMINAL_SSH_HOST:-host.docker.internal}"
       PANEL_TERMINAL_SSH_USER: "${PANEL_TERMINAL_SSH_USER:-panelops}"
       PANEL_TERMINAL_SSH_PORT: "${PANEL_TERMINAL_SSH_PORT:-22}"

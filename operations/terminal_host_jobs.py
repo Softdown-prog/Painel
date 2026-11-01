@@ -175,10 +175,17 @@ def start(job_id, fingerprint):
           'finishedAt':None,'exitCode':None,'error':None,'truncated':False,
           'cancelRequested':False}
     save(data)
+    # Host timer is independent of the API and will prune sensitive artifacts.
+    # A job is capped at 30min, so at +90min every finished job is >=60min old.
+    cleanup=['systemd-run','--quiet','--collect','--on-active=5400',
+             '--unit=vps-panel-terminal-clean-'+job_id,
+             '/usr/bin/python3', SELF, 'prune']
     cmd=['systemd-run','--quiet','--collect','--unit='+unit(job_id),
          '--property=RuntimeMaxSec=1800','--property=MemoryMax=2147483648',
          '/usr/bin/python3', SELF, 'run',job_id]
     try:
+        subprocess.run(cleanup,stdin=subprocess.DEVNULL,check=True,timeout=10,
+                       capture_output=True)
         subprocess.run(cmd,stdin=subprocess.DEVNULL,check=True,timeout=10,
                        capture_output=True)
     except (subprocess.SubprocessError,OSError):
@@ -260,6 +267,9 @@ def main():
             answer={'job':public(reconcile(entry)) if entry else None}
         elif action=='cancel' and len(sys.argv)==3:
             answer=cancel(check_id(sys.argv[2]))
+        elif action=='prune' and len(sys.argv)==2:
+            prune()
+            answer={'ok':True}
         elif action=='run' and len(sys.argv)==3:
             sys.exit(run(check_id(sys.argv[2])))
         else:

@@ -65,3 +65,9 @@ Se você preferir uma experiência de shell interativo como a do PuTTY, com `vim
 Frontend publicado e backend implantado inicialmente em 25/10/2026. Em 28/10/2026, o PR #13 retirou o desbloqueio extra de dez minutos e acrescentou o botão de cópia. CI e publicação Pages passaram; a API atualizada e o executor estão saudáveis na VPS. HTML e JS públicos responderam HTTP 200, e a API recusou execução sem sessão com 401. O backup da API anterior está em `/opt/softload-infra/backups/panel-terminal-20261028T221500Z`, e a imagem de rollback ficou marcada `softload-panel-api:rollback-terminal-20261028`. A confirmação de um comando autenticado pela nova interface ainda depende de uma sessão administrativa aberta. Recursos como criar apps e reservar endereços continuam dependendo de seus módulos próprios.
 
 O histórico fica apenas na memória da página e não é persistido no navegador. A saída de comando usa `textContent`, não interpreta HTML recebido em logs.
+
+## Próxima versão (somente branch Angular; não implantado)
+
+A branch `feat/angular-complete-migration` contém um supervisor de tarefas SSH que usa unidades transitórias `systemd` no próprio host, capazes de continuar durante reinícios da API. Ele requer **instalação manual** do auxiliar `operations/install-terminal-host-jobs.sh` no host e `PANEL_TERMINAL_PERSISTENT=1` na configuração da API. Não altere a produção até homologar a segurança, a identidade SSH e os caminhos de implantação.
+
+O host armazena o script temporariamente em arquivos root:root 0600, e os apaga quando a execução termina. A saída parcial e metadados ficam protegidos no diretório root 0700, com coleta automática via timer do `systemd`, executada mesmo com a API fora do ar. Não coloque senhas ou tokens nos comandos ou na saída; não é uma sessão interativa. O endpoint síncrono antigo de 18 segundos permanece para compatibilidade até a migração final.
