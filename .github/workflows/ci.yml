@@ -16,6 +16,24 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run typecheck
       - run: npm --prefix angular ci --no-audit --no-fund
+      - name: Verify patched minimatch in lockfile and installed dependencies
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          const pkg=JSON.parse(readFileSync('angular/package.json','utf8'));
+          const lock=JSON.parse(readFileSync('angular/package-lock.json','utf8'));
+          const installed=JSON.parse(readFileSync('angular/node_modules/minimatch/package.json','utf8'));
+          const fixed=v=>{
+            const [major,minor,patch]=v.split('.').map(Number);
+            return major>11 || (major===11 && (minor>0 || patch>=1));
+          };
+          assert.ok(fixed(pkg.overrides?.minimatch??'0.0.0'),'Override must remain patched');
+          const versions=Object.entries(lock.packages).filter(([path])=>path.endsWith('node_modules/minimatch')).map(([,entry])=>entry.version);
+          assert.ok(versions.length>0 && versions.every(fixed),'Lockfile retains vulnerable minimatch');
+          assert.ok(fixed(installed.version),'Installed minimatch is vulnerable');
+          console.log('PASS: minimatch patched in override, lockfile and actual node_modules');
+          NODE
       - run: npm run lint
       - run: npm test
       - name: Test private VPS operations and project isolation
