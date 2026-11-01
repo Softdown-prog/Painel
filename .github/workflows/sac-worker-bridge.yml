@@ -1,0 +1,34 @@
+name: SAC-008 Actions-to-Worker bridge (offline)
+on:
+  pull_request:
+    paths:
+      - 'operations/sac_worker.py'
+      - 'operations/test_sac_worker.py'
+      - 'operations/client.py'
+      - 'operations/receiver.py'
+      - 'operations/policy.example.json'
+      - '.github/workflows/vps-command.yml'
+      - '.github/workflows/sac-worker-bridge.yml'
+      - 'docs/SAC_ACTIONS_WORKER.md'
+  push:
+    branches: ['feat/sac-008-actions-worker-bridge']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python3 -m pip install 'cryptography>=43,<50'
+      - name: Syntax and no-remote-execution contract
+        run: |
+          python3 -m py_compile operations/receiver.py operations/client.py operations/sac_worker.py
+          python3 -m unittest discover -s operations -p 'test_sac_worker.py' -v
+          python3 -m unittest discover -s operations -p 'test_mcp_query.py' -v
