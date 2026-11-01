@@ -38,10 +38,33 @@
       </div>
     </div>
     @if(publication();as p){
-      <p class="publication" role="status">Publicação persistente:
-        {{p.enabled?(p.current?.phase??'nenhuma execução registrada'):'desabilitada pela API'}}
-        @if(p.current){· {{p.current.detail}}}
-      </p>
+      <section class="publication-progress" aria-label="Acompanhamento da publicação persistente">
+        <div class="release-heading">
+          <strong>Publicação persistente</strong>
+          <button type="button" [disabled]="loading()||working()||polling" (click)="refreshPublication()">↻ Atualizar andamento</button>
+        </div>
+        @if(!p.enabled){<p class="release-warning">Publicação persistente desabilitada pela API.</p>}
+        @if(p.current;as current){
+          <p role="status"><strong>{{publicationStatus(current.phase)}}</strong> · build #{{current.runId}} · {{current.detail}}</p>
+          @if(!['completed','attention','failed'].includes(current.phase)){
+            <p>Trabalho persistido na VPS. Esta tela consulta o progresso a cada 3 segundos enquanto estiver aberta e visível; sair da página não cancela a tarefa.</p>
+          }
+          @if(current.phase==='completed'){
+            <p>O servidor registrou a publicação como concluída. Compare a revisão com o container em execução antes de considerar o serviço disponível.</p>
+          }
+          @if(current.phase==='attention'||current.phase==='failed'){
+            <p class="release-warning">Revisão manual necessária. Não reenvie a publicação antes de verificar os containers e o histórico.</p>
+          }
+        }@else{<p>Nenhum trabalho de publicação registrado.</p>}
+        @if(p.history?.length){
+          <details class="publication-history">
+            <summary>Histórico recente de publicações</summary>
+            @for(job of p.history?.slice(0,5)??[];track job.id??job.runId){
+              <p>Build #{{job.runId}} · {{publicationStatus(job.phase)}} · {{job.detail}}</p>
+            }
+          </details>
+        }
+      </section>
     }@else{
       <p class="release-warning" role="status">{{publicationIssue()||'Estado de publicação não confirmado.'}}</p>
     }
@@ -55,13 +78,15 @@
     }
     @if(pending();as job){
       <section class="release-confirm" role="group" aria-label="Confirmação de build ou rollback">
-        <strong>{{job.action==='build'?'Solicitar build ao GitHub':'Restaurar versão anterior na VPS'}}</strong>
+        <strong>{{job.action==='build'?'Solicitar build ao GitHub':job.action==='publish'?'Publicar build automaticamente':job.action==='rollback'?'Restaurar versão anterior na VPS':'Operação de release'}}</strong>
         <p>@if(job.action==='build'){
           A solicitação executará o workflow autorizado e não substituirá o container diretamente.
         }@else if(job.action==='import'){
           A imagem aprovada será baixada do GHCR por digest. Nenhum container será substituído nesta etapa.
         }@else if(job.action==='stage'){
           A imagem já importada será preparada como candidata na VPS. O HEALTHCHECK deverá ser validado antes de qualquer promoção.
+        }@else if(job.action==='publish'){
+          A VPS poderá importar a imagem, preparar a candidata, testar a saúde e substituir o container atual automaticamente. O processo continua mesmo se fechar a página; a versão anterior fica disponível para rollback após uma promoção bem-sucedida.
         }@else{
           A versão anterior poderá substituir o container atual e interromper usuários. Verifique se nenhuma manutenção externa está ocorrendo.
         }</p>
@@ -75,14 +100,14 @@
           <button type="button" (click)="cancel()" [disabled]="working()">Cancelar</button>
           <button type="button" class="danger" (click)="confirm()"
             [disabled]="working()||typed()!==expected()">
-            {{working()?'Revalidando na API…':job.action==='build'?'Confirmar build':job.action==='import'?'Confirmar importação':job.action==='stage'?'Confirmar preparação':'Confirmar rollback'}}
+            {{working()?'Revalidando na API…':job.action==='build'?'Confirmar build':job.action==='import'?'Confirmar importação':job.action==='stage'?'Confirmar preparação':job.action==='publish'?'Confirmar publicação':'Confirmar rollback'}}
           </button>
         </div>
       </section>
     }
     <div class="release-runs">
       <h5>Builds do projeto</h5>
-      <p>Importação e preparação exigem build aprovado, workflow autorizado, nenhum slot de backup ou candidata pendente e estado da API verificado. A importação não publica a versão; a preparação não promove a candidata.</p>
+      <p>A publicação persistente automatiza GHCR, preparação, HEALTHCHECK e promoção; as operações manuais continuam separadas. Todas exigem um build aprovado, workflow autorizado e estado da API verificado.</p>
       @if(runsIssue()){<p class="release-warning" role="status">{{runsIssue()}}</p>}
       @for(run of runs();track run.id){
         <div class="release-run">
@@ -93,6 +118,7 @@
             <div class="release-actions run-controls">
               <button type="button" [disabled]="!canImport(run)" (click)="prepareRun('import',run.id)">Importar GHCR · #{{run.id}}</button>
               <button type="button" [disabled]="!canStage(run)" (click)="prepareRun('stage',run.id)">Preparar candidata · #{{run.id}}</button>
+              <button type="button" class="publish-button" [disabled]="!canPublish(run)" (click)="prepareRun('publish',run.id)">Publicar revisão · #{{run.id}}</button>
             </div>
           }
         </div>
