@@ -8,7 +8,8 @@ const project={
 function mockReleaseApi(page,{buildsEnabled=true,rollbackBackup=true,publicationPhase=null,importedRevision=SHA}={}){
   const state={requests:[],payloads:[],project:{...project},buildsEnabled,rollbackBackup,
     currentSha:SHA,publicationPhase,importedRevision,importJob:null,candidate:null,
-    runStatus:'completed',runConclusion:'success',failProjectValidation:false};
+    runStatus:'completed',runConclusion:'success',failProjectValidation:false,
+    publicationEnabled:true,publicationJob:null,alreadyPublished:false,wrongPublishedJob:false};
   const ready=page.route('**/api/**',async route=>{
     const request=route.request(),path=new URL(request.url()).pathname.slice('/api'.length),
       method=request.method();
@@ -30,8 +31,10 @@ function mockReleaseApi(page,{buildsEnabled=true,rollbackBackup=true,publication
         candidate:state.candidate,
         backup:state.rollbackBackup?{image:'ghcr.io/softdown-prog/alpha:backup',state:'exited'}:null};
     }else if(method==='GET'&&path==='/projects/alpha-app/publication'){
-      body={enabled:true,current:state.publicationPhase?{
-        phase:state.publicationPhase,detail:'Executando',runId:414}:null};
+      const previous=state.publicationJob??(state.publicationPhase?{
+        phase:state.publicationPhase,detail:'Executando',runId:414}:null);
+      body={enabled:state.publicationEnabled,current:previous,
+        history:state.publicationJob?[state.publicationJob]:[]};
     }else if(method==='GET'&&path==='/projects/alpha-app/images/import'){
       body={enabled:true,job:state.importJob,imported:state.importedRevision?{
         revision:state.importedRevision,digest:'sha256:'+'c'.repeat(64),importedAt:'2026-10-30T12:00:00Z'}:null};
@@ -46,6 +49,12 @@ function mockReleaseApi(page,{buildsEnabled=true,rollbackBackup=true,publication
     }else if(method==='POST'&&path==='/projects/alpha-app/releases/stage'){
       state.candidate={revision:SHA,state:'running',health:'starting'};
       body={staged:true,revision:SHA};
+    }else if(method==='POST'&&path==='/projects/alpha-app/publication'){
+      const job={id:'00000000-0000-4000-8000-000000000414',
+        slug:project.slug,repository:project.repository,
+        runId:state.wrongPublishedJob?999:414,phase:'queued',detail:'Na fila para validar o build.'};
+      state.publicationJob=job;
+      body={ok:true,alreadyExists:state.alreadyPublished,job};
     }else if(method==='POST'&&path==='/projects/alpha-app/releases/rollback'){
       state.rollbackBackup=false;state.currentSha=OTHER;
       body={rolledBack:true,message:'Backup restaurado pelo executor simulado'};
@@ -56,12 +65,12 @@ function mockReleaseApi(page,{buildsEnabled=true,rollbackBackup=true,publication
   });
   return ready.then(()=>state);
 }
-async function openReleasePanel(page){
+async function openReleasePanel(page,revision=SHA){
   await page.goto('/angular/#projects');
   await expect(page.locator('.managed-link')).toHaveCount(1);
   await page.getByRole('button',{name:'Consultar builds e versões'}).click();
   const panel=page.getByRole('region',{name:'Builds e versões de alpha-app'});
-  await expect(panel.getByText('Em execução · '+SHA.slice(0,12))).toBeVisible();
+  await expect(panel.getByText('Em execução · '+revision.slice(0,12))).toBeVisible();
   return panel;
 }
 
@@ -214,4 +223,129 @@ test('importação e preparação bloqueadas quando publicação persistente est
   await expect(panel.getByRole('button',{name:'Importar GHCR · #414'})).toBeDisabled();
   await expect(panel.getByRole('button',{name:'Preparar candidata · #414'})).toBeDisabled();
   expect(state.requests.some(r=>r.startsWith('POST '))).toBe(false);
+});
+
+test('publicação persistente é somente leitura até confirmar um build aprovado diferente da revisão atual',async ({page})=>{
+  const state=await mockReleaseApi(page,{rollbackBackup:false,importedRevision:null});
+  state.currentSha=OTHER;
+  const panel=await openReleasePanel(page,OTHER);
+  await expect(panel.getByRole('button',{name:'Publicar revisão · #414'})).toBeEnabled();
+  await expect(panel.getByText('Nenhum trabalho de publicação registrado.')).toBeVisible();
+  expect(state.requests.filter(r=>r.startsWith('POST '))).toEqual([]);
+});
+
+test('publicar revisão exige texto exato e registra apenas um trabalho persistente',async ({page})=>{
+  const state=await mockReleaseApi(page,{rollbackBackup:false,importedRevision:null});
+  state.currentSha=OTHER;
+  const panel=await openReleasePanel(page,OTHER);
+  await panel.getByRole('button',{name:'Publicar revisão · #414'}).click();
+  const confirmation=panel.getByRole('group',{name:'Confirmação de build ou rollback'});
+  await expect(confirmation.getByRole('button',{name:'Confirmar publicação'})).toBeDisabled();
+  expect(state.requests.filter(r=>r.startsWith('POST '))).toEqual([]);
+  await confirmation.getByRole('textbox',{name:/Digite exatamente/}).fill('PUBLICAR alpha-app');
+  await confirmation.getByRole('button',{name:'Confirmar publicação'}).click();
+  await expect(panel.getByText(/Publicação persistente registrada/)).toBeVisible();
+  await expect(panel.getByText(/Na fila.*build #414/)).toBeVisible();
+  await expect(panel.getByRole('button',{name:'Publicar revisão · #414'})).toBeDisabled();
+  expect(state.payloads.filter(v=>v.path==='/projects/alpha-app/publication'))
+    .toEqual([{path:'/projects/alpha-app/publication',payload:{runId:414}}]);
+  expect(state.requests.some(r=>r==='POST /projects/alpha-app/releases/promote')).toBe(false);
+});
+
+test('não aceita publicação automática quando recurso está desabilitado na API',async ({page})=>{
+  const state=await mockReleaseApi(page,{rollbackBackup:false,importedRevision:null});
+  state.currentSha=OTHER;state.publicationEnabled=false;
+  const panel=await openReleasePanel(page,OTHER);
+  await expect(panel.getByRole('button',{name:'Publicar revisão · #414'})).toBeDisabled();
+  await expect(panel.getByText('Publicação persistente desabilitada pela API.')).toBeVisible();
+  expect(state.requests.filter(r=>r.startsWith('POST '))).toEqual([]);
+});
+
+test('não publica quando existe trabalho persistente ativo, backup ou revisão já instalada',async ({page})=>{
+  const state=await mockReleaseApi(page,{rollbackBackup:false,importedRevision:null});
+  state.currentSha=OTHER;
+  const panel=await openReleasePanel(page,OTHER);
+  state.publicationPhase='health';
+  await panel.getByRole('button',{name:'↻ Conferir versões'}).click();
+  await expect(panel.getByRole('button',{name:'Publicar revisão · #414'})).toBeDisabled();
+  state.publicationPhase=null;state.rollbackBackup=true;
+  await panel.getByRole('button',{name:'↻ Conferir versões'}).click();
+  await expect(panel.getByRole('button',{name:'Publicar revisão · #414'})).toBeDisabled();
+  state.rollbackBackup=false;state.currentSha=SHA;
+  await panel.getByRole('button',{name:'↻ Conferir versões'}).click();
+  await expect(panel.getByRole('button',{name:'Publicar revisão · #414'})).toBeDisabled();
+  expect(state.requests.filter(r=>r.startsWith('POST '))).toEqual([]);
+});
+
+test('build reprovado durante confirmação cancela publicação automática',async ({page})=>{
+  const state=await mockReleaseApi(page,{rollbackBackup:false,importedRevision:null});
+  state.currentSha=OTHER;
+  const panel=await openReleasePanel(page,OTHER);
+  await panel.getByRole('button',{name:'Publicar revisão · #414'}).click();
+  state.runConclusion='failure';
+  await panel.getByRole('textbox',{name:/Digite exatamente/}).fill('PUBLICAR alpha-app');
+  await panel.getByRole('button',{name:'Confirmar publicação'}).click();
+  await expect(panel.getByRole('alert')).toContainText('build selecionado mudou');
+  expect(state.requests.filter(r=>r.startsWith('POST '))).toEqual([]);
+});
+
+test('desconexão de projeto durante confirmação cancela publicação automática',async ({page})=>{
+  const state=await mockReleaseApi(page,{rollbackBackup:false,importedRevision:null});
+  state.currentSha=OTHER;
+  const panel=await openReleasePanel(page,OTHER);
+  await panel.getByRole('button',{name:'Publicar revisão · #414'}).click();
+  state.failProjectValidation=true;
+  await panel.getByRole('textbox',{name:/Digite exatamente/}).fill('PUBLICAR alpha-app');
+  await panel.getByRole('button',{name:'Confirmar publicação'}).click();
+  await expect(panel.getByRole('alert')).toContainText('vínculo, os serviços ou o workflow mudaram');
+  expect(state.requests.filter(r=>r.startsWith('POST '))).toEqual([]);
+});
+
+test('revisão do container alterada durante confirmação cancela publicação',async ({page})=>{
+  const state=await mockReleaseApi(page,{rollbackBackup:false,importedRevision:null});
+  state.currentSha=OTHER;
+  const panel=await openReleasePanel(page,OTHER);
+  await panel.getByRole('button',{name:'Publicar revisão · #414'}).click();
+  state.currentSha=SHA;
+  await panel.getByRole('textbox',{name:/Digite exatamente/}).fill('PUBLICAR alpha-app');
+  await panel.getByRole('button',{name:'Confirmar publicação'}).click();
+  await expect(panel.getByRole('alert')).toContainText('Estado GHCR, publicação ou containers mudou');
+  expect(state.requests.filter(r=>r.startsWith('POST '))).toEqual([]);
+});
+
+test('API que retorna runId inesperado não confirma publicação',async ({page})=>{
+  const state=await mockReleaseApi(page,{rollbackBackup:false,importedRevision:null});
+  state.currentSha=OTHER;state.wrongPublishedJob=true;
+  const panel=await openReleasePanel(page,OTHER);
+  await panel.getByRole('button',{name:'Publicar revisão · #414'}).click();
+  await panel.getByRole('textbox',{name:/Digite exatamente/}).fill('PUBLICAR alpha-app');
+  await panel.getByRole('button',{name:'Confirmar publicação'}).click();
+  await expect(panel.getByRole('alert')).toContainText('outro projeto ou build');
+  expect(state.requests.filter(r=>r==='POST /projects/alpha-app/publication')).toHaveLength(1);
+  await expect(panel.getByText(/Publicação persistente registrada/)).toHaveCount(0);
+});
+
+test('publicação já cadastrada é identificada sem prometer nova execução',async ({page})=>{
+  const state=await mockReleaseApi(page,{rollbackBackup:false,importedRevision:null});
+  state.currentSha=OTHER;state.alreadyPublished=true;
+  const panel=await openReleasePanel(page,OTHER);
+  await panel.getByRole('button',{name:'Publicar revisão · #414'}).click();
+  await panel.getByRole('textbox',{name:/Digite exatamente/}).fill('PUBLICAR alpha-app');
+  await panel.getByRole('button',{name:'Confirmar publicação'}).click();
+  await expect(panel.getByText(/já possui uma publicação registrada/)).toBeVisible();
+  expect(state.requests.filter(r=>r==='POST /projects/alpha-app/publication')).toHaveLength(1);
+});
+
+test('atualização de status consulta o job sem enviar outra mutação',async ({page})=>{
+  const state=await mockReleaseApi(page,{rollbackBackup:false,importedRevision:null});
+  state.currentSha=OTHER;
+  const panel=await openReleasePanel(page,OTHER);
+  state.publicationJob={id:'job-01',slug:project.slug,repository:project.repository,
+    runId:414,phase:'health',detail:'Testando versão saudável'};
+  await panel.getByRole('button',{name:'↻ Atualizar andamento'}).click();
+  await expect(panel.getByText(/Verificando saúde.*build #414/)).toBeVisible();
+  state.publicationJob={...state.publicationJob,phase:'completed',detail:'Publicado e verificado'};
+  await panel.getByRole('button',{name:'↻ Atualizar andamento'}).click();
+  await expect(panel.getByText(/Publicado na VPS.*build #414/)).toBeVisible();
+  expect(state.requests.filter(r=>r.startsWith('POST '))).toEqual([]);
 });
