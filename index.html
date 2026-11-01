@@ -11,14 +11,23 @@
     (() => {
       if (location.pathname !== '/' && location.pathname !== '/index.html') return;
       const fragment = location.hash.slice(1);
-      const pages = { overview:'overview', apps:'apps', containers:'containers', projects:'projects',
+      const pages = { overview:'overview', apps:'apps', containers:'containers', projects:'projects', terminal:'terminal', revisions:'revisions', database:'database', domains:'domains', traffic:'traffic', secrets:'secrets', settings:'settings', infrastructure:'infrastructure',
         deployments:'deployments', deploys:'deployments' };
-      const tools = new Set(['terminal','database','revisions','domains',
-        'traffic','secrets','settings','services','logs']);
+      const tools = new Set(['services','logs']);
       const params = new URLSearchParams(location.search);
       const classic = params.get('interface') === 'classica';
-      if (classic && (tools.has(fragment) || fragment === 'projects' || fragment === 'apps' || fragment === 'containers' || fragment === 'deploys')) {
+      if (classic && (tools.has(fragment) || fragment === 'projects' || fragment === 'terminal' || fragment === 'revisions' || fragment === 'database' || fragment === 'domains' || fragment === 'traffic' || fragment === 'secrets' || fragment === 'settings' || fragment === 'apps' || fragment === 'containers' || fragment === 'deploys')) {
         document.documentElement.classList.add('legacy-tools');
+        return;
+      }
+      if (classic && fragment.startsWith('site?')) {
+        document.documentElement.classList.add('legacy-tools');
+        return;
+      }
+      if (!classic && fragment.startsWith('site?')) {
+        const slug = new URLSearchParams(fragment.slice(5)).get('slug') || '';
+        location.replace(/^(?=.{2,40}$)[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)
+          ? '/angular/#site?slug=' + slug : '/angular/#apps');
         return;
       }
       if (!classic && tools.has(fragment)) {

@@ -58,7 +58,7 @@ export function vpsStatus(
   if (job?.phase === 'failed' || job?.phase === 'attention')
     return {label:'Publicação exige atenção',tone:'danger'};
   if (job && typeof job.phase==='string' && activePhase[job.phase])
-    return {label:activePhase[job.phase],tone:'running'};
+    return {label:activePhase[job.phase] ?? 'Publicação em andamento',tone:'running'};
   if (!release) return {label:'VPS não verificada',tone:'muted'};
   if (release.current?.state === 'running' && SHA.test(release.current.revision ?? '') &&
       release.current.revision?.toLowerCase() !== run.sha.toLowerCase())

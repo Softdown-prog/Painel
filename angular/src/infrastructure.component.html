@@ -1,0 +1,128 @@
+<section class="infra" aria-label="Administração de servidores MCP e clusters">
+  <header class="infra-head">
+    <div>
+      <h2>Clusters e servidores MCP</h2>
+      <p>Cadastre e organize a arquitetura dos projetos, sem misturar recursos entre eles.</p>
+    </div>
+    <button type="button" (click)="refresh()" [disabled]="loading()||working()">↻ Atualizar registros</button>
+  </header>
+  <p class="caution" role="status"><strong>Somente cadastro de configuração.</strong>
+    Criar um plano aqui não cria containers, processos MCP, nós, redes, endpoints ou custos na VPS.
+    Provisionamento, saúde, logs e manutenção operacional ainda não estão habilitados.</p>
+  @if(error()){<p role="alert" class="infra-error">{{error()}}</p>}
+  @if(notice()){<p role="status" class="infra-note">{{notice()}}</p>}
+  @if(loading()){<p role="status">Consultando os registros da VPS…</p>}
+  @if(data();as snapshot){
+    <div class="infra-metrics" aria-label="Resumo dos cadastros">
+      <div><strong>{{mcps().length}}</strong><span>MCP cadastrados</span></div>
+      <div><strong>{{clusters().length}}</strong><span>Clusters cadastrados</span></div>
+      <div><strong>0</strong><span>Serviços provisionados por este módulo</span></div>
+    </div>
+    <section class="infra-panel">
+      <h3>{{editingId()?'Editar configuração existente':'Criar configuração de infraestrutura'}}</h3>
+      @if(snapshot.projects.length===0){
+        <p>Vincule primeiro um projeto na aba Projetos GitHub. Nenhum cluster ou MCP pode ser cadastrado sem proprietário.</p>
+      } @else {
+        <form class="infra-form" (submit)="prepare($event)">
+          <label>Projeto proprietário
+            <select [value]="projectSlug()" (change)="setProject($any($event.target).value)" [disabled]="working()||editingId()!==null">
+              @for(project of snapshot.projects;track project){<option [value]="project">{{project}}</option>}
+            </select>
+          </label>
+          <label>Tipo de infraestrutura
+            <select [value]="kind()" (change)="setKind($any($event.target).value)" [disabled]="working()||editingId()!==null">
+              <option value="mcp">Servidor MCP</option>
+              <option value="cluster">Cluster de serviços</option>
+            </select>
+          </label>
+          <label>Nome técnico (letras minúsculas e hífen)
+            <input #infraNameInput [value]="name()" (input)="setName($any($event.target).value)"
+              placeholder="navegacao-interna" maxlength="48" pattern="[a-z0-9]+(-[a-z0-9]+)*"
+              autocomplete="off" autocapitalize="off" spellcheck="false" required
+              [disabled]="working()||editingId()!==null"/>
+          </label>
+          @if(kind()==='mcp'){
+            <div class="infra-hint"><strong>Transporte:</strong> Streamable HTTP privado · 1 instância prevista.
+              Exposição pública, ferramentas arbitrárias e segredos não são aceitos neste cadastro.</div>
+          } @else {
+            <label>Réplicas planejadas (1–{{snapshot.limits.maxClusterReplicas}})
+              <input type="number" [value]="replicas()" min="1" [max]="snapshot.limits.maxClusterReplicas"
+                step="1" (input)="setReplicas($any($event.target).value)" [disabled]="working()"/>
+            </label>
+            <label>Topologia
+              <select [value]="topology()" (change)="setTopology($any($event.target).value)" [disabled]="working()">
+                <option value="single-node">Nó único / múltiplos workers</option>
+                <option value="regional">Divisão regional planejada</option>
+              </select>
+            </label>
+          }
+          <div class="infra-actions">
+            <button #infraPrepareButton type="submit" class="primary" [disabled]="!valid()||working()">
+              {{editingId()?'Revisar alteração':'Preparar cadastro'}}
+            </button>
+            @if(editingId()){<button type="button" (click)="cancelEdit()" [disabled]="working()">Cancelar edição</button>}
+          </div>
+        </form>
+      }
+    </section>
+    <div class="infra-groups">
+      <section class="infra-panel">
+        <h3>Servidores MCP ({{mcps().length}})</h3>
+        @for(plan of mcps();track plan.id){
+          <article class="infra-item">
+            <strong>{{plan.name}}</strong>
+            <small>{{plan.id}} · projeto {{plan.projectSlug}}</small>
+            <p>Streamable HTTP privado · {{plan.projectLinked?'Projeto vinculado':'Projeto desvinculado'}}</p>
+            <p class="infra-planned">Cadastro salvo · não provisionado</p>
+            <div class="infra-actions">
+              <button type="button" (click)="edit(plan)" [disabled]="working()||!plan.projectLinked">Configurar</button>
+              <button type="button" class="danger" (click)="prepareDelete(plan,$event)" [attr.aria-label]="'Remover cadastro '+plan.id" [disabled]="working()">Remover cadastro</button>
+            </div>
+          </article>
+        } @empty{<p>Nenhum MCP cadastrado neste módulo.</p>}
+      </section>
+      <section class="infra-panel">
+        <h3>Clusters ({{clusters().length}})</h3>
+        @for(plan of clusters();track plan.id){
+          <article class="infra-item">
+            <strong>{{plan.name}}</strong>
+            <small>{{plan.id}} · projeto {{plan.projectSlug}}</small>
+            <p>{{plan.replicas}} réplica(s) previstas · {{plan.topology==='regional'?'Topologia regional':'Nó único'}} · privado</p>
+            <p class="infra-planned">Cadastro salvo · não provisionado</p>
+            <div class="infra-actions">
+              <button type="button" (click)="edit(plan)" [disabled]="working()||!plan.projectLinked">Configurar</button>
+              <button type="button" class="danger" (click)="prepareDelete(plan,$event)" [attr.aria-label]="'Remover cadastro '+plan.id" [disabled]="working()">Remover cadastro</button>
+            </div>
+          </article>
+        } @empty{<p>Nenhum cluster cadastrado neste módulo.</p>}
+      </section>
+    </div>
+    <section class="infra-panel" aria-label="Manutenção operacional futura">
+      <h3>Manutenção e operação</h3>
+      <p>O inventário acima informa apenas configuração salva. Status de nós, diagnóstico MCP,
+        logs, reinício, atualização, escalonamento e instalação estão pendentes de executores
+        isolados e autorização por projeto. Nenhum botão desta tela executa comandos na VPS.</p>
+      <p>Limites atuais: {{snapshot.limits.total}} cadastros globais,
+        {{snapshot.limits.perProject}} por projeto, até {{snapshot.limits.maxClusterReplicas}}
+        réplicas por cluster (planejadas, sem reserva real de CPU ou memória).</p>
+    </section>
+    @if(pending();as job){
+      <section class="infra-confirm" role="group" aria-label="Confirmar alteração no cadastro" aria-describedby="infra-confirm-warning">
+        <h3>{{job.action==='delete'?'Remover cadastro':'Salvar configuração'}}: {{job.id}}</h3>
+        <p id="infra-confirm-warning">Esta operação altera somente o registro administrativo.
+          Digite o identificador completo para confirmar.</p>
+        <label>Confirmação
+          <input #infraConfirmInput [value]="confirmation()" (input)="confirmation.set($any($event.target).value)"
+            autocomplete="off" autocapitalize="off" spellcheck="false" [disabled]="working()"/>
+        </label>
+        <div class="infra-actions">
+          <button type="button" (click)="cancel(true)" [disabled]="working()">Cancelar</button>
+          <button type="button" [class.danger]="job.action==='delete'" (click)="confirm()"
+            [disabled]="working()||confirmation()!==job.id">
+            {{working()?'Salvando…':'Confirmar no cadastro'}}
+          </button>
+        </div>
+      </section>
+    }
+  }
+</section>

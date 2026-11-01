@@ -4,12 +4,15 @@ on:
     inputs:
       operation:
         type: choice
-        options: [inventory, verify]
+        options: [inventory, verify, mcp_query]
         default: inventory
       project:
         type: choice
         options: [infrastructure, panel, panel-web, terrania]
         default: infrastructure
+      mcp_request:
+        description: 'JSON de consulta MCP somente leitura; ex. {"repo":"Painel","tool":"repo_find_files","query":"executor","limit":10}'
+        type: string
       sha:
         description: Full installed commit expected for verify
         type: string
@@ -26,7 +29,7 @@ jobs:
   command:
     # Issue bridge lets the connected GitHub tool request ONLY a read-only inventory.
     # Creating an arbitrary issue/PR never grants a shell or deployment permission.
-    if: github.repository == 'Softdown-prog/Painel' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.issue.user.id == 189416996 && github.event.issue.title == '[VPS] inventory'))
+    if: github.repository == 'Softdown-prog/Painel' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.issue.user.id == 189416996 && (github.event.issue.title == '[VPS] inventory' || github.event.issue.title == '[VPS] mcp-query')))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -37,7 +40,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Execute on the VPS (no dependency on Pages)
         env:
-          VPS_OPERATION: ${{ inputs.operation || 'inventory' }}
+          VPS_OPERATION: ${{ github.event_name == 'issues' && github.event.issue.title == '[VPS] mcp-query' && 'mcp_query' || inputs.operation || 'inventory' }}
+          VPS_MCP_ARGS: ${{ github.event_name == 'issues' && github.event.issue.body || inputs.mcp_request || '' }}
           VPS_PROJECT: ${{ inputs.project || 'infrastructure' }}
           VPS_SHA: ${{ inputs.sha }}
           VPS_SSH_KEY: ${{ secrets.VPS_OPERATIONS_SSH_KEY }}

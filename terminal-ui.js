@@ -42,11 +42,13 @@
         '  revisoes auto ligar|desligar     altera a limpeza automática no painel',
         '  historico                        mostra comandos desta sessão',
         '  <comando Linux>                  executa na VPS via SSH como administrador',
+      '  linux status                     consulta tarefa e saída parcial',
+      '  linux cancelar                   solicita interrupção de uma tarefa',
         '',
         'SHELL ADMINISTRATIVO: com a sessão do painel ativa, comandos Linux são executados como root.',
         'Exemplo: docker ps, systemctl status ssh ou curl https://exemplo.com.',
         'Cole comandos ou scripts com várias linhas. Ctrl+Enter executa, ou use o botão no celular.',
-        'Até 4 MB por script; o tempo continua limitado a 18 segundos e a saída a 24 KB.',
+        'Até 4 MB por script; tarefas acompanhadas por até 30 minutos. Use linux status para consultar.',
         'Chaves coladas em comandos são mascaradas na tela e no histórico.'
     ].join('\n');
     function line(message, kind = 'response') {
@@ -112,6 +114,16 @@
         setConnection(true, 'API da VPS conectada');
         return result;
     }
+    async function jobStatus() {
+        const response = await api('/terminal/ssh/jobs/current');
+        const job = response.job;
+        if (!job)
+            return 'SHELL DA VPS · nenhuma tarefa recente.';
+        return 'SHELL DA VPS · tarefa ' + job.id + ' · ' + job.state +
+            (job.exitCode === null ? '' : ' · código ' + job.exitCode) +
+            (job.truncated ? ' · saída limitada' : '') + '\n' +
+            (job.output || '(aguardando saída)');
+    }
     async function runLinux(shellCommand) {
         if (!shellCommand)
             throw new Error('Digite um comando Linux. Exemplo: uptime');
@@ -120,20 +132,28 @@
             throw new Error('Terminal Linux ainda não foi ativado na VPS.');
         if (!state.configured)
             throw new Error('O acesso SSH ainda precisa ser configurado na VPS.');
-        const result = await api('/terminal/ssh/exec', { method: 'POST',
+        const result = await api('/terminal/ssh/jobs', { method: 'POST',
             headers: { 'content-type': 'application/json' }, body: JSON.stringify({ command: shellCommand }) });
-        return 'SHELL DA VPS · código de saída ' + result.exitCode +
-            (result.timedOut ? ' · tempo limite atingido' : '') +
-            (result.truncated ? ' · saída limitada' : '') + '\n' +
-            (result.output || '(comando concluído sem saída)');
+        if (!/^[a-f0-9]{32}$/.test(result.job?.id || ''))
+            throw new Error('A VPS não confirmou o identificador da tarefa.');
+        return 'SHELL DA VPS · tarefa iniciada ' + result.job.id + '\n' +
+            'O comando continua mesmo se você sair desta aba. Digite linux status para acompanhar, ou use a aba Angular Terminal VPS.';
     }
     async function runCommand(command) {
         const args = command.trim().split(/\s+/);
         let cmd = args[0].toLowerCase();
         if (cmd === 'linux') {
-            const shellCommand = command.slice(5).trim();
-            return runLinux(shellCommand);
-        }
+      const shellCommand = command.slice(5).trim();
+      if (shellCommand === 'status') return jobStatus();
+      if (shellCommand === 'cancelar') {
+        const status = await api('/terminal/ssh/jobs/current');
+        if (!status.job || status.job.state !== 'running') return 'Não há tarefa ativa.';
+        if (!confirmAction('Interromper SSH', status.job.id, 'Processos remotos desvinculados podem continuar após encerrar o SSH.')) return 'Cancelado.';
+        await mutate('/terminal/ssh/jobs/' + status.job.id + '/cancel', 'POST');
+        return 'Solicitada interrupção do SSH. Digite linux status para conferir.';
+      }
+      return runLinux(shellCommand);
+    }
         if (cmd === 'ajuda' || cmd === 'help' || cmd === '?')
             return HELP;
         if (cmd === 'revisoes') {

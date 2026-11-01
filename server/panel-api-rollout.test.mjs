@@ -28,3 +28,16 @@ test('production diagnosis compares GitHub main to real running image and is rea
   assert.match(diagnose, /PENDENTE: a API instalada/);
   assert.doesNotMatch(diagnose, /docker stop|docker restart|up -d|docker build|docker system prune/);
 });
+
+test('API Docker image includes its direct modules and the persistent SSH job dependency', () => {
+  const dockerfile = read('./Dockerfile');
+  const copied = new Set(dockerfile.split('\n')
+    .filter(line => /^COPY\s+(?!--from)/.test(line))
+    .flatMap(line => line.trim().split(/\s+/).slice(1, -1)));
+  const imports = [read('./api.mjs'), read('./terminal-jobs.ts')]
+    .flatMap(source => [...source.matchAll(/\bfrom\s+['"]\.\/([^'"]+)['"]/g)].map(match => match[1]));
+  for (const dependency of [...new Set(imports)]) {
+    assert.ok(copied.has(dependency), 'API runtime module missing from Dockerfile: ' + dependency);
+  }
+  assert.ok(copied.has('terminal-persistent.ts'), 'persistent terminal manager missing from API image');
+});

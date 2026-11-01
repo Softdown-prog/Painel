@@ -14,8 +14,9 @@ test('Angular includes GitHub projects page and keeps existing maintenance tools
   assert.match(html,/selectPage\('projects'\)/);
   assert.match(root,/projects:'projects'/);
   assert.match(root,/fragment === 'projects'/);
-  assert.match(html,/\?interface=classica#terminal/);
-  assert.match(html,/\?interface=classica#database/);
+  assert.match(html,/selectPage\('terminal'\)/);
+  assert.match(html,/selectPage\('database'\)/);
+  assert.match(html,/selectPage\('domains'\)/);
 });
 
 test('GitHub mobile component keeps credential server-side and requires explicit publication confirmation',()=>{

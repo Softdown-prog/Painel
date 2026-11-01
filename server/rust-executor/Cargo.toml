@@ -1,0 +1,16 @@
+[package]
+name = "vps-executor-shadow"
+version = "0.1.0"
+edition = "2021"
+description = "Non-privileged Rust policy parity prototype for the VPS Panel"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true

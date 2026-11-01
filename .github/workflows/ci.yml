@@ -1,7 +1,7 @@
 name: Console CI
 on:
   push:
-    branches: [main]
+    branches: [main, 'feat/angular-complete-migration']
   pull_request:
 jobs:
   test:
@@ -15,6 +15,8 @@ jobs:
           node-version: '24'
       - run: npm install --no-audit --no-fund
       - run: npm run typecheck
+      - run: npm --prefix angular ci --no-audit --no-fund
+      - run: npm run lint
       - run: npm test
       - name: Test private VPS operations and project isolation
         run: |
@@ -22,6 +24,11 @@ jobs:
           python3 -m unittest discover -s operations -p 'test_*.py' -v
           bash -n operations/install-vps.sh
           bash -n operations/upgrade-vpsops-maintenance.sh
+          bash -n operations/upgrade-vpsops-code-mcp.sh
+          bash -n operations/upgrade-vpsops-mcp-query.sh
+          bash -n operations/install-terminal-host-jobs.sh
+          bash -n tools/repo-mcp/install-vps-from-source.sh
+          node --test tools/repo-mcp/edge-network.test.mjs
       - run: docker compose -f server/compose.yaml -f server/compose.web.yaml config --quiet
       - name: Enforce staging frontend isolation
         run: |
@@ -121,3 +128,33 @@ jobs:
       - run: bash -n server/diagnose-connection-vps.sh
       - run: npm run check:js
       - run: npm run build:frontend && node --check database-ui.js && node --check github-ui.js && node --check apps-ui.js && node --check projects-ui.js && node --check hosted-projects-ui.js && node --check domains-ui.js && node --check terminal-ui.js && node --check revisions-ui.js && node --check site-detail-ui.js && node --check secrets-ui.js
+
+  frontend-e2e:
+    name: Angular browser E2E (mock API, no VPS)
+    if: github.ref == 'refs/heads/feat/angular-complete-migration' || github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install Angular workspace from committed lockfile
+        run: npm --prefix angular ci --no-audit --no-fund
+      - name: Build Angular browser bundle
+        run: npm --prefix angular run build
+      - name: Install pinned browser test runner (isolated from application dependencies)
+        run: npm --prefix angular/e2e install --no-audit --no-fund --package-lock=false
+      - name: Install Chromium in ephemeral GitHub runner
+        run: npm --prefix angular/e2e exec -- playwright install --with-deps chromium
+      - name: Angular browser E2E with intercepted API
+        run: npm --prefix angular/e2e test
+      - name: Upload failed browser traces (no real credentials)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: angular-browser-e2e-failures
+          path: angular/e2e/test-results/
+          if-no-files-found: ignore
+          retention-days: 5

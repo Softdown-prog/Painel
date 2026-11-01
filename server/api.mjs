@@ -2,11 +2,13 @@ import http from 'node:http';
 import { handleGitHubRoute } from './github.ts';
 import { handleAppRoute, listManaged, startIdleMonitor } from './apps.ts';
 import { handleProjectRoute, readProjects } from './projects.ts';
+import { handleInfrastructureRoute } from './infrastructure.ts';
 import { hostedProjects } from './hosted-projects.ts';
 import { handleReleaseRoute } from './releases.ts';
 import { handleImageImportRoute } from './image-import.ts';
 import { handleDomainRoute } from './domains.ts';
 import { executeSshCommand, handleSshTerminalRoute } from './terminal-ssh.ts';
+import {handleSshTerminalJobRoute} from './terminal-jobs.ts';
 import { handleRevisionRoute, startRevisionMonitor } from './revision-maintenance.ts';
 import { handlePublicationRoute, readPublicationHistory, startPublicationWorker } from './publications.ts';
 import { handleSecretsRoute } from './secrets.ts';
@@ -49,7 +51,8 @@ function send(res, status, data, extra = {}) {
 }
 async function body(req) {
   // Only authenticated SSH execution accepts bigger multi-line JSON bodies.
-  const terminal = new URL(req.url || '/', 'http://panel.local').pathname === '/terminal/ssh/exec';
+  const terminalPath = new URL(req.url || '/', 'http://panel.local').pathname;
+  const terminal = terminalPath === '/terminal/ssh/exec' || terminalPath === '/terminal/ssh/jobs';
   const maxBytes = terminal ? 8 * 1024 * 1024 + 65536 : 65536;
   let bytes = 0;
   const chunks = [];
@@ -178,9 +181,8 @@ async function handler(req, res) {
   if (path === '/runtime' && req.method === 'GET') return send(res, 200,
     { node: process.versions.node, native: await nativeRuntime.probe(),
       resourceLimitsEnforcedBy: 'docker-cgroups' });
-  if (await handleSshTerminalRoute(req, res, {
-    send, body
-  })) return;
+  if (await handleSshTerminalJobRoute(req, res, {send, body})) return;
+  if (await handleSshTerminalRoute(req, res, {send, body})) return;
   if (await handleSecretsRoute(req, res, {
     send, body,
     verifyPassword: password => {
@@ -205,6 +207,7 @@ async function handler(req, res) {
   if (await handlePublicationRoute(req, res, { send, body, dataDir })) return;
   if (await handleReleaseRoute(req, res, { send, body, dataDir })) return;
   if (await handleProjectRoute(req, res, { send, body, dataDir })) return;
+  if (await handleInfrastructureRoute(req, res, { send, body, dataDir })) return;
   if (path === '/hosted-projects' && req.method === 'GET') {
     const [apps, legacy] = await Promise.all([listManaged(docker), containers()]);
     return send(res, 200, { projects: hostedProjects(readProjects(dataDir), apps, legacy) });

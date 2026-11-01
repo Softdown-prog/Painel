@@ -20,7 +20,7 @@
           (project.repository ? ' · ' + project.repository : ' · Sem repositório conectado');
         const link = document.createElement('a'); link.className = 'text-link';
         link.href = project.kind === 'legacy' ? '#services' :
-          project.services.length === 1 ? '#site?slug=' + encodeURIComponent(project.services[0].id) : '#projects';
+          project.services.length === 1 && project.services[0] ? '#site?slug=' + encodeURIComponent(project.services[0].id) : '#projects';
         link.textContent = 'Gerenciar →';
         card.append(name, state, detail, link);
         host.append(card);

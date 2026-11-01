@@ -8,7 +8,6 @@ export type LinkedRepository = {
   branch: string;
   workflow: string;
 };
-type ApiResponse = { status: number; data: unknown };
 type Dependencies = {
   dataDir: string;
   send: (res: ServerResponse, status: number, data: unknown) => void;
@@ -31,11 +30,11 @@ async function cachedGithub(path:string):Promise<any> {
   return data;
 }
 
-const allowedOwner = process.env.PANEL_GITHUB_ALLOWED_OWNER || 'Softdown-prog';
+const allowedOwner = process.env['PANEL_GITHUB_ALLOWED_OWNER'] || 'Softdown-prog';
 
 function token(): string | null {
   try {
-    const secret = readFileSync(process.env.PANEL_GITHUB_TOKEN_FILE || '/run/secrets/github-token', 'utf8').trim();
+    const secret = readFileSync(process.env['PANEL_GITHUB_TOKEN_FILE'] || '/run/secrets/github-token', 'utf8').trim();
     return secret || null;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
@@ -45,8 +44,9 @@ function token(): string | null {
 export function validRepository(fullName: unknown): fullName is string {
   if (typeof fullName !== 'string') return false;
   const pieces = fullName.split('/');
-  return pieces.length === 2 && pieces[0] === allowedOwner &&
-    /^[A-Za-z0-9_.-]{1,100}$/.test(pieces[1]) && pieces[1] !== '.' && pieces[1] !== '..';
+  const name = pieces[1];
+  return pieces.length === 2 && pieces[0] === allowedOwner && typeof name === 'string' &&
+    /^[A-Za-z0-9_.-]{1,100}$/.test(name) && name !== '.' && name !== '..';
 }
 export function validRef(value: unknown): value is string {
   return typeof value === 'string' && value.length <= 100 &&
@@ -87,7 +87,7 @@ export async function github(path: string, method = 'GET', payload?: object): Pr
       ...(secret ? { authorization: 'Bearer ' + secret } : {}),
       ...(payload ? { 'content-type': 'application/json' } : {})
     },
-    body: payload ? JSON.stringify(payload) : undefined,
+    ...(payload ? { body: JSON.stringify(payload) } : {}),
     signal: AbortSignal.timeout(10000)
   });
   if (!response.ok) {

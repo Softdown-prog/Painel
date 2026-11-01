@@ -1,4 +1,4 @@
-import { closeSync, constants, existsSync, fsyncSync, lstatSync, openSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeSync } from 'node:fs';
+import { closeSync, constants, existsSync, fsyncSync, lstatSync, openSync, readFileSync, readdirSync, renameSync, unlinkSync, writeSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -19,10 +19,10 @@ class SecretError extends Error {
   constructor(status:number,message:string){super(message);this.status=status;}
 }
 function configured(deps:Deps):boolean {
-  return deps.enabled ?? process.env.PANEL_SECRETS_ENABLED==='1';
+  return deps.enabled ?? process.env['PANEL_SECRETS_ENABLED']==='1';
 }
 function directory(deps:Deps):string {
-  const value=deps.directory ?? process.env.PANEL_SECRETS_DIR ?? '/run/panel-managed-secrets';
+  const value=deps.directory ?? process.env['PANEL_SECRETS_DIR'] ?? '/run/panel-managed-secrets';
   if(!value.startsWith('/run/panel-managed-secrets') && !deps.directory)
     throw new SecretError(503,'Pasta de chaves fora do local reservado do Painel.');
   return value;
@@ -98,8 +98,8 @@ export async function handleSecretsRoute(req:IncomingMessage,res:ServerResponse,
       const dir=checkedDir(deps);
       const registered=list(dir);
       const paths=[
-        {id:'github',label:'GitHub (builds)',file:process.env.PANEL_GITHUB_TOKEN_FILE},
-        {id:'ghcr',label:'GHCR (imagens privadas)',file:process.env.PANEL_GHCR_TOKEN_FILE}
+        {id:'github',label:'GitHub (builds)',file:process.env['PANEL_GITHUB_TOKEN_FILE']},
+        {id:'ghcr',label:'GHCR (imagens privadas)',file:process.env['PANEL_GHCR_TOKEN_FILE']}
       ];
       const connections=paths.map(x=>({
         id:x.id,label:x.label,
@@ -114,14 +114,14 @@ export async function handleSecretsRoute(req:IncomingMessage,res:ServerResponse,
     if(req.method==='POST'&&!match[1]){
       const value=await deps.body(req);
       if(Object.keys(value).sort().join(',')!=='category,label,name,password,value'||
-        typeof value.name!=='string'||!NAME.test(value.name)||value.name.startsWith('panel-')||
-        !['sistema','aplicacao'].includes(String(value.category))||
-        typeof value.label!=='string'||value.label.trim().length<2||value.label.length>80||
-        !validValue(value.value))
+        typeof value['name']!=='string'||!NAME.test(value['name'])||value['name'].startsWith('panel-')||
+        !['sistema','aplicacao'].includes(String(value['category']))||
+        typeof value['label']!=='string'||value['label'].trim().length<2||value['label'].length>80||
+        !validValue(value['value']))
         throw new SecretError(400,'Informe nome, categoria, descrição e chave válidos. A chave não pode conter quebra de linha.');
-      if(typeof value.password!=='string'||value.password.length>256||!deps.verifyPassword(value.password))
+      if(typeof value['password']!=='string'||value['password'].length>256||!deps.verifyPassword(value['password']))
         throw new SecretError(403,'Senha administrativa inválida ou acesso temporariamente bloqueado.');
-      const name=value.name, entries=readIndex(dir);
+      const name=value['name'], entries=readIndex(dir);
       const old=list(dir).find(e=>e.name===name);
       if(!old&&list(dir).length>=LIMIT)throw new SecretError(409,'Limite de chaves atingido.');
       const file=join(dir,name);
@@ -131,10 +131,10 @@ export async function handleSecretsRoute(req:IncomingMessage,res:ServerResponse,
           throw new SecretError(409,'Arquivo já existe, mas suas permissões não permitem atualização.');
       }
       const now=new Date().toISOString();
-      const item:Item={name,category:value.category as Item['category'],
-        label:value.label.trim(),createdAt:old?.createdAt||now,updatedAt:now};
+      const item:Item={name,category:value['category'] as Item['category'],
+        label:value['label'].trim(),createdAt:old?.createdAt||now,updatedAt:now};
       // The file is placed directly in the host-mounted folder, never in GitHub or frontend storage.
-      atomic(dir,name,value.value);
+      atomic(dir,name,value['value']);
       atomic(dir,INDEX,JSON.stringify([...entries.filter(x=>x.name!==name),item],null,2)+'\n');
       console.log(JSON.stringify({event:old?'panel_secret_rotated':'panel_secret_created',name,at:now}));
       return send(old?200:201,{ok:true,name,updatedAt:now,
@@ -143,8 +143,8 @@ export async function handleSecretsRoute(req:IncomingMessage,res:ServerResponse,
     if(req.method==='DELETE'&&match[1]&&NAME.test(match[1])){
       const input=await deps.body(req);
       if(Object.keys(input).sort().join(',')!=='confirm,password'||
-        input.confirm!==match[1]||typeof input.password!=='string'||
-        input.password.length>256||!deps.verifyPassword(input.password))
+        input['confirm']!==match[1]||typeof input['password']!=='string'||
+        input['password'].length>256||!deps.verifyPassword(input['password']))
         throw new SecretError(403,'Confirme o nome da chave e sua senha administrativa.');
       const names=list(dir);
       if(!names.some(x=>x.name===match[1]))throw new SecretError(404,'Chave não encontrada.');

@@ -35,9 +35,9 @@
         throw new PanelApiError(unavailable(response.status), response.status, 'INVALID_RESPONSE');
       const payload = data as Record<string, unknown>;
       if (!response.ok) {
-        const message = typeof payload.error === 'string' && payload.error.length <= 1000 && !/[<>]/.test(payload.error)
-          ? payload.error : unavailable(response.status);
-        throw new PanelApiError(message, response.status, typeof payload.code === 'string' ? payload.code : 'HTTP_ERROR');
+        const message = typeof payload['error'] === 'string' && payload['error'].length <= 1000 && !/[<>]/.test(payload['error'])
+          ? payload['error'] : unavailable(response.status);
+        throw new PanelApiError(message, response.status, typeof payload['code'] === 'string' ? payload['code'] : 'HTTP_ERROR');
       }
       return data as T;
     } catch (error) {

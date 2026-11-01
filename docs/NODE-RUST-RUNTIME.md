@@ -79,5 +79,4 @@ Gateway de apps em `softload-panel-app-wake:1`, Caddy e tunel independentes;
 nenhum componente Rust do Painel identificado nessa revisao. O Go shadow do
 Terrania pertence ao jogo e nao comprova integracao Rust no Painel.
 
-Estado desta implementacao: codigo na branch de revisao; CI, merge, publicacao
-de imagens e instalacao real devem ser registrados separadamente no backlog.
+Estado verificado em 31/10/2026: PR #62 mesclado em 7202ad1; API/executor e gateway instalados e saudáveis. /api/runtime autenticado confirmou Rust com zero fallbacks; testes HTTP/SSE/WebSocket e isolamento passaram. O gateway usa imagem derivada das camadas da API, sem compilador no host. Seu deploy futuro permanece separado. Resultados, digests, recursos, reversão e limites estão em [RELATORIO-NODE-RUST-2026-10-31.md](RELATORIO-NODE-RUST-2026-10-31.md). A etapa seguinte foi auditada em [AGENTE-ADMINISTRATIVO-MCP.md](AGENTE-ADMINISTRATIVO-MCP.md).

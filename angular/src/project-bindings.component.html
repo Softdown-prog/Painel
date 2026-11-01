@@ -1,0 +1,98 @@
+<section class="binding-management" aria-label="Gerenciamento de vínculos e serviços">
+  <div class="binding-header">
+    <div>
+      <h4>Gerenciar vínculos e serviços</h4>
+      <p>Associe aplicações gerenciadas a um repositório ou ajuste os serviços do projeto. Estes controles alteram apenas o cadastro do painel, não os containers.</p>
+    </div>
+    <button type="button" [disabled]="inventoryLoading()||working()" (click)="refreshApps()">
+      {{inventoryLoading()?'Consultando…':'↻ Consultar aplicações'}}
+    </button>
+  </div>
+  @if(error()){<p class="binding-error" role="alert">{{error()}}</p>}
+  @if(notice()){<p class="binding-success" role="status">{{notice()}}</p>}
+  @if(inventoryIssue()){<p class="binding-warning" role="status">Inventário não confirmado: {{inventoryIssue()}}. Associação e edição bloqueadas.</p>}
+  @if(inventory();as state){
+    <p class="binding-meta" role="status">{{state.applications.length}} aplicações gerenciadas identificadas.
+      @if(!state.enabled){Operações sobre aplicações estão desabilitadas no servidor.}
+    </p>
+  }
+  <div class="binding-actions">
+    <button type="button" (click)="beginCreate()"
+      [disabled]="!ready||inventoryLoading()||working()||inventory()?.enabled!==true||projects.length>=8||!availableNewApps().length||!repositories.length">
+      Vincular aplicação
+    </button>
+    <span class="binding-capacity">{{projects.length}} de 8 projetos vinculados · máximo 8 serviços por projeto</span>
+  </div>
+  @if(!ready){<p class="binding-warning">Os vínculos estão em atualização ou indisponíveis. As edições permanecem bloqueadas.</p>}
+  @for(project of projects;track project.slug){
+    <div class="binding-row">
+      <div>
+        <strong>{{project.slug}}</strong>
+        <small>{{project.repository}} · {{project.services.join(', ')||'nenhum serviço'}}</small>
+      </div>
+      <div class="binding-row-actions">
+        <button type="button" [disabled]="working()||inventoryLoading()||!ready||inventory()?.enabled!==true||
+          !project.services.includes(project.slug)||!project.services.every(s=>apps().some(a=>a.slug===s))"
+          (click)="beginExisting('edit',project.slug)">Editar serviços</button>
+        <button type="button" class="danger" [disabled]="working()||!ready" (click)="beginExisting('unlink',project.slug)">Desvincular</button>
+      </div>
+    </div>
+  }
+  @if(mode();as operation){
+    <section class="binding-editor" role="group" aria-label="Editor de vínculos e serviços">
+      <h5>{{operation==='create'?'Novo vínculo':operation==='edit'?'Editar serviços de '+appSlug():'Desvincular '+appSlug()}}</h5>
+      @if(operation==='create'){
+        <label class="binding-field">Aplicação principal
+          <select [value]="appSlug()" [disabled]="working()" (change)="selectApp($any($event.target).value)">
+            @for(app of availableNewApps();track app.slug){
+              <option [value]="app.slug">{{app.slug}} · {{app.state}}</option>
+            }
+          </select>
+        </label>
+        <label class="binding-field">Repositório previamente conectado
+          <select [value]="repoName()" [disabled]="working()" (change)="selectRepo($any($event.target).value)">
+            @for(repo of repositories;track repo.fullName){
+              <option [value]="repo.fullName">{{repo.fullName}} · {{repo.branch}}</option>
+            }
+          </select>
+        </label>
+      }@else{
+        <p>Aplicação: <strong>{{appSlug()}}</strong> · Repositório: {{repoName()}}</p>
+      }
+      @if(operation!=='unlink'){
+        <fieldset class="binding-services">
+          <legend>Serviços vinculados (1–8, incluindo a aplicação principal)</legend>
+          @for(app of possibleServices();track app.slug){
+            <label>
+              <input type="checkbox" [checked]="services().includes(app.slug)"
+                [disabled]="working()||app.slug===appSlug()||(!services().includes(app.slug)&&services().length>=8)"
+                (change)="toggleService(app.slug,$any($event.target).checked)">
+              <span>{{app.slug}} @if(app.slug===appSlug()){<small>(obrigatório)</small>}</span>
+            </label>
+          }@empty{
+            <p>Nenhum serviço gerenciado disponível nesta consulta.</p>
+          }
+        </fieldset>
+      }@else{
+        <p class="binding-warning">Desvincular remove apenas a associação no painel. Os serviços, containers e repositórios continuam existentes.</p>
+      }
+      @if(operation==='edit'&&baseline()?.services?.join(',')===services().join(',')){
+        <p class="binding-warning">Selecione uma alteração na lista de serviços antes de confirmar.</p>
+      }
+      <div class="binding-confirm">
+        <label class="binding-field">Digite exatamente <strong>{{expected()}}</strong>
+          <input [value]="typed()" [disabled]="working()" (input)="typed.set($any($event.target).value)"
+            autocomplete="off" autocapitalize="off" spellcheck="false">
+        </label>
+        <p>Antes de salvar, o painel verificará novamente projetos, repositórios e aplicações gerenciadas. Se algo mudou, a operação será cancelada.</p>
+        <div class="binding-confirm-actions">
+          <button type="button" (click)="reset()" [disabled]="working()">Cancelar</button>
+          <button type="button" [class.danger]="operation==='unlink'"
+            [disabled]="working()||typed()!==expected()||!canSubmit()" (click)="confirm()">
+            {{working()?'Verificando na API…':operation==='create'?'Confirmar vínculo':operation==='edit'?'Salvar serviços':'Confirmar desvinculação'}}
+          </button>
+        </div>
+      </div>
+    </section>
+  }
+</section>

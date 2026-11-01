@@ -13,9 +13,9 @@ const zoneId = /^[a-f0-9]{32}$/i;
 const safeSecretFile = (file: string) => file.startsWith('/run/secrets/') || file.startsWith('/run/panel-managed-secrets/');
 
 export function frontProxyConfig(env: NodeJS.ProcessEnv = process.env): { container: string; sitesDir: string } | null {
-  const legacy = env.PANEL_SOFTLOAD_LEGACY === '1';
-  const container = env.PANEL_FRONT_PROXY_CONTAINER || (legacy ? 'softload-caddy' : '');
-  const sitesDir = env.PANEL_FRONT_PROXY_SITES_DIR || (legacy ? '/opt/softload-infra/caddy/sites' : '');
+  const legacy = env['PANEL_SOFTLOAD_LEGACY'] === '1';
+  const container = env['PANEL_FRONT_PROXY_CONTAINER'] || (legacy ? 'softload-caddy' : '');
+  const sitesDir = env['PANEL_FRONT_PROXY_SITES_DIR'] || (legacy ? '/opt/softload-infra/caddy/sites' : '');
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$/.test(container) || container.startsWith('softload-panel-') ||
       !/^\/(?:[a-zA-Z0-9_.-]+\/)*[a-zA-Z0-9_.-]+$/.test(sitesDir) ||
       sitesDir.length > 200 || sitesDir.split('/').some(part => part === '.' || part === '..')) return null;
@@ -23,9 +23,9 @@ export function frontProxyConfig(env: NodeJS.ProcessEnv = process.env): { contai
 }
 
 export function publishConfig(env: NodeJS.ProcessEnv = process.env): PublishConfig | null {
-  const file = env.PANEL_CLOUDFLARE_DNS_TOKEN_FILE || '';
-  const id = env.PANEL_CLOUDFLARE_ZONE_ID || '';
-  const origin = env.PANEL_DOMAIN_ORIGIN_IPV4 || '';
+  const file = env['PANEL_CLOUDFLARE_DNS_TOKEN_FILE'] || '';
+  const id = env['PANEL_CLOUDFLARE_ZONE_ID'] || '';
+  const origin = env['PANEL_DOMAIN_ORIGIN_IPV4'] || '';
   if (!frontProxyConfig(env) || !safeSecretFile(file) || !existsSync(file) || !zoneId.test(id) || !ipv4.test(origin)) return null;
   const token = readFileSync(file, 'utf8').trim();
   return token.length >= 20 ? { token, zoneId: id, origin } : null;

@@ -64,7 +64,7 @@ async function productionOperation(slug:string,part:'import'|'release',method:'G
  const url='/projects/'+slug+(part==='import'?'/images/import':'/releases'+(action?'/'+action:''));
  let output:{status:number;value:any}|undefined;
  const deps={
-  dataDir:process.env.PANEL_DATA_DIR||'/data',
+  dataDir:process.env['PANEL_DATA_DIR']||'/data',
   send:(_res:ServerResponse,status:number,value:unknown)=>{output={status,value};},
   body:async()=>input
  };
@@ -174,7 +174,7 @@ export async function runPublicationCycle(dir:string,operation:Operation=product
  }finally{busy=false;}
 }
 export function startPublicationWorker(dataDir:string):void{
- if(process.env.PANEL_PUBLICATIONS_ENABLED!=='1'||monitorStarted)return;
+ if(process.env['PANEL_PUBLICATIONS_ENABLED']!=='1'||monitorStarted)return;
  monitorStarted=true;
  const tick=()=>{void runPublicationCycle(dataDir).catch(error=>console.error('Publication worker:',error instanceof Error?error.message:String(error)));};
  const timer=setInterval(tick,3000);timer.unref();
@@ -193,7 +193,7 @@ export async function handlePublicationRoute(req:IncomingMessage,res:ServerRespo
  const match=/^\/projects\/([a-z0-9-]+)\/publication$/.exec(path);
  if(!match)return false;
  const slug=match[1];
- const enabled=deps.enabled??process.env.PANEL_PUBLICATIONS_ENABLED==='1';
+ const enabled=deps.enabled??process.env['PANEL_PUBLICATIONS_ENABLED']==='1';
  const send=(status:number,value:unknown)=>deps.send(res,status,value);
  try{
   if(!validSlug(slug))return send(404,{error:'Nome da aplicação inválido.'}),true;
@@ -211,10 +211,10 @@ export async function handlePublicationRoute(req:IncomingMessage,res:ServerRespo
   const linked=readRepositories(deps.dataDir).find(x=>x.fullName===project.repository&&x.workflow==='panel-app-build.yml');
   if(!linked)return send(409,{error:'Este projeto não possui um workflow GitHub autorizado.'}),true;
   const input=await deps.body(req);
-  if(Object.keys(input).length!==1||!Number.isSafeInteger(input.runId)||Number(input.runId)<1)
+  if(Object.keys(input).length!==1||!Number.isSafeInteger(input['runId'])||Number(input['runId'])<1)
    return send(400,{error:'Informe o ID numérico do build do GitHub.'}),true;
   const existing=readJobs(deps.dataDir);
-  const runId=Number(input.runId);
+  const runId=Number(input['runId']);
   const same=existing.find(j=>j.slug===slug&&j.runId===runId);
   if(same)return send(200,{ok:true,alreadyExists:true,job:same}),true;
   if(existing.some(j=>!TERMINAL.has(j.phase)))

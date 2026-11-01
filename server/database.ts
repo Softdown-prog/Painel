@@ -33,13 +33,13 @@ const MAX_MANAGED = 40;
 let provisioning = false;
 
 function options(env: Environment, ssl?: TlsMaterial, role?: string, database?: string): Record<string, unknown> {
-  const port = Number(env.PANEL_POSTGRES_PORT || 5432);
+  const port = Number(env['PANEL_POSTGRES_PORT'] || 5432);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("invalid port");
   return {
-    host: env.PANEL_POSTGRES_HOST || "vps-postgres", port,
-    user: role || env.PANEL_POSTGRES_USER || "postgres",
-    database: database || env.PANEL_POSTGRES_DB || "postgres",
-    ...(ssl ? { ssl: { ...ssl, servername: env.PANEL_POSTGRES_HOST || "vps-postgres" } } : {}),
+    host: env['PANEL_POSTGRES_HOST'] || "vps-postgres", port,
+    user: role || env['PANEL_POSTGRES_USER'] || "postgres",
+    database: database || env['PANEL_POSTGRES_DB'] || "postgres",
+    ...(ssl ? { ssl: { ...ssl, servername: env['PANEL_POSTGRES_HOST'] || "vps-postgres" } } : {}),
     connectionTimeoutMillis: 3000, query_timeout: 4000, statement_timeout: 4000,
     application_name: "vps-panel-database",
   };
@@ -51,17 +51,17 @@ async function factoryOrPg(factory?: ClientFactory): Promise<ClientFactory> {
   return (config: Record<string, unknown>) => new PgClient(config) as Client;
 }
 function assessRules(rows: Record<string, unknown>[]): Security["hostAuthentication"] {
-  if (!rows.length || rows.some(r => r.error !== null && r.error !== undefined)) return "unknown";
-  const hosts = rows.filter(r => typeof r.type === "string" && r.type.startsWith("host"));
+  if (!rows.length || rows.some(r => r['error'] !== null && r['error'] !== undefined)) return "unknown";
+  const hosts = rows.filter(r => typeof r['type'] === "string" && r['type'].startsWith("host"));
   if (!hosts.length) return "unknown";
-  if (hosts.some(r => r.auth_method === "trust")) return "trust";
-  if (hosts.every(r => r.auth_method === "reject" ||
-      (r.type === "hostssl" && r.auth_method === "cert")) &&
-      hosts.some(r => r.type === "hostssl" && r.auth_method === "cert")) return "cert";
+  if (hosts.some(r => r['auth_method'] === "trust")) return "trust";
+  if (hosts.every(r => r['auth_method'] === "reject" ||
+      (r['type'] === "hostssl" && r['auth_method'] === "cert")) &&
+      hosts.some(r => r['type'] === "hostssl" && r['auth_method'] === "cert")) return "cert";
   return "other";
 }
 function security(auth: Security["hostAuthentication"], env: Environment): Security {
-  const configured = env.PANEL_POSTGRES_WRITE_ENABLED === "1" && signerReady(env);
+  const configured = env['PANEL_POSTGRES_WRITE_ENABLED'] === "1" && signerReady(env);
   const provisioningEnabled = auth === "cert" && configured;
   const message = auth === "trust"
     ? "Atenção: PostgreSQL ainda usa trust. Qualquer container na rede pode assumir outra identidade. Criação bloqueada."
@@ -82,7 +82,7 @@ export async function getDatabaseStatus(
     security: security("unknown", env),
     message: "A conexão com PostgreSQL ainda não foi habilitada na API do Painel.",
   };
-  if (env.PANEL_POSTGRES_ENABLED !== "1") return base;
+  if (env['PANEL_POSTGRES_ENABLED'] !== "1") return base;
   let client: Client | undefined;
   try {
     const create = await factoryOrPg(factory);
@@ -110,22 +110,22 @@ export async function getDatabaseStatus(
       "SELECT type, auth_method, error FROM pg_hba_file_rules ORDER BY line_number"
     );
     const row = info.rows[0];
-    if (!row || typeof row.version !== "string") throw new Error("bad response");
+    if (!row || typeof row['version'] !== "string") throw new Error("bad response");
     const auth = assessRules(rules.rows);
     return {
       ...base, enabled: true, integration: "connected",
-      instance: { version: row.version },
+      instance: { version: row['version'] },
       databases: names.rows.map(db => ({
-        name: String(db.name), owner: String(db.owner), sizeBytes: Number(db.size_bytes),
+        name: String(db['name']), owner: String(db['owner']), sizeBytes: Number(db['size_bytes']),
       })),
       roles: roles.rows.map(role => ({
-        name: String(role.name), canLogin: role.can_login === true, superuser: role.superuser === true,
+        name: String(role['name']), canLogin: role['can_login'] === true, superuser: role['superuser'] === true,
       })),
       security: security(auth, env),
       metrics: {
-        databaseCount: Number(row.database_count),
-        connections: Number(row.connections),
-        totalBytes: Number(row.total_bytes),
+        databaseCount: Number(row['database_count']),
+        connections: Number(row['connections']),
+        totalBytes: Number(row['total_bytes']),
       },
       message: "PostgreSQL conectado; inventário e autenticação consultados.",
     };
@@ -152,7 +152,7 @@ export async function createProjectDatabase(
   factory?: ClientFactory, issuer: typeof issueCertificate = issueCertificate,
 ): Promise<{ project: string; database: string; username: string; credentialsStored: boolean }> {
   if (!SLUG.test(slug)) throw new ProvisionError(400, "Use 2 a 30 caracteres: letras minúsculas, números e traços.");
-  if (env.PANEL_POSTGRES_ENABLED !== "1" || env.PANEL_POSTGRES_WRITE_ENABLED !== "1")
+  if (env['PANEL_POSTGRES_ENABLED'] !== "1" || env['PANEL_POSTGRES_WRITE_ENABLED'] !== "1")
     throw new ProvisionError(403, "Criação de bancos ainda não habilitada nesta VPS.");
   if (!signerReady(env))
     throw new ProvisionError(403, "Certificados PostgreSQL ainda não estão instalados. Nenhuma senha é necessária.");
@@ -181,7 +181,7 @@ export async function createProjectDatabase(
     if (assessRules(rules.rows) !== "cert")
       throw new ProvisionError(403, "O PostgreSQL ainda aceita conexões sem certificado. Criação bloqueada.");
     const live = await client.query("SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()");
-    if (live.rows[0]?.ssl !== true)
+    if (live.rows[0]?.['ssl'] !== true)
       throw new ProvisionError(403, "A conexão administrativa não usa TLS.");
     // HBA view alone can show an unreloaded file. Prove the live server rejects
     // the existing administrative user when no client certificate is presented.
@@ -193,16 +193,16 @@ export async function createProjectDatabase(
     if (!rejected)
       throw new ProvisionError(403, "O servidor não confirmou a recusa de clientes sem certificado.");
     const authority = await client.query("SELECT rolsuper AS superuser FROM pg_roles WHERE rolname=current_user");
-    if (authority.rows[0]?.superuser !== true)
+    if (authority.rows[0]?.['superuser'] !== true)
       throw new ProvisionError(403, "Identidade administrativa não pode criar bancos.");
     const existing = await client.query(
       "SELECT (SELECT COUNT(*)::int FROM pg_database WHERE left(datname,2) = 'p_') AS databases, " +
       "(SELECT COUNT(*)::int FROM pg_database WHERE datname = '" + pair.db + "') AS database_exists, " +
       "(SELECT COUNT(*)::int FROM pg_roles WHERE rolname = '" + pair.role + "') AS role_exists"
     );
-    if (Number(existing.rows[0]?.databases) >= MAX_MANAGED)
+    if (Number(existing.rows[0]?.['databases']) >= MAX_MANAGED)
       throw new ProvisionError(409, "Limite de 40 bancos gerenciados atingido.");
-    if (Number(existing.rows[0]?.database_exists) !== 0 || Number(existing.rows[0]?.role_exists) !== 0)
+    if (Number(existing.rows[0]?.['database_exists']) !== 0 || Number(existing.rows[0]?.['role_exists']) !== 0)
       throw new ProvisionError(409, "Banco ou conta já existe; nada foi alterado.");
     // CA private key stays in the Panel's private mounted volume; neither
     // the key nor the issued certificate is returned to the browser.
@@ -227,7 +227,7 @@ export async function createProjectDatabase(
     const projectClient = await connectAs(issued.client, pair.role, pair.db);
     try {
       const identity = await projectClient.query("SELECT current_user AS username, current_database() AS db");
-      if (identity.rows[0]?.username !== pair.role || identity.rows[0]?.db !== pair.db)
+      if (identity.rows[0]?.['username'] !== pair.role || identity.rows[0]?.['db'] !== pair.db)
         throw new ProvisionError(403, "Identidade do projeto não foi confirmada.");
     } finally { await projectClient.end().catch(() => {}); }
     issued.publish();
@@ -263,7 +263,7 @@ type Dependencies = {
 };
 export async function handleDatabaseRoute(
   req: IncomingMessage, res: ServerResponse,
-  { send, body, loadStatus = getDatabaseStatus, create, dataDir = process.env.PANEL_DATA_DIR || "/data" }: Dependencies,
+  { send, body, loadStatus = getDatabaseStatus, create, dataDir = process.env['PANEL_DATA_DIR'] || "/data" }: Dependencies,
 ): Promise<boolean> {
   const path = new URL(req.url ?? "/", "http://panel.local").pathname;
   if (path !== "/database" && !path.startsWith("/database/")) return false;
@@ -275,9 +275,9 @@ export async function handleDatabaseRoute(
     try {
       if (!body) throw new ProvisionError(503, "Leitura da requisição não configurada.");
       const input = await body(req);
-      if (!input || Object.keys(input).join(",") !== "project" || typeof input.project !== "string")
+      if (!input || Object.keys(input).join(",") !== "project" || typeof input['project'] !== "string")
         throw new ProvisionError(400, "Informe somente o identificador do projeto.");
-      const created = await (create || ((slug: string) => createProjectDatabase(slug, dataDir)))(input.project);
+      const created = await (create || ((slug: string) => createProjectDatabase(slug, dataDir)))(input['project']);
       send(res, 201, { ok: true, ...created, message: "Banco criado; certificado de acesso sem senha guardado somente na VPS." });
     } catch (error) {
       if (error instanceof ProvisionError) send(res, error.status, { error: error.message });

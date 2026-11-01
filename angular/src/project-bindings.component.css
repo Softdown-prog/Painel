@@ -1,0 +1,35 @@
+:host{display:block;min-width:0}
+.binding-management{margin-top:20px;padding:16px;border:1px solid #4a5271;border-radius:13px;background:#1b2334;color:#e7ebff;min-width:0}
+.binding-header,.binding-actions,.binding-row,.binding-row-actions,.binding-confirm-actions{display:flex;gap:12px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap}
+.binding-header h4{font-size:16px;margin:0}
+.binding-management p,.binding-capacity{font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.binding-management button,.binding-field input,.binding-field select{background:#282e49;border:1px solid #62688d;color:#ecedff;border-radius:9px;min-height:44px;padding:10px 12px;font:inherit}
+.binding-management button:disabled{opacity:.48;cursor:not-allowed}
+.binding-management button.danger{background:#59283e;border-color:#9a536b;color:#ffcfdd}
+.binding-header p{margin:7px 0}
+.binding-meta{color:#b1cae9}
+.binding-actions{align-items:center;padding:12px 0}
+.binding-capacity{color:#b5bdd4}
+.binding-row{align-items:center;padding:13px 0;border-top:1px solid #39425e;min-width:0}
+.binding-row>div:first-child{flex:1;min-width:0}
+.binding-row strong,.binding-row small{display:block;overflow-wrap:anywhere}
+.binding-row small{font-size:11px;color:#bdc6db;margin-top:4px}
+.binding-row-actions button{font-size:12px}
+.binding-editor{border:1px solid #8772ab;padding:16px;margin:14px 0;border-radius:12px;background:#27253b;min-width:0}
+.binding-editor h5{font-size:15px;margin:0 0 12px}
+.binding-field{display:grid;gap:7px;font-size:12px;color:#e2dced;margin:13px 0;min-width:0}
+.binding-field input,.binding-field select{width:100%;min-width:0;max-width:100%}
+.binding-services{border:1px solid #6e668d;border-radius:11px;display:grid;gap:8px;padding:12px;min-width:0}
+.binding-services legend{font-size:12px;padding:0 7px}
+.binding-services label{display:flex;gap:10px;align-items:center;min-height:35px;overflow-wrap:anywhere;font-size:13px}
+.binding-services input{width:19px;height:19px;flex-shrink:0;accent-color:#9e80ef}
+.binding-services small{color:#c3b5ea}
+.binding-confirm{border-top:1px solid #655876;margin-top:16px;padding-top:8px}
+.binding-confirm-actions{justify-content:flex-start;margin-top:10px}
+.binding-error,.binding-success,.binding-warning{padding:10px;border-radius:9px}
+.binding-error{background:#4b2537;color:#ffd4e0;border:1px solid #b55c78}
+.binding-success{background:#214239;color:#ceffe7;border:1px solid #4c896f}
+.binding-warning{color:#f2d398!important}
+.binding-management button:focus-visible,.binding-management input:focus-visible,.binding-management select:focus-visible{outline:3px solid #bda8ff;outline-offset:2px}
+@media(max-width:650px){.binding-header,.binding-row{flex-direction:column;align-items:stretch}.binding-row-actions{width:100%}.binding-row-actions button,.binding-header button{flex:1}.binding-confirm-actions button{flex:1}}
+@media(max-width:380px){.binding-management{padding:12px}.binding-row-actions,.binding-confirm-actions{flex-direction:column}.binding-row-actions button,.binding-confirm-actions button{width:100%}}

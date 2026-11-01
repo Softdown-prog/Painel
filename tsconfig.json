@@ -14,7 +14,15 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noPropertyAccessFromIndexSignature": true
   },
   "include": [
     "server/**/*.ts",

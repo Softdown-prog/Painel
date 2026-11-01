@@ -1,0 +1,48 @@
+<section class="services" aria-label="Serviços com operações autorizadas">
+ <header><div><h2>Serviços administráveis</h2>
+  <p>A API limita as ações a serviços previamente autorizados. Containers de outros projetos continuam somente leitura no inventário acima.</p></div>
+  <button type="button" (click)="refresh()" [disabled]="loading()||working()">{{loading()?'Consultando…':'↻ Atualizar serviços'}}</button></header>
+ @if(error()){<p class="error" role="alert">{{error()}}</p>}
+ @if(notice()){<p class="success" role="status">{{notice()}}</p>}
+ @if(loading()){<p role="status">Consultando serviços do executor…</p>}
+ @for(service of services();track service.id){
+   <article class="service">
+     <div><strong>{{service.name}}</strong>
+       <small>{{service.id}} · {{service.image??'Imagem não informada'}} · {{service.status}}</small>
+       <small>{{service.controllable?'Serviço com ações limitadas':'Apenas leitura de registros'}}</small>
+     </div>
+     <div class="controls">
+       <button type="button" (click)="openLogs(service)" [disabled]="logsLoading()||working()">Consultar logs</button>
+       @for(action of allowed(service);track action){
+         <button type="button" [class.danger]="action==='stop'||action==='restart'"
+           (click)="prepare(service,action)" [disabled]="working()||loading()">
+           {{action==='start'?'Iniciar':action==='stop'?'Parar':'Reiniciar'}}</button>
+       }
+     </div>
+   </article>
+ }@empty{
+   @if(!loading()){<p>Não há serviços legados autorizados nesta VPS. Gerencie sites e aplicativos na aba Apps.</p>}
+ }
+ @if(selected();as id){
+   <div class="logs">
+     <div class="log-title"><strong>Registros do serviço {{id}}</strong>
+       <button type="button" (click)="closeLogs()">Fechar</button></div>
+     @if(logsLoading()){<p role="status">Consultando registros…</p>}
+     <pre tabindex="0">{{logs()||'(sem registros)'}}</pre>
+   </div>
+ }
+ @if(pending();as action){
+   <div class="confirm" role="group" aria-label="Confirmar operação de container">
+     <strong>{{action.action==='start'?'Iniciar':action.action==='stop'?'Parar':'Reiniciar'}} {{action.name}}?</strong>
+     <p>A ação poderá interromper serviços em execução. Ela será enviada apenas após a confirmação e sua autorização será revalidada no backend.</p>
+     <label>Digite exatamente <strong>{{action.name}}</strong>
+       <input [value]="typedName()" (input)="typedName.set($any($event.target).value)"
+         autocomplete="off" spellcheck="false" autocapitalize="off" [disabled]="working()"/></label>
+     <div class="confirm-buttons">
+       <button type="button" (click)="cancel()" [disabled]="working()">Cancelar</button>
+       <button type="button" class="danger" (click)="confirm()" [disabled]="working()||typedName()!==action.name">
+         {{working()?'Executando…':'Confirmar operação'}}</button>
+     </div>
+   </div>
+ }
+</section>

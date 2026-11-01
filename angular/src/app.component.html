@@ -1,14 +1,17 @@
+<a class="skip-to-content" href="#mainContent" (click)="skipToContent($event)">Pular para o conteúdo principal</a>
 <div class="layout">
   @if (menuOpen()) {
-    <button type="button" class="menu-backdrop" aria-label="Fechar menu" (click)="closeMenu()"></button>
+    <button type="button" class="menu-backdrop" aria-label="Fechar menu" (click)="closeMenu(true)"></button>
   }
-  <aside id="navigationPanel" class="sidebar" [class.open]="menuOpen()" aria-label="Navegação e ferramentas">
+  <aside #sidebarPanel id="navigationPanel" class="sidebar" [class.open]="menuOpen()"
+    [attr.role]="menuOpen()?'dialog':null" [attr.aria-modal]="menuOpen()?'true':null"
+    aria-label="Navegação e ferramentas" (keydown)="onSidebarKeydown($event)">
     <div class="sidebar-head">
-      <a href="/angular/#overview" class="brand" aria-label="Início do painel" (click)="closeMenu()">
+      <a href="/angular/#overview" class="brand" aria-label="Início do painel" (click)="closeMenu(true)">
         <span class="brand-icon">V✦</span>
         <span><strong>Painel VPS</strong><small>ADMINISTRAÇÃO</small></span>
       </a>
-      <button type="button" class="menu-close" aria-label="Fechar menu" (click)="closeMenu()">×</button>
+      <button type="button" class="menu-close" aria-label="Fechar menu" (click)="closeMenu(true)">×</button>
     </div>
     <p class="group-label">PAINEL PRINCIPAL</p>
     <nav aria-label="Navegação principal">
@@ -18,22 +21,23 @@
       <button type="button" [class.active]="page() === 'deployments'" [attr.aria-current]="page() === 'deployments' ? 'page' : null" (click)="selectPage('deployments')"><span aria-hidden="true">⇅</span> Publicações</button>
     </nav>
     <p class="group-label">FERRAMENTAS AVANÇADAS</p>
-    <nav aria-label="Ferramentas de manutenção ainda não migradas">
+    <nav aria-label="Ferramentas de administração">
       <button type="button" [class.active]="page() === 'projects'" [attr.aria-current]="page() === 'projects' ? 'page' : null" (click)="selectPage('projects')">⌘ &nbsp; Projetos GitHub</button>
-      <a href="/?interface=classica#terminal">›_ &nbsp; Terminal VPS</a>
-      <a href="/?interface=classica#database">▤ &nbsp; PostgreSQL</a>
-      <a href="/?interface=classica#revisions">◴ &nbsp; Revisões e espaço</a>
-      <a href="/?interface=classica#domains">◎ &nbsp; Domínios</a>
-      <a href="/?interface=classica#traffic">↕ &nbsp; Tráfego</a>
-      <a href="/?interface=classica#secrets">⚿ &nbsp; Chaves</a>
-      <a href="/?interface=classica#settings">⚙ &nbsp; Configurações</a>
+      <button type="button" [class.active]="page() === 'terminal'" [attr.aria-current]="page() === 'terminal' ? 'page' : null" (click)="selectPage('terminal')">›_ &nbsp; Terminal VPS</button>
+      <button type="button" [class.active]="page() === 'infrastructure'" [attr.aria-current]="page() === 'infrastructure' ? 'page' : null" (click)="selectPage('infrastructure')">⊞ &nbsp; Clusters e MCP</button>
+      <button type="button" [class.active]="page() === 'database'" [attr.aria-current]="page() === 'database' ? 'page' : null" (click)="selectPage('database')">▤ &nbsp; PostgreSQL</button>
+      <button type="button" [class.active]="page() === 'revisions'" [attr.aria-current]="page() === 'revisions' ? 'page' : null" (click)="selectPage('revisions')">◴ &nbsp; Revisões e espaço</button>
+      <button type="button" [class.active]="page() === 'domains'" [attr.aria-current]="page() === 'domains' ? 'page' : null" (click)="selectPage('domains')">◎ &nbsp; Domínios</button>
+      <button type="button" [class.active]="page() === 'traffic'" [attr.aria-current]="page() === 'traffic' ? 'page' : null" (click)="selectPage('traffic')">↕ &nbsp; Tráfego e recursos</button>
+      <button type="button" [class.active]="page() === 'secrets'" [attr.aria-current]="page() === 'secrets' ? 'page' : null" (click)="selectPage('secrets')">⚿ &nbsp; Chaves e segredos</button>
+      <button type="button" [class.active]="page() === 'settings'" [attr.aria-current]="page() === 'settings' ? 'page' : null" (click)="selectPage('settings')">⚙ &nbsp; Configurações</button>
     </nav>
     <p class="note">Interface única para o uso diário. As ferramentas ainda não migradas permanecem acessíveis apenas pelo modo de compatibilidade.</p>
   </aside>
-  <main class="main" id="mainContent">
+  <main class="main" id="mainContent" [attr.inert]="menuOpen()?'':null">
     <header class="topbar">
-      <button type="button" class="menu-toggle" aria-label="Abrir ferramentas e navegação" aria-controls="navigationPanel" [attr.aria-expanded]="menuOpen()" (click)="toggleMenu()">☰</button>
-      <span class="breadcrumb">Minha VPS <span aria-hidden="true">/</span> <strong>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers' : page() === 'apps' ? 'Sites e apps' : page() === 'projects' ? 'GitHub' : 'Publicações'}}</strong></span>
+      <button #menuTrigger type="button" class="menu-toggle" aria-label="Abrir ferramentas e navegação" aria-controls="navigationPanel" [attr.aria-expanded]="menuOpen()" (click)="toggleMenu()">☰</button>
+      <span class="breadcrumb">Minha VPS <span aria-hidden="true">/</span> <strong>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers' : page() === 'apps' ? 'Sites e apps' : page() === 'projects' ? 'GitHub' : page() === 'terminal' ? 'Terminal' : page() === 'revisions' ? 'Revisões' : page() === 'database' ? 'PostgreSQL' : page() === 'domains' ? 'Domínios' : page() === 'traffic' ? 'Tráfego' : page() === 'secrets' ? 'Chaves' : page() === 'infrastructure' ? 'Clusters e MCP' : page() === 'settings' ? 'Configurações' : page() === 'site' ? 'Detalhes do site' : 'Publicações'}}</strong></span>
       <div class="actions">
         <span class="mode">{{signedIn() ? '● Sessão ativa' : '● Acesso protegido'}}</span>
         @if (signedIn()) { <button type="button" class="secondary logout" (click)="logout()">Sair</button> }
@@ -41,7 +45,7 @@
     </header>
     <div class="content">
       <div class="heading">
-        <div><small>GERENCIAMENTO MULTIPROJETOS</small><h1>{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers da VPS' : page() === 'apps' ? 'Sites e apps' : page() === 'projects' ? 'Projetos GitHub' : 'Publicações'}}</h1>
+        <div><small>GERENCIAMENTO MULTIPROJETOS</small><h1 #pageTitle tabindex="-1">{{page() === 'overview' ? 'Visão geral' : page() === 'containers' ? 'Containers da VPS' : page() === 'apps' ? 'Sites e apps' : page() === 'projects' ? 'Projetos GitHub' : page() === 'terminal' ? 'Terminal VPS' : page() === 'revisions' ? 'Revisões e espaço' : page() === 'database' ? 'PostgreSQL' : page() === 'domains' ? 'Domínios e HTTPS' : page() === 'traffic' ? 'Tráfego e recursos' : page() === 'secrets' ? 'Chaves e segredos' : page() === 'infrastructure' ? 'Clusters e servidores MCP' : page() === 'settings' ? 'Configurações' : page() === 'site' ? 'Detalhes da aplicação' : 'Publicações'}}</h1>
           <p>Gerencie seus projetos e acompanhe a VPS pelo celular ou computador.</p></div>
         @if (signedIn() && (page() === 'overview' || page() === 'containers')) { <button type="button" class="primary" [disabled]="loading()" (click)="refresh()">{{loading() ? 'Consultando…' : '↻ Atualizar dados'}}</button> }
       </div>
@@ -53,14 +57,46 @@
       } @else if (!signedIn()) {
         <section class="panel login">
           <h2>Acesso administrativo</h2>
-          @if (session()?.setupRequired) {
-            <p>O administrador ainda não foi configurado. Abra as <a href="/?interface=classica#settings">configurações avançadas</a> para concluir a configuração inicial.</p>
+          @if(logoutPending()){
+            <p role="status">Confirmando a saída com o servidor da VPS...</p>
+          } @else if(logoutUnconfirmed()){
+            <p role="alert">A saída ainda não foi confirmada pela VPS. Não deixe o dispositivo sem tentar novamente.</p>
+            <button type="button" class="secondary" (click)="retryLogout()">Tentar encerrar sessão novamente</button>
+          } @else if (!session()) {
+            <p>O estado da sessão não pôde ser confirmado. Verifique a conexão com a API antes de usar o painel.</p>
+            <button type="button" class="secondary" [disabled]="sessionChecking() || logoutUnconfirmed()" (click)="checkSession()">{{sessionChecking() ? 'Verificando…' : 'Verificar sessão'}}</button>
+          } @else if (session()?.setupRequired) {
+            <p>O administrador ainda não foi configurado. Utilize o código inicial guardado exclusivamente na VPS para criar a senha de acesso.</p>
+            <form (submit)="prepareSetup($event)" autocomplete="off">
+              <label>Código inicial da VPS
+                <input type="password" [value]="setupToken()" (input)="setupToken.set($any($event.target).value);setupPending.set(false)"
+                  autocomplete="off" spellcheck="false" required [disabled]="submitting()"/>
+              </label>
+              <label>Nova senha administrativa (14–256 caracteres)
+                <input type="password" [value]="setupPassword()" (input)="setupPassword.set($any($event.target).value);setupPending.set(false)"
+                  autocomplete="new-password" minlength="14" maxlength="256" required [disabled]="submitting()"/>
+              </label>
+              <label>Confirme a senha
+                <input type="password" [value]="setupRepeat()" (input)="setupRepeat.set($any($event.target).value);setupPending.set(false)"
+                  autocomplete="new-password" minlength="14" maxlength="256" required [disabled]="submitting()"/>
+              </label>
+              <button type="submit" class="primary" [disabled]="submitting()||!setupValid()">Preparar criação do administrador</button>
+            </form>
+            @if(setupPending()){
+              <div class="alert" role="group" aria-label="Confirmar criação de administrador">
+                <p>Confirme a criação. O código inicial só funciona uma vez e não será armazenado no Angular.</p>
+                <div class="actions">
+                  <button type="button" class="secondary" [disabled]="submitting()" (click)="cancelSetup()">Cancelar</button>
+                  <button type="button" class="primary" [disabled]="submitting()" (click)="completeSetup()">{{submitting()?'Criando…':'Confirmar configuração inicial'}}</button>
+                </div>
+              </div>
+            }
           } @else {
             <p>Use suas credenciais existentes. A senha não fica armazenada no Angular.</p>
             <form (submit)="login($event)">
-              <label>Usuário<input [value]="username()" (input)="username.set($any($event.target).value)" autocomplete="username" required></label>
-              <label>Senha<input type="password" [value]="password()" (input)="password.set($any($event.target).value)" autocomplete="current-password" required></label>
-              <button type="submit" class="primary" [disabled]="submitting() || !password()">{{submitting() ? 'Entrando...' : 'Entrar'}}</button>
+              <label>Usuário<input [value]="username()" (input)="username.set($any($event.target).value)" autocomplete="username" required [disabled]="!loginAllowed()"></label>
+              <label>Senha<input type="password" [value]="password()" (input)="password.set($any($event.target).value)" autocomplete="current-password" required [disabled]="!loginAllowed()"></label>
+              <button type="submit" class="primary" [disabled]="!loginAllowed() || !password()">{{submitting() ? 'Entrando...' : 'Entrar'}}</button>
             </form>
           }
         </section>
@@ -69,43 +105,126 @@
           <div class="metrics">
             <article class="metric"><span>Containers em execução</span><strong>{{overview()?.containerSummary?.available ? (overview()?.containerSummary?.running ?? '—') : 'Indisponível'}}</strong><small>Total: {{overview()?.containerSummary?.total ?? '—'}}</small></article>
             <article class="metric"><span>Carga de CPU · 1 min</span><strong>{{overview()?.cpu?.load1 === undefined ? '—' : overview()?.cpu?.load1?.toFixed(2)}}</strong><small>{{overview()?.cpu?.cores ?? '—'}} núcleos</small></article>
-            <article class="metric"><span>Disco em uso</span><strong>{{gb(overview()?.disk?.used)}}</strong><small>De {{gb(overview()?.disk?.total)}}</small></article>
+            <article class="metric"><span>RAM em uso</span><strong>{{gb(overview()?.memory?.used)}}</strong><small>De {{gb(overview()?.memory?.total)}} · {{overview()?.memory?.source === 'memavailable' ? 'Cache descontado' : overview()?.memory?.source === 'os-freemem' ? 'Estimativa sem descontar cache' : 'Sem confirmação'}}</small></article>
+            <article class="metric"><span>Disco em uso</span><strong>{{gb(overview()?.disk?.used)}}</strong><small>De {{gb(overview()?.disk?.total)}} · volume monitorado</small></article>
           </div>
           <section class="panel">
             <h2>Conexão com o servidor</h2>
-            <p>{{overview() ? 'Leitura da API recebida' : 'Aguardando uma leitura confirmada da API'}}</p>
-            <small>Última consulta: {{formatDate(overview()?.updatedAt)}}</small>
-            <p class="hint">Os valores vêm do backend existente. Nenhum número de demonstração é exibido.</p>
+            @if(overviewFresh()){
+              @if(alerts().length){
+                <div class="host-alerts" aria-label="Alertas de capacidade da VPS">
+                  @for(alert of alerts();track alert.message){
+                    <p role="status" class="host-alert" [class.danger]="alert.kind==='danger'">{{alert.message}}</p>
+                  }
+                </div>
+              }@else{
+                <p class="hint">Nenhum limite de capacidade atingido nesta leitura. Isso não confirma a saúde de todos os serviços.</p>
+              }
+            }@else{
+              <p class="fetch-error" role="status">Alertas de capacidade não confirmados: leitura ausente, antiga ou com falha.</p>
+            }
+            @if(overviewIssue()){
+              <p role="alert" class="fetch-error">{{overview() ? 'Dados anteriores: atualização falhou.' : 'Métricas indisponíveis.'}} {{overviewIssue()}}</p>
+            } @else if(loading()){
+              <p role="status">Consultando as métricas da VPS...</p>
+            } @else {
+              <p>{{overview() ? 'Métricas recebidas e validadas da API' : 'Aguardando uma leitura confirmada da API'}}</p>
+            }
+            <small>Última leitura válida: {{formatDate(overview()?.updatedAt)}} · atualização automática a cada 60 segundos enquanto esta aba estiver visível.</small>
+            <p class="hint">Leituras antigas não confirmam o estado atual do servidor.</p>
             <button type="button" class="secondary" (click)="selectPage('containers')">Ver inventário de containers</button>
           </section>
           <panel-deployments />
         } @else if (page() === 'containers') {
           <section class="panel">
             <h2>Inventário Docker <span class="tag">SOMENTE LEITURA</span></h2>
-            <p>{{inventory()?.containers?.length ?? '—'}} containers encontrados · {{activeContainers()}} ativos</p>
-            <small>Atualizado: {{formatDate(inventory()?.updatedAt)}}</small>
-            @if (inventory()?.truncated) { <p class="hint">A lista foi limitada pela API.</p> }
+            @if(inventoryIssue()){
+              <p role="alert" class="fetch-error">{{inventory() ? 'Inventário anterior: atualização falhou.' : 'Inventário indisponível.'}} {{inventoryIssue()}}</p>
+            } @else if(loading()){
+              <p role="status">Consultando os containers da VPS...</p>
+            }
+            @if(inventory()){
+              <p>{{inventory()?.containers?.length}} containers encontrados · {{activeContainers()}} em execução</p>
+              <div class="inventory-filters" role="group" aria-label="Filtros do inventário">
+                <label>Buscar container ou imagem
+                  <input type="search" maxlength="100" autocomplete="off" [value]="inventorySearch()"
+                    (input)="setInventorySearch($event)" placeholder="Nome, imagem ou projeto"/>
+                </label>
+                <label>Estado
+                  <select [value]="inventoryStatus()" (change)="setInventoryStatus($event)">
+                    <option value="all">Todos</option>
+                    <option value="running">Em execução</option>
+                    <option value="other">Não em execução</option>
+                  </select>
+                </label>
+                <label>Projeto
+                  <select [value]="inventoryProject()" (change)="setInventoryProject($event)">
+                    <option value="">Todos os projetos</option>
+                    @for(project of projectOptions();track project){<option [value]="project">{{project}}</option>}
+                  </select>
+                </label>
+                <button type="button" class="secondary" (click)="resetInventoryFilters()">Limpar filtros</button>
+              </div>
+              <p role="status">Mostrando {{visibleContainers().length}} de {{inventory()?.containers?.length}} containers da última leitura válida.</p>
+            } @else {
+              <p>Nenhuma leitura de containers confirmada até agora.</p>
+            }
+            <small>Última leitura válida: {{formatDate(inventory()?.updatedAt)}}</small>
+            @if (inventory()?.truncated) { <p class="hint">A lista foi limitada pela API. Os filtros pesquisam somente os containers recebidos, não a VPS inteira.</p> }
             <div class="container-list">
-              @for (item of inventory()?.containers ?? []; track item.name) {
+              @for (item of visibleContainers(); track item.name) {
                 <div class="container-row">
-                  <div><strong>{{item.name || 'Sem nome'}}</strong><small>{{item.project || 'Projeto não informado'}} · {{item.image || 'Imagem não informada'}}</small></div>
-                  <span class="state" [class.running]="item.state === 'running'">{{item.state === 'running' ? 'Em execução' : (item.status || 'Parado')}}</span>
+                  <div><strong>{{item.name}}</strong><small>{{item.project || 'Projeto não informado'}} · {{item.image}}</small></div>
+                  <span class="state" [class.running]="item.state === 'running'">{{item.state === 'running' ? 'Em execução' : (item.status || 'Não em execução')}}</span>
                 </div>
-              } @empty { <p>Nenhum container informado pela VPS.</p> }
+              } @empty {
+                @if(inventory()){
+                  @if(inventory()?.containers?.length===0){
+                    <p>A VPS confirmou que não há containers na lista consultada.</p>
+                  }@else{
+                    <p>Nenhum container corresponde aos filtros atuais. Use "Limpar filtros" para ver a lista recebida.</p>
+                  }
+                }
+              }
             </div>
           </section>
+          <section class="panel"><panel-legacy-services /></section>
         } @else if (page() === 'apps') {
           <panel-managed-apps />
+        } @else if (page() === 'site') {
+          @if(selectedSiteSlug();as slug){
+            <panel-site-detail [slug]="slug" />
+          }@else{
+            <section class="panel"><p role="alert">Identificador inválido. Abra a lista de aplicações para selecionar um site.</p>
+              <a href="/angular/#apps">Voltar às aplicações</a>
+            </section>
+          }
         } @else if (page() === 'projects') {
           <panel-github-projects />
+        } @else if (page() === 'terminal') {
+          <panel-vps-terminal />
+        } @else if (page() === 'revisions') {
+          <panel-revisions />
+        } @else if (page() === 'infrastructure') {
+          <panel-infrastructure />
+        } @else if (page() === 'database') {
+          <panel-postgres />
+        } @else if (page() === 'domains') {
+          <panel-domains />
+        } @else if (page() === 'traffic') {
+          <panel-traffic />
+        } @else if (page() === 'secrets') {
+          <panel-secrets />
+        } @else if (page() === 'settings') {
+          <panel-settings (signedOut)="onPasswordChanged()" />
         } @else {
           <panel-deployments />
         }
       }
-      <footer>Central Angular · API Node.js/TypeScript · <a href="/?interface=classica#settings">Configurações avançadas</a></footer>
+      <footer>Central Angular · API Node.js/TypeScript · <button type="button" class="secondary" (click)="selectPage('settings')">Configurações administrativas</button></footer>
     </div>
   </main>
-  <nav class="mobile-tabs" aria-label="Navegação rápida">
+  <nav class="mobile-tabs" aria-label="Navegação rápida" [attr.inert]="menuOpen()?'':null">
     <button type="button" [class.active]="page() === 'overview'" [attr.aria-current]="page() === 'overview' ? 'page' : null" (click)="selectPage('overview')"><span aria-hidden="true">▦</span><small>Início</small></button>
     <button type="button" [class.active]="page() === 'containers'" [attr.aria-current]="page() === 'containers' ? 'page' : null" (click)="selectPage('containers')"><span aria-hidden="true">▣</span><small>Containers</small></button>
     <button type="button" [class.active]="page() === 'apps'" [attr.aria-current]="page() === 'apps' ? 'page' : null" (click)="selectPage('apps')"><span aria-hidden="true">⬡</span><small>Apps</small></button>

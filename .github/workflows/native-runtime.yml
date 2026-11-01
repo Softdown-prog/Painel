@@ -1,7 +1,8 @@
 name: Rust runtime and Node contract
 on:
   push:
-    branches: [main]
+    # Validation-only integration branch. No production deploy or VPS access.
+    branches: [main, feat/angular-complete-migration]
   pull_request:
 permissions:
   contents: read

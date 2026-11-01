@@ -1,0 +1,91 @@
+<section class="traffic" aria-label="Tráfego e recursos da VPS">
+  <div class="traffic-head"><div><h2>Tráfego e recursos</h2>
+    <p>Leituras da VPS para acompanhar uso de rede, RAM e disco pelo celular.</p></div>
+    <button type="button" (click)="refresh()" [disabled]="loading()||saving()">{{loading()?'Verificando…':'↻ Atualizar'}}</button>
+  </div>
+  @if(error()){<p role="alert" class="traffic-error">{{error()}}</p>}
+  @if(notice()){<p role="status" class="traffic-notice">{{notice()}}</p>}
+  @if(loading()){<p role="status">Consultando os contadores da VPS…</p>}
+  @if(traffic();as t){
+    @if(t.month&&t.settings){
+      <div class="traffic-grid">
+        <div><small>RECEBIDO (RX)</small><strong>{{bytes(t.month.rx)}}</strong></div>
+        <div><small>ENVIADO (TX)</small><strong>{{bytes(t.month.tx)}}</strong></div>
+        <div><small>USO NO CICLO</small><strong>{{bytes(t.month.total)}}</strong></div>
+        <div><small>REFERÊNCIA UTILIZADA</small><strong>{{t.month.percentage.toFixed(1)}}%</strong></div>
+      </div>
+      <section class="traffic-panel">
+        <h3>Consumo no ciclo atual</h3>
+        <div class="traffic-progress" role="progressbar" [attr.aria-valuenow]="usagePct()" aria-valuemin="0" aria-valuemax="100">
+          <span [style.width.%]="usagePct()" [class.warning]="t.month.alert==='warning'" [class.high]="t.month.alert==='high'||t.month.alert==='critical'"></span>
+        </div>
+        <p>{{t.month.alert==='critical'?'Alerta crítico: 95% ou mais da referência.':t.month.alert==='high'?'Alerta alto: 85% ou mais da referência.':t.month.alert==='warning'?'Atenção: 70% ou mais da referência.':'Consumo dentro da referência configurada.'}}</p>
+        <small>Ciclo desde {{t.month.periodStart}} · renovação dia {{t.settings.resetDay}} · interface {{t.interface??'indisponível'}}.</small>
+        <p class="note">{{t.billingNote??'Valores técnicos RX + TX; podem diferir da fatura do provedor.'}}</p>
+      </section>
+      <section class="traffic-panel">
+        <h3>Histórico diário de tráfego (até 31 dias)</h3>
+        <div class="traffic-bars" aria-label="Barras de uso diário de rede">
+          @for(d of daily();track d.date){
+            <div class="traffic-bar" [attr.title]="d.date+' · RX '+bytes(d.rx)+' · TX '+bytes(d.tx)">
+              <span class="rx" [style.height.%]="d.rxPct"></span>
+              <span class="tx" [style.height.%]="d.txPct"></span>
+              <small>{{d.date.slice(8)}}</small>
+            </div>
+          }@empty{<p>O histórico começará nas próximas coletas.</p>}
+        </div>
+        <small>Última amostra: {{date(t.lastSampleAt)}}. Coleta da rede a cada cinco minutos.</small>
+      </section>
+      <section class="traffic-panel">
+        <h3>Referência de consumo</h3>
+        <p>Altera apenas a referência exibida no Painel; não muda o plano ou a franquia contratada com o provedor.</p>
+        <form (submit)="prepare($event)" class="traffic-form">
+          <label>Franquia de referência (TB)
+            <input type="number" min=".01" max="1000" step=".01" [value]="allowance()"
+              (input)="allowance.set(+$any($event.target).value);cancel()" required [disabled]="saving()"/>
+          </label>
+          <label>Dia de renovação (1 a 28)
+            <input type="number" min="1" max="28" step="1" [value]="resetDay()"
+              (input)="resetDay.set(+$any($event.target).value);cancel()" required [disabled]="saving()"/>
+          </label>
+          <button type="submit" [disabled]="saving()||loading()||!validSettings()">Preparar alteração</button>
+        </form>
+        @if(pending()){
+          <div class="traffic-confirm">
+            <strong>Alterar a referência para {{allowance()}} TB e renovação dia {{resetDay()}}?</strong>
+            <p>Digite ATUALIZAR para salvar os novos limites de visualização.</p>
+            <label>Confirmação
+              <input [value]="confirmation()" (input)="confirmation.set($any($event.target).value)"
+                autocomplete="off" spellcheck="false" [disabled]="saving()"/>
+            </label>
+            <div class="traffic-actions">
+              <button type="button" (click)="cancel()" [disabled]="saving()">Cancelar</button>
+              <button type="button" (click)="save()" [disabled]="saving()||confirmation()!=='ATUALIZAR'">{{saving()?'Salvando…':'Confirmar alteração'}}</button>
+            </div>
+          </div>
+        }
+      </section>
+    }
+  }
+  <section class="traffic-panel">
+    <h3>Histórico de recursos (até 24 horas)</h3>
+    @if(history();as h){
+      <p>{{h.explanation}}</p>
+      <div class="resource-tabs" role="group" aria-label="Selecionar recurso">
+        <button type="button" [attr.aria-pressed]="selectedMetric()==='memoryPercent'" (click)="selectedMetric.set('memoryPercent')">Memória RAM</button>
+        <button type="button" [attr.aria-pressed]="selectedMetric()==='diskPercent'" (click)="selectedMetric.set('diskPercent')">Disco</button>
+      </div>
+      @if(path()){
+        <svg viewBox="0 0 360 112" role="img" [attr.aria-label]="selectedMetric()==='memoryPercent'?'Histórico percentual da memória':'Histórico percentual do disco'" preserveAspectRatio="none" class="resource-chart">
+          <line x1="12" x2="348" y1="32.5" y2="32.5" stroke="currentColor" opacity=".15"/>
+          <line x1="12" x2="348" y1="55" y2="55" stroke="currentColor" opacity=".15"/>
+          <line x1="12" x2="348" y1="77.5" y2="77.5" stroke="currentColor" opacity=".15"/>
+          <polyline [attr.points]="path()" fill="none" stroke="currentColor" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round"/>
+        </svg>
+        <small>{{points().length}} leituras. Última: {{date(h.lastSampleAt)}}.</small>
+      }@else{<p>Histórico inicial: aguardando ao menos duas medições válidas.</p>}
+    }@else{
+      <p>Histórico de RAM e disco indisponível. Nenhum valor foi estimado.</p>
+    }
+  </section>
+</section>

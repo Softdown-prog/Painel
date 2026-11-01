@@ -47,7 +47,7 @@ export async function proxyPanelRequest(context: PanelContext, fetcher: typeof f
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const upstream = await fetcher(target, { method: request.method, headers,
-      body: request.method === 'POST' ? request.body : undefined, redirect: 'manual', signal: controller.signal });
+      ...(request.method === 'POST' ? { body: request.body } : {}), redirect: 'manual', signal: controller.signal });
     if (upstream.status >= 300 && upstream.status < 400)
       return failure(502, 'UPSTREAM_ACCESS', 'A autorização da conexão privada com a VPS precisa ser conferida em Configuração avançada.', upstream.status);
     const responseHeaders = new Headers({ 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
@@ -59,8 +59,8 @@ export async function proxyPanelRequest(context: PanelContext, fetcher: typeof f
     }
     if (controller.signal.aborted) throw new Error('Upstream timeout');
     const object = data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : null;
-    if (object && !object.cloudflare_error && !('status_code' in object && !('error' in object)) &&
-      (upstream.ok || typeof object.error === 'string')) {
+    if (object && !object['cloudflare_error'] && !('status_code' in object && !('error' in object)) &&
+      (upstream.ok || typeof object['error'] === 'string')) {
       const cookie = upstream.headers.get('set-cookie');
       if (cookie && /^panel_session=/.test(cookie)) responseHeaders.set('set-cookie', cookie);
       return Response.json(object, { status: upstream.status, headers: responseHeaders });
