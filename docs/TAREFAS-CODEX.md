@@ -1,3 +1,7 @@
+### 2026-11-01 — Testes de entrada de deploy por projeto
+
+Branch `feat/deploy-admission-guard`: barreira obrigatória no receptor existente, contrato root por serviço, candidatas sem redes/dados/segredos/socket Docker, testes fixos e resultado sanitizado no GitHub. Falha impede ativação; a verificação final e o rollback existentes continuam obrigatórios. Instalador preserva adaptações locais e exige checksums/travas; sem reiniciar projetos. **Código:** implementado. **Local:** 16 testes novos aprovados; suíte completa depende de Linux (`fcntl`). **CI:** pendente. **Frontend:** não alterado. **Backend root instalado / produção validada:** pendentes. Softload com receptor legado não é considerada coberta sem integração específica. Ver [contrato e instalação](DEPLOY-ADMISSION.md).
+
 ### 2026-10-31 — Projetos GitHub migrados para Angular no mobile
 
 Novo componente `angular/src/github-projects.component.{ts,html,css}`: a tela `/angular/#projects` agora lista os repositórios vinculados, permite cadastrar apenas nomes da conta autorizada, mostra branch/workflow e últimas execuções do GitHub. Conectar não dispara publicação; iniciar `workflow_dispatch` requer confirmação explícita de repositório, branch e workflow. A desconexão também pede confirmação e não altera containers. Token permanece exclusivamente no backend da VPS, como antes. O painel usa `/api/repositories`, `/api/repositories/:owner/:repo/runs` e a operação `deploy` já existente; sem criar endpoints privilegiados nem novos direitos.

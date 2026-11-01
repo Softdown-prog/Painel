@@ -51,7 +51,18 @@
         "executor": "ghcr.io/softdown-prog/painel-executor"
       },
       "releases": "/opt/vps-panel/releases",
-      "public_url": "https://panel.analysepro.com/api/session"
+      "public_url": "https://panel.analysepro.com/api/session",
+      "admission": {
+        "version": 1,
+        "services": {
+          "api": {
+            "profile": "panel-api"
+          },
+          "executor": {
+            "profile": "panel-executor"
+          }
+        }
+      }
     },
     "terrania": {
       "repository": "Softdown-prog/Terrania",
@@ -64,7 +75,18 @@
       },
       "releases": "/opt/vps-projects/terrania/releases",
       "env_file": "/root/Terrania/server/.env",
-      "public_url": "https://api-rpg.analysepro.com/health"
+      "public_url": "https://api-rpg.analysepro.com/health",
+      "admission": {
+        "version": 1,
+        "services": {
+          "multiplayer": {
+            "profile": "http-json",
+            "port": 8787,
+            "path": "/health",
+            "revisionField": "revision"
+          }
+        }
+      }
     },
     "panel-web": {
       "repository": "Softdown-prog/Painel",
@@ -75,7 +97,15 @@
       "images": {
         "web": "ghcr.io/softdown-prog/painel-web"
       },
-      "releases": "/opt/vps-panel/oci-web-releases"
+      "releases": "/opt/vps-panel/oci-web-releases",
+      "admission": {
+        "version": 1,
+        "services": {
+          "web": {
+            "profile": "panel-web"
+          }
+        }
+      }
     }
   },
   "maintenance": {

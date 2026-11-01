@@ -1,0 +1,32 @@
+name: Deployment admission (real Docker)
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  admission:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build isolated candidate fixtures with commit labels
+        run: |
+          docker build -t 127.0.0.1:5000/admission/api:test --label org.opencontainers.image.revision="$GITHUB_SHA" --label org.opencontainers.image.source=https://github.com/Softdown-prog/Painel server
+          docker build -f server/executor.Dockerfile -t 127.0.0.1:5000/admission/executor:test --label org.opencontainers.image.revision="$GITHUB_SHA" --label org.opencontainers.image.source=https://github.com/Softdown-prog/Painel server
+          mkdir -p /tmp/admission-bad
+          printf '%s\n' 'FROM node:24-alpine' 'USER node' 'CMD ["node","-e","require(\"http\").createServer((q,s)=>{s.setHeader(\"content-type\",\"application/json\");s.end(JSON.stringify({revision:\"broken\"}))}).listen(8787)"]' > /tmp/admission-bad/Dockerfile
+          docker build -t 127.0.0.1:5000/admission/bad:test --label org.opencontainers.image.revision="$GITHUB_SHA" --label org.opencontainers.image.source=https://github.com/Softdown-prog/Painel /tmp/admission-bad
+      - name: Publish fixtures to ephemeral loopback-only CI registry
+        run: |
+          docker run -d --name admission-ci-registry --memory 128m --cpus .5 -p 127.0.0.1:5000:5000 registry:2
+          for n in api executor bad; do docker push "127.0.0.1:5000/admission/$n:test"; done
+      - name: Exercise the same admission engine used by the VPS
+        run: sudo python3 operations/admission-docker-smoke.py "$GITHUB_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: admission-real-docker
+          path: admission-docker-result.json
+          retention-days: 14
