@@ -57,7 +57,7 @@ test('inventário e listagem de vínculos são somente leitura',async ({page})=>
   const state=await fixture(page);
   const section=await open(page);
   await expect(section.getByText('6 aplicações gerenciadas identificadas.',{exact:false})).toBeVisible();
-  await expect(section.getByText('alpha-app')).toBeVisible();
+  await expect(section.locator('.binding-row strong').first()).toHaveText('alpha-app');
   expect(changes(state)).toEqual([]);
 });
 test('novo vínculo exige confirmar slug e preserva os containers',async ({page})=>{
