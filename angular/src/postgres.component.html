@@ -46,21 +46,21 @@
         <p>O servidor criará uma identidade exclusiva e guardará o certificado na VPS. Não é necessário informar senha nem usar o banco de outro projeto.</p>
         <form (submit)="prepare($event)">
           <label for="dbProject">Identificador do projeto</label>
-          <input id="dbProject" [value]="project()" (input)="project.set($any($event.target).value);cancel()"
+          <input #dbProjectInput id="dbProject" [value]="project()" (input)="project.set($any($event.target).value);cancel()"
             placeholder="meu-projeto" autocomplete="off" autocapitalize="off" spellcheck="false"
             minlength="2" maxlength="30" pattern="[a-z][a-z0-9-]{1,29}" required [disabled]="!enabled()||working()||loading()"/>
           <small>Letras minúsculas, números e traços; 2 a 30 caracteres. Nomes de bancos já existentes não serão sobrescritos.</small>
           <button type="submit" [disabled]="!enabled()||!validProject()||working()||loading()">Preparar criação</button>
         </form>
         @if(pending()){
-          <div class="db-confirm" role="group" aria-label="Confirmação de novo banco">
+          <div class="db-confirm" role="group" aria-label="Confirmação de novo banco" aria-describedby="db-confirm-warning">
             <strong>Criar banco para {{project()}}?</strong>
-            <p>Confirme o nome abaixo. A criação altera a instância PostgreSQL compartilhada e não pode ser desfeita automaticamente.</p>
+            <p id="db-confirm-warning">Confirme o nome abaixo. A criação altera a instância PostgreSQL compartilhada e não pode ser desfeita automaticamente.</p>
             <label for="dbConfirm">Digite o identificador do projeto</label>
-            <input id="dbConfirm" [value]="confirmation()" (input)="confirmation.set($any($event.target).value)"
+            <input #dbConfirmInput id="dbConfirm" [value]="confirmation()" (input)="confirmation.set($any($event.target).value)"
               autocapitalize="off" spellcheck="false" autocomplete="off" [disabled]="working()"/>
             <div class="db-actions">
-              <button type="button" (click)="cancel()" [disabled]="working()">Cancelar</button>
+              <button type="button" (click)="cancel(true)" [disabled]="working()">Cancelar</button>
               <button type="button" class="db-danger" (click)="create()" [disabled]="working()||confirmation()!==project()||!enabled()">
                 {{working()?'Criando…':'Confirmar criação'}}</button>
             </div>
