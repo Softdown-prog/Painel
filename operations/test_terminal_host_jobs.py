@@ -101,6 +101,39 @@ print(host.public(host.prune()[0])['state'])
         self.assertIsNone(entry['exitCode'])
         self.assertFalse((self.root/('script-'+ID+'.sh')).exists())
 
+    def test_reboot_detection_is_independent_of_systemd_availability(self):
+        from datetime import datetime,timedelta,timezone
+        old=(datetime.now(timezone.utc)-timedelta(minutes=2)).isoformat()
+        host.save({'id':ID,'fingerprint':'a'*16,'state':'running','startedAt':old,
+                   'finishedAt':None,'exitCode':None,'error':None,
+                   'truncated':False,'cancelRequested':False,'bootId':'old-boot'})
+        (self.root/('script-'+ID+'.sh')).write_bytes(b'discard after reboot')
+        with patch.object(host,'host_boot_id',return_value='new-boot'),\
+             patch.object(host,'systemd_state',side_effect=AssertionError('should not query systemd')):
+            latest=host.reconcile(host.read_meta(ID))
+        self.assertEqual(latest['state'],'failed')
+        self.assertIsNone(latest['exitCode'])
+        self.assertIn('reiniciou',latest['error'])
+        self.assertFalse((self.root/('script-'+ID+'.sh')).exists())
+
+    def test_transient_systemd_query_failure_does_not_allow_duplicate_command(self):
+        from datetime import datetime,timedelta,timezone
+        old=(datetime.now(timezone.utc)-timedelta(minutes=2)).isoformat()
+        host.save({'id':ID,'fingerprint':'a'*16,'state':'running','startedAt':old,
+                   'finishedAt':None,'exitCode':None,'error':None,
+                   'truncated':False,'cancelRequested':False,'bootId':None})
+        with patch.object(host,'systemd_state',return_value=('unavailable','unknown')):
+            self.assertEqual(host.prune()[0]['state'],'running')
+            self.assertEqual(host.start('b'*32,'c'*16),{'busy':True})
+        self.assertEqual(host.read_meta(ID)['state'],'running')
+
+    def test_systemd_nonzero_exit_is_not_construed_as_finished(self):
+        with patch.object(host.subprocess,'run',return_value=MagicMock(returncode=1,stdout='')):
+            self.assertEqual(host.systemd_state(ID),('unavailable','unknown'))
+        with patch.object(host.subprocess,'run',return_value=MagicMock(
+            returncode=0,stdout='LoadState=not-found\\nActiveState=inactive\\nResult=success\\n')):
+            self.assertEqual(host.systemd_state(ID),('not-found','unknown'))
+
     def test_run_writes_output_and_erases_stored_command(self):
         import hashlib
         command=b'printf hello-from-host'

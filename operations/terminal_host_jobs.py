@@ -31,6 +31,14 @@ MAX_JOBS = 12
 def now():
     return datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
 
+def host_boot_id():
+    """Stable within a Linux boot. Never exposed to browser or GitHub."""
+    try:
+        value=Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+    except OSError:
+        return None
+    return value if re.fullmatch(r'[0-9a-fA-F-]{36}',value) else None
+
 def encode(obj):
     return json.dumps(obj, ensure_ascii=False, separators=(',', ':'))
 
@@ -78,18 +86,33 @@ def unit(job_id):
 
 def systemd_state(job_id):
     result=subprocess.run(['systemctl','show',unit(job_id),
-                          '--property=ActiveState,Result', '--no-pager'],
+                          '--property=LoadState,ActiveState,Result', '--no-pager'],
                          capture_output=True, text=True, timeout=5)
-    if result.returncode:
-        return ('unknown','unknown')
     props=dict(line.split('=',1) for line in result.stdout.splitlines() if '=' in line)
-    return props.get('ActiveState','unknown'),props.get('Result','unknown')
+    if props.get('LoadState') == 'not-found':
+        return ('not-found','unknown')
+    if result.returncode:
+        return ('unavailable','unknown')
+    return props.get('ActiveState','unavailable'),props.get('Result','unknown')
 
 def reconcile(data):
     if data['state'] != 'running':
         return data
+    # A new Linux boot proves the old transient unit cannot still run.
+    # Preserve uncertainty during an ordinary systemctl outage instead.
+    recorded_boot=data.get('bootId')
+    current_boot=host_boot_id()
+    rebooted=bool(recorded_boot and current_boot and recorded_boot!=current_boot)
+    if rebooted:
+        data['state']='failed'
+        data['finishedAt']=now()
+        data['exitCode']=None
+        data['error']='O host reiniciou durante a tarefa. Confira a VPS antes de repetir.'
+        save(data)
+        (ROOT/('script-'+data['id']+'.sh')).unlink(missing_ok=True)
+        return data
     active, result=systemd_state(data['id'])
-    if active in ('active','activating'):
+    if active in ('active','activating','deactivating','unavailable'):
         return data
     started=data.get('startedAt')
     seconds=0
@@ -100,7 +123,7 @@ def reconcile(data):
     # Race immediately after start: systemd-run may have queued the unit.
     if active == 'inactive' and seconds < 5:
         return data
-    if active in ('inactive','failed','unknown','deactivating') and seconds>=5:
+    if active in ('inactive','failed','not-found') and seconds>=5:
         data['state']='cancelled' if data.get('cancelRequested') else ('timed_out' if result=='timeout' or seconds>MAX_RUNTIME+5 else 'failed')
         data['finishedAt']=now()
         data['error']=None if data['state'] in ('timed_out','cancelled') else 'SSH job ended without confirmed completion. Verify the VPS.'
@@ -179,7 +202,7 @@ def start(job_id, fingerprint):
         file.write(b'\n')
     data={'id':job_id,'fingerprint':fingerprint,'state':'running','startedAt':now(),
           'finishedAt':None,'exitCode':None,'error':None,'truncated':False,
-          'cancelRequested':False}
+          'cancelRequested':False,'bootId':host_boot_id()}
     save(data)
     cmd=['systemd-run','--quiet','--collect','--unit='+unit(job_id),
          '--property=RuntimeMaxSec=1800','--property=MemoryMax=2147483648',

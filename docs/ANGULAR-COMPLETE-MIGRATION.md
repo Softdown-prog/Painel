@@ -270,3 +270,6 @@ Esta etapa compara `projects-ui.ts`, `github-ui.ts`, `terminal-ui.ts` e `revisio
 - Uma tarefa só inicia se `vps-panel-terminal-gc.timer` estiver ativo. Na ausência do timer, a chamada falha antes de gravar o script, impedindo arquivos secretos órfãos.
 - O instalador `operations/install-terminal-host-jobs.sh` configura o serviço/timer do `systemd` **somente com `apply` autorizado como root**; `check` realiza validações sem modificar o host. Isso não reinicia nem publica a API, não faz merge na `main` e não é executado pela CI.
 - A limpeza periódica roda a cada quinze minutos; o limite para elegibilidade é uma hora após finalizar. O arquivo pode durar um pouco mais até a próxima execução da coleta, portanto não colar segredos nos comandos ou na saída.
+
+- Recuperação após reinício real do Ubuntu: cada tarefa registra privadamente o identificador da sessão de boot do kernel. Se a VPS reiniciar e o ID mudar, a tarefa anterior fica como **falha/interrompida** (nunca concluída com sucesso) e o script órfão é apagado. O identificador não aparece na API nem nos logs públicos.
+- Se a consulta `systemctl show` falhar, o estado permanece conservadoramente ocupado para impedir um segundo comando simultâneo. A indisponibilidade do supervisor não é tratada como confirmação de término.
