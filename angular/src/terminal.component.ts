@@ -117,7 +117,14 @@ export class TerminalComponent implements OnInit,OnDestroy {
     if(this.destroyed||this.busy()||!this.status()?.configured)return;
     try{
       const response=await this.api<{job:TerminalJob|null}>('/terminal/ssh/jobs/current');
-      if(!this.destroyed&&response.job)this.applyJob(response.job);
+      if(this.destroyed)return;
+      if(response.job)this.applyJob(response.job);
+      else if(this.job()?.state==='running'){
+        this.job.set(null);
+        this.result.set(null);
+        this.output.set('');
+        this.error.set('A API perdeu o acompanhamento da tarefa. Verifique a VPS antes de executar novamente.');
+      }
     }catch(e){
       if(!this.destroyed&&this.job()?.state==='running')
         this.error.set('Não foi possível consultar o andamento. A tarefa pode continuar na VPS. '+this.message(e));
