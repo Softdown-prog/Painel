@@ -15,6 +15,7 @@ export class TerminalComponent implements OnInit,OnDestroy {
   readonly command=signal('');
   readonly pending=signal(false);
   readonly output=signal('');
+  readonly copyFeedback=signal<'idle'|'copied'|'failed'>('idle');
   readonly result=signal<Execution|null>(null);
   readonly job=signal<TerminalJob|null>(null);
   readonly stopping=signal(false);
@@ -40,6 +41,7 @@ export class TerminalComponent implements OnInit,OnDestroy {
     this.cancel();
     this.command.set('');
     this.output.set('');
+    this.copyFeedback.set('idle');
     this.result.set(null);
     this.job.set(null);
     this.status.set(null);
@@ -109,7 +111,7 @@ export class TerminalComponent implements OnInit,OnDestroy {
     this.cancel();
     this.jobEpoch++; // Invalidate any GET started before this command.
     this.busy.set(true);this.error.set('');
-    this.result.set(null);this.output.set('');
+    this.result.set(null);this.output.set('');this.copyFeedback.set('idle');
     try{
       const response=await this.api<{job:TerminalJob}>('/terminal/ssh/jobs','POST',{command:value});
       if(this.destroyed)return;
@@ -158,6 +160,7 @@ export class TerminalComponent implements OnInit,OnDestroy {
       typeof job.output!=='string'||typeof job.truncated!=='boolean'||
       !Number.isFinite(job.durationMs)||typeof job.startedAt!=='string')
       throw Error('Estado da tarefa SSH inválido.');
+    if(this.job()?.id!==job.id||this.output()!==job.output)this.copyFeedback.set('idle');
     this.job.set(job);
     if(job.state!=='running')this.stopPending.set(false);
     this.output.set(job.output);
@@ -184,6 +187,20 @@ export class TerminalComponent implements OnInit,OnDestroy {
   clear():void {
     if(this.job()?.state==='running')return;
     this.result.set(null);this.output.set('');this.error.set('');
+    this.copyFeedback.set('idle');
+  }
+  async copyOutput():Promise<void>{
+    const value=this.output();
+    if(!value||this.destroyed)return;
+    const jobId=this.job()?.id;
+    this.copyFeedback.set('idle');
+    try{
+      if(!navigator.clipboard?.writeText)throw Error('Área de transferência indisponível');
+      await navigator.clipboard.writeText(value);
+      if(!this.destroyed&&this.job()?.id===jobId&&this.output()===value)this.copyFeedback.set('copied');
+    }catch{
+      if(!this.destroyed&&this.job()?.id===jobId&&this.output()===value)this.copyFeedback.set('failed');
+    }
   }
   private message(e:unknown):string {return e instanceof Error?e.message:'Falha na consulta do terminal.';}
 }
