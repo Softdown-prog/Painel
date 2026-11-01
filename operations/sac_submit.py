@@ -12,7 +12,7 @@ import re
 import secrets
 import stat
 
-ROOT = Path("/var/lib/data-library-worker/state")
+ROOT = Path("/var/lib/sac-builder/state")
 SLUG = re.compile(r"[a-z][a-z0-9-]{0,63}\Z")
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 RUN = re.compile(r"[0-9]{1,15}\Z")
@@ -121,10 +121,13 @@ def _publish(inbox, job_id, record, worker_uid):
 def submit_job(policy, args, claims, request_id, *, state_dir=None, worker_uid=None):
     project, profile, source_sha = validate_args(policy, args)
     job_id = _run_attempt(claims, request_id)
-    uid = pwd.getpwnam("data-library").pw_uid if worker_uid is None else worker_uid
+    uid = pwd.getpwnam("sac-builder").pw_uid if worker_uid is None else worker_uid
     state = ROOT if state_dir is None else Path(state_dir)
     if state.is_symlink() or not state.is_dir():
-        raise ValueError("Worker state is not installed")
+        raise ValueError("Builder state is not installed")
+    state_stat = state.stat()
+    if (state_stat.st_uid != uid or state_stat.st_mode & (stat.S_IWOTH | stat.S_IWGRP)):
+        raise ValueError("Builder state ownership/permissions invalid")
     inbox = state / "sac-inbox"
     record = {
         "schema_version": 1, "job_id": job_id, "project_id": project,

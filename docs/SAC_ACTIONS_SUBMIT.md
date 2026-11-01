@@ -31,3 +31,9 @@ Após a instalação/habilitação administrativa separada, a Issue literal `[VP
 ## Resultado de compilação efetiva (SAC-008D)
 
 A consulta `sac_worker action=job` também reconhece `execution=sac-build-audit` com o **único** código de aprovação `isolated-build-browser-pass`, que declara build Angular dentro do Docker seguido de SAC/Guardian aprovados. O código legado `isolated-browser-pass` continua exclusivo do modo auditoria sem build. Campos incompatíveis, falso browser pass e alegações de deploy continuam rejeitados. A integração está apenas na branch do PR #74; ainda precisa de homologação, merge e instalação do broker na VPS antes de funcionar.
+
+## SAC-008F: separação efetiva de filas do builder rootless
+
+O broker `sac_submit`, após instalação aprovada, publica **exclusivamente** em `/var/lib/sac-builder/state/sac-inbox` e transfere a propriedade para o usuário `sac-builder`. A política exemplo continua `enabled=false`, `projects=[]`. A ação `sac_worker action=job` busca os resultados na mesma área isolada, enquanto `status` e `report` históricos continuam lendo o checkpoint do catálogo `/var/lib/data-library-worker/state`. Os dois caminhos são fixos e validados independentemente; não existe parâmetro de path em Issues.
+
+O executor pareado é proposto no [Data Library PR #27](https://github.com/Softdown-prog/Data_libray/pull/27), ainda em draft. **Não ativar** o gate `sac_submit` até o usuário `sac-builder`, diretórios privados, socket Docker rootless e serviço separado estarem homologados e instalados. Este commit não configura sistemas nem toca a VPS.

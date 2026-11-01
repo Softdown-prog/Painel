@@ -96,6 +96,15 @@ class SacWorkerQueryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self._query("report")
 
+    def test_catalog_and_job_query_paths_are_separated(self):
+        self.assertEqual(str(sac_worker.WORKER_STATE_ROOT), "/var/lib/data-library-worker/state")
+        self.assertEqual(str(sac_worker.SAC_BUILDER_STATE_ROOT), "/var/lib/sac-builder/state")
+        self.assertEqual(POLICY["sac_worker"]["job_state_dir"], str(sac_worker.SAC_BUILDER_STATE_ROOT))
+        bad = copy.deepcopy(POLICY)
+        bad["sac_worker"]["job_state_dir"] = str(sac_worker.WORKER_STATE_ROOT)
+        with self.assertRaises(ValueError):
+            sac_worker.validate_args(bad, {"action": "job", "job_id": "gha-222-1"})
+
     def test_job_query_returns_only_safe_summary(self):
         jobs = self.state / "sac-results"
         jobs.mkdir()

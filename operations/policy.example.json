@@ -171,14 +171,15 @@
       "189416996"
     ],
     "state_dir": "/var/lib/data-library-worker/state",
-    "output": "summary-only"
+    "output": "summary-only",
+    "job_state_dir": "/var/lib/sac-builder/state"
   },
   "sac_submit": {
     "enabled": false,
     "actor_ids": [
       "189416996"
     ],
-    "state_dir": "/var/lib/data-library-worker/state",
+    "state_dir": "/var/lib/sac-builder/state",
     "projects": []
   }
 }

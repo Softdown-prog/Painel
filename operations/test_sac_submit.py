@@ -34,6 +34,11 @@ class SacSubmitTests(unittest.TestCase):
                                      kwargs.get("request_id", self.request_id),
                                      state_dir=self.state, worker_uid=os.getuid())
 
+    def test_submit_points_only_to_dedicated_builder_queue(self):
+        self.assertEqual(str(sac_submit.ROOT), "/var/lib/sac-builder/state")
+        self.assertEqual(POLICY["sac_submit"]["state_dir"], str(sac_submit.ROOT))
+        self.assertFalse(POLICY["sac_submit"]["enabled"])
+
     def test_write_once_and_receipt_does_not_claim_compilation(self):
         output = self.submit()["sacJob"]
         self.assertEqual(output["status"], "queued")

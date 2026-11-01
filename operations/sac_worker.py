@@ -15,6 +15,7 @@ JOB_ID = re.compile(r"gha-[0-9]{1,15}-[1-9][0-9]{0,3}\Z")
 RESULT_CODE = re.compile(r"[a-z][a-z0-9-]{0,63}\Z")
 MAX_INPUT_BYTES = 32768
 WORKER_STATE_ROOT = Path("/var/lib/data-library-worker/state")
+SAC_BUILDER_STATE_ROOT = Path("/var/lib/sac-builder/state")
 
 
 def validate_args(policy, args):
@@ -31,7 +32,9 @@ def validate_args(policy, args):
         raise ValueError("Unsupported SAC query action")
     # Installed policy is root-owned; refuse arbitrary paths even if it was misconfigured.
     if settings.get("state_dir") != str(WORKER_STATE_ROOT):
-        raise ValueError("SAC query state path differs from dedicated worker")
+        raise ValueError("SAC query state path differs from catalog worker")
+    if args["action"] == "job" and settings.get("job_state_dir") != str(SAC_BUILDER_STATE_ROOT):
+        raise ValueError("SAC job state must use dedicated builder")
     return args["action"]
 
 
@@ -79,7 +82,7 @@ def _counts(raw):
 
 def query_sac_worker(policy, args, *, state_dir=None):
     action = validate_args(policy, args)
-    state = WORKER_STATE_ROOT if state_dir is None else Path(state_dir)
+    state = (SAC_BUILDER_STATE_ROOT if action == "job" else WORKER_STATE_ROOT) if state_dir is None else Path(state_dir)
     if state.is_symlink():
         raise ValueError("Symlink worker state forbidden")
     if action == "job":
