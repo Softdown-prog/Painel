@@ -13,3 +13,6 @@ angular/.angular/
 
 # Índice local/artefato gerado pelo MCP de navegação do código
 .repo-mcp/
+
+angular/e2e/test-results/
+angular/e2e/playwright-report/
