@@ -32,6 +32,18 @@ def main():
             raise ValueError('MCP request must be a JSON object')
     elif operation == 'sac_worker':
         args = {'action': os.environ.get('VPS_SAC_ACTION', '')}
+    elif operation == 'sac_submit':
+        raw = os.environ.get('VPS_SAC_ARGS', '')
+        if raw:
+            if len(raw.encode('utf-8')) > 1024:
+                raise ValueError('SAC request exceeds 1024 bytes')
+            args = json.loads(raw)
+        else:
+            args = {
+                'project_id': os.environ.get('VPS_SAC_PROJECT_ID', ''),
+                'profile_id': os.environ.get('VPS_SAC_PROFILE_ID', ''),
+                'source_sha': os.environ.get('VPS_SAC_SOURCE_SHA', '')
+            }
     elif operation == 'maintain':
         args = {
             'action': os.environ['VPS_ACTION'],
