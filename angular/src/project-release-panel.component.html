@@ -100,5 +100,6 @@
         @if(!loading()&&!runsIssue()){<p>Nenhum build registrado pela API nesta consulta.</p>}
       }
     </div>
+    <panel-release-maintenance [project]="project" [requiredWorkflow]="requiredWorkflow"></panel-release-maintenance>
   }
 </section>
