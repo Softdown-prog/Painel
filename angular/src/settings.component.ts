@@ -1,7 +1,10 @@
-import {Component,EventEmitter,OnDestroy,Output,computed,signal} from '@angular/core';
+import {Component,ElementRef,EventEmitter,OnDestroy,Output,ViewChild,computed,signal} from '@angular/core';
 @Component({selector:'panel-settings',standalone:true,templateUrl:'./settings.component.html',styleUrl:'./settings.component.css'})
 export class SettingsComponent implements OnDestroy{
  @Output() readonly signedOut=new EventEmitter<void>();
+ @ViewChild('confirmationInput') private confirmationInput?:ElementRef<HTMLInputElement>;
+ @ViewChild('currentPasswordInput') private currentPasswordInput?:ElementRef<HTMLInputElement>;
+ private focusTimer:ReturnType<typeof setTimeout>|null=null;
  readonly currentPassword=signal('');
  readonly newPassword=signal('');
  readonly repeatPassword=signal('');
@@ -13,7 +16,25 @@ export class SettingsComponent implements OnDestroy{
  readonly valid=computed(()=>this.currentPassword().length>0&&this.currentPassword().length<=256&&
    this.newPassword().length>=14&&this.newPassword().length<=256&&
    this.newPassword()===this.repeatPassword()&&this.newPassword()!==this.currentPassword());
- ngOnDestroy():void{this.clear();}
+ ngOnDestroy():void{
+   if(this.focusTimer!==null)clearTimeout(this.focusTimer);
+   this.focusTimer=null;
+   this.clear();
+ }
+ private focusConfirmation():void{
+   if(this.focusTimer!==null)clearTimeout(this.focusTimer);
+   this.focusTimer=setTimeout(()=>{
+     this.focusTimer=null;
+     if(this.pending()&&!this.working())this.confirmationInput?.nativeElement.focus({preventScroll:true});
+   },0);
+ }
+ private returnToForm():void{
+   if(this.focusTimer!==null)clearTimeout(this.focusTimer);
+   this.focusTimer=setTimeout(()=>{
+     this.focusTimer=null;
+     if(!this.pending()&&!this.working())this.currentPasswordInput?.nativeElement.focus({preventScroll:true});
+   },0);
+ }
  private clear():void{
    this.currentPassword.set('');this.newPassword.set('');this.repeatPassword.set('');
    this.confirmation.set('');this.pending.set(false);
@@ -22,8 +43,9 @@ export class SettingsComponent implements OnDestroy{
    event.preventDefault();
    if(this.working()||!this.valid())return;
    this.error.set('');this.notice.set('');this.confirmation.set('');this.pending.set(true);
+   this.focusConfirmation();
  }
- cancel():void{this.clear();}
+ cancel():void{this.clear();this.returnToForm();}
  async save():Promise<void>{
    if(this.working()||!this.pending()||!this.valid()||this.confirmation()!=='ALTERAR SENHA')return;
    this.working.set(true);this.error.set('');
@@ -45,6 +67,7 @@ export class SettingsComponent implements OnDestroy{
    }catch(e){
      this.error.set(e instanceof Error?e.message:'Não foi possível confirmar a mudança.');
      this.clear();
+     this.returnToForm();
    }finally{this.working.set(false);}
  }
 }
