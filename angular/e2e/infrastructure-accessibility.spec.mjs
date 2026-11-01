@@ -196,7 +196,8 @@ test('Falha no GET de revalidação não é interpretada como autorização para
   await expect(page.getByRole('button',{name:'Remover cadastro terrania.mcp.navigator'})).toBeVisible();
   expect(writes(state)).toEqual([]);
 });
-\ntest('edição de cluster envia revisão exata do cadastro e não altera o projeto proprietário',async ({page})=>{
+
+test('edição de cluster envia revisão exata do cadastro e não altera o projeto proprietário',async ({page})=>{
  const state=await fixture(page);
  await page.goto('/angular/#infrastructure');
  await page.locator('.infra-item').filter({hasText:'painel.cluster.workers'})

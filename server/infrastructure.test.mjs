@@ -118,7 +118,8 @@ test('corrupted registry does not get silently overwritten by a new request',asy
    assert.equal(readFileSync(file,'utf8'),'{"plans":[]}');
  }finally{f.close();}
 });
-\ntest('stale and missing revision preconditions reject edits and removals before changing registry',async()=>{
+
+test('stale and missing revision preconditions reject edits and removals before changing registry',async()=>{
  const f=fixture();
  try{
    await f.request('/infrastructure','POST',mcp);
