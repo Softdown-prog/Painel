@@ -28,10 +28,12 @@ class AdmissionRejected(RuntimeError):
         self.receipt = receipt
 
 
-def rejected(check, checks, service=None):
+def rejected(check, checks, service=None, test=None):
     entry = {'check': check, 'status': 'failed', 'action': REMEDIATION[check]}
     if service:
         entry['service'] = service
+    if test:
+        entry['test'] = test
     raise AdmissionRejected({'version': VERSION, 'status': 'rejected',
                              'productionChanged': False, 'checks': checks + [entry]})
 
@@ -39,7 +41,7 @@ def rejected(check, checks, service=None):
 def contract(project):
     value = project.get('admission')
     if (not isinstance(value, dict) or set(value) != {'version', 'services'}
-            or value['version'] != VERSION or not isinstance(value['services'], dict)
+            or type(value['version']) is not int or value['version'] != VERSION or not isinstance(value['services'], dict)
             or not value['services'] or len(value['services']) > 8
             or set(value['services']) != set(project['images'])
             or set(value['services']) != set(project['containers'])):
@@ -51,7 +53,8 @@ def contract(project):
         if rule['profile'] == 'http-json':
             if (set(rule) != {'profile', 'port', 'path', 'revisionField'}
                     or type(rule['port']) is not int or not 1024 <= rule['port'] <= 65535
-                    or not re.fullmatch(r'/[a-zA-Z0-9/_-]{0,100}', rule['path'])
+                    or not isinstance(rule['path'], str) or not re.fullmatch(r'/[a-zA-Z0-9/_-]{0,100}', rule['path'])
+                    or not isinstance(rule['revisionField'], str)
                     or not re.fullmatch(r'[a-zA-Z][a-zA-Z0-9_]{0,40}', rule['revisionField'])):
                 rejected('contract', [])
         elif set(rule) != {'profile'}:
@@ -195,6 +198,7 @@ def admit(project, sha, images):
             docker(['start', name])
             deadline = time.monotonic() + 35
             passed = False
+            failed_test = 'startup-or-http'
             while time.monotonic() < deadline:
                 info = json.loads(docker(['inspect', name]))[0]
                 if not info['State']['Running']:
@@ -203,10 +207,14 @@ def admit(project, sha, images):
                     probe(name, rule, sha, key, info)
                     passed = True
                     break
-                except (subprocess.SubprocessError, OSError):
+                except (subprocess.SubprocessError, OSError) as error:
+                    failed_test = {10: 'http-health-revision', 11: 'session-contract',
+                                   12: 'anonymous-admin-data-denied', 13: 'edge-key-required',
+                                   14: 'frontend-health-revision', 15: 'angular-entry'}.get(
+                                       getattr(error, 'returncode', None), 'startup-or-http')
                     time.sleep(0.5)
             if not passed:
-                rejected('runtime', checks, service)
+                rejected('runtime', checks, service, failed_test)
             checks.append({'check': 'runtime', 'service': service, 'status': 'passed'})
         except AdmissionRejected:
             raise
