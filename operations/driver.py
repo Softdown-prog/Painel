@@ -10,6 +10,7 @@ import tarfile
 import tempfile
 import time
 import urllib.request
+from admission import admit, contract
 
 def run(argv, log=None, **kwargs):
     return subprocess.check_output(argv, stderr=log or subprocess.STDOUT, timeout=kwargs.pop('timeout', 180), **kwargs)
@@ -212,15 +213,20 @@ def deploy(project, args, token, state):
         raise ValueError('Invalid SHA')
     with open(state / ('deploy-' + project['adapter'] + '-' + sha + '.log'), 'ab', buffering=0) as log:
         try:
+            # Server-owned admission is mandatory, including for newly registered projects.
+            contract(project)
             images = prepare_images(project, args, token, log)
+            admission = admit(project, sha, images)
             if project['adapter'] == 'web':
                 from web import web_activate
-                return web_activate(project, sha, images, log)
-            if project['adapter'] == 'panel':
-                return panel_activate(project, sha, images, log)
-            if project['adapter'] == 'compose':
-                return compose_activate(project, sha, images, log)
-            raise ValueError('Unauthorized deployment adapter')
+                result = web_activate(project, sha, images, log)
+            elif project['adapter'] == 'panel':
+                result = panel_activate(project, sha, images, log)
+            elif project['adapter'] == 'compose':
+                result = compose_activate(project, sha, images, log)
+            else:
+                raise ValueError('Unauthorized deployment adapter')
+            return dict(result, admission=admission)
         except BaseException:
             import traceback
             log.write(traceback.format_exc().encode())

@@ -8,6 +8,11 @@ umask 077
 source_dir="$(realpath "$1")"
 installed=/usr/local/lib/vps-operations
 policy_file=/etc/vps-operations/policy.json
+# receiver.py now imports the gate. Never replace it on an unmigrated host.
+[[ -f "$installed/admission.py" && -f "$installed/admission_probe.py" ]] &&
+  grep -Fq 'admission = admit(project, sha, images)' "$installed/driver.py" || {
+    echo 'Instale primeiro a barreira de deploy com install-admission-vps.py; nada foi alterado.' >&2; exit 2;
+  }
 for f in "$source_dir/operations/receiver.py" "$source_dir/operations/maintenance.py" \
          "$source_dir/operations/policy.example.json" "$installed/receiver.py" "$policy_file" \
          /usr/local/libexec/vps-operations /etc/sudoers.d/vps-operations; do
