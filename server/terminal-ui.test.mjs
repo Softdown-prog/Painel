@@ -77,12 +77,12 @@ test('CLI forwards direct shell commands through the SSH backend and masks token
   const token='cfut_'+ 'a'.repeat(48);
   const cli=mount({
     '/api/terminal/ssh/status':{enabled:true,configured:true},
-    'POST /api/terminal/ssh/exec':{exitCode:0,output:'ok',timedOut:false,truncated:false}
+    'POST /api/terminal/ssh/jobs':{job:{id:'a'.repeat(32),state:'running'}}
   });
   const output=await cli.command('curl -H "Authorization: Bearer '+token+'" https://api.cloudflare.com/client/v4/user/tokens/verify');
   assert.match(output,/SHELL DA VPS/);
   assert.ok(!output.includes(token), 'Never show token in terminal output/history');
-  const execution=cli.requested.find(x=>x.url==='/api/terminal/ssh/exec');
+  const execution=cli.requested.find(x=>x.url==='/api/terminal/ssh/jobs');
   assert.ok(JSON.parse(execution.options.body).command.includes(token), 'The original command reaches only the SSH backend');
 });
 test('CLI creates a domain via the actual API and reports it as only reserved',async()=>{
@@ -98,19 +98,22 @@ test('CLI creates a domain via the actual API and reports it as only reserved',a
 test('Linux commands use the authenticated panel session without a second password', async()=>{
   const cli=mount({
     '/api/terminal/ssh/status':{enabled:true,configured:true},
-    'POST /api/terminal/ssh/exec':{exitCode:0,output:'vps online',timedOut:false,truncated:false}
+    'POST /api/terminal/ssh/jobs':{job:{id:'b'.repeat(32),state:'running'}},
+    '/api/terminal/ssh/jobs/current':{job:{id:'b'.repeat(32),state:'completed',exitCode:0,output:'vps online',truncated:false}}
   });
   const output=await cli.command('linux uptime');
   assert.match(output,/SHELL DA VPS/);
-  assert.match(output,/vps online/);
+  assert.match(output,/tarefa iniciada/);
+  const status=await cli.command('linux status');
+  assert.match(status,/vps online/);
   assert.equal(cli.requested.some(x=>x.url==='/api/terminal/ssh/unlock'),false);
-  const execution=cli.requested.find(x=>x.url==='/api/terminal/ssh/exec');
+  const execution=cli.requested.find(x=>x.url==='/api/terminal/ssh/jobs');
   assert.deepEqual(JSON.parse(execution.options.body),{command:'uptime'});
 });
 test('each terminal response has a mobile copy button that copies only that response',async()=>{
   const cli=mount({
     '/api/terminal/ssh/status':{enabled:true,configured:true},
-    'POST /api/terminal/ssh/exec':{exitCode:0,output:'linha 1\nlinha 2',timedOut:false,truncated:false}
+    'POST /api/terminal/ssh/jobs':{job:{id:'c'.repeat(32),state:'running'}}
   });
   await cli.command('linux uptime');
   const lines=cli.elements.get('terminalOutput').children;
@@ -125,15 +128,26 @@ test('each terminal response has a mobile copy button that copies only that resp
 test('CLI submits long multi-line script verbatim without echoing or saving it',async()=>{
   const cli=mount({
     '/api/terminal/ssh/status':{enabled:true,configured:true},
-    'POST /api/terminal/ssh/exec':{exitCode:0,output:'ok',timedOut:false,truncated:false}
+    'POST /api/terminal/ssh/jobs':{job:{id:'a'.repeat(32),state:'running'}}
   });
   const script='echo começo\n' + '#'.repeat(90_000) + '\necho fim';
   const output=await cli.command(script);
   assert.match(output,/SHELL DA VPS/);
   assert.match(output,/não exibido nem salvo no histórico/);
   assert.doesNotMatch(output,/#{100}/);
-  const request=cli.requested.find(x=>x.url==='/api/terminal/ssh/exec');
+  const request=cli.requested.find(x=>x.url==='/api/terminal/ssh/jobs');
   assert.equal(JSON.parse(request.options.body).command,script);
+});
+test('classic terminal can request cancellation of an active SSH job',async()=>{
+  const id='d'.repeat(32);
+  const cli=mount({
+    '/api/terminal/ssh/jobs/current':{job:{id,state:'running'}},
+    ['POST /api/terminal/ssh/jobs/'+id+'/cancel']:{job:{id,state:'cancelled'}}
+  });
+  const output=await cli.command('linux cancelar');
+  assert.match(output,/Solicitada interrupção/);
+  assert.equal(cli.confirms.length,1);
+  assert.equal(cli.requested.some(x=>x.url==='/api/terminal/ssh/jobs/'+id+'/cancel'),true);
 });
 test('terminal page contains multiline textarea without 605-character maxlength',()=>{
   const page=readFileSync(new URL('../index.html',import.meta.url),'utf8');

@@ -223,3 +223,10 @@ Esta etapa compara `projects-ui.ts`, `github-ui.ts`, `terminal-ui.ts` e `revisio
 - Somente uma tarefa simultânea; limite de segurança de 30 minutos; histórico em memória com retenção máxima de uma hora e até 12 entradas. A saída continua sendo drenada mesmo após atingir o limite de exibição.
 - **Limitações declaradas:** tarefas existem na memória do processo API, portanto um reinício da API pode perder estado e interromper a conexão SSH; interromper a conexão SSH não garante parar processos remotos que se desvincularam. O painel antigo mantém `POST /terminal/ssh/exec` (18 segundos) temporariamente para compatibilidade; remover esta rota apenas após migração e testes.
 - Testes `server/terminal-jobs.test.mjs` verificam concorrência, polling, saída limitada sem encerrar a execução, cancelamento, autorização opt-in e limite máximo. Sem deploy até revisão final.
+
+### Terminal clássico: comandos de tarefas acompanhadas
+
+- O Terminal clássico envia comandos Linux em `POST /terminal/ssh/jobs`, recebe o ID imediatamente e não bloqueia o navegador esperando a execução terminar.
+- `linux status` consulta `GET /terminal/ssh/jobs/current` e mostra estado/saída, enquanto `linux cancelar` exige confirmação antes de sinalizar interrupção.
+- O endpoint síncrono antigo `/terminal/ssh/exec` continua disponível apenas por compatibilidade temporária, mas o navegador clássico e o Angular adotam o fluxo assíncrono.
+- Histórico das tarefas existe somente na memória do processo API; reinícios podem perder acompanhamento. Cancelamento da conexão SSH não garante interromper subprocessos desvinculados na VPS.
