@@ -137,6 +137,14 @@
 - Consultas atrasadas não restauram o inventário após `OnDestroy`. Uma gravação já enviada não é cancelada pelo fechamento da tela; o servidor continua sendo a fonte de verdade, e a próxima abertura deve consultar o inventário.
 - Testes de confirmação, revisão do formulário, cadastro/substituição/exclusão e limpeza após destruição em `server/angular-secrets-settings.test.mjs`. Ainda pendente validação em navegador real e celular, sem API/produção alteradas.
 
+## Incremento Angular — inspeção de releases e controles confirmados (31/10/2026)
+
+- Nova tela sob demanda `angular/src/project-release-panel.component.{ts,html,css}` dentro da aba Projetos GitHub. O Angular só consulta `GET /projects/:slug/releases`, `GET /projects/:slug/images/import`, `GET /projects/:slug/publication` e `GET /projects/:slug/runs` quando o operador expande um vínculo; estados de API indisponível aparecem como **não confirmados**, nunca como revisão saudável.
+- **Solicitar build:** habilitado somente com `buildsEnabled=true`, vínculo de um serviço principal, branch válida e workflow `panel-app-build.yml`. Confirmação digitada do slug; antes de qualquer `POST /projects/:slug/build`, reconsulta `GET /projects` e confere identidade, workflow, serviços e habilitação. Exige resposta `accepted:true` com slug/repositório correspondentes. Isso apenas pede um workflow; não equivale a deploy na VPS.
+- **Rollback:** só habilitado quando `GET /projects/:slug/releases` confirma revisão atual em execução, backup disponível, ausência de candidata, `enabled=true` e publicação persistente comprovadamente fora de fase ativa. Exige `RESTAURAR <slug>` digitado; antes de `POST /projects/:slug/releases/rollback`, revalida vínculo, revisão ativa, backup e estado da publicação. Fases desconhecidas bloqueiam o botão. O backend permanece a autoridade final e executa suas próprias verificações de propriedade e estado.
+- Os controles não enviam nenhuma ação ao abrir ou consultar a tela. Testes de navegador com API simulada em `angular/e2e/project-releases.spec.mjs` exercitam confirmação, recusa em cenários inseguros, alterações concorrentes e mobile 320px. Nenhum desses testes se conecta à VPS real.
+- **Ainda não migrados/validados integralmente:** associação e seleção de serviços gerenciados, importação manual GHCR, staging, promoção de candidata, descarte de slot, recuperação de estado seguro, trabalho persistente de publicação e integração autenticada com dados reais. Sem PR, merge, deploy nem limpeza do legado até paridade completa e autorização.
+
 ## Paridade da interface — Projetos GitHub, Terminal e Revisões (31/10/2026)
 
 Esta etapa compara `projects-ui.ts`, `github-ui.ts`, `terminal-ui.ts` e `revisions-ui.ts` com as telas Angular, mantendo a VPS e as APIs intocadas.
