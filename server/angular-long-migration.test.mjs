@@ -59,9 +59,9 @@ test('SSH terminal requires the exact confirmed command, including multiline whi
  assert.match(src,/this\.preparedCommand=value;/);
  assert.match(src,/confirmedTerminalCommand\(this\.preparedCommand,value/);
  // Background SSH jobs must invalidate an earlier poll before sending the POST.
- assert.match(src,/this\\.cancel\\(\\);\\s*this\\.jobEpoch\\+\\+;/);
- assert.match(src,/this\\.jobEpoch\\+\\+;[^\\n]*\\n\\s*this\\.busy\\.set\\(true\\)/);
- assert.match(src,/this\\.pollInFlightEpoch===epoch/);
+ assert.match(src,/this\.cancel\(\);\s*this\.jobEpoch\+\+;/);
+ assert.match(src,/this\.jobEpoch\+\+;[^\n]*\n\s*this\.busy\.set\(true\)/);
+ assert.match(src,/this\.pollInFlightEpoch===epoch/);
  assert.match(src,/ngOnDestroy\(\):void/);
  assert.match(template,/\(input\)="updateCommand\(\$event\)"/);
  assert.doesNotMatch(src+template,/localStorage|sessionStorage/);
