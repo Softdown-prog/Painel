@@ -5,13 +5,15 @@ const project={
   slug:'alpha-app',repository:'Softdown-prog/alpha',branch:'main',
   workflow:'panel-app-build.yml',services:['alpha-app']
 };
-function mockReleaseApi(page,{buildsEnabled=true,rollbackBackup=true,publicationPhase=null}={}){
-  const state={requests:[],project:{...project},buildsEnabled,rollbackBackup,
-    currentSha:SHA,publicationPhase, failProjectValidation:false};
+function mockReleaseApi(page,{buildsEnabled=true,rollbackBackup=true,publicationPhase=null,importedRevision=SHA}={}){
+  const state={requests:[],payloads:[],project:{...project},buildsEnabled,rollbackBackup,
+    currentSha:SHA,publicationPhase,importedRevision,importJob:null,candidate:null,
+    runStatus:'completed',runConclusion:'success',failProjectValidation:false};
   const ready=page.route('**/api/**',async route=>{
     const request=route.request(),path=new URL(request.url()).pathname.slice('/api'.length),
       method=request.method();
     state.requests.push(method+' '+path);
+    if(method==='POST'&&request.postData())state.payloads.push({path,payload:request.postDataJSON()});
     let status=200,body;
     if(method==='GET'&&path==='/session')body={authenticated:true,setupRequired:false};
     else if(method==='GET'&&path==='/repositories'){
@@ -25,19 +27,25 @@ function mockReleaseApi(page,{buildsEnabled=true,rollbackBackup=true,publication
     }else if(method==='GET'&&path==='/projects/alpha-app/releases'){
       body={enabled:true,slug:project.slug,
         current:{state:'running',revision:state.currentSha,image:'ghcr.io/softdown-prog/alpha:current'},
-        candidate:null,
+        candidate:state.candidate,
         backup:state.rollbackBackup?{image:'ghcr.io/softdown-prog/alpha:backup',state:'exited'}:null};
     }else if(method==='GET'&&path==='/projects/alpha-app/publication'){
       body={enabled:true,current:state.publicationPhase?{
         phase:state.publicationPhase,detail:'Executando',runId:414}:null};
     }else if(method==='GET'&&path==='/projects/alpha-app/images/import'){
-      body={enabled:true,job:null,imported:{
-        revision:SHA,digest:'sha256:'+'c'.repeat(64),importedAt:'2026-10-30T12:00:00Z'}};
+      body={enabled:true,job:state.importJob,imported:state.importedRevision?{
+        revision:state.importedRevision,digest:'sha256:'+'c'.repeat(64),importedAt:'2026-10-30T12:00:00Z'}:null};
     }else if(method==='GET'&&path==='/projects/alpha-app/runs'){
-      body={slug:project.slug,runs:[{id:414,sha:SHA,status:'completed',
-        conclusion:'success',createdAt:'2026-10-30T12:00:00Z'}]};
+      body={slug:project.slug,runs:[{id:414,sha:SHA,status:state.runStatus,
+        conclusion:state.runConclusion,createdAt:'2026-10-30T12:00:00Z'}]};
     }else if(method==='POST'&&path==='/projects/alpha-app/build'){
       body={accepted:true,slug:project.slug,repository:project.repository};
+    }else if(method==='POST'&&path==='/projects/alpha-app/images/import'){
+      state.importJob={status:'running',message:'Importação iniciada'};
+      body={accepted:true,revision:SHA,digest:'sha256:'+'c'.repeat(64)};
+    }else if(method==='POST'&&path==='/projects/alpha-app/releases/stage'){
+      state.candidate={revision:SHA,state:'running',health:'starting'};
+      body={staged:true,revision:SHA};
     }else if(method==='POST'&&path==='/projects/alpha-app/releases/rollback'){
       state.rollbackBackup=false;state.currentSha=OTHER;
       body={rolledBack:true,message:'Backup restaurado pelo executor simulado'};
@@ -142,4 +150,68 @@ test('painel de versões permanece dentro da largura de 320px',async ({page})=>{
     total:document.documentElement.scrollWidth
   }));
   expect(width.total).toBeLessThanOrEqual(width.visible+1);
+});
+
+test('importação GHCR exige build aprovado, confirmação digitada e payload do run selecionado',async ({page})=>{
+  const state=await mockReleaseApi(page,{rollbackBackup:false,importedRevision:null});
+  const panel=await openReleasePanel(page);
+  const importButton=panel.getByRole('button',{name:'Importar GHCR · #414'});
+  await expect(importButton).toBeEnabled();
+  await expect(panel.getByRole('button',{name:'Preparar candidata · #414'})).toBeDisabled();
+  await importButton.click();
+  const confirm=panel.getByRole('group',{name:'Confirmação de build ou rollback'});
+  await expect(confirm.getByRole('button',{name:'Confirmar importação'})).toBeDisabled();
+  expect(state.requests.filter(r=>r.startsWith('POST '))).toHaveLength(0);
+  await confirm.getByRole('textbox',{name:/Digite exatamente/}).fill('IMPORTAR alpha-app');
+  await confirm.getByRole('button',{name:'Confirmar importação'}).click();
+  await expect(panel.getByText('Importação aceita pela API.',{exact:false})).toBeVisible();
+  expect(state.payloads.filter(v=>v.path==='/projects/alpha-app/images/import'))
+    .toEqual([{path:'/projects/alpha-app/images/import',payload:{runId:414}}]);
+  await expect(panel.getByRole('button',{name:'Preparar candidata · #414'})).toBeDisabled();
+});
+
+test('preparação exige importação verificada da mesma revisão e confirmação exata',async ({page})=>{
+  const state=await mockReleaseApi(page,{rollbackBackup:false});
+  const panel=await openReleasePanel(page);
+  await expect(panel.getByRole('button',{name:'Importar GHCR · #414'})).toBeDisabled();
+  await panel.getByRole('button',{name:'Preparar candidata · #414'}).click();
+  const confirm=panel.getByRole('group',{name:'Confirmação de build ou rollback'});
+  await expect(confirm.getByRole('button',{name:'Confirmar preparação'})).toBeDisabled();
+  expect(state.requests.filter(r=>r.startsWith('POST '))).toHaveLength(0);
+  await confirm.getByRole('textbox',{name:/Digite exatamente/}).fill('PREPARAR alpha-app');
+  await confirm.getByRole('button',{name:'Confirmar preparação'}).click();
+  await expect(panel.getByText('Candidata solicitada.',{exact:false})).toBeVisible();
+  expect(state.payloads.filter(v=>v.path==='/projects/alpha-app/releases/stage'))
+    .toEqual([{path:'/projects/alpha-app/releases/stage',payload:{runId:414}}]);
+  await expect(panel.getByText('starting · running')).toBeVisible();
+});
+
+test('preparação é cancelada se imagem importada mudou antes de confirmar',async ({page})=>{
+  const state=await mockReleaseApi(page,{rollbackBackup:false});
+  const panel=await openReleasePanel(page);
+  await panel.getByRole('button',{name:'Preparar candidata · #414'}).click();
+  state.importedRevision=OTHER;
+  await panel.getByRole('textbox',{name:/Digite exatamente/}).fill('PREPARAR alpha-app');
+  await panel.getByRole('button',{name:'Confirmar preparação'}).click();
+  await expect(panel.getByRole('alert')).toContainText('imagem desta revisão não está importada');
+  expect(state.requests.some(r=>r==='POST /projects/alpha-app/releases/stage')).toBe(false);
+});
+
+test('importação é cancelada se status do build mudar antes da confirmação',async ({page})=>{
+  const state=await mockReleaseApi(page,{rollbackBackup:false,importedRevision:null});
+  const panel=await openReleasePanel(page);
+  await panel.getByRole('button',{name:'Importar GHCR · #414'}).click();
+  state.runStatus='completed';state.runConclusion='failure';
+  await panel.getByRole('textbox',{name:/Digite exatamente/}).fill('IMPORTAR alpha-app');
+  await panel.getByRole('button',{name:'Confirmar importação'}).click();
+  await expect(panel.getByRole('alert')).toContainText('build selecionado mudou');
+  expect(state.requests.some(r=>r==='POST /projects/alpha-app/images/import')).toBe(false);
+});
+
+test('importação e preparação bloqueadas quando publicação persistente está ativa',async ({page})=>{
+  const state=await mockReleaseApi(page,{rollbackBackup:false,publicationPhase:'health'});
+  const panel=await openReleasePanel(page);
+  await expect(panel.getByRole('button',{name:'Importar GHCR · #414'})).toBeDisabled();
+  await expect(panel.getByRole('button',{name:'Preparar candidata · #414'})).toBeDisabled();
+  expect(state.requests.some(r=>r.startsWith('POST '))).toBe(false);
 });
