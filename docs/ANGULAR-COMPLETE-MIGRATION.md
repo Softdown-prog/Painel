@@ -137,6 +137,15 @@
 - Consultas atrasadas não restauram o inventário após `OnDestroy`. Uma gravação já enviada não é cancelada pelo fechamento da tela; o servidor continua sendo a fonte de verdade, e a próxima abertura deve consultar o inventário.
 - Testes de confirmação, revisão do formulário, cadastro/substituição/exclusão e limpeza após destruição em `server/angular-secrets-settings.test.mjs`. Ainda pendente validação em navegador real e celular, sem API/produção alteradas.
 
+## Incremento Angular — importação GHCR e preparação de candidata (31/10/2026)
+
+- A aba **Projetos GitHub → Builds e versões** mostra em cada execução aprovada os controles *Importar GHCR* e *Preparar candidata*. Esses controles existem somente para um projeto com workflow `panel-app-build.yml`, serviço principal único, revisão ativa identificada e em execução, nenhuma candidata ou backup pendente, publicação persistente não ativa e API de importação disponível.
+- **Importar GHCR:** habilitado quando o build possui `id` e SHA válidos, `status=completed`, `conclusion=success` e ainda não há registro da mesma revisão importada. Exige digitar `IMPORTAR <slug>`, reconsulta os vínculos, builds, importação, releases e publicação, e somente então envia `POST /projects/:slug/images/import` com `{runId}`. Uma resposta HTTP 202 apenas indica **importação solicitada**; a conclusão ainda depende de reconsulta `GET` e validação de digest SHA-256.
+- **Preparar candidata:** só habilitado se `GET /projects/:slug/images/import` informa SHA idêntico ao do build selecionado e digest `sha256:` válido. Exige digitar `PREPARAR <slug>` e revalidar todos os estados antes de `POST /projects/:slug/releases/stage` com `{runId}`. Resposta `staged:true` não implica HEALTHCHECK saudável nem publicação da nova versão.
+- Fases desconhecidas de publicação ou importação e alterações concorrentes de projeto/build/revisão bloqueiam a operação. O backend mantém a autoridade final sobre permissão e propriedade.
+- Os testes E2E em `angular/e2e/project-releases.spec.mjs` cobrem ausência de POST sem confirmação, envio do único `runId` correto, separação importação/preparação, divergência de imagem, build reprovado após abrir a confirmação e publicação persistente em andamento. Testes somente com API simulada, **sem conectar à VPS**.
+- **Ainda pendentes:** promoção de candidata saudável, descarte de reserva, recuperação segura, vínculos e serviços gerenciados, comparação visual completa e homologação da API real. Não fazer PR, merge ou deploy antes de aprovação.
+
 ## Incremento Angular — inspeção de releases e controles confirmados (31/10/2026)
 
 - Nova tela sob demanda `angular/src/project-release-panel.component.{ts,html,css}` dentro da aba Projetos GitHub. O Angular só consulta `GET /projects/:slug/releases`, `GET /projects/:slug/images/import`, `GET /projects/:slug/publication` e `GET /projects/:slug/runs` quando o operador expande um vínculo; estados de API indisponível aparecem como **não confirmados**, nunca como revisão saudável.
