@@ -24,6 +24,49 @@
     <div class="stat"><span class="stat-symbol neutral" aria-hidden="true">≡</span><strong>{{summary().tracked}}</strong><small>Execuções recentes</small></div>
   </div>
 
+  <section class="durable-publications" aria-label="Histórico persistente de publicações">
+    <header class="durable-head">
+      <div>
+        <h3>Publicações persistentes na VPS</h3>
+        <p>Histórico retornado pelo worker do painel, independente da lista de builds GitHub. Conclusão do worker não é confirmação de disponibilidade pública.</p>
+      </div>
+      @if(publicationHistoryKnown()){
+        <span class="durable-count">{{publicationSummary().active}} em andamento · {{publicationSummary().attention}} exigem atenção</span>
+      }@else{
+        <span class="durable-count">Histórico não confirmado</span>
+      }
+    </header>
+    @if(publicationHistoryIssue()){
+      <p class="deploy-warning" role="status">{{publicationHistoryIssue()}}</p>
+    }
+    @if(publicationHistoryKnown()&&!publicationJobs().length){
+      <p class="deploy-loading">Nenhuma publicação persistente registrada pela API nesta consulta.</p>
+    }
+    <div class="durable-list">
+      @for(job of publicationJobs();track job.id){
+        <div class="durable-row">
+          <div class="durable-id">
+            <strong>{{job.slug}}</strong>
+            <small>{{job.repository}} · build #{{job.runId}} · {{formatDate(job.updatedAt)}}</small>
+          </div>
+          <div class="durable-progress">
+            <span class="durable-stage" [class.success]="false"
+              [class.danger]="publicationStage(job.phase).tone==='danger'"
+              [class.running]="publicationStage(job.phase).tone==='running'"
+              [class.warning]="publicationStage(job.phase).tone==='warning'">
+              {{publicationStage(job.phase).label}}
+            </span>
+            <p>{{job.detail}}</p>
+            @if(job.revision){<small>Revisão do trabalho: {{job.revision.slice(0,12)}} · não implica container instalado</small>}
+          </div>
+        </div>
+      }
+    </div>
+    @if(publicationJobs().length===12){
+      <p class="durable-note">Mostrando as 12 publicações mais recentes recebidas da API. Consulte o histórico no servidor para registros anteriores.</p>
+    }
+  </section>
+
   @if(warning()){<p class="deploy-warning" role="status">{{warning()}}</p>}
   @if(error()){
     <div role="alert" class="deploy-error"><strong>Monitoramento indisponível</strong><p>{{error()}}</p></div>
