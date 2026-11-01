@@ -11,6 +11,9 @@ src="$(realpath "$1")"
    -f /usr/local/lib/vps-operations/receiver.py ]] || { echo "Broker existente não encontrado"; exit 2; }
 command -v python3 >/dev/null
 command -v docker >/dev/null
+[[ -f /usr/local/lib/vps-operations/admission.py && -f /usr/local/lib/vps-operations/admission_probe.py ]] || {
+  echo 'Instale primeiro a barreira de deploy com install-admission-vps.py; nada foi alterado.'; exit 2;
+}
 python3 -m py_compile "$src/operations/web.py" "$src/operations/driver.py"
 # Do not re-install SSH identity, change root permissions, restart API or touch other projects.
 python3 - "$src" <<'PY'
@@ -18,6 +21,9 @@ import json,os,pathlib,sys,tempfile
 src=pathlib.Path(sys.argv[1])
 policy_path=pathlib.Path('/etc/vps-operations/policy.json')
 policy=json.loads(policy_path.read_text())
+# A bootstrap must not overwrite a custom host adapter (e.g. Terrania Go).
+if any(p.get('adapter') not in ('panel','compose','web') or 'admission' not in p for p in policy['projects'].values()):
+    raise SystemExit('Adaptador local/contrato não migrado; preservar driver instalado e revisar integração web separadamente')
 repo=policy['repositories']['1433232532']
 if repo.get('name')!='Softdown-prog/Painel' or 'deploy' not in repo['operations']:
     raise SystemExit('Repositório autorizado não confere: implantação abortada')
@@ -28,7 +34,8 @@ expected={
   'adapter':'web',
   'containers':{'web':'softload-panel-web'},
   'images':{'web':'ghcr.io/softdown-prog/painel-web'},
-  'releases':'/opt/vps-panel/oci-web-releases'
+  'releases':'/opt/vps-panel/oci-web-releases',
+  'admission':{'version':1,'services':{'web':{'profile':'panel-web'}}}
 }
 if 'panel-web' in policy['projects'] and policy['projects']['panel-web']!=expected:
     raise SystemExit('Política existente para panel-web diverge; nenhuma alteração')

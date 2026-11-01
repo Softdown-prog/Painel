@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives import hashes
 
 # Python isolated mode deliberately excludes cwd; this directory is root-owned.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from admission import AdmissionRejected
 
 ISSUER = 'https://token.actions.githubusercontent.com'
 AUDIENCE = 'vps-operations:164.163.9.7'
@@ -160,7 +161,8 @@ def main():
     key = str(claims['repository_id']) + ':' + request_id
     previous = reserve(db, key, digest)
     if previous is not None:
-        print(json.dumps(dict(previous, duplicate=True))); return
+        print(json.dumps(dict(previous, duplicate=True)))
+        sys.exit(previous['exitCode'])
     started = time.monotonic()
     result = {'id': request_id, 'project': project, 'operation': operation, 'runId': claims['run_id'],
               'actorId': claims['actor_id'], 'commit': claims['sha']}
@@ -190,6 +192,9 @@ def main():
         # Administrative logs stay private on the host; no process output or credentials go to GitHub.
         result['exitCode'] = 1
         result['error'] = type(error).__name__ + ': operation failed; inspect private host log'
+        if isinstance(error, AdmissionRejected):
+            result['error'] = 'Versão rejeitada pelos testes de entrada; produção preservada.'
+            result['admission'] = error.receipt
     result['durationSeconds'] = round(time.monotonic() - started, 3)
     encoded = json.dumps(result)
     db.execute('update jobs set result=? where id=?', (encoded, key)); db.commit()

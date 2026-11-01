@@ -8,7 +8,7 @@ python3 -c 'import cryptography'
 [[ -f "$src/receiver.py" && -f "$src/driver.py" && -f "$src/policy.json" ]] || exit 2
 install -d -m 0700 /etc/vps-operations /var/lib/vps-operations
 install -d -m 0755 /usr/local/lib/vps-operations /usr/local/libexec
-install -m 0644 "$src/receiver.py" "$src/driver.py" /usr/local/lib/vps-operations/
+install -m 0644 "$src/receiver.py" "$src/driver.py" "$src/admission.py" "$src/admission_probe.py" /usr/local/lib/vps-operations/
 install -m 0600 "$src/policy.json" /etc/vps-operations/policy.json
 cat > /usr/local/libexec/vps-operations <<'WRAPPER'
 #!/bin/sh
