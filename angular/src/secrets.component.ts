@@ -1,4 +1,4 @@
-import {Component,OnDestroy,OnInit,computed,signal} from '@angular/core';
+import {Component,ElementRef,OnDestroy,OnInit,ViewChild,computed,signal} from '@angular/core';
 import {currentSecretIntent,type SecretIntent} from './secrets-confirmation';
 type Item={name:string;label:string;category:'sistema'|'aplicacao';installed:boolean;sizeBytes:number;createdAt:string;updatedAt:string};
 type Connection={id:string;label:string;configured:boolean;managed:boolean};
@@ -21,6 +21,10 @@ export class SecretsComponent implements OnInit,OnDestroy{
  readonly password=signal('');
  readonly pending=signal<SecretIntent|null>(null);
  readonly typedName=signal('');
+ @ViewChild('confirmationNameInput') private confirmationNameInput?:ElementRef<HTMLInputElement>;
+ @ViewChild('deletePasswordInput') private deletePasswordInput?:ElementRef<HTMLInputElement>;
+ @ViewChild('saveSecretButton') private saveSecretButton?:ElementRef<HTMLButtonElement>;
+ private deleteSource:HTMLButtonElement|null=null;
  private revision=0;
  private destroyed=false;
  readonly canSave=computed(()=>{
@@ -36,8 +40,22 @@ export class SecretsComponent implements OnInit,OnDestroy{
  ngOnInit():void{void this.refresh();}
  ngOnDestroy():void{
    this.destroyed=true;
+   this.deleteSource=null;
    this.clearSensitive();
    this.info.set(null);
+ }
+ private focusConfirmation():void {
+   queueMicrotask(()=>{
+     if(this.destroyed||!this.pending())return;
+     const field=this.pending()?.kind==='delete'?this.deletePasswordInput:this.confirmationNameInput;
+     field?.nativeElement.focus({preventScroll:true});
+   });
+ }
+ private returnFocus(source:HTMLButtonElement|null):void{
+   queueMicrotask(()=>{
+     if(!this.destroyed&&!this.pending()&&source?.isConnected&&!source.disabled)
+       source.focus({preventScroll:true});
+   });
  }
  private invalidatePrepared():void{
    this.revision++;
@@ -94,18 +112,27 @@ export class SecretsComponent implements OnInit,OnDestroy{
    if(!this.canSave())return;
    this.error.set('');this.notice.set('');
    const n=this.name();
+   this.deleteSource=null;
    this.pending.set({kind:'save',name:n,replacement:this.info()?.entries.some(e=>e.name===n)??false,
      revision:this.revision});
    this.typedName.set('');
+   this.focusConfirmation();
  }
- prepareDelete(item:Item):void{
+ prepareDelete(item:Item,event?:Event):void{
    if(this.loading()||this.working()||this.destroyed||!this.info()?.enabled||
      !this.info()?.entries.some(e=>e.name===item.name))return;
    this.error.set('');this.notice.set('');
    this.clearSensitive();
+   this.deleteSource=event?.currentTarget instanceof HTMLButtonElement?event.currentTarget:null;
    this.pending.set({kind:'delete',name:item.name,replacement:false,revision:this.revision});
+   this.focusConfirmation();
  }
- cancel():void{this.clearSensitive();}
+ cancel():void{
+   const source=this.deleteSource??this.saveSecretButton?.nativeElement??null;
+   this.deleteSource=null;
+   this.clearSensitive();
+   this.returnFocus(source);
+ }
  async confirm():Promise<void>{
    const action=this.pending();
    if(!action||this.working()||this.loading()||this.destroyed||!this.info()?.enabled||
