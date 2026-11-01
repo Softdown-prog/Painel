@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges, OnDestroy, computed, signal } from '@angular/core';
+import { Component, Input, OnChanges, OnDestroy, signal } from '@angular/core';
 import { validAppSlug } from './apps-policy';
 
 export type ManagedProjectLink={
@@ -59,16 +59,18 @@ export class ProjectReleasePanelComponent implements OnChanges,OnDestroy {
   readonly typed=signal('');
   private sequence=0;
   private destroyed=false;
-  readonly supported=computed(()=>this.ownedProject());
-  readonly canBuild=computed(()=>this.supported()&&this.buildsEnabled&&!this.working()&&!this.loading());
-  readonly canRollback=computed(()=>{
+  supported():boolean{return this.ownedProject();}
+  canBuild():boolean{
+    return this.supported()&&this.buildsEnabled&&!this.working()&&!this.loading();
+  }
+  canRollback():boolean{
     const r=this.release(),p=this.publication();
     return this.supported()&&!this.working()&&!this.loading()&&
       r?.enabled===true&&r.current.state==='running'&&
       typeof r.current.revision==='string'&&SHA.test(r.current.revision)&&
       !!r.backup&&!r.candidate&&p?.enabled===true&&
-      !p.current?.phase?.match(/^(queued|importing|staging|health|promoting)$/);
-  });
+      !(p.current&&ACTIVE.has(p.current.phase));
+  }
   private ownedProject():boolean {
     const p=this.project;
     return !!p&&validAppSlug(p.slug)&&REPO.test(p.repository)&&
