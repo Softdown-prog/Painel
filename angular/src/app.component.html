@@ -1,13 +1,13 @@
 <a class="skip-to-content" href="#mainContent" (click)="skipToContent($event)">Pular para o conteúdo principal</a>
 <div class="layout">
   @if (menuOpen()) {
-    <button type="button" class="menu-backdrop" aria-label="Fechar menu" (click)="closeMenu()"></button>
+    <button type="button" class="menu-backdrop" aria-label="Fechar menu" (click)="closeMenu(true)"></button>
   }
   <aside #sidebarPanel id="navigationPanel" class="sidebar" [class.open]="menuOpen()"
     [attr.role]="menuOpen()?'dialog':null" [attr.aria-modal]="menuOpen()?'true':null"
     aria-label="Navegação e ferramentas" (keydown)="onSidebarKeydown($event)">
     <div class="sidebar-head">
-      <a href="/angular/#overview" class="brand" aria-label="Início do painel" (click)="closeMenu()">
+      <a href="/angular/#overview" class="brand" aria-label="Início do painel" (click)="closeMenu(true)">
         <span class="brand-icon">V✦</span>
         <span><strong>Painel VPS</strong><small>ADMINISTRAÇÃO</small></span>
       </a>
