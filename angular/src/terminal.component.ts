@@ -20,6 +20,9 @@ export class TerminalComponent implements OnInit,OnDestroy {
   readonly stopping=signal(false);
   readonly stopPending=signal(false);
   private polling:ReturnType<typeof setInterval>|null=null;
+  private jobEpoch=0;
+  private pollInFlightEpoch:number|null=null;
+  readonly uncertain=signal(false);
   readonly error=signal('');
   readonly executedAt=signal<string|null>(null);
   private preparedCommand:string|null=null;
@@ -31,6 +34,7 @@ export class TerminalComponent implements OnInit,OnDestroy {
   }
   ngOnDestroy():void {
     this.destroyed=true;
+    this.jobEpoch++;
     if(this.polling!==null)clearInterval(this.polling);
     this.polling=null;
     this.cancel();
@@ -80,8 +84,8 @@ export class TerminalComponent implements OnInit,OnDestroy {
   }
   prepare(event:Event):void {
     event.preventDefault();
-    if(this.busy()||this.checking()||this.destroyed||
-       !this.status()?.configured||!this.status()?.enabled)return;
+    if(this.busy()||this.checking()||this.destroyed||this.uncertain()||
+       this.job()?.state==='running'||!this.status()?.configured||!this.status()?.enabled)return;
     const value=this.command();
     if(!validTerminalCommand(value)){
       this.cancel();
@@ -93,7 +97,7 @@ export class TerminalComponent implements OnInit,OnDestroy {
   }
   cancel():void {this.pending.set(false);this.preparedCommand=null;}
   async execute():Promise<void>{
-    if(this.busy()||this.destroyed||this.job()?.state==='running')return;
+    if(this.busy()||this.destroyed||this.uncertain()||this.job()?.state==='running')return;
     const value=this.command();
     const status=this.status();
     if(!confirmedTerminalCommand(this.preparedCommand,value,
@@ -103,6 +107,7 @@ export class TerminalComponent implements OnInit,OnDestroy {
       return;
     }
     this.cancel();
+    this.jobEpoch++; // Invalidate any GET started before this command.
     this.busy.set(true);this.error.set('');
     this.result.set(null);this.output.set('');
     try{
@@ -115,19 +120,36 @@ export class TerminalComponent implements OnInit,OnDestroy {
   }
   async pollJob():Promise<void>{
     if(this.destroyed||this.busy()||!this.status()?.configured)return;
+    const epoch=this.jobEpoch;
+    if(this.pollInFlightEpoch===epoch)return; // One poll per generation.
+    this.pollInFlightEpoch=epoch;
     try{
       const response=await this.api<{job:TerminalJob|null}>('/terminal/ssh/jobs/current');
-      if(this.destroyed)return;
-      if(response.job)this.applyJob(response.job);
-      else if(this.job()?.state==='running'){
-        this.job.set(null);
-        this.result.set(null);
-        this.output.set('');
-        this.error.set('A API perdeu o acompanhamento da tarefa. Verifique a VPS antes de executar novamente.');
+      if(this.destroyed||epoch!==this.jobEpoch)return;
+      const previous=this.job();
+      if(response.job){
+        if(previous?.state==='running'&&previous.id!==response.job.id){
+          this.uncertain.set(true);
+          this.error.set('A VPS apresentou outra tarefa enquanto a anterior estava em execução. Verifique o host antes de reenviar comandos.');
+          return;
+        }
+        if(previous&&previous.id===response.job.id&&previous.state!=='running'&&
+           response.job.state==='running')return; // Ignore regressed status.
+        this.applyJob(response.job);
+        this.uncertain.set(false);
+        this.error.set('');
+      }else if(previous?.state==='running'){
+        // A reboot or missing in-memory job does NOT prove remote completion.
+        // Keep the running record and block further execution until verified.
+        this.uncertain.set(true);
+        this.error.set('A API perdeu o acompanhamento da tarefa. Ela pode continuar na VPS. Confira o host antes de executar novamente.');
       }
     }catch(e){
-      if(!this.destroyed&&this.job()?.state==='running')
+      if(!this.destroyed&&epoch===this.jobEpoch&&this.job()?.state==='running'){
         this.error.set('Não foi possível consultar o andamento. A tarefa pode continuar na VPS. '+this.message(e));
+      }
+    }finally{
+      if(this.pollInFlightEpoch===epoch)this.pollInFlightEpoch=null;
     }
   }
   private applyJob(job:TerminalJob):void{
@@ -137,6 +159,7 @@ export class TerminalComponent implements OnInit,OnDestroy {
       !Number.isFinite(job.durationMs)||typeof job.startedAt!=='string')
       throw Error('Estado da tarefa SSH inválido.');
     this.job.set(job);
+    if(job.state!=='running')this.stopPending.set(false);
     this.output.set(job.output);
     this.executedAt.set(job.startedAt);
     if(job.state==='running')this.result.set(null);
@@ -150,6 +173,7 @@ export class TerminalComponent implements OnInit,OnDestroy {
     const job=this.job();
     if(!job||job.state!=='running'||!this.stopPending()||this.busy())return;
     this.stopPending.set(false);
+    this.jobEpoch++; // Reject polls that predate this cancellation request.
     this.stopping.set(true);this.error.set('');
     try{
       const response=await this.api<{job:TerminalJob}>('/terminal/ssh/jobs/'+job.id+'/cancel','POST');

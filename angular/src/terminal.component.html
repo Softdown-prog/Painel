@@ -9,16 +9,16 @@
     @else {<span class="warn">●</span> Terminal SSH indisponível na configuração do servidor}
   </p>
   <div class="presets" aria-label="Exemplos de comandos somente leitura">
-    @for(example of snippets; track example){<button type="button" [disabled]="busy()" (click)="choose(example)">{{example}}</button>}
+    @for(example of snippets; track example){<button type="button" [disabled]="busy()||uncertain()||job()?.state==='running'" (click)="choose(example)">{{example}}</button>}
   </div>
   <form (submit)="prepare($event)">
     <label for="sshCommand">Comando ou script Bash</label>
     <textarea id="sshCommand" [value]="command()" (input)="updateCommand($event)"
       rows="6" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Digite seu comando. Scripts longos não ficam salvos no navegador."
-      [disabled]="busy()" aria-describedby="sshWarning"></textarea>
-    <p id="sshWarning" class="warning">O comando pode modificar a VPS e outros projetos. Revise antes de executar. Não cole senhas nem tokens. A saída pode conter dados sensíveis. Tarefas são limitadas a 30 minutos; o processo pode ser interrompido se a API reiniciar.</p>
-    <div class="actions"><button type="submit" [disabled]="busy()||!command().trim()||!status()?.configured||!status()?.enabled">Preparar execução</button>
-      <button type="button" (click)="clear()" [disabled]="busy()">Limpar resultado</button></div>
+      [disabled]="busy()||uncertain()||job()?.state==='running'" aria-describedby="sshWarning"></textarea>
+    <p id="sshWarning" class="warning">O comando pode modificar a VPS e outros projetos. Revise antes de executar. Não cole senhas nem tokens. A saída pode conter dados sensíveis. Tarefas são limitadas a 30 minutos. A recuperação após reinício da API exige o supervisor persistente no host; se não for possível confirmar o estado, novos comandos permanecem bloqueados.</p>
+    <div class="actions"><button type="submit" [disabled]="busy()||uncertain()||job()?.state==='running'||!command().trim()||!status()?.configured||!status()?.enabled">Preparar execução</button>
+      <button type="button" (click)="clear()" [disabled]="busy()||uncertain()||job()?.state==='running'">Limpar resultado</button></div>
   </form>
   @if(pending()){
     <div class="confirmation" role="group" aria-label="Confirmar execução na VPS">

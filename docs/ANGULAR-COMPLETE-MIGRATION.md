@@ -303,3 +303,11 @@ Esta etapa compara `projects-ui.ts`, `github-ui.ts`, `terminal-ui.ts` e `revisio
 
 - Recuperação após reinício real do Ubuntu: cada tarefa registra privadamente o identificador da sessão de boot do kernel. Se a VPS reiniciar e o ID mudar, a tarefa anterior fica como **falha/interrompida** (nunca concluída com sucesso) e o script órfão é apagado. O identificador não aparece na API nem nos logs públicos.
 - Se a consulta `systemctl show` falhar, o estado permanece conservadoramente ocupado para impedir um segundo comando simultâneo. A indisponibilidade do supervisor não é tratada como confirmação de término.
+
+## Terminal Angular — isolamento de consultas e recuperação segura (branch)
+
+- Consultas automáticas por `GET /terminal/ssh/jobs/current` são limitadas a uma por geração de tarefa. Respostas iniciadas antes de `POST /terminal/ssh/jobs` ou `POST /terminal/ssh/jobs/:id/cancel` são descartadas: um retorno antigo não pode reverter estado concluído/cancelado.
+- Se a API deixar de reportar uma tarefa que estava em execução, a interface **não interpreta ausência como término**: exibe aviso, mantém o último ID e impede iniciar comandos adicionais até confirmação do host. Um `GET` posterior com o mesmo ID e estado confirmado recupera a interface.
+- Uma tarefa em execução bloqueia o formulário para não preparar comandos que não poderão ser executados. O botão de atualização manual permanece acessível.
+- Novos testes Playwright `angular/e2e/terminal-jobs.spec.mjs` exercitam polling simultâneo, resposta anterior ao cancelamento, perda do acompanhamento e recuperação, sempre com API simulada e sem executar comandos na VPS.
+- A recuperação por reinício da **API real** continua dependente de ativação futura do supervisor persistente no host; o código desta branch não aciona deploy nem altera a `main`.
