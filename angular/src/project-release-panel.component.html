@@ -58,9 +58,14 @@
         <strong>{{job.action==='build'?'Solicitar build ao GitHub':'Restaurar versão anterior na VPS'}}</strong>
         <p>@if(job.action==='build'){
           A solicitação executará o workflow autorizado e não substituirá o container diretamente.
+        }@else if(job.action==='import'){
+          A imagem aprovada será baixada do GHCR por digest. Nenhum container será substituído nesta etapa.
+        }@else if(job.action==='stage'){
+          A imagem já importada será preparada como candidata na VPS. O HEALTHCHECK deverá ser validado antes de qualquer promoção.
         }@else{
           A versão anterior poderá substituir o container atual e interromper usuários. Verifique se nenhuma manutenção externa está ocorrendo.
         }</p>
+        @if(job.runId){<p>Build selecionado: #{{job.runId}} · {{job.runSha?.slice(0,12)}}.</p>}
         <p>Projeto: {{job.slug}} · Repositório: {{job.repository}}.</p>
         <label>Digite exatamente <strong>{{expected()}}</strong>
           <input [value]="typed()" (input)="typed.set($any($event.target).value)"
@@ -70,19 +75,26 @@
           <button type="button" (click)="cancel()" [disabled]="working()">Cancelar</button>
           <button type="button" class="danger" (click)="confirm()"
             [disabled]="working()||typed()!==expected()">
-            {{working()?'Revalidando na API…':job.action==='build'?'Confirmar build':'Confirmar rollback'}}
+            {{working()?'Revalidando na API…':job.action==='build'?'Confirmar build':job.action==='import'?'Confirmar importação':job.action==='stage'?'Confirmar preparação':'Confirmar rollback'}}
           </button>
         </div>
       </section>
     }
     <div class="release-runs">
       <h5>Builds do projeto</h5>
+      <p>Importação e preparação exigem build aprovado, workflow autorizado, nenhum slot de backup ou candidata pendente e estado da API verificado. A importação não publica a versão; a preparação não promove a candidata.</p>
       @if(runsIssue()){<p class="release-warning" role="status">{{runsIssue()}}</p>}
       @for(run of runs();track run.id){
         <div class="release-run">
           <a [href]="'https://github.com/'+project.repository+'/actions/runs/'+run.id"
             target="_blank" rel="noopener noreferrer">#{{run.id}} · {{run.sha.slice(0,10)}}</a>
           <small>{{run.status==='completed'?(run.conclusion??'Sem conclusão'):run.status}} · não implica publicação na VPS</small>
+          @if(run.status==='completed'&&run.conclusion==='success'){
+            <div class="release-actions run-controls">
+              <button type="button" [disabled]="!canImport(run)" (click)="prepareRun('import',run.id)">Importar GHCR · #{{run.id}}</button>
+              <button type="button" [disabled]="!canStage(run)" (click)="prepareRun('stage',run.id)">Preparar candidata · #{{run.id}}</button>
+            </div>
+          }
         </div>
       }@empty{
         @if(!loading()&&!runsIssue()){<p>Nenhum build registrado pela API nesta consulta.</p>}
