@@ -141,7 +141,8 @@
 
 - O menu mobile da casca Angular agora expõe `role="dialog"` e `aria-modal="true"` **somente enquanto aberto**, isola o conteúdo principal e a navegação inferior via `inert`, direciona o foco ao controle de fechar, mantém `Tab`/`Shift+Tab` circulando entre os controles visíveis do painel e restaura o foco ao botão de abrir quando fecha com **Esc** ou com o botão de fechar.
 - A seleção de uma seção na navegação muda o hash sem recarregar e posiciona o foco programático no `h1 tabindex="-1"` para leitores de tela/teclado. O histórico Voltar/Avançar usa o mesmo título ao trocar a seção; `aria-current="page"` complementado para Terminal e Revisões.
-- `angular/e2e/panel.spec.mjs` ganhou cenários com APIs interceptadas para foco inicial, ciclo de Tab nos extremos, Escape, isolamento do conteúdo, navegação de seção com foco no título, `aria-current`, menu fechado fora da ordem de tabulação e viewport de 320px. Nenhuma operação mutável ou comando de terminal nesses testes.
+- O primeiro elemento de navegação por teclado agora é o link **Pular para o conteúdo principal**, visível ao receber foco. Ele foca o título da seção sem alterar o hash da rota nem realizar novas operações de API.
+- `angular/e2e/panel.spec.mjs` ganhou cenários com APIs interceptadas para foco inicial, ciclo de Tab nos extremos, Escape, isolamento do conteúdo, navegação de seção com foco no título, `aria-current`, menu fechado fora da ordem de tabulação, link de acesso direto e viewport de 320px. Nenhuma operação mutável ou comando de terminal nesses testes.
 - **Limites:** a verificação em leitor de tela real (TalkBack/NVDA), a navegação em Android físico e a auditoria global de todos os componentes permanecem pendentes. O modo clássico ainda é conservado, sem PR, merge ou deploy.
 
 ## Incremento Angular — isolamento de histórico frente a falha do GitHub (31/10/2026)
