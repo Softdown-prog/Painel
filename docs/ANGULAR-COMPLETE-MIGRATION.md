@@ -137,6 +137,13 @@
 - Consultas atrasadas não restauram o inventário após `OnDestroy`. Uma gravação já enviada não é cancelada pelo fechamento da tela; o servidor continua sendo a fonte de verdade, e a próxima abertura deve consultar o inventário.
 - Testes de confirmação, revisão do formulário, cadastro/substituição/exclusão e limpeza após destruição em `server/angular-secrets-settings.test.mjs`. Ainda pendente validação em navegador real e celular, sem API/produção alteradas.
 
+## Testes E2E de navegador — Angular (31/10/2026)
+
+- Suite Playwright isolada em `angular/e2e/` usa Chromium num GitHub runner efêmero, build Angular de produção e servidor local em `127.0.0.1:4175`. O servidor **não funciona como proxy para a VPS**: chamadas `/api` sem interceptação retornam 503; o teste intercepta chamadas com fixtures.
+- Casos adicionados: login e métricas simuladas, revogação de sessão, logout não confirmado e nova tentativa, links legados `/#infrastructure`, navegação mobile por hash/Voltar, busca do inventário e ausência de rolagem horizontal em 320/360/390/768/1280 px. Não disparar operações de deploy, shell, provisionamento, Caddy ou Docker nesses testes.
+- Novo job `frontend-e2e` do `ci.yml`, independente do job existente; nunca faz deploy. O runner instala `@playwright/test` em workspace de teste isolado com versão fixada e sem alterar as dependências de produção. Relatórios/traces somente em falha, com retenção curta.
+- **Limite:** fixtures validam UX e comportamento do navegador, não atestam integração à API de produção. Testes autenticados na VPS, dispositivos Android físicos, paridade integral com o legado e revisão visual permanecem pendentes. Não realizar PR/merge/deploy sem aprovação posterior.
+
 ## Correção incremental — deep links da interface Angular (31/10/2026)
 
 - O redirecionador da raiz `index.html` agora reconhece `/#infrastructure` e envia para `/angular/#infrastructure`, como já fazia o roteador do Angular. A consulta da tela continua autenticada e nenhuma capacidade MCP/cluster foi ativada por essa alteração.
