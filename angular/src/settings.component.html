@@ -8,7 +8,7 @@
    <p>Use uma senha nova de 14 a 256 caracteres. A troca invalida todas as sessões atuais e exigirá novo login.</p>
    <form (submit)="prepare($event)" autocomplete="off">
      <label>Senha atual
-       <input type="password" [value]="currentPassword()"
+       <input #currentPasswordInput type="password" [value]="currentPassword()"
          (input)="currentPassword.set($any($event.target).value);pending.set(false)"
          autocomplete="current-password" maxlength="256" required [disabled]="working()"/>
      </label>
@@ -25,11 +25,11 @@
      <button type="submit" [disabled]="!valid()||working()">Preparar troca de senha</button>
    </form>
    @if(pending()){
-     <div class="confirm" role="group" aria-label="Confirmar mudança de senha">
+     <div class="confirm" role="group" aria-label="Confirmar mudança de senha" aria-describedby="settings-confirm-description">
        <strong>Encerrar todas as sessões e substituir a senha?</strong>
-       <p>Digite ALTERAR SENHA para confirmar. Se a API não confirmar a alteração, confira a sessão antes de repetir.</p>
+       <p id="settings-confirm-description">Digite ALTERAR SENHA para confirmar. Se a API não confirmar a alteração, confira a sessão antes de repetir.</p>
        <label>Confirmação
-         <input [value]="confirmation()" (input)="confirmation.set($any($event.target).value)"
+         <input #confirmationInput [value]="confirmation()" (input)="confirmation.set($any($event.target).value)"
            autocomplete="off" spellcheck="false" [disabled]="working()"/>
        </label>
        <div class="buttons">
