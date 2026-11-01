@@ -14,6 +14,16 @@ type RepoGroup = {
   name:string; branch:string; slug:string|null; installedRevision:string|null;
   rows:RunRow[]; issue:string|null
 };
+type DurableJob={
+  id:string;slug:string;repository:string;runId:number;phase:string;detail:string;
+  revision:string|null;createdAt:string;updatedAt:string;
+};
+const DURABLE_PHASES=new Set(['queued','importing','staging','health','promoting','completed','attention','failed']);
+const DURABLE_LABELS:Record<string,string>={
+  queued:'Na fila',importing:'Importando imagem',staging:'Preparando candidata',
+  health:'Testando saúde',promoting:'Promovendo',completed:'Concluída no worker',
+  attention:'Atenção necessária',failed:'Falha na publicação'
+};
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SHA = /^[a-f0-9]{40}$/i;
@@ -30,6 +40,14 @@ export class DeploymentsComponent implements OnInit, OnDestroy {
   readonly error=signal('');
   readonly warning=signal('');
   readonly groups=signal<RepoGroup[]>([]);
+  readonly publicationJobs=signal<DurableJob[]>([]);
+  readonly publicationHistoryKnown=signal(false);
+  readonly publicationHistoryIssue=signal('');
+  readonly publicationSummary=computed(()=>{
+    const jobs=this.publicationJobs();
+    return {active:jobs.filter(job=>['queued','importing','staging','health','promoting'].includes(job.phase)).length,
+      attention:jobs.filter(job=>job.phase==='attention'||job.phase==='failed').length};
+  });
   readonly checkedAt=signal<string|null>(null);
   readonly configured=signal(false);
   readonly automatic=signal(true);
@@ -61,6 +79,28 @@ export class DeploymentsComponent implements OnInit, OnDestroy {
     this.destroyed=true;
     if(this.timer!==null)clearInterval(this.timer);
     this.timer=null;
+    this.publicationJobs.set([]);
+    this.publicationHistoryKnown.set(false);
+  }
+  publicationStage(phase:string):Stage{
+    if(phase==='attention'||phase==='failed')return {label:DURABLE_LABELS[phase]??'Falha',tone:'danger'};
+    if(phase==='completed')
+      return {label:'Worker concluiu; confira o container',tone:'warning'};
+    if(DURABLE_PHASES.has(phase))return {label:DURABLE_LABELS[phase]??'Em andamento',tone:'running'};
+    return {label:'Estado não confirmado',tone:'muted'};
+  }
+  private validDurableJob(raw:unknown):raw is DurableJob{
+    if(!raw||typeof raw!=='object'||Array.isArray(raw))return false;
+    const j=raw as Partial<DurableJob>;
+    return typeof j.id==='string'&&j.id.length>0&&j.id.length<=100&&
+      typeof j.slug==='string'&&SLUG.test(j.slug)&&
+      typeof j.repository==='string'&&REPO.test(j.repository)&&
+      Number.isSafeInteger(j.runId)&&Number(j.runId)>0&&
+      typeof j.phase==='string'&&DURABLE_PHASES.has(j.phase)&&
+      typeof j.detail==='string'&&j.detail.length<=5000&&
+      (j.revision===null||(typeof j.revision==='string'&&SHA.test(j.revision)))&&
+      typeof j.createdAt==='string'&&Number.isFinite(Date.parse(j.createdAt))&&
+      typeof j.updatedAt==='string'&&Number.isFinite(Date.parse(j.updatedAt));
   }
   toggleAutomatic():void {
     this.automatic.update(value=>!value);
@@ -87,6 +127,9 @@ export class DeploymentsComponent implements OnInit, OnDestroy {
     this.loading.set(true);
     if(!automatic)this.error.set('');
     this.warning.set('');
+    this.publicationHistoryIssue.set('');
+    this.publicationHistoryKnown.set(false);
+    this.publicationJobs.set([]);
     try {
       const data=await this.api<{repositories?:Repository[]}>('/repositories');
       if (!Array.isArray(data.repositories))
@@ -103,11 +146,22 @@ export class DeploymentsComponent implements OnInit, OnDestroy {
       ]);
       const projects=projectResponse.status==='fulfilled' &&
         Array.isArray(projectResponse.value.projects) ? projectResponse.value.projects : [];
-      const jobs=historyResponse.status==='fulfilled' &&
-        Array.isArray(historyResponse.value.history) ? historyResponse.value.history : [];
       const partial:string[]=[];
-      if(projectResponse.status==='rejected')partial.push('vínculos dos projetos');
-      if(historyResponse.status==='rejected')partial.push('histórico de publicações');
+      if(projectResponse.status==='rejected'||!Array.isArray(projectResponse.value?.projects))
+        partial.push('vínculos dos projetos');
+      let jobs:DurableJob[]=[];
+      if(historyResponse.status==='fulfilled'&&Array.isArray(historyResponse.value.history)){
+        const raw=historyResponse.value.history;
+        jobs=raw.filter((item:unknown):item is DurableJob=>this.validDurableJob(item));
+        if(jobs.length!==raw.length){
+          this.publicationHistoryIssue.set('O histórico contém registros desconhecidos ou inválidos; eles não foram classificados.');
+          partial.push('registros de publicação não confirmados');
+        }else this.publicationHistoryKnown.set(true);
+        this.publicationJobs.set(jobs.slice(0,12));
+      }else{
+        this.publicationHistoryIssue.set('Histórico de publicações não confirmado. Nenhum estado de publicação pode ser presumido.');
+        partial.push('histórico de publicações');
+      }
       const groups=await Promise.all(repos.map(async repo=>{
         const linked=projects.find(item=>item.repository===repo.fullName &&
           typeof item.slug==='string' && SLUG.test(item.slug));
@@ -145,13 +199,17 @@ export class DeploymentsComponent implements OnInit, OnDestroy {
       this.checkedAt.set(new Date().toISOString());
       this.error.set('');
       if(partial.length)this.warning.set('Consulta parcial: '+partial.join(', ')+'. Sem confirmação, não marcamos a VPS como atualizada.');
-      if(groups.some(group=>group.issue))this.warning.set('Alguns serviços não responderam. Veja os avisos em cada repositório.');
+      if(groups.some(group=>group.issue))
+        this.warning.set([this.warning(),'Alguns serviços não responderam. Veja os avisos em cada repositório.'].filter(Boolean).join(' '));
     }catch(error){
       if(this.destroyed)return;
       this.error.set(error instanceof Error?error.message:'Não foi possível consultar as publicações.');
       // Do not keep stale green statuses after the monitoring connection fails.
       this.checkedAt.set(null);
       this.groups.set([]);
+      this.publicationJobs.set([]);
+      this.publicationHistoryKnown.set(false);
+      this.publicationHistoryIssue.set('Histórico de publicações não confirmado.');
       this.configured.set(false);
       this.expanded.set(null);
     }finally{if(!this.destroyed)this.loading.set(false);}
