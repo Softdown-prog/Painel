@@ -1,0 +1,74 @@
+<section class="maintenance" [attr.aria-label]="'Manutenção de releases de '+project.slug">
+  <header class="maintenance-top">
+    <div>
+      <h4>Manutenção avançada de releases</h4>
+      <p>Verificação independente dos slots Docker. Nenhuma ação acontece sem confirmação e reconsulta da API.</p>
+    </div>
+    <button type="button" (click)="refresh()" [disabled]="loading()||working()">
+      {{loading()?'Consultando…':'↻ Conferir saúde e slots'}}
+    </button>
+  </header>
+  @if(error()){<p class="maintenance-error" role="alert">{{error()}}</p>}
+  @if(notice()){<p class="maintenance-notice" role="status">{{notice()}}</p>}
+  @if(!loading()&&warning()){<p class="maintenance-warning" role="status">{{warning()}}</p>}
+  @if(loading()){<p role="status">Consultando revisão, publicação e diagnóstico de recuperação…</p>}
+  @if(recovery();as d){
+    <div class="maintenance-status">
+      <strong>Diagnóstico: {{d.state==='ready'?'Pronto':d.state==='recoverable'?'Recuperação disponível':'Revisão manual necessária'}}</strong>
+      <p>{{d.detail}}</p>
+      <div class="maintenance-slots">
+        <span>Atual: {{d.slots.current??'ausente'}}</span>
+        <span>Candidata: {{d.slots.candidate??'ausente'}}</span>
+        <span>Backup: {{d.slots.backup??'ausente'}}</span>
+      </div>
+    </div>
+  }@else if(!loading()){
+    <p class="maintenance-warning">Diagnóstico não confirmado. Nenhuma operação de manutenção está autorizada.</p>
+  }
+  <div class="maintenance-actions">
+    <div class="maintenance-action">
+      <strong>Promover candidata saudável</strong>
+      <p>Troca a versão executada apenas quando a candidata está em execução, o HEALTHCHECK confirma <code>healthy</code> e não existe backup pendente. A versão antiga fica reservada para rollback.</p>
+      @if(release()?.candidate;as c){
+        <small>Revisão candidata: {{c.revision.slice(0,12)}} · {{c.state}} · saúde {{c.health}}</small>
+      }
+      <button type="button" [disabled]="!canPromote()" (click)="prepare('promote')">Preparar promoção</button>
+    </div>
+    <div class="maintenance-action">
+      <strong>Descartar slot parado</strong>
+      <p>Remove um backup ou candidata parada, sem forçar a remoção de containers ativos. Descartar backup pode eliminar a possibilidade de rollback.</p>
+      <button type="button" [disabled]="!canFinalize()" (click)="prepare('finalize')">Preparar descarte</button>
+    </div>
+    <div class="maintenance-action">
+      <strong>Recuperação diagnosticada</strong>
+      <p>Somente para diagnóstico inequívoco da API: restaurar backup quando não há principal ou reiniciar o container principal parado. Estados ambíguos exigem revisão manual.</p>
+      @if(recovery()?.repair;as repair){<small>Reparo indicado: {{repair}}</small>}
+      <button type="button" [disabled]="!canRecovery()" (click)="prepare('recovery')">Preparar recuperação</button>
+    </div>
+  </div>
+  @if(pending();as job){
+    <section class="maintenance-confirm" role="group" aria-label="Confirmação de manutenção de release">
+      <strong>{{job.action==='promote'?'Confirmar publicação da candidata':job.action==='finalize'?'Confirmar descarte definitivo':'Confirmar recuperação diagnosticada'}}</strong>
+      <p>Projeto <b>{{job.slug}}</b> · repositório <b>{{job.repository}}</b>.</p>
+      @if(job.action==='promote'){
+        <p>A versão candidata {{job.candidateSha?.slice(0,12)}} será promovida. A aplicação atual pode ficar indisponível durante a troca de containers.</p>
+      }@else if(job.action==='finalize'){
+        <p>O slot antigo e parado será removido do Docker. O rollback poderá deixar de estar disponível.</p>
+      }@else{
+        <p>A API indicou <b>{{job.repair}}</b>. Se a situação mudou, a operação será bloqueada antes do envio.</p>
+      }
+      <label>Digite exatamente <b>{{expected()}}</b>
+        <input [value]="typed()" (input)="typed.set($any($event.target).value)"
+          autocomplete="off" autocapitalize="off" spellcheck="false" [disabled]="working()">
+      </label>
+      <div class="maintenance-buttons">
+        <button type="button" (click)="cancel()" [disabled]="working()">Cancelar</button>
+        <button type="button" class="danger" (click)="confirm()"
+          [disabled]="working()||typed()!==expected()">
+          {{working()?'Revalidando…':job.action==='promote'?'Confirmar promoção':job.action==='finalize'?'Confirmar descarte':'Confirmar recuperação'}}
+        </button>
+      </div>
+    </section>
+  }
+  <p class="maintenance-footnote">A API continua responsável pela autorização, propriedade de containers, verificação de saúde e serialização. As informações acima são a última consulta, não garantia de disponibilidade contínua.</p>
+</section>
