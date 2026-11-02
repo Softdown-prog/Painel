@@ -36,7 +36,7 @@ class PublicBridgeTests(unittest.TestCase):
             state_dir=self.state
         )
 
-    def _invoke_client(self, response):
+    def _invoke_client(self, response, *, expect_technical=True):
         envelope = {
             "id": "415-1-sac_worker-infrastructure",
             "project":"infrastructure", "operation":"sac_worker",
@@ -76,10 +76,13 @@ class PublicBridgeTests(unittest.TestCase):
             output=(self.directory/"vps-result.json").read_text()
             summary=(self.directory/"summary.md").read_text()
             self.assertEqual(json.loads(output),envelope)
-            self.assertIn("technicalReport",summary)
-            self.assertIn("TS2322",output)
-            self.assertIn("src/mode.ts",output)
-            self.assertIn("linha 1, coluna 13",output)
+            if expect_technical:
+                self.assertIn("technicalReport",summary)
+                self.assertIn("TS2322",output)
+                self.assertIn("src/mode.ts",output)
+                self.assertIn("linha 1, coluna 13",output)
+            else:
+                self.assertNotIn("technicalReport",summary)
             self.assertIn("status",output)
             for forbidden in (
                 secret,"SYNTHETIC_KNOWN_HOSTS_NEVER_EXPOSE",
@@ -105,7 +108,7 @@ class PublicBridgeTests(unittest.TestCase):
         self.source_record=old
         result=self._worker_result()
         self.assertNotIn("technicalReport",result["sacWorker"])
-        value=self._invoke_client(result)
+        value=self._invoke_client(result,expect_technical=False)
         self.assertNotIn("NO_PUBLIC_SECRET",value)
 
     def test_tampered_compiler_result_rejected_before_transport(self):
