@@ -96,6 +96,115 @@ class SacWorkerQueryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self._query("report")
 
+    def test_catalog_and_job_query_paths_are_separated(self):
+        self.assertEqual(str(sac_worker.WORKER_STATE_ROOT), "/var/lib/data-library-worker/state")
+        self.assertEqual(str(sac_worker.SAC_BUILDER_STATE_ROOT), "/var/lib/sac-builder/state")
+        self.assertEqual(POLICY["sac_worker"]["job_state_dir"], str(sac_worker.SAC_BUILDER_STATE_ROOT))
+        bad = copy.deepcopy(POLICY)
+        bad["sac_worker"]["job_state_dir"] = str(sac_worker.WORKER_STATE_ROOT)
+        with self.assertRaises(ValueError):
+            sac_worker.validate_args(bad, {"action": "job", "job_id": "gha-222-1"})
+
+    def test_job_query_returns_only_safe_summary(self):
+        jobs = self.state / "sac-results"
+        jobs.mkdir()
+        job_id = "gha-222-1"
+        report = {"schema_version": 1, "job_id": job_id, "project_id": "demo-app",
+                  "profile_id": "angular-root", "source_sha": "a" * 40, "status": "pass",
+                  "static_pipeline_pass": True, "browser_pass": True,
+                  "deployment_authorized": False, "execution": "sac-audit",
+                  "code": "isolated-browser-pass", "secret": "must-not-leak"}
+        (jobs / (job_id + ".json")).write_text(json.dumps(report))
+        result = sac_worker.query_sac_worker(POLICY, {"action": "job", "job_id": job_id},
+                                             state_dir=self.state)["sacWorker"]
+        self.assertEqual(result["status"], "pass")
+        self.assertTrue(result["browserPass"])
+        self.assertNotIn("must-not-leak", json.dumps(result))
+        self.assertFalse(result["deploymentAuthorized"])
+
+    def test_job_report_not_ready_and_bad_ids_fail_closed(self):
+        job = {"action": "job", "job_id": "gha-222-1"}
+        self.assertEqual(sac_worker.query_sac_worker(POLICY, job,
+                          state_dir=self.state)["sacWorker"]["status"], "not-recorded")
+        for val in ("../etc", "gha-0-0", "gha-222-1.json", " gha-222-1"):
+            with self.assertRaises(ValueError):
+                sac_worker.validate_args(POLICY, {"action": "job", "job_id": val})
+        (self.state / "sac-results").symlink_to("/etc")
+        with self.assertRaises(ValueError):
+            sac_worker.query_sac_worker(POLICY, job, state_dir=self.state)
+
+    def test_forged_job_result_cannot_claim_pass(self):
+        jobs = self.state / "sac-results"
+        jobs.mkdir()
+        job_id = "gha-222-1"
+        p = jobs / (job_id + ".json")
+        p.write_text(json.dumps({"schema_version": 1, "job_id": job_id, "project_id": "demo",
+            "profile_id": "root", "source_sha": "b" * 40, "status": "pass",
+            "static_pipeline_pass": True, "browser_pass": False,
+            "deployment_authorized": False, "execution": "sac-audit", "code": "isolated-browser-pass"}))
+        with self.assertRaises(ValueError):
+            sac_worker.query_sac_worker(POLICY, {"action": "job", "job_id": job_id}, state_dir=self.state)
+
+    def test_build_and_audit_pass_requires_distinct_code(self):
+        directory = self.state / "sac-results"
+        directory.mkdir()
+        job = "gha-777-2"
+        proof = {"schema_version": 1, "job_id": job, "project_id": "demo-app",
+            "profile_id": "angular-root", "source_sha": "a" * 40, "status": "pass",
+            "static_pipeline_pass": True, "browser_pass": True,
+            "deployment_authorized": False, "execution": "sac-build-audit",
+            "code": "isolated-build-browser-pass"}
+        file = directory / (job + ".json")
+        file.write_text(json.dumps(proof))
+        result = sac_worker.query_sac_worker(POLICY, {"action": "job", "job_id": job},
+                                             state_dir=self.state)["sacWorker"]
+        self.assertEqual(result["status"], "pass")
+        self.assertEqual(result["execution"], "sac-build-audit")
+        self.assertFalse(result["deploymentAuthorized"])
+        file.write_text(json.dumps({**proof, "code": "isolated-browser-pass"}))
+        with self.assertRaises(ValueError):
+            sac_worker.query_sac_worker(POLICY, {"action": "job", "job_id": job},
+                                         state_dir=self.state)
+
+    def test_job_query_exposes_actionable_diagnostic_only(self):
+        results = self.state / "sac-results"
+        results.mkdir()
+        job = "gha-222-1"
+        diagnostic = {
+            "schema_version": 1, "status": "fail",
+            "checks": {"pre": "pass", "build": "pass", "post": "pass", "browser": "fail"},
+            "findings": [{"phase": "browser", "status": "fail",
+                "code": "required-assertion-failed", "assertion": "inventory-panel",
+                "title": "Elemento ou ação não comprovada",
+                "next_step": "Confira seletor, evento e visibilidade no cenário."}],
+            "truncated": False, "location_verified": False,
+            "deployment_authorized": False
+        }
+        record = {"schema_version": 1, "job_id": job, "project_id": "demo",
+                  "profile_id": "angular-root", "source_sha": "a" * 40,
+                  "status": "fail", "static_pipeline_pass": True,
+                  "browser_pass": False, "deployment_authorized": False,
+                  "execution": "sac-build-audit", "code": "audit-not-verified",
+                  "diagnostic": diagnostic, "secret": "never-return"}
+        filename = results / (job + ".json")
+        filename.write_text(json.dumps(record))
+        actual = sac_worker.query_sac_worker(POLICY,
+                       {"action": "job", "job_id": job}, state_dir=self.state)["sacWorker"]
+        self.assertEqual(actual["diagnostic"]["findings"][0]["assertion"], "inventory-panel")
+        self.assertEqual(actual["diagnostic"]["checks"]["browser"], "fail")
+        self.assertNotIn("never-return", json.dumps(actual))
+        self.assertFalse(actual["deploymentAuthorized"])
+        for wrong in (
+            {**diagnostic, "status": "pass"},
+            {**diagnostic, "workspace_path": "/etc/passwd"},
+            {**diagnostic, "findings": [{**diagnostic["findings"][0],
+                "next_step": "Read https://secret.example"}]},
+        ):
+            filename.write_text(json.dumps({**record, "diagnostic": wrong}))
+            with self.assertRaises(ValueError):
+                sac_worker.query_sac_worker(POLICY,
+                    {"action": "job", "job_id": job}, state_dir=self.state)
+
     def test_oidc_only_main_approved_actor_and_workflow(self):
         c = {"iss": receiver.ISSUER, "aud": receiver.AUDIENCE, "iat": 1000,
              "nbf": 999, "exp": 1200, "actor_id": "189416996",

@@ -25,7 +25,8 @@
         "maintain",
         "code_mcp",
         "mcp_query",
-        "sac_worker"
+        "sac_worker",
+        "sac_submit"
       ]
     },
     "1438758092": {
@@ -170,6 +171,15 @@
       "189416996"
     ],
     "state_dir": "/var/lib/data-library-worker/state",
-    "output": "summary-only"
+    "output": "summary-only",
+    "job_state_dir": "/var/lib/sac-builder/state"
+  },
+  "sac_submit": {
+    "enabled": false,
+    "actor_ids": [
+      "189416996"
+    ],
+    "state_dir": "/var/lib/sac-builder/state",
+    "projects": []
   }
 }

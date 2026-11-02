@@ -75,6 +75,14 @@ def validate_claims(claims, policy, project, operation, now=None):
             or claims.get('event_name') not in ('issues', 'workflow_dispatch')
             or claims.get('workflow_ref') != 'Softdown-prog/Painel/.github/workflows/vps-command.yml@refs/heads/main'):
             raise ValueError('SAC worker query requires trusted main workflow and actor')
+    if operation == 'sac_submit':
+        gate = policy.get('sac_submit') or {}
+        if (project != 'infrastructure' or claims.get('repository') != 'Softdown-prog/Painel'
+            or not gate.get('enabled', False)
+            or str(claims.get('actor_id')) not in gate.get('actor_ids', [])
+            or claims.get('event_name') not in ('issues', 'workflow_dispatch')
+            or claims.get('workflow_ref') != 'Softdown-prog/Painel/.github/workflows/vps-command.yml@refs/heads/main'):
+            raise ValueError('SAC submit requires main workflow and explicitly enabled policy')
     if operation == 'maintain':
         gate = policy.get('maintenance') or {}
         if (project != 'infrastructure' or claims.get('repository') != 'Softdown-prog/Painel'
@@ -193,6 +201,9 @@ def main():
         elif operation == 'sac_worker':
             from sac_worker import query_sac_worker
             result.update(query_sac_worker(policy, args))
+        elif operation == 'sac_submit':
+            from sac_submit import submit_job
+            result.update(submit_job(policy, args, claims, request_id))
         elif operation == 'code_mcp':
             from code_mcp import run_code_mcp
             result.update(run_code_mcp(policy, args, claims, request.get('registry_token')))
