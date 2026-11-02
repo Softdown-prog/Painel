@@ -166,6 +166,45 @@ class SacWorkerQueryTests(unittest.TestCase):
             sac_worker.query_sac_worker(POLICY, {"action": "job", "job_id": job},
                                          state_dir=self.state)
 
+    def test_job_query_exposes_actionable_diagnostic_only(self):
+        results = self.state / "sac-results"
+        results.mkdir()
+        job = "gha-222-1"
+        diagnostic = {
+            "schema_version": 1, "status": "fail",
+            "checks": {"pre": "pass", "build": "pass", "post": "pass", "browser": "fail"},
+            "findings": [{"phase": "browser", "status": "fail",
+                "code": "required-assertion-failed", "assertion": "inventory-panel",
+                "title": "Elemento ou ação não comprovada",
+                "next_step": "Confira seletor, evento e visibilidade no cenário."}],
+            "truncated": False, "location_verified": False,
+            "deployment_authorized": False
+        }
+        record = {"schema_version": 1, "job_id": job, "project_id": "demo",
+                  "profile_id": "angular-root", "source_sha": "a" * 40,
+                  "status": "fail", "static_pipeline_pass": True,
+                  "browser_pass": False, "deployment_authorized": False,
+                  "execution": "sac-build-audit", "code": "audit-not-verified",
+                  "diagnostic": diagnostic, "secret": "never-return"}
+        filename = results / (job + ".json")
+        filename.write_text(json.dumps(record))
+        actual = sac_worker.query_sac_worker(POLICY,
+                       {"action": "job", "job_id": job}, state_dir=self.state)["sacWorker"]
+        self.assertEqual(actual["diagnostic"]["findings"][0]["assertion"], "inventory-panel")
+        self.assertEqual(actual["diagnostic"]["checks"]["browser"], "fail")
+        self.assertNotIn("never-return", json.dumps(actual))
+        self.assertFalse(actual["deploymentAuthorized"])
+        for wrong in (
+            {**diagnostic, "status": "pass"},
+            {**diagnostic, "workspace_path": "/etc/passwd"},
+            {**diagnostic, "findings": [{**diagnostic["findings"][0],
+                "next_step": "Read https://secret.example"}]},
+        ):
+            filename.write_text(json.dumps({**record, "diagnostic": wrong}))
+            with self.assertRaises(ValueError):
+                sac_worker.query_sac_worker(POLICY,
+                    {"action": "job", "job_id": job}, state_dir=self.state)
+
     def test_oidc_only_main_approved_actor_and_workflow(self):
         c = {"iss": receiver.ISSUER, "aud": receiver.AUDIENCE, "iat": 1000,
              "nbf": 999, "exp": 1200, "actor_id": "189416996",
