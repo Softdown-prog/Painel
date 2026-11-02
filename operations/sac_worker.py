@@ -14,6 +14,25 @@ SHA = re.compile(r"[0-9a-f]{40}\Z")
 JOB_ID = re.compile(r"gha-[0-9]{1,15}-[1-9][0-9]{0,3}\Z")
 RESULT_CODE = re.compile(r"[a-z][a-z0-9-]{0,63}\Z")
 MAX_INPUT_BYTES = 32768
+
+TS_CODE = re.compile(r"TS[0-9]{4,5}\Z")
+TS_FILE = re.compile(r"(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_.-]+\.tsx?\Z")
+TECHNICAL_KEYS = frozenset({
+    "schema_version", "job_id", "project_id", "profile_id", "source_sha", "status",
+    "phase", "exit_code", "findings", "truncated", "post_status", "browser_status",
+    "root_cause_verified", "deployment_authorized", "text"
+})
+TECHNICAL_FINDING_KEYS = frozenset({
+    "tool", "code", "file", "line", "column", "message", "location_verified"
+})
+TS_MESSAGES = {
+    "TS2322": "O compilador TypeScript registrou atribuição entre tipos incompatíveis.",
+    "TS2307": "O compilador TypeScript registrou que não encontrou um módulo.",
+    "TS2304": "O compilador TypeScript registrou um identificador não encontrado.",
+    "TS2339": "O compilador TypeScript registrou uma propriedade não reconhecida.",
+}
+TS_GENERIC = "O compilador Angular registrou um erro TypeScript."
+
 WORKER_STATE_ROOT = Path("/var/lib/data-library-worker/state")
 SAC_BUILDER_STATE_ROOT = Path("/var/lib/sac-builder/state")
 
@@ -129,6 +148,80 @@ def _job_diagnostic(value, status):
     }
 
 
+
+def _technical_report(value, result):
+    """V2 factual report reader. Validate and reconstruct; never publish raw logs."""
+    if (type(value) is not dict or set(value) != TECHNICAL_KEYS
+            or type(value["schema_version"]) is not int or value["schema_version"] != 2
+            or value["status"] != "fail" or value["phase"] != "build"
+            or type(value["exit_code"]) is not int or not 1 <= value["exit_code"] <= 255
+            or type(value["findings"]) is not list or not 1 <= len(value["findings"]) <= 4
+            or type(value["truncated"]) is not bool
+            or value["post_status"] != "not-run" or value["browser_status"] != "not-run"
+            or value["root_cause_verified"] is not False
+            or value["deployment_authorized"] is not False
+            or type(value["text"]) is not str):
+        raise ValueError("Invalid SAC technical report")
+    if any(value[k] != result[k] for k in ("job_id","project_id","profile_id","source_sha")):
+        raise ValueError("SAC report belongs to a different job")
+    if (result["execution"] != "sac-build-audit" or result["status"] != "fail"
+            or result["code"] != "angular-compiler-failed"
+            or result["static_pipeline_pass"] or result["browser_pass"]
+            or "diagnostic" not in result or result["diagnostic"].get("checks") != {
+                "pre":"pass", "build":"fail", "post":"unverified", "browser":"unverified"}):
+        raise ValueError("SAC build failure is inconsistent")
+    lines = [
+        f'Projeto {value["project_id"]}, commit {value["source_sha"]}.',
+        f'A compilação Angular não foi concluída. Código de saída: {value["exit_code"]}.',
+    ]
+    findings = []
+    for finding in value["findings"]:
+        if (type(finding) is not dict or set(finding) != TECHNICAL_FINDING_KEYS
+                or finding["tool"] != "typescript"
+                or type(finding["code"]) is not str
+                or TS_CODE.fullmatch(finding["code"]) is None
+                or type(finding["location_verified"]) is not bool
+                or finding["message"] != TS_MESSAGES.get(finding["code"], TS_GENERIC)):
+            raise ValueError("Invalid compiler finding")
+        if finding["location_verified"]:
+            filename = finding["file"]
+            if (type(filename) is not str or len(filename) > 200
+                    or TS_FILE.fullmatch(filename) is None
+                    or any(part in (".","..",".git","node_modules",".env")
+                           or part.startswith(".env.") for part in filename.split("/"))
+                    or type(finding["line"]) is not int or not 1 <= finding["line"] <= 1000000
+                    or type(finding["column"]) is not int or not 1 <= finding["column"] <= 10000):
+                raise ValueError("Unsafe compiler source location")
+            where = (f' no arquivo {filename}, linha {finding["line"]},'
+                     f' coluna {finding["column"]}')
+        else:
+            if (finding["file"] is not None or finding["line"] is not None
+                    or finding["column"] is not None):
+                raise ValueError("Unverified source location")
+            where = " (arquivo e posição não confirmados)"
+        lines.append(f'Erro {finding["code"]}{where}. {finding["message"]}')
+        findings.append({k:finding[k] for k in (
+            "tool","code","file","line","column","message","location_verified")})
+    if value["truncated"]:
+        lines.append("Existem outras ocorrências omitidas pelo limite do coletor.")
+    lines.extend([
+        "Pré-compilação: aprovada. Pós-compilação e Guardian: não executados porque o build falhou.",
+        "Este relatório registra eventos observados e não determina a causa raiz.",
+    ])
+    if (value["text"] != "\n".join(lines)
+            or len(json.dumps(value, ensure_ascii=True)) > 4096):
+        raise ValueError("Untrusted compiler report text")
+    return {
+        "schema_version":2, "job_id":result["job_id"], "project_id":result["project_id"],
+        "profile_id":result["profile_id"], "source_sha":result["source_sha"],
+        "status":"fail", "phase":"build", "exit_code":value["exit_code"],
+        "findings":findings, "truncated":value["truncated"],
+        "post_status":"not-run", "browser_status":"not-run",
+        "root_cause_verified":False, "deployment_authorized":False,
+        "text":"\n".join(lines),
+    }
+
+
 def query_sac_worker(policy, args, *, state_dir=None):
     action = validate_args(policy, args)
     state = (SAC_BUILDER_STATE_ROOT if action == "job" else WORKER_STATE_ROOT) if state_dir is None else Path(state_dir)
@@ -177,6 +270,10 @@ def query_sac_worker(policy, args, *, state_dir=None):
         }
         if "diagnostic" in result:
             view["diagnostic"] = _job_diagnostic(result["diagnostic"], result["status"])
+        if "technical_report" in result:
+            view["technicalReport"] = _technical_report(result["technical_report"], result)
+        elif result["code"] == "angular-compiler-failed":
+            raise ValueError("Compiler result lacks factual evidence")
         return {"sacWorker": view}
     checkpoint = _checkpoint(state)
     if checkpoint is None:

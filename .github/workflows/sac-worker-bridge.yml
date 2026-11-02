@@ -15,7 +15,7 @@ on:
       - '.github/workflows/sac-worker-bridge.yml'
       - 'docs/SAC_ACTIONS_WORKER.md'
   push:
-    branches: ['feat/sac-008-actions-worker-bridge', 'feat/sac-worker-broker-readonly-upgrade-20261102']
+    branches: ['feat/sac-008-actions-worker-bridge', 'feat/sac-worker-broker-readonly-upgrade-20261102', 'feat/sac-worker-readonly-v2-20261102']
   workflow_dispatch:
 permissions:
   contents: read

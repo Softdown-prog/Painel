@@ -205,6 +205,91 @@ class SacWorkerQueryTests(unittest.TestCase):
                 sac_worker.query_sac_worker(POLICY,
                     {"action": "job", "job_id": job}, state_dir=self.state)
 
+    def _v2_record(self):
+        job = "gha-222-1"
+        sha = "a" * 40
+        msg = "O compilador TypeScript registrou atribuição entre tipos incompatíveis."
+        report = {
+            "schema_version":2, "job_id":job, "project_id":"demo",
+            "profile_id":"angular-root", "source_sha":sha,
+            "status":"fail", "phase":"build", "exit_code":1,
+            "findings":[{"tool":"typescript", "code":"TS2322",
+                         "file":"src/mode.ts", "line":1, "column":13,
+                         "message":msg, "location_verified":True}],
+            "truncated":False, "post_status":"not-run", "browser_status":"not-run",
+            "root_cause_verified":False, "deployment_authorized":False
+        }
+        report["text"] = "\n".join([
+            "Projeto demo, commit " + sha + ".",
+            "A compilação Angular não foi concluída. Código de saída: 1.",
+            "Erro TS2322 no arquivo src/mode.ts, linha 1, coluna 13. " + msg,
+            "Pré-compilação: aprovada. Pós-compilação e Guardian: não executados porque o build falhou.",
+            "Este relatório registra eventos observados e não determina a causa raiz.",
+        ])
+        diagnostic = {"schema_version":1, "status":"fail",
+           "checks":{"pre":"pass","build":"fail","post":"unverified","browser":"unverified"},
+           "findings":[], "truncated":False, "location_verified":False,
+           "deployment_authorized":False}
+        return {"schema_version":1,"job_id":job,"project_id":"demo",
+            "profile_id":"angular-root","source_sha":sha,"status":"fail",
+            "static_pipeline_pass":False,"browser_pass":False,
+            "deployment_authorized":False,"execution":"sac-build-audit",
+            "code":"angular-compiler-failed","diagnostic":diagnostic,
+            "technical_report":report,"secret":"MUST_NOT_LEAK"}
+
+    def _read_v2(self, record):
+        results = self.state / "sac-results"
+        results.mkdir(exist_ok=True)
+        (results / "gha-222-1.json").write_text(json.dumps(record))
+        return sac_worker.query_sac_worker(POLICY,
+            {"action":"job","job_id":"gha-222-1"},state_dir=self.state)["sacWorker"]
+
+    def test_v2_returns_factual_readonly_report_and_keeps_v1(self):
+        result = self._read_v2(self._v2_record())
+        self.assertEqual(result["status"],"fail")
+        self.assertEqual(result["code"],"angular-compiler-failed")
+        self.assertEqual(result["diagnostic"]["checks"]["build"],"fail")
+        technical = result["technicalReport"]
+        self.assertEqual(technical["schema_version"],2)
+        self.assertEqual(technical["findings"][0]["code"],"TS2322")
+        self.assertEqual(technical["findings"][0]["file"],"src/mode.ts")
+        self.assertEqual(technical["findings"][0]["line"],1)
+        self.assertIn("TS2322",technical["text"])
+        self.assertNotIn("MUST_NOT_LEAK",json.dumps(result))
+        self.assertFalse(technical["deployment_authorized"])
+        self.assertTrue(result["readOnly"])
+
+    def test_v2_rejects_forgery_secrets_wrong_location_and_missing_report(self):
+        good = self._v2_record()
+        data = good["technical_report"]
+        finding = data["findings"][0]
+        cases = [
+            {**good,"status":"pass"},
+            {**good,"browser_pass":True},
+            {**good,"code":"audit-not-verified"},
+            {**good,"technical_report":{**data,"source_sha":"f"*40}},
+            {**good,"technical_report":{**data,"phase":"post"}},
+            {**good,"technical_report":{**data,"text":"fake success SECRET"}},
+            {**good,"technical_report":{**data,"deployment_authorized":True}},
+            {**good,"technical_report":{**data,"findings":[{**finding,"file":"/root/.env"}]}},
+            {**good,"technical_report":{**data,"findings":[{**finding,"file":"../bad.ts"}]}},
+            {**good,"technical_report":{**data,"findings":[{**finding,"message":"SECRET"}]}},
+            {**good,"technical_report":{**data,"findings":[{**finding,"location_verified":False}]}},
+            {**good,"technical_report":{**data,"secret":"SECRET"}},
+            {k:v for k,v in good.items() if k!="technical_report"},
+        ]
+        for case in cases:
+            with self.subTest(case=case.get("code")),self.assertRaises(ValueError):
+                self._read_v2(case)
+
+    def test_v1_result_without_technical_report_still_reads(self):
+        value = self._v2_record()
+        del value["technical_report"]
+        value["code"] = "audit-not-verified"
+        output = self._read_v2(value)
+        self.assertIn("diagnostic",output)
+        self.assertNotIn("technicalReport",output)
+
     def test_oidc_only_main_approved_actor_and_workflow(self):
         c = {"iss": receiver.ISSUER, "aud": receiver.AUDIENCE, "iat": 1000,
              "nbf": 999, "exp": 1200, "actor_id": "189416996",
