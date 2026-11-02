@@ -157,10 +157,10 @@ class UpgradeSacWorkerTests(unittest.TestCase):
             self.assertEqual(policy_path.read_bytes(), before)
 
             applied = upgrade("apply", src, dst, policy_path, owner_uid=uid)
-            self.assertTrue(applied["readOnly"] if "readOnly" in applied else
-                            applied["containersChanged"] is False)
+            self.assertTrue(applied["installed"])
+            self.assertFalse(applied["containersChanged"])
             installed = json.loads(policy_path.read_text())
-            self.assertEqual(installed, original)
+            self.assertEqual(installed, plan_policy(original, EXAMPLE))
             self.assertFalse(installed["sac_submit"]["enabled"])
             self.assertEqual((dst / "sac_worker.py").read_bytes(),
                              (src / "operations/sac_worker.py").read_bytes())
