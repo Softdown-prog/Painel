@@ -134,6 +134,72 @@ class UpgradeSacWorkerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "missing-installed-broker-file"):
                 upgrade("check", src, dst, policy, owner_uid=os.getuid())
 
+    def test_v1_to_v2_upgrade_serves_real_factual_job_without_enabling_submit(self):
+        """Simulate existing root-owned broker -> opt-in v2 reader -> job query."""
+        import importlib.util
+        from test_sac_worker import SacWorkerQueryTests
+
+        with tempfile.TemporaryDirectory() as tmp:
+            src, dst, policy_path, original = self._fake_install(Path(tmp))
+            uid = os.getuid()
+            # Fake an earlier installed v1 handler; only the reviewed v2 source
+            # may replace it, and check must not change the old installation.
+            previous = b"# installed sac_worker v1 reader\n"
+            (dst / "sac_worker.py").write_bytes(previous)
+            old_receiver = (dst / "receiver.py").read_bytes()
+            before = policy_path.read_bytes()
+
+            checked = upgrade("check", src, dst, policy_path, owner_uid=uid)
+            self.assertTrue(checked["safeToApply"])
+            self.assertTrue(checked["changesRequired"])
+            self.assertEqual((dst / "sac_worker.py").read_bytes(), previous)
+            self.assertEqual((dst / "receiver.py").read_bytes(), old_receiver)
+            self.assertEqual(policy_path.read_bytes(), before)
+
+            applied = upgrade("apply", src, dst, policy_path, owner_uid=uid)
+            self.assertTrue(applied["readOnly"] if "readOnly" in applied else
+                            applied["containersChanged"] is False)
+            installed = json.loads(policy_path.read_text())
+            self.assertEqual(installed, original)
+            self.assertFalse(installed["sac_submit"]["enabled"])
+            self.assertEqual((dst / "sac_worker.py").read_bytes(),
+                             (src / "operations/sac_worker.py").read_bytes())
+            self.assertEqual((dst / "receiver.py").read_bytes(),
+                             (src / "operations/receiver.py").read_bytes())
+            self.assertFalse(upgrade("check", src, dst, policy_path,
+                                     owner_uid=uid)["changesRequired"])
+
+            # Load the INSTALLED copy, not the source imported by other tests.
+            spec = importlib.util.spec_from_file_location("installed_sac_worker_v2",
+                                                         dst / "sac_worker.py")
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            data = SacWorkerQueryTests()._v2_record()
+            state = Path(tmp) / "job-state"
+            results = state / "sac-results"
+            results.mkdir(parents=True)
+            (results / "gha-222-1.json").write_text(json.dumps(data))
+            answer = module.query_sac_worker(installed,
+                {"action": "job", "job_id": "gha-222-1"},
+                state_dir=state)["sacWorker"]
+            self.assertTrue(answer["readOnly"])
+            self.assertEqual(answer["status"], "fail")
+            self.assertEqual(answer["technicalReport"]["findings"][0]["code"], "TS2322")
+            self.assertEqual(answer["technicalReport"]["findings"][0]["file"], "src/mode.ts")
+            self.assertIn("linha 1, coluna 13", answer["technicalReport"]["text"])
+            self.assertNotIn("MUST_NOT_LEAK", json.dumps(answer))
+            self.assertFalse(answer["deploymentAuthorized"])
+            # Check legacy status query still works with no checkpoint.
+            self.assertFalse(module.query_sac_worker(installed,
+                             {"action": "status"}, state_dir=state)["sacWorker"]["available"])
+            # And intentional denial of any new code execution remains intact.
+            with self.assertRaises(PermissionError):
+                from sac_submit import validate_args
+                validate_args(installed, {
+                    "project_id": "demo", "profile_id": "angular-root",
+                    "source_sha": "a"*40
+                })
+
     def test_syntax_preflight_reads_source_without_compilation_cache(self):
         wrapper = Path(__file__).with_name("upgrade-vpsops-sac-worker.sh").read_text()
         self.assertIn("ast.parse", wrapper)
