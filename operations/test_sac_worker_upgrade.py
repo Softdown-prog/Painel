@@ -73,9 +73,8 @@ class UpgradeSacWorkerTests(unittest.TestCase):
         older = copy.deepcopy(EXAMPLE)
         older.pop("sac_worker")
         older["repositories"]["1433232532"]["operations"].remove("sac_worker")
-        # Remove disabled sac-submit from the synthetic installation if no
-        # sac_submit.py exists (an old broker cannot load it).
-        older["repositories"]["1433232532"]["operations"].remove("sac_submit")
+        # The policy may list sac_submit even when disabled and its handler
+        # has not been installed; this must not block read-only SAC queries.
         policy.write_text(json.dumps(older))
         policy.chmod(0o600)
         return repo, dst, policy, older
@@ -98,6 +97,26 @@ class UpgradeSacWorkerTests(unittest.TestCase):
             self.assertTrue((dst / "sac_worker.py").is_file())
             again = upgrade("check", src, dst, policy, owner_uid=uid)
             self.assertFalse(again["changesRequired"])
+
+    def test_disabled_submit_module_is_optional_but_enabled_must_be_installed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src, dst, policy, old = self._fake_install(Path(tmp))
+            self.assertFalse(old["sac_submit"]["enabled"])
+            self.assertFalse((dst / "sac_submit.py").exists())
+            self.assertTrue(upgrade("check", src, dst, policy,
+                                    owner_uid=os.getuid())["safeToApply"])
+            policy_data = json.loads(policy.read_text())
+            policy_data["sac_submit"]["enabled"] = True
+            policy.write_text(json.dumps(policy_data))
+            with self.assertRaisesRegex(ValueError, "missing-installed-broker-file"):
+                upgrade("check", src, dst, policy, owner_uid=os.getuid())
+
+    def test_syntax_preflight_reads_source_without_compilation_cache(self):
+        wrapper = Path(__file__).with_name("upgrade-vpsops-sac-worker.sh").read_text()
+        self.assertIn("ast.parse", wrapper)
+        self.assertNotIn("python3 -m py_compile", wrapper)
+        self.assertIn('mode="$1"', wrapper)
+        self.assertIn('sha="$3"', wrapper)
 
     def test_symlink_installed_files_or_invalid_policy_fail_closed(self):
         with tempfile.TemporaryDirectory() as tmp:

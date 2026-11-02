@@ -24,6 +24,14 @@ for file in /usr/local/libexec/vps-operations /etc/sudoers.d/vps-operations; do
 done
 grep -Fq '/usr/local/libexec/vps-operations' /etc/sudoers.d/vps-operations ||
   { echo "Forced-command sudo policy missing" >&2; exit 2; }
-python3 -m py_compile "$checkout/operations/receiver.py" \
-  "$checkout/operations/sac_worker.py" "$checkout/operations/sac_worker_upgrade.py"
+# Validate without py_compile: it writes __pycache__ even during 'check'.
+# ast.parse checks syntax in memory and produces no .pyc or source-tree writes.
+python3 - "$checkout" <<'PY'
+import ast
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]) / 'operations'
+for name in ('receiver.py', 'sac_worker.py', 'sac_worker_upgrade.py'):
+    ast.parse((source / name).read_text('utf8'), filename=name)
+PY
 python3 "$checkout/operations/sac_worker_upgrade.py" "$mode" "$checkout"

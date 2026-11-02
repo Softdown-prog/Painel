@@ -9,7 +9,6 @@ import copy
 import json
 import os
 from pathlib import Path
-import re
 import sys
 import tempfile
 
@@ -133,7 +132,11 @@ def upgrade(mode, source_dir, installed_dir, policy_file, *, owner_uid=0):
         required_modules.add("code_mcp.py")
     if "maintain" in policy["repositories"][PANEL_ID]["operations"]:
         required_modules.add("maintenance.py")
-    if "sac_submit" in policy["repositories"][PANEL_ID]["operations"]:
+    # A previously registered but DISABLED submit operation is harmless:
+    # its module can legitimately be absent on an older broker installation.
+    # Only an enabled operation must already have its handler installed.
+    if ("sac_submit" in policy["repositories"][PANEL_ID]["operations"]
+            and (policy.get("sac_submit") or {}).get("enabled") is True):
         required_modules.add("sac_submit.py")
     for module in required_modules:
         _safe_file(dst / module, owner_uid=owner_uid)

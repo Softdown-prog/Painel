@@ -69,3 +69,9 @@ sudo bash operations/upgrade-vpsops-sac-worker.sh apply /checkout/Painel <SHA-RE
 O instalador prepara a autorização somente leitura do broker, não inicia
 o serviço Data Library, não corrige possíveis erros de configuração do
 SAC Builder e não autoriza compilação nem deploy de terceiros.
+
+### Revisão do preflight de leitura (02/11/2026)
+
+O script `check` valida a sintaxe com `ast.parse` em memória, em vez de `py_compile`, que pode escrever arquivos `__pycache__`. A presença de `sac_submit` desativado na política instalada não exige que `sac_submit.py` esteja instalado; uma operação `sac_submit` ativa continua exigindo o handler correspondente. Essas duas situações têm testes de regressão e não ampliam as permissões do broker.
+
+**Limitação operacional:** o broker SSH existente não tem uma operação autorizada para rodar `check` como root pela integração GitHub. O teste realizado via `[VPS] inventory` confirmou a conexão, mas não inspecionou a política root-owned nem instalou o SAC. Não é seguro usar a operação `inventory`, `mcp_query` ou comandos arbitrários como alternativa para executar `check`.
