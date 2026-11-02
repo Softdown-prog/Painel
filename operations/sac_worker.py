@@ -80,6 +80,55 @@ def _counts(raw):
     return values if all(v is not None for v in values.values()) else None
 
 
+def _job_diagnostic(value, status):
+    """Project only bounded structured evidence, never source text or host logs."""
+    if type(value) is not dict or set(value) != {
+            "schema_version", "status", "checks", "findings", "truncated",
+            "location_verified", "deployment_authorized"}:
+        raise ValueError("Invalid SAC diagnostic")
+    if (type(value["schema_version"]) is not int or value["schema_version"] != 1
+            or value["status"] != status or value["location_verified"] is not False
+            or value["deployment_authorized"] is not False
+            or type(value["truncated"]) is not bool):
+        raise ValueError("Inconsistent SAC diagnostic")
+    valid = ("pass", "fail", "unverified", "infra-error")
+    checks = value["checks"]
+    if (type(checks) is not dict or set(checks) != {"pre", "build", "post", "browser"}
+            or any(type(v) is not str or v not in valid for v in checks.values())):
+        raise ValueError("Invalid diagnostic checks")
+    findings = value["findings"]
+    if type(findings) is not list or len(findings) > 8:
+        raise ValueError("Invalid diagnostic findings")
+    safe = []
+    for item in findings:
+        if type(item) is not dict or set(item) != {
+                "phase", "status", "code", "assertion", "title", "next_step"}:
+            raise ValueError("Invalid diagnostic entry")
+        if (item["phase"] not in checks or item["status"] not in valid
+                or type(item["code"]) is not str
+                or RESULT_CODE.fullmatch(item["code"]) is None):
+            raise ValueError("Invalid diagnostic code")
+        assertion = item["assertion"]
+        if (assertion is not None and (type(assertion) is not str or
+                re.fullmatch(r"[A-Za-z][A-Za-z0-9-]{0,63}", assertion) is None)):
+            raise ValueError("Invalid diagnostic assertion")
+        for field, limit in (("title", 95), ("next_step", 170)):
+            content = item[field]
+            if (type(content) is not str or not 4 <= len(content) <= limit or
+                    any(c in content for c in ("\n", "\r", "\x00", "\\", "<", ">"))
+                    or "://" in content):
+                raise ValueError("Unsafe diagnostic text")
+        safe.append({k: item[k] for k in (
+            "phase", "status", "code", "assertion", "title", "next_step")})
+    if len(json.dumps(value, ensure_ascii=True)) > 4096:
+        raise ValueError("Diagnostic exceeds bounds")
+    return {
+        "schema_version": 1, "status": status, "checks": dict(checks),
+        "findings": safe, "truncated": value["truncated"],
+        "location_verified": False, "deployment_authorized": False
+    }
+
+
 def query_sac_worker(policy, args, *, state_dir=None):
     action = validate_args(policy, args)
     state = (SAC_BUILDER_STATE_ROOT if action == "job" else WORKER_STATE_ROOT) if state_dir is None else Path(state_dir)
@@ -119,13 +168,16 @@ def query_sac_worker(policy, args, *, state_dir=None):
                             if result["execution"] == "sac-build-audit"
                             else "isolated-browser-pass"))):
             raise ValueError("False SAC success")
-        return {"sacWorker": {
+        view = {
             "action": "job", "jobId": job_id, "projectId": result["project_id"],
             "profileId": result["profile_id"], "sourceSha": result["source_sha"],
             "status": result["status"], "code": result["code"], "execution": result["execution"],
             "staticPipelinePass": result["static_pipeline_pass"],
             "browserPass": result["browser_pass"], "deploymentAuthorized": False, "readOnly": True,
-        }}
+        }
+        if "diagnostic" in result:
+            view["diagnostic"] = _job_diagnostic(result["diagnostic"], result["status"])
+        return {"sacWorker": view}
     checkpoint = _checkpoint(state)
     if checkpoint is None:
         return {"sacWorker": {"available": False, "action": action, "code": "checkpoint-not-found",
