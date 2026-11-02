@@ -1,19 +1,42 @@
 """Regression tests for the opt-in SAC read-only broker upgrade."""
 import copy
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 import json
 import os
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from sac_worker_upgrade import plan_policy, upgrade
+from sac_worker_upgrade import main, plan_policy, upgrade
 
 EXAMPLE = json.loads((Path(__file__).parent / "policy.example.json").read_text())
 
 
 class UpgradeSacWorkerTests(unittest.TestCase):
+    def test_cli_accepts_exact_arguments_supplied_by_shell_wrapper(self):
+        for mode in ("check", "apply"):
+            with self.subTest(mode=mode), patch("sac_worker_upgrade.os.geteuid", return_value=0), \
+                    patch("sac_worker_upgrade.upgrade", return_value={"mode": mode}) as install, \
+                    redirect_stdout(StringIO()) as output:
+                self.assertEqual(main(["sac_worker_upgrade.py", mode, "/reviewed/source"]), 0)
+                install.assert_called_once_with(mode, "/reviewed/source",
+                    "/usr/local/lib/vps-operations", "/etc/vps-operations/policy.json")
+                self.assertEqual(json.loads(output.getvalue()), {"mode": mode})
+
+    def test_cli_rejects_wrong_arguments_and_non_root_without_installing(self):
+        cases = [(0, []), (0, ["check"]), (0, ["check", "/src", "extra"]),
+                 (0, ["shell", "/src"]), (65534, ["apply", "/src"])]
+        for uid, args in cases:
+            with self.subTest(uid=uid, args=args), \
+                    patch("sac_worker_upgrade.os.geteuid", return_value=uid), \
+                    patch("sac_worker_upgrade.upgrade") as install, redirect_stderr(StringIO()):
+                self.assertEqual(main(["sac_worker_upgrade.py", *args]), 2)
+                install.assert_not_called()
+
     def test_only_adds_readonly_sac_worker_and_preserves_unrelated_policy(self):
         old = copy.deepcopy(EXAMPLE)
         old.pop("sac_worker")

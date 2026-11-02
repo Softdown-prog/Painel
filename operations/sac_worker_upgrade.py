@@ -165,17 +165,23 @@ def upgrade(mode, source_dir, installed_dir, policy_file, *, owner_uid=0):
             "shellAccess": False, "deploymentAuthorized": False}
 
 
-if __name__ == "__main__":
+def main(argv=None):
+    argv = sys.argv if argv is None else argv
     try:
-        if len(sys.argv) != 4 or sys.argv[1] not in ("check", "apply"):
+        if len(argv) != 3 or argv[1] not in ("check", "apply"):
             raise ValueError("invalid-arguments")
         if os.geteuid() != 0:
             raise ValueError("root-approval-required")
-        result = upgrade(sys.argv[1], sys.argv[2],
+        result = upgrade(argv[1], argv[2],
                          "/usr/local/lib/vps-operations",
                          "/etc/vps-operations/policy.json")
         print(json.dumps(result))
+        return 0
     except (ValueError, OSError, KeyError, TypeError, json.JSONDecodeError):
         print("SAC Worker upgrade denied; inspect installed broker policy locally.",
               file=sys.stderr)
-        sys.exit(2)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())
