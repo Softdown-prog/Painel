@@ -14,3 +14,58 @@ O módulo `operations/sac_worker.py` lê **somente** o checkpoint do Worker Data
 - O status é limitado ao *Worker Data Library existente*, não ao conjunto de projetos Angular. Não tratar resultado de um catálogo como `browser_pass` ou autorização de deploy.
 
 Próxima etapa segura: permitir ao One Worker receber somente jobs de projetos previamente registrados, por SHA fixo e sandbox próprio; depois expandir Actions a `request-validation` e `get-job-report`, sem abrir shell.
+
+
+## SAC-008A: diagnóstico de instalação / broker (02/11/2026)
+
+Duas chamadas somente leitura confirmaram a diferença entre **broker funcional**
+e **operação SAC não instalada/autorizada**:
+
+- [Issue #75 – sac-status](https://github.com/Softdown-prog/Painel/issues/75):
+  OIDC/SSH chegam ao broker, porém retorna
+  \`{"exitCode":1,"error":"ValueError: request rejected"}\`.
+  A resposta é anterior ao módulo SAC e **não prova** que ele esteja ativo.
+- [Issue #76 – inventory](https://github.com/Softdown-prog/Painel/issues/76):
+  autenticação do mesmo ator, branch \`main\` e workflow funciona e retorna
+  inventário real. Assim o problema está no **gate/versão instalada de
+  \`sac_worker\`**, não no transporte SSH em geral. O caminho exato de
+  rejeição no host não é recuperável pelo relatório público.
+
+O workflow normal \`deploy-vps.yml\` **só publica contêineres**; não troca
+o broker root-owned em \`/usr/local/lib/vps-operations\` nem a política privada
+\`/etc/vps-operations/policy.json\`. Por isso GitHub Actions verde **não
+significa** que o upgrade foi instalado.
+
+### Microetapa: atualização manual e controlada (sem execução automática)
+
+O procedimento \`operations/upgrade-vpsops-sac-worker.sh\` aceita \`check\` ou
+\`apply\` e uma checkout local previamente revisada com **SHA completo
+fixo**. Os comandos abaixo são destinados exclusivamente a operador
+administrativo na VPS, após aprovação específica:
+
+\`\`\`bash
+sudo bash operations/upgrade-vpsops-sac-worker.sh check /checkout/Painel <SHA-REVISADO>
+# Somente após revisão humana do resultado:
+sudo bash operations/upgrade-vpsops-sac-worker.sh apply /checkout/Painel <SHA-REVISADO>
+\`\`\`
+
+- \`check\` apenas lê a instalação e gera um resumo seguro, sem alterar
+  arquivos, contêineres, processos, credenciais ou permissões SSH.
+- \`apply\` exige root, checkout limpo no commit aprovado, arquivos e política
+  do broker com dono/modo verificados; atualiza somente
+  \`receiver.py\`, \`sac_worker.py\` e a entrada limitada \`sac_worker\`
+  da política. O handler é instalado **antes** da autorização.
+- Preserva explicitamente outras operações, especialmente \`sac_submit\`
+  (que continua desabilitada onde já estiver desabilitada), \`mcp_query\`,
+  manutenção e acesso a contêineres. Recusa divergência de política ou
+  caminho instalado desconhecido e tenta restaurar o estado anterior se
+  ocorrer exceção.
+- Nenhum workflow aciona o comando \`apply\` e **nenhum deploy, merge ou
+  mudança na VPS foi realizado por esta entrega**.
+- Depois da instalação aprovada, o teste de aceitação é repetir
+  \`[VPS] sac-status\` e somente então consultar \`[VPS] sac-job\`.
+  \`status\` baseado em checkpoint **não prova que o daemon esteja online**.
+
+O instalador prepara a autorização somente leitura do broker, não inicia
+o serviço Data Library, não corrige possíveis erros de configuração do
+SAC Builder e não autoriza compilação nem deploy de terceiros.
