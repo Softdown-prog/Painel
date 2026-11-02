@@ -4,6 +4,7 @@ on:
     paths:
       - 'operations/sac_worker.py'
       - 'operations/test_sac_worker.py'
+      - 'operations/test_sac_public_bridge.py'
       - 'operations/sac_worker_upgrade.py'
       - 'operations/upgrade-vpsops-sac-worker.sh'
       - 'operations/test_sac_worker_upgrade.py'
@@ -36,5 +37,6 @@ jobs:
           python3 -m py_compile operations/receiver.py operations/client.py operations/sac_worker.py operations/sac_worker_upgrade.py
           bash -n operations/upgrade-vpsops-sac-worker.sh
           python3 -m unittest discover -s operations -p 'test_sac_worker.py' -v
+          python3 -m unittest discover -s operations -p 'test_sac_public_bridge.py' -v
           python3 -m unittest discover -s operations -p 'test_sac_worker_upgrade.py' -v
           python3 -m unittest discover -s operations -p 'test_mcp_query.py' -v
