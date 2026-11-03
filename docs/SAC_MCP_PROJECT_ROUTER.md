@@ -78,3 +78,40 @@ homologação multiprojetos de produção apenas por passar na CI.
 
 PR #79 do Painel (adaptador SAC de broker) foi encerrado sem merge
 por mudança de arquitetura. Referência: issue #41 da Data Library.
+
+
+## Snapshots reais de quatro repositórios na CI
+
+A microetapa seguinte prepara o MCP para navegar nos projetos públicos
+**Painel**, **Data_libray**, **Terrania** e **A7-forge-2D- (Lan House Simulator)**,
+sem conectar o serviço ao broker da VPS.
+
+O script `tools/repo-mcp/snapshot-context.mjs` recebe checkouts separados
+dessas quatro origens explicitamente permitidas. Antes de gerar um contexto
+para a imagem, verifica a identidade do `git remote origin`, a ausência de
+alterações nos arquivos rastreados e o SHA-40 exato de cada checkout.
+
+Somente arquivos de texto rastreados são exportados, com limites de 1 MiB
+por arquivo, 24 MiB por projeto e 64 MiB no total. O exportador exclui
+symlinks, binários, ambientes, credenciais, arquivos de chave, artefatos
+de build e dependências instaladas. O manifesto publicado contém os SHAs
+e contagens, **não** o conteúdo dos arquivos.
+
+O workflow `.github/workflows/sac-mcp-project-routing.yml`:
+- Executa testes unitários de exportação e de rejeição de origem adulterada;
+- Faz checkout dos três repositórios públicos complementares na CI;
+- Constrói imagem Docker temporária com os quatro snapshots de código;
+- Inicia o MCP HTTP com token **sintético** e verifica autorização, consulta
+  de índices, leitura por projeto e isolamento;
+- Destrói o container ao concluir e publica somente a proveniência.
+
+**Limite:** os snapshots são estáticos por commit e nenhum resultado SAC
+real é incluído na imagem. O `registry.json` gerado registra somente os
+quatro repositórios para navegação de código; não atribui `projectId` do
+SAC por adivinhação e não contém `reportsPath`.
+
+Para ler relatórios reais, ainda será preciso comprovar os IDs dos projetos
+no SAC Worker e disponibilizar uma montagem read-only separada para seus
+resultados. Isso exigirá uma atualização do container MCP homologada fora
+desta branch e um teste de leitura real. Nenhuma etapa aqui altera
+Docker, systemd, SSH, Cloudflare, vpsops ou produção na VPS.
