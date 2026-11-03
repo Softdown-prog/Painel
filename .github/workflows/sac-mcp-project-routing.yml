@@ -123,6 +123,35 @@ jobs:
             process.exit(1);
           console.log('MCP_FOUR_REAL_PROJECTS_HTTP_PASS');
           "
+      - name: Prepare synthetic reports separately from the code image
+        run: |
+          node --check tools/repo-mcp/mount-smoke.mjs
+          node tools/repo-mcp/mount-smoke.mjs prepare "$RUNNER_TEMP/mcp-four-projects" "$RUNNER_TEMP/mcp-synthetic"
+      - name: Mount synthetic SAC reports read-only in a throwaway MCP container
+        run: |
+          set -euo pipefail
+          docker rm -f sac-mcp-multi-ci >/dev/null
+          docker run -d --name sac-mcp-multi-ci --network bridge \
+            --publish 127.0.0.1:18790:8789 --read-only --user 65534:65534 \
+            --cap-drop ALL --security-opt no-new-privileges \
+            --mount "type=bind,src=$RUNNER_TEMP/mcp-smoke-token,dst=/run/secrets/code-mcp-token,readonly" \
+            --mount "type=bind,src=$RUNNER_TEMP/mcp-synthetic/sac-registry.json,dst=/srv/registry.json,readonly" \
+            --mount "type=bind,src=$RUNNER_TEMP/mcp-synthetic/sac-reports,dst=/srv/sac-reports,readonly" \
+            sac-mcp-multiproject:ci
+          mount_details="$(docker inspect -f '{{range .Mounts}}{{println .Destination .RW}}{{end}}' sac-mcp-multi-ci)"
+          grep -Fxq '/srv/registry.json false' <<< "$mount_details"
+          grep -Fxq '/srv/sac-reports false' <<< "$mount_details"
+          test "$(docker inspect -f '{{.Config.User}}' sac-mcp-multi-ci)" = '65534:65534'
+          for i in $(seq 1 45); do
+            if curl -fsS --max-time 2 http://127.0.0.1:18790/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Read two synthetic SAC reports over real Docker-mounted HTTP MCP
+        run: |
+          node tools/repo-mcp/mount-smoke.mjs verify \
+            http://127.0.0.1:18790/mcp "$RUNNER_TEMP/mcp-smoke-token"
+          echo 'SAC_MCP_DOCKER_READONLY_REPORTS_PASS'
       - name: Remove throwaway container
         if: always()
         run: docker rm -f sac-mcp-multi-ci >/dev/null 2>&1 || true
