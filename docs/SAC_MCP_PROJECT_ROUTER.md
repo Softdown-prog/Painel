@@ -115,3 +115,24 @@ no SAC Worker e disponibilizar uma montagem read-only separada para seus
 resultados. Isso exigirá uma atualização do container MCP homologada fora
 desta branch e um teste de leitura real. Nenhuma etapa aqui altera
 Docker, systemd, SSH, Cloudflare, vpsops ou produção na VPS.
+
+
+## Contrato de montagem read-only validado em CI
+
+Além de navegar os quatro snapshots reais, a CI instala **somente no
+container descartável do teste** um `registry.json` temporário que habilita
+relatórios sintéticos da Data Library e do Terrania. Dois arquivos artificiais
+de erro `TS2322` ficam em volumes separados do código:
+
+- `/srv/registry.json` — bind mount readonly de registro de projetos;
+- `/srv/sac-reports` — bind mount readonly de resultados;
+- `/run/secrets/code-mcp-token` — token sintético, readonly.
+
+O teste verifica os atributos reais de montagem do Docker, UID 65534,
+a comunicação HTTP autenticada, leitura por projeto, isolamento entre jobs,
+negação de projeto não registrado e rejeição de travessia de caminho.
+
+**Isso ainda não é produção:** o `projectId` dos dois relatórios é
+artificial para testes e não altera as políticas oficiais do SAC Worker.
+Nenhum diretório da VPS é acessado ou montado. Os resultados reais deverão
+ser vinculados aos IDs efetivamente registrados no SAC antes de implantação.
