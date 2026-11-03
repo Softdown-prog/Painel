@@ -4,7 +4,7 @@
 import {readFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 
-export async function verifyClient({endpoint,tokenFile,fetcher=fetch}){
+export async function verifyClient({endpoint,tokenFile,fetcher=fetch,expectedRepos=null}){
  const parsed=new URL(endpoint);
  if(!(parsed.protocol==='https:' || (parsed.protocol==='http:' && ['127.0.0.1','localhost'].includes(parsed.hostname))))
    throw Error('Remote MCP verification requires HTTPS');
@@ -52,6 +52,17 @@ export async function verifyClient({endpoint,tokenFile,fetcher=fetch}){
  };
  const repos=await read(4,'repo_list');
  if(!Array.isArray(repos)||!repos.includes('Painel'))throw Error('Painel repo missing from MCP');
+ if(expectedRepos!==null){
+  if(!Array.isArray(expectedRepos)||expectedRepos.length<1||expectedRepos.length>50||
+    expectedRepos.some(name=>typeof name!=='string')||
+    JSON.stringify([...repos].sort())!==JSON.stringify([...expectedRepos].sort()))
+   throw Error('Unexpected MCP project registry');
+  for(let i=0;i<expectedRepos.length;i++){
+   const result=await read(100+i,'repo_stats',{repo:expectedRepos[i]});
+   if(typeof result.fileCount!=='number'||result.fileCount<1||
+      result.readOnly!==true)throw Error('Empty or writable MCP project '+expectedRepos[i]);
+  }
+ }
  const stats=await read(5,'repo_stats',{repo:'Painel'});
  if(typeof stats.fileCount!=='number'||stats.fileCount<1)throw Error('Empty source index');
  const files=await read(6,'repo_find_files',{repo:'Painel',query:'executor',limit:5});
