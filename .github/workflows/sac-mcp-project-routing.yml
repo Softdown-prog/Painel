@@ -36,3 +36,101 @@ jobs:
         run: |
           bash -n tools/repo-mcp/make-image-context.sh
           grep -Fq 'sac-report-router.mjs' tools/repo-mcp/make-image-context.sh
+
+  real-project-snapshots:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout Painel code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout Data Library public sources
+        uses: actions/checkout@v4
+        with:
+          repository: Softdown-prog/Data_libray
+          ref: main
+          path: sources/Data_libray
+          persist-credentials: false
+      - name: Checkout Terrania public sources
+        uses: actions/checkout@v4
+        with:
+          repository: Softdown-prog/Terrania
+          ref: main
+          path: sources/Terrania
+          persist-credentials: false
+      - name: Checkout Lan House Simulator public sources
+        uses: actions/checkout@v4
+        with:
+          repository: Softdown-prog/A7-forge-2D-
+          ref: main
+          path: sources/A7-forge-2D-
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate real repository snapshot exporter
+        run: |
+          node --check tools/repo-mcp/snapshot-context.mjs
+          node --test tools/repo-mcp/snapshot-context.test.mjs
+      - name: Generate source-only snapshots with exact Git SHAs
+        run: |
+          node tools/repo-mcp/snapshot-context.mjs "$RUNNER_TEMP/mcp-four-projects" > "$RUNNER_TEMP/snapshot-summary.json"
+          node --input-type=module -e "
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          const manifest=JSON.parse(readFileSync(process.env.RUNNER_TEMP+'/mcp-four-projects/snapshot-manifest.json','utf8'));
+          assert.equal(manifest.repos.length,4);
+          assert.equal(manifest.reports_included,false);
+          assert.equal(manifest.broker_required,false);
+          assert.equal(manifest.deploy_authorized,false);
+          assert.ok(manifest.repos.every(p=>p.files>0 && /^[a-f0-9]{40}$/.test(p.source_sha)));
+          console.log('MCP_REAL_REPOSITORY_SNAPSHOTS_PASS');
+          "
+      - name: Build throwaway Code MCP image from four source snapshots
+        run: |
+          docker build -f tools/repo-mcp/Dockerfile \
+            --build-arg SOURCE_REVISION="$GITHUB_SHA" \
+            -t sac-mcp-multiproject:ci "$RUNNER_TEMP/mcp-four-projects"
+      - name: Run throwaway MCP container with a synthetic token
+        run: |
+          set -euo pipefail
+          token="$RUNNER_TEMP/mcp-smoke-token"
+          printf '%s\n' 'synthetic-code-mcp-token-for-ci-only-very-long' > "$token"
+          chmod 644 "$token"
+          docker run -d --name sac-mcp-multi-ci --network bridge \
+            --publish 127.0.0.1:18790:8789 --read-only --user 65534:65534 \
+            --cap-drop ALL --security-opt no-new-privileges \
+            --mount "type=bind,src=$token,dst=/run/secrets/code-mcp-token,readonly" \
+            sac-mcp-multiproject:ci
+          for i in $(seq 1 70); do
+            if curl -fsS --max-time 2 http://127.0.0.1:18790/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Verify four real projects on authenticated MCP HTTP
+        env:
+          MCP_TOKEN_FILE: ${{ runner.temp }}/mcp-smoke-token
+        run: |
+          node --input-type=module -e "
+          import {verifyClient} from './tools/repo-mcp/client-smoke.mjs';
+          const result=await verifyClient({
+            endpoint:'http://127.0.0.1:18790/mcp',
+            tokenFile:process.env.MCP_TOKEN_FILE,
+            expectedRepos:['Painel','Data_libray','Terrania','A7-forge-2D-']
+          });
+          if(!result.ok || result.repos!==4 || !result.verifiedAuth || !result.verifiedOrigin)
+            process.exit(1);
+          console.log('MCP_FOUR_REAL_PROJECTS_HTTP_PASS');
+          "
+      - name: Remove throwaway container
+        if: always()
+        run: docker rm -f sac-mcp-multi-ci >/dev/null 2>&1 || true
+      - name: Upload public commit provenance only
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sac-mcp-four-repo-snapshot-provenance
+          path: ${{ runner.temp }}/mcp-four-projects/snapshot-manifest.json
+          retention-days: 14
+          if-no-files-found: error
