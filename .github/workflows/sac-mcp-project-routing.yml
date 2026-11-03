@@ -1,0 +1,38 @@
+name: SAC project routing over Code MCP (offline)
+on:
+  push:
+    branches: ['feat/sac-mcp-project-routing-20261102']
+    paths:
+      - 'tools/repo-mcp/**'
+      - '.github/workflows/sac-mcp-project-routing.yml'
+      - 'docs/SAC_MCP_PROJECT_ROUTER.md'
+  pull_request:
+    paths:
+      - 'tools/repo-mcp/**'
+      - '.github/workflows/sac-mcp-project-routing.yml'
+      - 'docs/SAC_MCP_PROJECT_ROUTER.md'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mcp-router:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate MCP router syntax
+        run: |
+          node --check tools/repo-mcp/http-server.mjs
+          node --check tools/repo-mcp/sac-report-router.mjs
+          node --check tools/repo-mcp/sac-report-router.test.mjs
+      - name: Validate project isolation, real MCP HTTP tools and backward compatibility
+        run: node --test tools/repo-mcp/sac-report-router.test.mjs tools/repo-mcp/http-server.test.mjs tools/repo-mcp/client-smoke.test.mjs
+      - name: Verify context script without broker or deployment
+        run: |
+          bash -n tools/repo-mcp/make-image-context.sh
+          grep -Fq 'sac-report-router.mjs' tools/repo-mcp/make-image-context.sh
