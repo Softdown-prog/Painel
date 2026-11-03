@@ -79,9 +79,10 @@ export async function readSacReport(routes,repo,jobId){
    value.deployment_authorized!==false||
    !object(value.diagnostic)||value.diagnostic.status!=='fail'||
    !exact(value.diagnostic.checks,['pre','build','post','browser'])||
-   JSON.stringify(value.diagnostic.checks)!==JSON.stringify({
-     pre:'pass',build:'fail',post:'unverified',browser:'unverified'
-   }))bad();
+   value.diagnostic.checks.pre!=='pass'||
+   value.diagnostic.checks.build!=='fail'||
+   value.diagnostic.checks.post!=='unverified'||
+   value.diagnostic.checks.browser!=='unverified')bad();
  const report=value.technical_report;
  if(!exact(report,REPORT_NAMES)||report.schema_version!==2||
    report.job_id!==jobId||report.project_id!==value.project_id||
