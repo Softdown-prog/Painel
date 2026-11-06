@@ -3,6 +3,7 @@ import {readFile} from 'node:fs/promises';
 import {timingSafeEqual} from 'node:crypto';
 import {resolve,sep} from 'node:path';
 import {RepoNavigator} from './indexer.mjs';
+import {registerSacRoutes,readSacReport} from './sac-report-router.mjs';
 
 const DEFAULT_PORT=8789;
 const schema=(properties,required=[])=>({type:'object',properties,required,additionalProperties:false});
@@ -10,9 +11,11 @@ const repo={type:'string',minLength:1,maxLength:72};
 const path={type:'string',minLength:1,maxLength:512};
 const query={type:'string',minLength:1,maxLength:200};
 const prefix={type:'string',maxLength:250};
+const jobId={type:'string',minLength:7,maxLength:32};
 const limit={type:'integer',minimum:1,maximum:100};
 const catalog=[
  {name:'repo_list',description:'List repositories authorized for this MCP client',inputSchema:schema({})},
+ {name:'sac_job_report',description:'Route to a pre-existing, validated technical SAC job report in one registered project (read-only; no broker).',inputSchema:schema({repo,jobId},['repo','jobId'])},
  {name:'repo_stats',description:'Index statistics (read-only)',inputSchema:schema({repo},['repo'])},
  {name:'repo_find_files',description:'Find files by path segment',inputSchema:schema({repo,query:{type:'string',maxLength:160},prefix,limit},['repo'])},
  {name:'repo_find_symbols',description:'Find function/class/type declarations',inputSchema:schema({repo,query,prefix,limit},['repo','query'])},
@@ -38,7 +41,7 @@ const answer=(data,isError=false)=>({content:[{type:'text',text:JSON.stringify(d
 const rpc=(id,result)=>({jsonrpc:'2.0',id,result});
 const error=(id,code,message)=>({jsonrpc:'2.0',id,error:{code,message}});
 
-export async function createMcpHttpServer({registryFile,tokenFile,port=DEFAULT_PORT,hostname='127.0.0.1',repoRoot='/srv/repos'}={}){
+export async function createMcpHttpServer({registryFile,tokenFile,port=DEFAULT_PORT,hostname='127.0.0.1',repoRoot='/srv/repos',reportsRoot='/srv/sac-reports'}={}){
  if(!registryFile||!tokenFile)throw Error('MCP registry and token file are required');
  const raw=JSON.parse(await readFile(registryFile,'utf8'));
  if(!Array.isArray(raw.repos)||raw.repos.length<1||raw.repos.length>50)throw Error('Repository registry must contain 1-50 repositories');
@@ -53,6 +56,7 @@ export async function createMcpHttpServer({registryFile,tokenFile,port=DEFAULT_P
   await navigator.buildIndex({write:false});
   repositories.set(entry.name,navigator);
  }
+ const reportRoutes=await registerSacRoutes(raw.repos,reportsRoot);
  const token=(await readFile(tokenFile,'utf8')).trim();
  if(token.length<32||token.length>512)throw Error('MCP token must be at least 32 characters');
  const validToken=Buffer.from(token);
@@ -112,6 +116,10 @@ export async function createMcpHttpServer({registryFile,tokenFile,port=DEFAULT_P
    }
    const navigator=repositories.get(args.repo);
    if(!navigator){write(200,rpc(id,answer({error:'Repository not allowed'},true)));return;}
+   if(descriptor.name==='sac_job_report'){
+    const report=await readSacReport(reportRoutes,args.repo,args.jobId);
+    write(200,rpc(id,answer(report)));return;
+   }
    let result;
    switch(descriptor.name){
     case 'repo_stats':result=await navigator.stats();break;
@@ -132,7 +140,8 @@ export async function createMcpHttpServer({registryFile,tokenFile,port=DEFAULT_P
 }
 if(process.argv[1]&&import.meta.url===new URL('file://'+process.argv[1]).href){
  const instance=await createMcpHttpServer({registryFile:process.env.REPO_MCP_REGISTRY_FILE,tokenFile:process.env.REPO_MCP_TOKEN_FILE,
-  port:Number(process.env.PORT||DEFAULT_PORT),hostname:process.env.HOST||'0.0.0.0'});
+  port:Number(process.env.PORT||DEFAULT_PORT),hostname:process.env.HOST||'0.0.0.0',
+  reportsRoot:process.env.REPO_MCP_REPORTS_ROOT||'/srv/sac-reports'});
  await instance.start();
  process.stderr.write('Authenticated code MCP listening (read-only)\n');
 }

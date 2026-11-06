@@ -5,5 +5,5 @@ set -euo pipefail
 dest="$1"
 mkdir -p "$dest/repos/Painel" "$dest/tools/repo-mcp"
 git archive "$GITHUB_SHA" | tar -xf - -C "$dest/repos/Painel"
-cp tools/repo-mcp/indexer.mjs tools/repo-mcp/http-server.mjs "$dest/tools/repo-mcp/"
+cp tools/repo-mcp/indexer.mjs tools/repo-mcp/http-server.mjs tools/repo-mcp/sac-report-router.mjs "$dest/tools/repo-mcp/"
 printf '%s\n' '{"repos":[{"name":"Painel","path":"/srv/repos/Painel"}]}' > "$dest/registry.json"
