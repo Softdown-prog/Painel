@@ -50,7 +50,7 @@ docker compose -f server/compose.yaml -f server/compose.agents.yaml run --rm --n
 
 Abra no navegador do celular o endereço que a CLI mostrar e insira o código. Esse fluxo guarda as credenciais no volume privado `/srv/panel-codex/home`; não envie os códigos de autorização a terceiros. Não confundir Codex com a ferramenta `openai` CLI voltada à API REST.
 
-**Nota:** a imagem de desenvolvimento instala `@openai/codex@latest`. Para produção, fixe uma versão que tenha passado nos testes antes de construir e valide a saída de `codex --version`. Se o login por código não for aceito, confira as configurações da conta e a documentação oficial.
+**Nota:** o Dockerfile aceita `PANEL_CODEX_VERSION` via argumento de build; se ausente, usa `latest` apenas para desenvolvimento. Antes do build de produção, defina `PANEL_CODEX_VERSION` com uma versão testada do npm e valide a saída de `codex --version`. Se o login por código não for aceito, confira as configurações da conta e a documentação oficial.
 
 ### 4. Ativação (separada da instalação/login)
 
