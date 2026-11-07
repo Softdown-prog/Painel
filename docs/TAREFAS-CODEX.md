@@ -1,3 +1,9 @@
+### 2026-11-07 — Conectar Codex ao GitHub e à administração da VPS
+
+**Código em branch:** `feat/agents-operations-approval-20261107`, baseada na main `4a98d502`. Ferramentas dinâmicas do app-server 0.167.0, fila privada consultada pela API, modo Administração da VPS somente leitura no filesystem, comando exato com destino/fingerprint e aprovação única, revisão da saída antes de voltar ao modelo e publicação de snapshot Git em branch nova + PR em rascunho. Credenciais continuam só na API; nenhum novo socket, callback público, sudo ou alteração do broker. Reutiliza o gerenciador do Terminal VPS e os vínculos GitHub cadastrados.
+
+**Testes locais:** 24 testes específicos bridge/operações/API aprovados, três E2E Chromium de aprovação/destino/saída/diff aprovados, typecheck, build Angular, build:frontend e check:js aprovados. Canal SSH existente executou `uptime` real com exit 0. **CI, frontend publicado, backend instalado e ferramentas reais do modelo:** pendentes nesta revisão; o chat anterior continua ativo. Ver `docs/AGENT-OPERATIONS.md`.
+
 ### 2026-11-07 — Instalar Codex e conectar a aba Agentes
 
 **Produção validada:** PR #83 integrado em `47932caf67f4fba643dc4c3ace5a7430bb034aac`. **Código/CI:** oito testes bridge e onze verificações reais, sete checks verdes em `5a9e14df`; Console CI, Rust, admission Docker e Pages da main também passaram. **Frontend publicado:** Pages run `42382674154`. **Backend instalado:** API e executor `47932caf`, Codex 0.167.0 imagem `sha256:05b755d24f1a6eb07a357e6e104cdb73e6c8c18bb53082212e350a25accb6b6f` (código `5a9e14df`); todos saudáveis, overlay privado preservado na troca automática de release. **Fim a fim:** login administrativo existente, resposta real na aba Agentes, resposta sintética Geral e edição de arquivo CodexLab aprovados. Conta Google autenticada na VPS, sem copiar tokens locais; outros projetos/volumes/credenciais preservados. Agente não recebe Docker/root nem GitHub write automático.

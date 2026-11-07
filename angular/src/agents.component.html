@@ -12,9 +12,23 @@
    <aside class="agents-side" aria-label="Conversas e projetos">
     <label for="agentProject">Tipo de conversa / projeto</label>
     <select id="agentProject" [value]="project()" (change)="chooseProject($event)" [disabled]="busy()||!status()?.ready">
-     @for(p of status()?.projects??[];track p){<option [value]="p">{{p==='Geral'?'Conversa geral (sem projeto)':p}}</option>}
+     @for(p of status()?.projects??[];track p){<option [value]="p">{{p==='Geral'?'Conversa geral (sem projeto)':p==='AdministracaoVPS'?'Administração da VPS':p}}</option>}
     </select>
     <button type="button" class="agents-primary" [disabled]="busy()||!project()||!status()?.ready" (click)="create()">+ Nova conversa</button>
+    @if(status()?.operationsEnabled&&project()!=='Geral'&&project()!=='AdministracaoVPS'){
+     <div class="agent-binding">
+      <strong>Publicação no GitHub</strong>
+      @if(catalog().bindings[project()];as binding){<small>{{binding.repository}} · {{binding.branch}}</small>}
+      @else {<small>Conecte uma cópia a um repositório já cadastrado. Cada publicação exige revisão do diff.</small>}
+      <label for="agentRepository">Repositório autorizado</label>
+      <select id="agentRepository" [value]="repository()" (change)="chooseRepository($event)" [disabled]="busy()">
+       <option value="">Selecione</option>
+       @for(r of catalog().repositories;track r.fullName){<option [value]="r.fullName">{{r.fullName}}</option>}
+      </select>
+      <button type="button" (click)="bind()" [disabled]="busy()||!repository()">Conectar GitHub</button>
+      @if(!catalog().repositories.length){<a href="#projects">Cadastre em Projetos GitHub</a>}
+     </div>
+    }
     <h3>Conversas</h3>
     @for(t of threads();track t.id){
      <button type="button" class="agents-thread" [class.current]="conversation()?.id===t.id"
@@ -36,6 +50,33 @@
       @if(c.reply){<article class="assistant"><strong>Codex · escrevendo</strong><p>{{c.reply}}</p></article>}
       @if(c.status==='running'&&!c.reply){<p class="agents-note">O Codex está analisando o projeto. Você pode acompanhar por esta tela.</p>}
      </div>
+     @for(a of c.actions??[];track a.id){
+      @if(a.mode==='approval'){
+       <section class="agent-approval" aria-label="Confirmação de operação">
+        <h3>{{a.tool==='solicitar_comando_vps'?'Comando na VPS':'Publicar pull request'}}</h3>
+        @if(a.destination?.repository){<p>Destino: <strong>{{a.destination.repository}}</strong> · base {{a.destination.branch}}</p>}
+        @if(a.destination?.host){<p>Terminal: <strong>{{a.destination.user}}&#64;{{a.destination.host}}</strong></p>}
+        @if(a.args.command){<p>Confira o comando que será enviado ao terminal administrativo.</p><pre>{{a.args.command}}</pre><p>{{a.args.reason}}</p>}
+        @if(a.args.title){
+         <strong>{{a.args.title}}</strong><p>{{a.args.description}}</p>
+         <p>Uma branch nova e um PR em rascunho serão criados no repositório conectado. O merge continua sob sua revisão.</p>
+         <details><summary>Revisar arquivos e diff</summary>
+          <pre>{{a.args.diff}}</pre>
+          @for(f of a.args.files??[];track f.path){<details><summary>{{f.path}}{{f.content===null?' — excluir':''}}</summary><pre>{{f.content}}</pre></details>}
+         </details>
+        }
+        @if(a.status==='pending'){
+         @if(!a.destination){<p>Conferindo o destino da operação…</p>}
+         <div class="agents-actions"><button type="button" (click)="decide(a,'approve')" [disabled]="busy()||!a.destination">Aprovar uma vez</button><button type="button" (click)="decide(a,'deny')" [disabled]="busy()">Recusar</button></div>
+        } @else if(a.status==='awaiting_output'){
+         <p>Execução encerrada · código {{a.result?.exitCode}}. Revise a saída antes de enviá-la ao modelo.</p>
+         <pre>{{a.result?.output}}</pre>
+         <button type="button" (click)="copy(a.result?.output??'')">Copiar saída</button>
+         <div class="agents-actions"><button type="button" (click)="decide(a,'release')" [disabled]="busy()">Enviar saída ao Codex</button><button type="button" (click)="decide(a,'deny')" [disabled]="busy()">Não compartilhar</button></div>
+        } @else {<p>Executando a operação aprovada. Você pode acompanhar a tarefa pelo Terminal VPS.</p>}
+       </section>
+      }
+     }
      <form (submit)="submit($event)">
       <label for="agentPrompt">Mensagem para o Codex</label>
       <textarea id="agentPrompt" rows="4" maxlength="4000" [value]="prompt()"
@@ -55,6 +96,6 @@
     }
    </div>
   </div>
-  <p class="agents-note">Em Conversa geral, o Codex não pode editar projetos. Nas demais conversas, só acessa os projetos montados no seu container. Não recebe Docker, root ou permissão de publicação automática. Revise as alterações antes de publicar.</p>
+  <p class="agents-note">Conversa geral permite consultas. Administração da VPS permite propor comandos com confirmação individual e revisão da saída. Nas cópias dos projetos, revise o diff antes de autorizar uma branch e um PR em rascunho. As credenciais permanecem na API.</p>
  }
 </section>

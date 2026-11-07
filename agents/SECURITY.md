@@ -30,6 +30,13 @@ e a rede das ferramentas. O processo confiável do Codex mantém acesso às suas
 credenciais para inferência e renovação de OAuth; elas não são retornadas ao chat.
 Reinicie somente o Codex depois de cadastrar um novo clone para registrar o perfil.
 
-`sandbox-smoke.mjs` testa onze verificações com arquivos sintéticos e o app-server
+O modo `AdministracaoVPS` tem cwd vazio somente leitura e não lê as cópias de
+projetos. Ferramentas dinâmicas só propõem operações; a API consulta a fila
+privada e exige sessão administrativa + fingerprint/destino antes de executar
+um comando pelo terminal existente. A saída livre requer revisão antes de
+retornar ao modelo. Publicação GitHub cria somente branch nova e PR em rascunho,
+após confirmar o snapshot e vínculo protegido. Nenhuma chave é montada no modelo.
+
+`sandbox-smoke.mjs` testa quatorze verificações com arquivos sintéticos e o app-server
 real, sem chamadas a modelos ou credenciais reais. O workflow dedicado repete
 esses testes em Linux. Aprovação da CI não significa instalação na VPS.

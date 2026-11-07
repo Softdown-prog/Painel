@@ -58,10 +58,13 @@ test('setup, login, session and logout require the edge key', async () => {
     assert.equal((await request('/panel-version')).response.status, 401);
     assert.equal((await request('/terminal/ssh/exec', 'POST', { command:'whoami' })).response.status, 401);
     assert.equal((await request('/agents/status')).response.status, 401);
+    assert.equal((await request('/agents/projects')).response.status,401);
+    assert.equal((await request('/agents/actions/'+('a'.repeat(32))+'/approve','POST',{fingerprint:'b'.repeat(64)})).response.status,401);
     assert.equal((await request('/secrets')).response.status, 401);
     const agents = await request('/agents/status', 'GET', undefined, key, cookie);
     assert.equal(agents.response.status, 200);
     assert.deepEqual(agents.data, { enabled:false, ready:false, projects:[] });
+    assert.equal((await request('/agents/tool-calls/'+('a'.repeat(32))+'/result','POST',{result:{success:true}},key,cookie)).response.status,404);
     const secrets = await request('/secrets', 'GET', undefined, key, cookie);
     assert.equal(secrets.response.status, 200);
     assert.equal(secrets.data.enabled, false);

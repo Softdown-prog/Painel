@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import {createServer,connect} from 'node:net';
 import {once} from 'node:events';
 import {codexArguments,permissionName,projectDirectory} from './bridge.mjs';
+import {toolsFor,ADMIN_PROJECT} from './operations.mjs';
 
 for(const p of ['/workspace/Geral','/workspace/Painel','/workspace/Other','/home/node/.codex','/state'])
  mkdirSync(p,{recursive:true});
@@ -17,7 +18,7 @@ assert.equal(readFileSync('/run/secrets/panel-agent-key','utf8'),'fake-bridge-ke
 const listener=createServer(s=>s.end('fixture'));
 listener.listen(23456,'127.0.0.1');await once(listener,'listening');
 const reachable=connect(23456,'127.0.0.1');await once(reachable,'connect');reachable.end();
-const proc=spawn('codex',codexArguments('/workspace',['Geral','Painel','Other']),
+const proc=spawn('codex',codexArguments('/workspace',['Geral','Painel','Other',ADMIN_PROJECT]),
  {cwd:'/workspace/Painel',stdio:['pipe','pipe','pipe']});
 let seq=0,stderr='';const pending=new Map();
 proc.stderr.on('data',data=>{stderr=(stderr+data).slice(-3000);});
@@ -36,9 +37,9 @@ const results=[];
 try{
  await rpc('initialize',{clientInfo:{name:'panel_sandbox_test',version:'1.0'},capabilities:{experimentalApi:true}});
  proc.stdin.write('{"method":"initialized","params":{}}\n');
- for(const project of ['Geral','Painel']){
+ for(const project of ['Geral','Painel',ADMIN_PROJECT]){
   const thread=await rpc('thread/start',{cwd:projectDirectory('/workspace',project),
-   permissions:permissionName(project),approvalPolicy:'never'});
+   permissions:permissionName(project),approvalPolicy:'never',dynamicTools:toolsFor(project)});
   assert.ok(thread.thread?.id);results.push('thread-start-'+project);
  }
  const allowed=await command('Painel',['cat','/workspace/Painel/input.txt']);
@@ -56,6 +57,10 @@ try{
  assert.notEqual(general.exitCode,0);assert.equal(existsSync('/workspace-general/forbidden.txt'),false);results.push('general-read-only');
  const cross=await command('Geral',['cat','/workspace/Painel/input.txt']);
  assert.notEqual(cross.exitCode,0);results.push('general-project-isolation');
+ const adminWrite=await command(ADMIN_PROJECT,['sh','-c','printf no > /workspace-admin/forbidden.txt']);
+ assert.notEqual(adminWrite.exitCode,0);assert.equal(existsSync('/workspace-admin/forbidden.txt'),false);results.push('admin-filesystem-read-only');
+ const adminCross=await command(ADMIN_PROJECT,['cat','/workspace/Painel/input.txt']);
+ assert.notEqual(adminCross.exitCode,0);results.push('admin-project-isolation');
  const network=await command('Painel',['node','-e',
   "const s=require('net').connect(23456,'127.0.0.1');s.on('connect',()=>process.exit(0));s.on('error',()=>process.exit(7));setTimeout(()=>process.exit(8),1000)"]);
  assert.notEqual(network.exitCode,0);results.push('tool-network-denied');

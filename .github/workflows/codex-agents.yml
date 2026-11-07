@@ -42,4 +42,4 @@ jobs:
             -v "$PWD/agents:/tests:ro" \
             -v "$key:/run/secrets/panel-agent-key:ro" \
             --entrypoint sh panel-codex:test \
-            -c 'node --test /tests/bridge.test.mjs && node /tests/sandbox-smoke.mjs'
+            -c 'node --test /tests/bridge.test.mjs /tests/operations.test.mjs && node /tests/sandbox-smoke.mjs'

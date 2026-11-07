@@ -24,5 +24,9 @@
 .agents-actions{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
 .agents-actions span{font-size:.8rem;opacity:.7}
 .agents-stop{border:1px solid #bb6060;color:#e99090;background:transparent}
+.agent-approval{border:1px solid #b6924f;border-radius:12px;padding:14px;display:grid;gap:10px;min-width:0}
+.agent-approval h3{margin:0}.agent-approval pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;background:rgba(0,0,0,.2);padding:12px;border-radius:8px;min-width:0}
+.agent-approval button{min-height:44px;padding:10px 14px;border-radius:8px;cursor:pointer}
+.agent-binding{display:grid;gap:8px;padding:12px 0;border-bottom:1px solid var(--border,#344054);min-width:0}.agent-binding small{overflow-wrap:anywhere;color:var(--muted,#8595a6)}
 .agents button:disabled{opacity:.5;cursor:not-allowed}
 @media(max-width:700px){.agents-layout{grid-template-columns:minmax(0,1fr)}.agents-messages{max-height:50vh;min-height:180px}}
