@@ -4,17 +4,34 @@ import {readFileSync} from 'node:fs';
 import type {AgentOperations} from './agent-operations.ts';
 type Deps={send:(res:ServerResponse,status:number,body:unknown)=>void;
  body:(req:IncomingMessage)=>Promise<Record<string,unknown>>;operations?:AgentOperations};
-export async function agentBridge(path:string,method='GET',payload?:object):Promise<any>{
- const key=readFileSync(process.env['PANEL_CODEX_AGENT_KEY_FILE']||'/run/secrets/panel-agent-key','utf8').trim();
- if(key.length<32)throw Error('Missing key');
- const target=process.env['PANEL_CODEX_AGENT_URL']||'http://codex-agents:8091';
- const response=await fetch(target+path,{method,redirect:'error',signal:AbortSignal.timeout(30000),
-  headers:{'x-panel-agent-key':key,'content-type':'application/json'},...(payload?{body:JSON.stringify(payload)}:{})});
- if(Number(response.headers.get('content-length')||0)>1000000)throw Error('Large response');
- const raw=await response.text();if(Buffer.byteLength(raw)>1000000)throw Error('Large response');
+type AgentReply={status:number;body:Record<string,unknown>};
+
+/** Private Codex transport shared by chat, admin and model metadata. */
+async function requestAgentBridge(path:string,method='GET',payload?:object):Promise<AgentReply>{
+ const secret=readFileSync(process.env['PANEL_CODEX_AGENT_KEY_FILE']||
+  '/run/secrets/panel-agent-key','utf8').trim();
+ if(secret.length<32)throw Error('Missing bridge key');
+ const endpoint=process.env['PANEL_CODEX_AGENT_URL']||'http://codex-agents:8091';
+ const response=await fetch(endpoint+path,{method,redirect:'error',
+  signal:AbortSignal.timeout(30000),
+  headers:{'x-panel-agent-key':secret,'content-type':'application/json'},
+  ...(payload?{body:JSON.stringify(payload)}:{})
+ });
+ if(Number(response.headers.get('content-length')||0)>1_000_000)
+  throw Error('Large bridge response');
+ const raw=await response.text();
+ if(Buffer.byteLength(raw,'utf8')>1_000_000)throw Error('Large bridge response');
  const data:unknown=JSON.parse(raw);
- if(!data||typeof data!=='object'||Array.isArray(data))throw Error('Invalid response');
- if(!response.ok)throw Error('Bridge rejected request');return data;
+ if(!data||typeof data!=='object'||Array.isArray(data))
+  throw Error('Invalid bridge response');
+ return {status:response.status,body:data as Record<string,unknown>};
+}
+
+/** Internal calls fail closed on non-2xx; browser calls retain status. */
+export async function agentBridge(path:string,method='GET',payload?:object):Promise<any>{
+ const reply=await requestAgentBridge(path,method,payload);
+ if(reply.status<200||reply.status>=300)throw Error('Bridge rejected request');
+ return reply.body;
 }
 export async function handleAgentRoute(req:IncomingMessage,res:ServerResponse,deps:Deps):Promise<boolean>{
  const path=new URL(req.url||'/','http://panel.local').pathname;
@@ -42,22 +59,9 @@ export async function handleAgentRoute(req:IncomingMessage,res:ServerResponse,de
   return true;
  }
  try{
-  const key=readFileSync(process.env['PANEL_CODEX_AGENT_KEY_FILE']||
-   '/run/secrets/panel-agent-key','utf8').trim();
-  if(key.length<32)throw Error('Missing key');
   const payload=post?await deps.body(req):undefined;
-  const target=process.env['PANEL_CODEX_AGENT_URL']||'http://codex-agents:8091';
-  const response=await fetch(target+path.slice('/agents'.length),{
-   method:req.method || 'GET',redirect:'error',signal:AbortSignal.timeout(30000),
-   headers:{'x-panel-agent-key':key,'content-type':'application/json'},
-   ...(payload?{body:JSON.stringify(payload)}:{})
-  });
-  if(Number(response.headers.get('content-length')||0)>1000000)throw Error('Large response');
-  const raw=await response.text();
-  if(Buffer.byteLength(raw,'utf8')>1000000)throw Error('Large response');
-  const data:unknown=JSON.parse(raw);
-  if(!data||typeof data!=='object'||Array.isArray(data))throw Error('Invalid reply');
-  deps.send(res,response.status,data);
+  const reply=await requestAgentBridge(path.slice('/agents'.length),req.method||'GET',payload);
+  deps.send(res,reply.status,reply.body);
  }catch{deps.send(res,503,{error:'Agentes indisponíveis. Verifique o Codex na VPS.'});}
  return true;
 }
