@@ -21,6 +21,15 @@ async function fixture(t,{saved=[],savedCalls=[],operationsEnabled=false}={}){
   const request=JSON.parse(chunk.toString());calls.push(request);
   if(request.id&&request.method){
    const result=request.method==='account/read'?{account:{type:'chatgpt'}}:
+    request.method==='model/list'?{data:[
+     {model:'codex-test',displayName:'Codex Test',defaultReasoningEffort:'medium',
+      supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'medium'},{reasoningEffort:'high'}],isDefault:true}
+    ]}:
+    request.method==='account/rateLimits/read'?{rateLimits:{limitId:'codex',
+     primary:{usedPercent:23,windowDurationMins:300,resetsAt:1800000000},
+     secondary:{usedPercent:40,windowDurationMins:10080,resetsAt:1800080000}}}:
+    request.method==='account/usage/read'?{summary:{lifetimeTokens:5000},
+     dailyUsageBuckets:[{startDate:'2026-11-07',tokens:100}]}:
     request.method==='thread/start'?{thread:{id:'thread-'+(++nextThread)}}:
     request.method==='turn/start'?{turn:{id:'turn-1'}}:{};
    queueMicrotask(()=>proc.stdout.write(JSON.stringify({id:request.id,result})+'\n'));
@@ -175,4 +184,42 @@ test('large conversation response is bounded without losing the latest message',
  const response=await f.request('/threads/large-thread');const raw=await response.text();const data=JSON.parse(raw);
  assert.equal(response.status,200);assert.ok(Buffer.byteLength(raw)<500000);assert.equal(data.thread.historyTruncated,true);
  assert.equal(data.thread.messages.at(-1).text,messages.at(-1).text);
+});
+
+test('model selection uses catalog only; settings do not replace existing history',async t=>{
+ const f=await fixture(t);
+ const catalog=await(await f.request('/models')).json();
+ assert.equal(catalog.models[0].id,'codex-test');
+ assert.equal(catalog.models[0].defaultEffort,'medium');
+ assert.equal((await f.request('/threads','POST',{project:'Painel',model:'not-in-catalog',effort:'high'})).status,400);
+ const created=await(await f.request('/threads','POST',{project:'Painel',model:'codex-test',effort:'high'})).json();
+ const id=created.thread.id;
+ assert.equal(f.calls.findLast(x=>x.method==='thread/start').params.model,'codex-test');
+ assert.equal((await f.request('/threads/'+id+'/turns','POST',{message:'Diagnostique os testes'})).status,202);
+ assert.equal(f.calls.findLast(x=>x.method==='turn/start').params.effort,'high');
+ f.notify('thread/tokenUsage/updated',{threadId:id,tokenUsage:{total:{
+  inputTokens:40,outputTokens:12,totalTokens:52}}});
+ f.notify('turn/completed',{threadId:id,turn:{status:'completed'}});
+ await new Promise(resolve=>setTimeout(resolve,20));
+ const before=(await(await f.request('/threads/'+id)).json()).thread;
+ assert.equal(before.usage.totalTokens,52);
+ assert.equal(before.title,'Diagnostique os testes');
+ const renamed=await f.request('/threads/'+id+'/title','POST',{title:'Auditoria do painel'});
+ assert.equal(renamed.status,200);
+ assert.equal((await f.request('/threads/'+id+'/settings','POST',{model:'codex-test',effort:'low'})).status,200);
+ const after=(await(await f.request('/threads/'+id)).json()).thread;
+ assert.equal(after.title,'Auditoria do painel');
+ assert.equal(after.effort,'low');
+ assert.equal(after.messages.length,1);
+ assert.equal((await f.request('/threads/'+id+'/settings','POST',{model:'codex-test',effort:'max'})).status,400);
+ assert.equal((await f.request('/threads/'+id+'/title','POST',{title:'\\ninvalid'})).status,400);
+});
+test('usage endpoints preserve weekly limits and activity without exposing account details',async t=>{
+ const f=await fixture(t);
+ const result=await(await f.request('/usage')).json();
+ assert.equal(result.quota.available,true);
+ assert.equal(result.quota.buckets[0].secondary.windowDurationMins,10080);
+ assert.equal(result.tokens.lifetimeTokens,5000);
+ assert.equal(JSON.stringify(result).includes('accessToken'),false);
+ assert.equal((await f.request('/usage','GET',undefined,'bad')).status,404);
 });
