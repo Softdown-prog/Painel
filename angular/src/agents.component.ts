@@ -1,9 +1,12 @@
 import {Component,OnInit,OnDestroy,signal,computed} from '@angular/core';
-type Status={enabled:boolean;ready:boolean;active?:boolean;projects:string[];operationsEnabled?:boolean};
+import {availablePercent,quotaCountdown,type CodexQuotaWindow} from './codex-quota';
+type Status={enabled:boolean;ready:boolean;active?:boolean;projects:string[];operationsEnabled?:boolean;
+ features?:{modelSelection?:boolean;quotaWindows?:boolean;historySearch?:boolean}};
 type Message={role:'user'|'assistant';text:string;source?:'operation'};
 type Model={id:string;label:string;efforts:string[];defaultEffort:string|null;isDefault:boolean};
-type QuotaWindow={usedPercent:number|null;windowDurationMins:number|null;resetsAt:number|null};
-type Usage={checkedAt:string;quota:{available:boolean;buckets:{id:string;label:string;primary:QuotaWindow|null;secondary:QuotaWindow|null}[]};
+type QuotaWindow=CodexQuotaWindow;
+type Usage={checkedAt:string;quota:{available:boolean;resetCreditsAvailable?:number|null;ordinaryUsageAllowed?:boolean|null;
+ buckets:{id:string;label:string;primary:QuotaWindow|null;secondary:QuotaWindow|null}[]};
  tokens:{available:boolean;lifetimeTokens:number|null;daily:{date:string;tokens:number}[]}};
 type ThreadTokens={totalTokens:number|null;inputTokens:number|null;outputTokens:number|null;cachedInputTokens:number|null};
 type ThreadSummary={id:string;project:string;title:string;status:string;createdAt?:string|null;updatedAt?:string|null;
@@ -42,16 +45,21 @@ export class AgentsComponent implements OnInit,OnDestroy {
   return query?all.filter(t=>(t.title+' '+t.project).toLocaleLowerCase('pt-BR').includes(query)):all;
  });
  readonly usage=signal<Usage|null>(null);
+ readonly clock=signal(Date.now());
  readonly metadataError=signal('');
  readonly metadataBusy=signal(false);
  readonly githubCheck=signal<GithubCheck|null>(null);
  readonly githubBusy=signal(false);
  readonly githubError=signal('');
  private polling:ReturnType<typeof setInterval>|null=null;
+ private lastMetadataCheck=0;
  private dead=false;
  private fetchInFlight=false;
  async ngOnInit():Promise<void>{
   this.polling=setInterval(()=>{
+   const now=Date.now();
+   if(now-this.clock()>=30000)this.clock.set(now);
+   if(this.status()?.ready&&now-this.lastMetadataCheck>=60000)void this.refreshMetadata();
    const c=this.conversation();
    if(c&&(c.status==='running'||c.actions?.some(a=>['pending','running','awaiting_output'].includes(a.status)||['pending','delivering'].includes(a.deliveryState??''))))void this.poll();
   },2500);
@@ -122,7 +130,7 @@ export class AgentsComponent implements OnInit,OnDestroy {
  }
  async refreshMetadata():Promise<void>{
   if(this.dead||this.metadataBusy()||!this.status()?.ready)return;
-  this.metadataBusy.set(true);this.metadataError.set('');
+  this.metadataBusy.set(true);this.metadataError.set('');this.lastMetadataCheck=Date.now();
   try{
    const result=await this.api<{supported:boolean;models:Model[];configuredModel?:string|null;configuredEffort?:string|null}>('/models');
    if(this.dead)return;
@@ -166,6 +174,13 @@ export class AgentsComponent implements OnInit,OnDestroy {
  formatTime(epoch:number|null|undefined):string{
   if(!epoch)return 'Não informado';
   return new Date(epoch*1000).toLocaleString('pt-BR');
+ }
+ remaining(window:QuotaWindow):string{
+  const percent=availablePercent(window);
+  return percent===null?'Restante não informado':percent+'% disponível';
+ }
+ resetCountdown(window:QuotaWindow):string{
+  return quotaCountdown(window,this.clock());
  }
  formatDate(value:string|null|undefined):string{
   if(!value)return 'Data anterior não registrada';
