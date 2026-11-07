@@ -1,7 +1,7 @@
 import {createServer} from 'node:http';
 import {spawn} from 'node:child_process';
 import {createInterface} from 'node:readline';
-import {readFileSync,readdirSync,existsSync,writeFileSync,renameSync} from 'node:fs';
+import {readFileSync,readdirSync,existsSync,writeFileSync,renameSync,mkdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {timingSafeEqual} from 'node:crypto';
 const slug=/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
@@ -17,6 +17,7 @@ async function input(req){let n=0,s='';for await(const c of req){n+=c.length;
  const v=JSON.parse(s);if(!v||Array.isArray(v)||typeof v!=='object')throw Error('Bad JSON');return v;}
 export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
  if(typeof secret!=='string'||secret.length<32)throw Error('Missing bridge secret');
+ mkdirSync(join(workspace,'Geral'),{recursive:true,mode:0o700});
  const stateFile=join(stateDir,'threads.json'),sessions=new Map();
  if(existsSync(stateFile)){const saved=JSON.parse(readFileSync(stateFile,'utf8'));
   if(!Array.isArray(saved))throw Error('Invalid state file');
@@ -89,7 +90,7 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
     const b=await input(req);if(typeof b.project!=='string'||!slug.test(b.project)||
      !projects(workspace).includes(b.project))return json(res,400,{error:'Projeto não autorizado.'});
     const result=await rpc('thread/start',{cwd:join(workspace,b.project),
-     sandbox:'workspace-write',approvalPolicy:'never',serviceName:'softdown_panel'});
+     sandbox:b.project==='Geral'?'read-only':'workspace-write',approvalPolicy:'never',serviceName:'softdown_panel'});
     const id=result?.thread?.id;if(typeof id!=='string'||!threadId.test(id))throw Error('Bad thread ID');
     const created={id,project:b.project,title:b.project,messages:[],status:'idle',reply:'',turnId:null};
     sessions.set(id,created);save();return json(res,201,{thread:created});
