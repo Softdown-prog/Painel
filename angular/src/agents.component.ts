@@ -30,6 +30,8 @@ export class AgentsComponent implements OnInit,OnDestroy {
  readonly repository=signal('');
  readonly models=signal<Model[]>([]);
  readonly modelsSupported=signal(false);
+ readonly configuredModel=signal<string|null>(null);
+ readonly configuredEffort=signal<string|null>(null);
  readonly model=signal('');
  readonly effort=signal('');
  readonly titleDraft=signal('');
@@ -122,9 +124,11 @@ export class AgentsComponent implements OnInit,OnDestroy {
   if(this.dead||this.metadataBusy()||!this.status()?.ready)return;
   this.metadataBusy.set(true);this.metadataError.set('');
   try{
-   const result=await this.api<{supported:boolean;models:Model[]}>('/models');
+   const result=await this.api<{supported:boolean;models:Model[];configuredModel?:string|null;configuredEffort?:string|null}>('/models');
    if(this.dead)return;
    this.models.set(result.models);this.modelsSupported.set(result.supported);
+   this.configuredModel.set(result.configuredModel??null);
+   this.configuredEffort.set(result.configuredEffort??null);
   }catch{if(!this.dead)this.metadataError.set('Catálogo de modelos não disponível nesta versão do Codex.');}
   try{
    const result=await this.api<Usage>('/usage');
