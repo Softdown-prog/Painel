@@ -216,7 +216,7 @@ test('model selection uses catalog only; settings do not replace existing histor
  assert.equal(after.effort,'low');
  assert.equal(after.messages.length,1);
  assert.equal((await f.request('/threads/'+id+'/settings','POST',{model:'codex-test',effort:'max'})).status,400);
- assert.equal((await f.request('/threads/'+id+'/title','POST',{title:'\\ninvalid'})).status,400);
+ assert.equal((await f.request('/threads/'+id+'/title','POST',{title:'invalid'+String.fromCharCode(10)+'line'})).status,400);
 });
 test('usage endpoints preserve weekly limits and activity without exposing account details',async t=>{
  const f=await fixture(t);
