@@ -26,7 +26,9 @@ async function fixture(t,{saved=[],savedCalls=[],operationsEnabled=false}={}){
       supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'medium'},{reasoningEffort:'high'}],isDefault:true}
     ]}:
     request.method==='config/read'?{config:{model:'codex-test',model_reasoning_effort:'medium',apiKey:'MUST_NOT_LEAK'}}:
-    request.method==='account/rateLimits/read'?{rateLimits:{limitId:'codex',
+    request.method==='account/rateLimits/read'?{ordinaryUsageAllowed:true,
+     rateLimitResetCredits:{availableCount:2,credits:[{id:'provider-secret'}]},
+     rateLimits:{limitId:'codex',
      primary:{usedPercent:23,windowDurationMins:300,resetsAt:1800000000},
      secondary:{usedPercent:40,windowDurationMins:10080,resetsAt:1800080000}}}:
     request.method==='account/usage/read'?{summary:{lifetimeTokens:5000},
@@ -223,6 +225,9 @@ test('usage endpoints preserve weekly limits and activity without exposing accou
  const result=await(await f.request('/usage')).json();
  assert.equal(result.quota.available,true);
  assert.equal(result.quota.buckets[0].secondary.windowDurationMins,10080);
+ assert.equal(result.quota.resetCreditsAvailable,2);
+ assert.equal(result.quota.ordinaryUsageAllowed,true);
+ assert.equal(JSON.stringify(result).includes('provider-secret'),false);
  assert.equal(result.tokens.lifetimeTokens,5000);
  assert.equal(JSON.stringify(result).includes('accessToken'),false);
  assert.equal((await f.request('/usage','GET',undefined,'bad')).status,404);

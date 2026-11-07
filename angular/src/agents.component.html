@@ -8,12 +8,19 @@
   <p class="agents-note" role="status">O módulo ainda não foi ativado na VPS. A instalação e o login do Codex são necessários antes de conversar.</p>
  } @else {
   <p class="agents-note" role="status">{{status()?.ready?'Serviço Codex inicializado.':'Codex indisponível. Verifique o serviço e a autenticação na VPS.'}}</p>
+  @if(status()?.ready&&!status()?.features?.quotaWindows){
+   <p class="agents-note" role="status">O chat está conectado, mas o serviço Codex ainda não confirmou suporte aos novos controles de uso. Atualize o container do agente para a versão do Painel.</p>
+  }
   <details class="agent-usage">
    <summary>Uso e limites do Codex</summary>
    <div class="agent-usage-body">
     <button type="button" (click)="refreshMetadata()" [disabled]="metadataBusy()||!status()?.ready">Atualizar dados da conta</button>
     @if(metadataError()){<p class="agents-note">{{metadataError()}}</p>}
     @if(usage();as u){
+     <small>Última consulta: {{formatDate(u.checkedAt)}}</small>
+     @if(u.quota.ordinaryUsageAllowed===false){
+      <p class="agents-note">O serviço informou que o uso incluído da conta está indisponível neste momento.</p>
+     }
      @if(u.quota.available){
       <h3>Franquias informadas pela conta</h3>
       @for(bucket of u.quota.buckets;track bucket.id){
@@ -22,20 +29,28 @@
         @if(bucket.primary;as window){
          <div><span>{{windowLabel(window)}}</span>
           <strong>{{window.usedPercent===null?'Não informado':window.usedPercent+'% utilizado'}}</strong>
+          <small>{{remaining(window)}}</small>
           <small>Renova: {{formatTime(window.resetsAt)}}</small>
+          <small>{{resetCountdown(window)}}</small>
          </div>
          @if(window.usedPercent!==null){<progress [value]="window.usedPercent" max="100" [attr.aria-label]="windowLabel(window)+' utilizado'"></progress>}
         }
         @if(bucket.secondary;as window){
          <div><span>{{windowLabel(window)}}</span>
           <strong>{{window.usedPercent===null?'Não informado':window.usedPercent+'% utilizado'}}</strong>
+          <small>{{remaining(window)}}</small>
           <small>Renova: {{formatTime(window.resetsAt)}}</small>
+          <small>{{resetCountdown(window)}}</small>
          </div>
          @if(window.usedPercent!==null){<progress [value]="window.usedPercent" max="100" [attr.aria-label]="windowLabel(window)+' utilizado'"></progress>}
         }
        </div>
       }
      } @else {<p class="agents-note">O Codex não informou os limites ou a janela semanal para esta conta.</p>}
+     @if(u.quota.resetCreditsAvailable!==null&&u.quota.resetCreditsAvailable!==undefined){
+      <p><strong>Créditos de redefinição disponíveis:</strong> {{u.quota.resetCreditsAvailable}}</p>
+      <small>Consulta informativa. Nenhum crédito será usado automaticamente pelo Painel.</small>
+     }
      @if(u.tokens.available){
       <p><strong>Tokens totais informados pela conta:</strong> {{formatNumber(u.tokens.lifetimeTokens)}}</p>
       @if(u.tokens.daily.length){

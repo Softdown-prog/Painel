@@ -38,7 +38,7 @@ function windowData(source){
   {usedPercent:percent,windowDurationMins:mins,resetsAt:reset};
 }
 export function normalizeRateLimits(raw){
- if(!plain(raw))return {available:false,buckets:[]};
+ if(!plain(raw))return {available:false,buckets:[],resetCreditsAvailable:null,ordinaryUsageAllowed:null};
  const by=plain(raw.rateLimitsByLimitId)?Object.values(raw.rateLimitsByLimitId):
   plain(raw.rateLimits)?[raw.rateLimits]:[];
  const buckets=[];
@@ -50,7 +50,10 @@ export function normalizeRateLimits(raw){
   buckets.push({id,label:typeof value.limitName==='string'&&value.limitName.length<=80?
    value.limitName:id,primary,secondary});
  }
- return {available:buckets.length>0,buckets};
+ const creditCount=safeInt(raw.rateLimitResetCredits?.availableCount,1000000);
+ const ordinaryUsageAllowed=typeof raw.ordinaryUsageAllowed==='boolean'?
+  raw.ordinaryUsageAllowed:null;
+ return {available:buckets.length>0,buckets,resetCreditsAvailable:creditCount,ordinaryUsageAllowed};
 }
 export function normalizeUsage(raw){
  if(!plain(raw)||!plain(raw.summary)&&!Array.isArray(raw.dailyUsageBuckets))

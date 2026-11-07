@@ -1,0 +1,85 @@
+name: Stage pinned Codex bridge image (no VPS changes)
+on:
+  pull_request:
+    paths:
+      - 'agents/**'
+      - '.github/workflows/stage-codex-bridge.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'agents/**'
+      - '.github/workflows/stage-codex-bridge.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+jobs:
+  stage:
+    if: github.repository == 'Softdown-prog/Painel'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build pinned test image with source revision label
+        run: |
+          docker build --build-arg PANEL_SOURCE_SHA="$GITHUB_SHA" -t panel-codex:stage agents
+          test "$(docker image inspect panel-codex:stage --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$GITHUB_SHA"
+          test "$(docker image inspect panel-codex:stage --format '{{ index .Config.Labels "org.opencontainers.image.source" }}')" = "https://github.com/Softdown-prog/Painel"
+      - name: Enable restricted sandbox profile for CI only
+        run: |
+          if ! command -v apparmor_parser >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y apparmor
+          fi
+          sudo apparmor_parser -r agents/apparmor.profile
+      - name: Run actual Codex bridge and isolation checks without credentials
+        run: |
+          set -euo pipefail
+          key="$(mktemp)"
+          trap 'rm -f "$key"' EXIT
+          printf fake-bridge-key > "$key"
+          chmod 444 "$key"
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --security-opt apparmor=panel-codex \
+            --security-opt "seccomp=$PWD/agents/seccomp.json" \
+            --memory 384m --cpus 1 --pids-limit 128 \
+            --tmpfs /tmp:uid=61110,gid=61110,size=64m,mode=1777 \
+            --tmpfs /home/node/.codex:uid=61110,gid=61110,size=64m,mode=0700 \
+            --tmpfs /workspace:uid=61110,gid=61110,size=16m,mode=0700 \
+            --tmpfs /state:uid=61110,gid=61110,size=16m,mode=0700 \
+            -v "$PWD/agents:/tests:ro" \
+            -v "$key:/run/secrets/panel-agent-key:ro" \
+            --entrypoint sh panel-codex:stage \
+            -c 'node --test /tests/bridge.test.mjs /tests/operations.test.mjs /tests/telemetry.test.mjs && node /tests/sandbox-smoke.mjs'
+      - name: Set up GHCR builder
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: docker/setup-buildx-action@v3
+      - name: Authenticate only to push image to GHCR
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish immutable staged agent image; do not deploy to VPS
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        id: publish
+        uses: docker/build-push-action@v6
+        with:
+          context: agents
+          push: true
+          tags: ghcr.io/softdown-prog/painel-codex:${{ github.sha }}
+          build-args: |
+            PANEL_SOURCE_SHA=${{ github.sha }}
+            CODEX_NPM_VERSION=0.167.0
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/Softdown-prog/Painel
+      - name: Record image digest for manual sidecar-only rollout
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          echo "Codex image staged at ghcr.io/softdown-prog/painel-codex@${{ steps.publish.outputs.digest }}"
+          echo "Image does not update the VPS by itself; apply the separate reviewed rollout."

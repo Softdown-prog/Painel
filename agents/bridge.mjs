@@ -180,7 +180,9 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn,operati
    !timingSafeEqual(Buffer.from(candidate),Buffer.from(secret)))return json(res,404,{error:'Not found'});
   const path=new URL(req.url||'/','http://agent.local').pathname;
   if(path==='/status'&&req.method==='GET')return json(res,200,
-   {enabled:true,ready:ready&&authenticated,projects:registered,active:!!active,...(calls?{operationsEnabled:true}:{})});
+   {enabled:true,ready:ready&&authenticated,projects:registered,active:!!active,
+    features:{modelSelection:true,quotaWindows:true,historySearch:true},
+    ...(calls?{operationsEnabled:true}:{})});
   if(path==='/models'&&req.method==='GET'){
    if(!ready||!authenticated)return json(res,503,{error:'Codex não autenticado.'});
    const catalog=await models();
