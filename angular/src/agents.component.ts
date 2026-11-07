@@ -13,6 +13,8 @@ type Action={id:string;fingerprint:string;mode:string;tool:string;status:string;
  result?:{output?:string;exitCode?:number;state?:string;warning?:string}};
 type Thread=ThreadSummary&{messages:Message[];reply:string;actions?:Action[];historyTruncated?:boolean;effectiveModel?:string|null;usage?:ThreadTokens|null};
 type Catalog={bindings:Record<string,{repository:string;branch:string}>;repositories:{fullName:string;branch:string}[]};
+type GithubCheck={enabled:boolean;authenticated:boolean;repositories:{name:string;branch:string;readable:boolean;canPush:boolean}[];
+ workspaces:{project:string;repository:string;workspaceAvailable:boolean}[];note:string};
 @Component({selector:'panel-agents',standalone:true,
  templateUrl:'./agents.component.html',styleUrl:'./agents.component.css'})
 export class AgentsComponent implements OnInit,OnDestroy {
@@ -40,6 +42,9 @@ export class AgentsComponent implements OnInit,OnDestroy {
  readonly usage=signal<Usage|null>(null);
  readonly metadataError=signal('');
  readonly metadataBusy=signal(false);
+ readonly githubCheck=signal<GithubCheck|null>(null);
+ readonly githubBusy=signal(false);
+ readonly githubError=signal('');
  private polling:ReturnType<typeof setInterval>|null=null;
  private dead=false;
  private fetchInFlight=false;
@@ -237,6 +242,15 @@ export class AgentsComponent implements OnInit,OnDestroy {
   }catch(e){if(!this.dead)this.error.set(this.message(e));}finally{this.busy.set(false);}
  }
  chooseRepository(event:Event):void{const el=event.target;if(el instanceof HTMLSelectElement)this.repository.set(el.value);}
+ async verifyGithub():Promise<void>{
+  if(this.dead||this.githubBusy()||!this.status()?.operationsEnabled)return;
+  this.githubBusy.set(true);this.githubError.set('');
+  try{const result=await this.api<GithubCheck>('/projects/check');
+   if(!this.dead)this.githubCheck.set(result);
+  }catch{if(!this.dead){this.githubCheck.set(null);
+    this.githubError.set('Não foi possível confirmar a conexão do GitHub da VPS.');}}
+  finally{this.githubBusy.set(false);}
+ }
  async bind():Promise<void>{
   const project=this.project(),repository=this.repository();
   if(this.busy()||!repository||['Geral','AdministracaoVPS'].includes(project))return;
