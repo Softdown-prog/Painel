@@ -34,9 +34,11 @@ test('cancelled requests stop and disallowed paths never reach fetch', async () 
   assert.equal(calls, 0);const controller = new AbortController(), pending = api.request('/session', {signal: controller.signal});controller.abort();
   await assert.rejects(pending, error => error.code === 'REQUEST_ABORTED');assert.equal(calls, 1);
 });
-test('every panel loads the shared transport before scripts that use it', () => {
-  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');assert.ok(html.indexOf('src="api-client.js"') < html.indexOf('src="script.js"'));
-  for (const file of ['script.js','terminal-ui.ts','github-ui.ts','apps-ui.ts','projects-ui.ts','hosted-projects-ui.ts','domains-ui.ts','revisions-ui.ts','site-detail-ui.ts','secrets-ui.ts','traffic-ui.ts']) {
-    const text = readFileSync(new URL('../' + file, import.meta.url), 'utf8');assert.match(text, /window\.panelApi\.request/);assert.doesNotMatch(text, /await fetch\(/, file);
-  }
+test('canonical Angular alone owns the administrative entrypoint',()=>{
+  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  assert.match(html,/location\\.replace\\('\\/angular\\/#'/);
+  assert.doesNotMatch(html,/src="api-client\\.js"|src="script\\.js"/);
+  const code=readFileSync(new URL('../angular/src/app.component.ts',import.meta.url),'utf8');
+  assert.match(code,/readPanelApiObject\\(response\\)/);
+  assert.match(code,/credentials: 'same-origin'/);
 });
