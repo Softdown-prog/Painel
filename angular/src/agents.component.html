@@ -97,6 +97,25 @@
       @if(!catalog().repositories.length){<a href="#projects">Cadastre em Projetos GitHub</a>}
      </div>
     }
+    @if(status()?.operationsEnabled){
+     <details class="agent-github-health">
+      <summary>Conexão GitHub</summary>
+      <button type="button" (click)="verifyGithub()" [disabled]="githubBusy()||!status()?.ready">
+       Verificar conexão do GitHub
+      </button>
+      @if(githubError()){<p class="agents-note">{{githubError()}}</p>}
+      @if(githubCheck();as check){
+       <p>{{check.authenticated?'Conta GitHub autenticada na API.':'Autenticação do GitHub não confirmada.'}}</p>
+       @for(repo of check.repositories;track repo.name){
+        <p>{{repo.name}} ({{repo.branch}}): {{repo.readable?'Leitura confirmada':'Leitura não confirmada'}} · {{repo.canPush?'Permissão de escrita informada':'Escrita não confirmada'}}</p>
+       } @empty {<p>Não há repositórios autorizados cadastrados.</p>}
+       @for(work of check.workspaces;track work.project){
+        <p>{{work.project}}: {{work.workspaceAvailable?'Cópia de trabalho reconhecida':'Cópia de trabalho indisponível'}} · {{work.repository}}</p>
+       }
+       <small>Consulta somente leitura. Não faz push, commit, nem comprova execução do Codex.</small>
+      } @else {<p class="agents-note">Clique para verificar as credenciais e os repositórios cadastrados na VPS.</p>}
+     </details>
+    }
     <h3>Histórico de conversas ({{threads().length}})</h3>
     <label for="agentHistorySearch">Pesquisar conversas</label>
     <input id="agentHistorySearch" type="search" maxlength="80" placeholder="Buscar por título ou projeto"
