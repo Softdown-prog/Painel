@@ -1,3 +1,7 @@
+### 2026-11-07 — Corrigir erro de HTML na sessão e adicionar auditoria SAC
+
+**Código proposto:** tratamento de resposta não JSON na sessão Angular; testes de regressão para HTML/Cloudflare/truncamento; probe de disponibilidade pública sem conteúdo sensível; workflow SAC PRE001–PRE005 real com checkout imutável da Data Library + compilação Angular oficial separada. **Estado:** código em PR, checks precisam ser conferidos; nenhum deploy ou teste SAC na VPS foi realizado. Ver `docs/PANEL-API-HTML-INCIDENT.md`.
+
 ### 2026-11-06 — Agentes Codex em container isolado (proposta, sem instalação)
 
 O código da branch `feat/codex-agents-panel` inclui aba Angular `/angular/#agents`, bridge Codex app-server por stdio, rotas administrativas autenticadas e overlay Docker opcional isolado. Conversas, tarefas, cancelamento e seleção de clones de projeto aprovados. **Pendente:** PR, CI, instalação real, login Codex, isolamento verificado, frontend/backend em produção e teste de ponta a ponta. O GitHub não tem autorização de shell arbitrário na VPS; nenhuma mudança foi aplicada em serviços existentes. Consultar `docs/CODEX-AGENTS.md`.

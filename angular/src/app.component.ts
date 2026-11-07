@@ -17,6 +17,7 @@ import { validAppSlug } from './apps-policy';
 import {parseOverview,parseInventory,capacityAlerts,readingFresh,type HostOverview,type HostInventory} from './overview-state';
 import {filterInventory,inventoryProjects,type InventoryStatusFilter} from './inventory-view';
 import {parseAdminSession,expiredProtectedSession,maySubmitAdminLogin,type AdminSession} from './session-state';
+import {readPanelApiObject} from './api-response';
 
 @Component({
   selector: 'panel-app',
@@ -235,9 +236,7 @@ export class AppComponent implements OnInit,OnDestroy {
       if(this.signedIn())this.lockSession('Sessão administrativa expirada. Faça login novamente.');
       throw Error('Sessão administrativa expirada. Faça login novamente.');
     }
-    const data: unknown = await response.json();
-    if (!data || typeof data !== 'object' || Array.isArray(data))
-      throw new Error('A API da VPS devolveu uma resposta inesperada.');
+    const data = await readPanelApiObject(response);
     if (!response.ok) {
       const obj = data as {error?: unknown};
       throw new Error(typeof obj.error === 'string' ? obj.error : 'A API não respondeu (HTTP ' + response.status + ').');

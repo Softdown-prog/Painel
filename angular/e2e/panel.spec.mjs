@@ -75,6 +75,28 @@ async function signIn(page) {
   await expect(page.getByRole('button',{name:'Sair'})).toBeVisible();
 }
 
+test('HTML em /api/session não vaza erro técnico e a sessão se recupera',async ({page})=>{
+  let apiReady=false;
+  await page.route('**/api/session',async route=>{
+    if(apiReady){
+      await route.fulfill({status:200,contentType:'application/json',
+        body:JSON.stringify({authenticated:false,setupRequired:false})});
+    } else {
+      await route.fulfill({status:200,contentType:'text/html',
+        body:'<!DOCTYPE html><html><body>Cloudflare access secret must not appear</body></html>'});
+    }
+  });
+  await page.goto('/angular/#overview');
+  const alert=page.getByRole('alert');
+  await expect(alert).toContainText('A API da VPS devolveu uma página ou resposta inesperada (HTTP 200)');
+  await expect(alert).not.toContainText(/Unexpected token|Cloudflare access secret|DOCTYPE/);
+  await expect(page.getByRole('heading',{name:'Acesso administrativo'})).toBeVisible();
+  await expect(page.getByLabel('Senha',{exact:true})).toHaveCount(0);
+  apiReady=true;
+  await page.getByRole('button',{name:'Verificar sessão'}).click();
+  await expect(page.getByLabel('Senha',{exact:true})).toBeVisible();
+});
+
 test('login real no navegador usa somente mock e exibe as métricas recebidas', async ({page})=>{
   const state=await mockApi(page);
   await page.goto('/angular/#overview');
