@@ -1,0 +1,45 @@
+name: Codex agents (real isolated sandbox)
+on:
+  pull_request:
+    paths:
+      - 'agents/**'
+      - 'server/compose.agents.yaml'
+      - '.github/workflows/codex-agents.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sandbox:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build pinned Codex client (no account or credentials)
+        run: docker build -t panel-codex:test agents
+      - name: Validate and load only the isolated test profile
+        run: |
+          if ! command -v apparmor_parser >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y apparmor
+          fi
+          sudo apparmor_parser -r agents/apparmor.profile
+      - name: Test bridge and real filesystem/network enforcement
+        run: |
+          set -euo pipefail
+          key="$(mktemp)"
+          trap 'rm -f "$key"' EXIT
+          printf fake-bridge-key > "$key"
+          chmod 444 "$key"
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --security-opt apparmor=panel-codex \
+            --security-opt "seccomp=$PWD/agents/seccomp.json" \
+            --memory 384m --cpus 1 --pids-limit 128 \
+            --tmpfs /tmp:uid=61110,gid=61110,size=64m,mode=1777 \
+            --tmpfs /home/node/.codex:uid=61110,gid=61110,size=64m,mode=0700 \
+            --tmpfs /workspace:uid=61110,gid=61110,size=16m,mode=0700 \
+            --tmpfs /state:uid=61110,gid=61110,size=16m,mode=0700 \
+            -v "$PWD/agents:/tests:ro" \
+            -v "$key:/run/secrets/panel-agent-key:ro" \
+            --entrypoint sh panel-codex:test \
+            -c 'node --test /tests/bridge.test.mjs && node /tests/sandbox-smoke.mjs'

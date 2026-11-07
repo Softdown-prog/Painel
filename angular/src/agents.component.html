@@ -1,6 +1,6 @@
 <section class="agents" aria-label="Agentes de programação">
  <div class="agents-head">
-  <div><h2>Agentes · Codex</h2><p>Converse com o Codex e acompanhe tarefas nos projetos autorizados da VPS.</p></div>
+  <div><h2>Agentes · Codex</h2><p>Converse normalmente em português ou peça tarefas nos projetos autorizados da VPS.</p></div>
   <button type="button" (click)="refresh()" [disabled]="loading()||busy()">↻ Atualizar</button>
  </div>
  @if(error()){<p class="agents-error" role="alert">{{error()}}</p>}
@@ -10,9 +10,9 @@
   <p class="agents-note" role="status">{{status()?.ready?'Serviço Codex inicializado.':'Codex indisponível. Verifique o serviço e a autenticação na VPS.'}}</p>
   <div class="agents-layout">
    <aside class="agents-side" aria-label="Conversas e projetos">
-    <label for="agentProject">Projeto de trabalho</label>
+    <label for="agentProject">Tipo de conversa / projeto</label>
     <select id="agentProject" [value]="project()" (change)="chooseProject($event)" [disabled]="busy()||!status()?.ready">
-     @for(p of status()?.projects??[];track p){<option [value]="p">{{p}}</option>}
+     @for(p of status()?.projects??[];track p){<option [value]="p">{{p==='Geral'?'Conversa geral (sem projeto)':p}}</option>}
     </select>
     <button type="button" class="agents-primary" [disabled]="busy()||!project()||!status()?.ready" (click)="create()">+ Nova conversa</button>
     <h3>Conversas</h3>
@@ -55,6 +55,6 @@
     }
    </div>
   </div>
-  <p class="agents-note">O Codex só tem acesso aos projetos montados no seu container. Não recebe Docker, root ou permissão de publicação automática. Revise as alterações antes de publicar.</p>
+  <p class="agents-note">Em Conversa geral, o Codex não pode editar projetos. Nas demais conversas, só acessa os projetos montados no seu container. Não recebe Docker, root ou permissão de publicação automática. Revise as alterações antes de publicar.</p>
  }
 </section>

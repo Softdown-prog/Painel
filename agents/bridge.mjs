@@ -1,7 +1,7 @@
 import {createServer} from 'node:http';
 import {spawn} from 'node:child_process';
 import {createInterface} from 'node:readline';
-import {readFileSync,readdirSync,existsSync,writeFileSync,renameSync} from 'node:fs';
+import {readFileSync,readdirSync,existsSync,writeFileSync,renameSync,mkdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {timingSafeEqual} from 'node:crypto';
 const slug=/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
@@ -10,6 +10,23 @@ export const validPrompt=s=>typeof s==='string'&&s.trim().length>0&&s.length<=40
  !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(s);
 export function projects(dir){return existsSync(dir)?readdirSync(dir,{withFileTypes:true})
  .filter(d=>d.isDirectory()&&slug.test(d.name)).map(d=>d.name).sort():[];}
+export const permissionName=project=>'panel_'+project;
+// General chat has no project files. Keep its read-only cwd outside the denied
+// workspace tree: the pinned CLI cannot reopen a read-only child of that deny.
+export const projectDirectory=(workspace,project)=>project==='Geral'?workspace+'-general':join(workspace,project);
+export function codexArguments(workspace,registered,codexHome='/home/node/.codex'){
+ const args=['app-server','--listen','stdio://','-c','default_permissions="panel_Geral"'];
+ for(const project of registered){
+  if(!slug.test(project))throw Error('Invalid project');
+  const prefix='permissions.'+permissionName(project);
+  const rules={':root':'read',[workspace]:'deny',[codexHome]:'deny',
+   '/run/secrets':'deny','/state':'deny',[projectDirectory(workspace,project)]:project==='Geral'?'read':'write'};
+  const filesystem=Object.entries(rules).map(([path,access])=>JSON.stringify(path)+'='+JSON.stringify(access)).join(',');
+  args.push('-c',prefix+'.filesystem={'+filesystem+'}');
+  args.push('-c',prefix+'.network.enabled=false');
+ }
+ return args;
+}
 const json=(res,status,value)=>{res.writeHead(status,{'content-type':'application/json',
  'cache-control':'no-store','x-content-type-options':'nosniff'});res.end(JSON.stringify(value));};
 async function input(req){let n=0,s='';for await(const c of req){n+=c.length;
@@ -17,6 +34,8 @@ async function input(req){let n=0,s='';for await(const c of req){n+=c.length;
  const v=JSON.parse(s);if(!v||Array.isArray(v)||typeof v!=='object')throw Error('Bad JSON');return v;}
 export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
  if(typeof secret!=='string'||secret.length<32)throw Error('Missing bridge secret');
+ mkdirSync(join(workspace,'Geral'),{recursive:true,mode:0o700});
+ mkdirSync(projectDirectory(workspace,'Geral'),{recursive:true,mode:0o700});
  const stateFile=join(stateDir,'threads.json'),sessions=new Map();
  if(existsSync(stateFile)){const saved=JSON.parse(readFileSync(stateFile,'utf8'));
   if(!Array.isArray(saved))throw Error('Invalid state file');
@@ -28,7 +47,8 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
  function save(){writeFileSync(stateFile+'.tmp',JSON.stringify([...sessions.values()].map(s=>({
   id:s.id,project:s.project,title:s.title,messages:s.messages.slice(-40)}))),{mode:0o600});
   renameSync(stateFile+'.tmp',stateFile);}
- let proc,ready=false,authenticated=false,active=null,seq=0;const requests=new Map();
+ let proc,ready=false,authenticated=false,active=null,seq=0,registered=[];
+ const requests=new Map(),loadedThreads=new Set();
  function rpc(method,params){if(!proc?.stdin.writable)return Promise.reject(Error('Codex offline'));
   const id=++seq;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{
    requests.delete(id);reject(Error('Codex timeout'));},25000);requests.set(id,{resolve,reject,timer});
@@ -38,6 +58,8 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
  function finish(s,status){s.status=status;if(s.reply)s.messages.push({role:'assistant',text:s.reply});
   s.messages=s.messages.slice(-40);s.reply='';s.turnId=null;active=null;save();}
  function dispatch(x){
+  if(x.method==='account/updated'){
+   authenticated=Boolean(x.params?.authMode);return;}
   if(typeof x.id==='number'&&!x.method){const q=requests.get(x.id);if(!q)return;
    clearTimeout(q.timer);requests.delete(x.id);if(x.error)q.reject(Error('Codex rejected request'));else q.resolve(x.result);return;}
   if(typeof x.id==='number'&&typeof x.method==='string'){
@@ -54,15 +76,17 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
   if(x.method==='turn/completed')finish(s,x.params.turn?.status==='completed'?'completed':
    x.params.turn?.status==='interrupted'?'interrupted':'failed');
  }
- function start(){proc=spawnCodex('codex',['app-server','--listen','stdio://'],
+ function start(){registered=projects(workspace);
+  proc=spawnCodex('codex',codexArguments(workspace,registered,process.env.CODEX_HOME||'/home/node/.codex'),
   {cwd:workspace,stdio:['pipe','pipe','pipe'],env:process.env});proc.stderr.resume();
   createInterface({input:proc.stdout}).on('line',line=>{if(line.length>1000000)return;
    try{dispatch(JSON.parse(line));}catch{/* malformed event */}});
-  const down=()=>{ready=false;authenticated=false;for(const q of requests.values()){
+  const down=()=>{ready=false;authenticated=false;loadedThreads.clear();for(const q of requests.values()){
    clearTimeout(q.timer);q.reject(Error('Disconnected'));}requests.clear();
    if(active){const s=sessions.get(active);if(s)finish(s,'interrupted');}};
   proc.on('error',down);proc.on('exit',down);
-  rpc('initialize',{clientInfo:{name:'softdown_panel',title:'Painel Agentes',version:'0.1.0'}})
+  rpc('initialize',{clientInfo:{name:'softdown_panel',title:'Painel Agentes',version:'0.1.0'},
+   capabilities:{experimentalApi:true}})
    .then(async()=>{proc.stdin.write('{"method":"initialized","params":{}}\n');ready=true;
     const auth=await rpc('account/read',{refreshToken:false});authenticated=Boolean(auth?.account);
    })
@@ -71,11 +95,11 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
  const server=createServer(async(req,res)=>{
   if(req.method==='GET'&&req.url==='/health')return json(res,ready?200:503,{ok:ready});
   const candidate=req.headers['x-panel-agent-key'];
-  if(typeof candidate!=='string'||candidate.length!==secret.length||
+  if(typeof candidate!=='string'||Buffer.byteLength(candidate)!==Buffer.byteLength(secret)||
    !timingSafeEqual(Buffer.from(candidate),Buffer.from(secret)))return json(res,404,{error:'Not found'});
   const path=new URL(req.url||'/','http://agent.local').pathname;
   if(path==='/status'&&req.method==='GET')return json(res,200,
-   {enabled:true,ready:ready&&authenticated,projects:projects(workspace),active:!!active});
+   {enabled:true,ready:ready&&authenticated,projects:registered,active:!!active});
   if(path==='/threads'&&req.method==='GET')return json(res,200,
    {threads:[...sessions.values()].map(s=>({id:s.id,project:s.project,title:s.title,status:s.status})).reverse()});
   const m=/^\/threads\/([a-zA-Z0-9_-]{4,128})(?:\/(turns|cancel))?$/.exec(path);
@@ -87,25 +111,28 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
    if(path==='/threads'&&req.method==='POST'){
     if(sessions.size>=100)return json(res,409,{error:'Limite de conversas atingido.'});
     const b=await input(req);if(typeof b.project!=='string'||!slug.test(b.project)||
-     !projects(workspace).includes(b.project))return json(res,400,{error:'Projeto não autorizado.'});
-    const result=await rpc('thread/start',{cwd:join(workspace,b.project),
-     sandbox:'workspace-write',approvalPolicy:'never',serviceName:'softdown_panel'});
+     !registered.includes(b.project))return json(res,400,{error:'Projeto não autorizado.'});
+    const result=await rpc('thread/start',{cwd:projectDirectory(workspace,b.project),
+     permissions:permissionName(b.project),approvalPolicy:'never',serviceName:'softdown_panel'});
     const id=result?.thread?.id;if(typeof id!=='string'||!threadId.test(id))throw Error('Bad thread ID');
     const created={id,project:b.project,title:b.project,messages:[],status:'idle',reply:'',turnId:null};
-    sessions.set(id,created);save();return json(res,201,{thread:created});
+    sessions.set(id,created);loadedThreads.add(id);save();return json(res,201,{thread:created});
    }
    if(s&&m[2]==='turns'&&req.method==='POST'){
     if(active)return json(res,409,{error:'Outra tarefa ainda está em execução.'});
-    if(!projects(workspace).includes(s.project))return json(res,409,{error:'Projeto indisponível.'});
+    if(!registered.includes(s.project)||!projects(workspace).includes(s.project))return json(res,409,{error:'Projeto indisponível.'});
     const b=await input(req);if(!validPrompt(b.message))return json(res,400,
      {error:'Mensagem inválida (até 4.000 caracteres).'});
+    if(active)return json(res,409,{error:'Outra tarefa ainda está em execução.'});
     s.messages.push({role:'user',text:b.message.trim()});s.messages=s.messages.slice(-40);
     s.status='running';s.reply='';active=s.id;save();
-    try{await rpc('thread/resume',{threadId:s.id,excludeTurns:true});
+    try{if(!loadedThreads.has(s.id)){
+      await rpc('thread/resume',{threadId:s.id,excludeTurns:true,
+       cwd:projectDirectory(workspace,s.project),permissions:permissionName(s.project)});
+      loadedThreads.add(s.id);
+     }
      const run=await rpc('turn/start',{threadId:s.id,input:[{type:'text',text:b.message.trim()}],
-      cwd:join(workspace,s.project),approvalPolicy:'never',sandboxPolicy:{
-       type:'workspaceWrite',writableRoots:[join(workspace,s.project)],readOnlyAccess:{type:'restricted',
-       includePlatformDefaults:true,readableRoots:[join(workspace,s.project)]},networkAccess:false}});
+      cwd:projectDirectory(workspace,s.project),approvalPolicy:'never',permissions:permissionName(s.project)});
      if(active===s.id)s.turnId=run?.turn?.id||null;return json(res,202,{ok:true});
     }catch{if(active===s.id)finish(s,'failed');
      return json(res,502,{error:'Falha ao iniciar a tarefa.'});}
