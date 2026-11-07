@@ -8,12 +8,80 @@
   <p class="agents-note" role="status">O módulo ainda não foi ativado na VPS. A instalação e o login do Codex são necessários antes de conversar.</p>
  } @else {
   <p class="agents-note" role="status">{{status()?.ready?'Serviço Codex inicializado.':'Codex indisponível. Verifique o serviço e a autenticação na VPS.'}}</p>
+  <details class="agent-usage">
+   <summary>Uso e limites do Codex</summary>
+   <div class="agent-usage-body">
+    <button type="button" (click)="refreshMetadata()" [disabled]="metadataBusy()||!status()?.ready">Atualizar dados da conta</button>
+    @if(metadataError()){<p class="agents-note">{{metadataError()}}</p>}
+    @if(usage();as u){
+     @if(u.quota.available){
+      <h3>Franquias informadas pela conta</h3>
+      @for(bucket of u.quota.buckets;track bucket.id){
+       <div class="agent-quota">
+        <strong>{{bucket.label}}</strong>
+        @if(bucket.primary;as window){
+         <div><span>{{windowLabel(window)}}</span>
+          <strong>{{window.usedPercent===null?'Não informado':window.usedPercent+'% utilizado'}}</strong>
+          <small>Renova: {{formatTime(window.resetsAt)}}</small>
+         </div>
+         @if(window.usedPercent!==null){<progress [value]="window.usedPercent" max="100" [attr.aria-label]="windowLabel(window)+' utilizado'"></progress>}
+        }
+        @if(bucket.secondary;as window){
+         <div><span>{{windowLabel(window)}}</span>
+          <strong>{{window.usedPercent===null?'Não informado':window.usedPercent+'% utilizado'}}</strong>
+          <small>Renova: {{formatTime(window.resetsAt)}}</small>
+         </div>
+         @if(window.usedPercent!==null){<progress [value]="window.usedPercent" max="100" [attr.aria-label]="windowLabel(window)+' utilizado'"></progress>}
+        }
+       </div>
+      }
+     } @else {<p class="agents-note">O Codex não informou os limites ou a janela semanal para esta conta.</p>}
+     @if(u.tokens.available){
+      <p><strong>Tokens totais informados pela conta:</strong> {{formatNumber(u.tokens.lifetimeTokens)}}</p>
+      @if(u.tokens.daily.length){
+       <details><summary>Atividade por dia</summary>
+        <div class="agent-daily">
+         @for(day of u.tokens.daily;track day.date){<span>{{day.date}} · {{formatNumber(day.tokens)}} tokens</span>}
+        </div>
+       </details>
+      }
+     } @else {<p class="agents-note">Atividade de tokens não informada pelo serviço instalado.</p>}
+     <small>Franquias e atividade podem incluir Codex fora deste Painel. Tokens não representam valor em reais, e os dados não equivalem a uma fatura.</small>
+    } @else {<p class="agents-note">Nenhuma informação de uso recebida ainda.</p>}
+   </div>
+  </details>
   <div class="agents-layout">
    <aside class="agents-side" aria-label="Conversas e projetos">
     <label for="agentProject">Tipo de conversa / projeto</label>
     <select id="agentProject" [value]="project()" (change)="chooseProject($event)" [disabled]="busy()||!status()?.ready">
      @for(p of status()?.projects??[];track p){<option [value]="p">{{p==='Geral'?'Conversa geral (sem projeto)':p==='AdministracaoVPS'?'Administração da VPS':p}}</option>}
     </select>
+    <div class="agent-model-controls">
+     <label for="agentModel">Modelo do Codex</label>
+     <select id="agentModel" [value]="model()" (change)="selectModel($event)" [disabled]="busy()||!modelsSupported()">
+      <option value="">Automático (modelo não especificado)</option>
+      @for(option of models();track option.id){
+       <option [value]="option.id">{{option.label}}{{option.isDefault?' · padrão sugerido':''}}</option>
+      }
+     </select>
+     @if(!modelsSupported()){<small>Catálogo indisponível. O Codex usará o modelo configurado no servidor.</small>}
+     <label for="agentEffort">Nível de raciocínio</label>
+     <select id="agentEffort" [value]="effort()" (change)="selectEffort($event)"
+      [disabled]="busy()||!model()||!modelsSupported()">
+      <option value="">Padrão do modelo</option>
+      @for(option of models();track option.id){
+       @if(option.id===model()){
+        @for(level of option.efforts;track level){<option [value]="level">{{level}}</option>}
+       }
+      }
+     </select>
+     <small>As configurações escolhidas valem para a próxima conversa criada ou após aplicar na conversa atual.</small>
+     @if(conversation();as selected){
+      <button type="button" (click)="saveSettings()" [disabled]="busy()||selected.status==='running'||!status()?.ready">
+       Aplicar ao chat atual
+      </button>
+     }
+    </div>
     <button type="button" class="agents-primary" [disabled]="busy()||!project()||!status()?.ready" (click)="create()">+ Nova conversa</button>
     @if(status()?.operationsEnabled&&project()!=='Geral'&&project()!=='AdministracaoVPS'){
      <div class="agent-binding">
@@ -29,18 +97,32 @@
       @if(!catalog().repositories.length){<a href="#projects">Cadastre em Projetos GitHub</a>}
      </div>
     }
-    <h3>Conversas</h3>
-    @for(t of threads();track t.id){
+    <h3>Histórico de conversas ({{threads().length}})</h3>
+    <label for="agentHistorySearch">Pesquisar conversas</label>
+    <input id="agentHistorySearch" type="search" maxlength="80" placeholder="Buscar por título ou projeto"
+      [value]="historyQuery()" (input)="setHistoryQuery($event)">
+    @for(t of visibleThreads();track t.id){
      <button type="button" class="agents-thread" [class.current]="conversation()?.id===t.id"
       [attr.aria-current]="conversation()?.id===t.id?'true':null"
       [disabled]="busy()" (click)="open(t.id)">
-      <strong>{{t.title}}</strong><small>{{t.status==='running'?'Em execução':t.project}}</small>
+      <strong>{{t.title}}</strong><small>{{t.project}} · {{t.status==='running'?'Em execução':formatDate(t.updatedAt)}}</small>
      </button>
     } @empty {<p class="agents-empty">Nenhuma conversa criada.</p>}
    </aside>
    <div class="agents-chat">
     @if(conversation();as c){
-     <header><strong>{{c.project}}</strong><span>{{c.status==='running'?'● Trabalhando…':c.status==='failed'?'Falha':c.status==='interrupted'?'Interrompida':'Pronto'}}</span></header>
+     <header><strong>{{c.title}}</strong><span>{{c.status==='running'?'● Trabalhando…':c.status==='failed'?'Falha':c.status==='interrupted'?'Interrompida':'Pronto'}}</span></header>
+     <div class="agent-thread-meta">
+      <small>Projeto: {{c.project}} · Modelo selecionado: {{c.model??'Automático'}} · Esforço: {{c.effort??'Padrão'}}</small>
+      @if(c.effectiveModel){<small>Modelo efetivo observado: {{c.effectiveModel}}</small>}
+      @if(c.usage){<small>Tokens do chat informados: {{formatNumber(c.usage.totalTokens)}} · Entrada {{formatNumber(c.usage.inputTokens)}} · Saída {{formatNumber(c.usage.outputTokens)}}</small>}
+      @else {<small>Uso em tokens deste chat não informado pelo Codex.</small>}
+      <div class="agent-title-row">
+       <label for="agentTitle">Título da conversa</label>
+       <input id="agentTitle" maxlength="80" [value]="titleDraft()" (input)="setTitle($event)" [disabled]="busy()">
+       <button type="button" (click)="rename()" [disabled]="busy()||!titleDraft().trim()">Renomear</button>
+      </div>
+     </div>
      <div class="agents-messages" role="log" aria-label="Histórico da conversa" aria-live="polite">
       @if(c.historyTruncated){<p class="agents-note">Mostrando as mensagens mais recentes para manter esta tela leve.</p>}
       @for(m of c.messages;track $index){
