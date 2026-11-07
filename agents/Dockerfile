@@ -1,4 +1,7 @@
 FROM node:24-bookworm-slim
+ARG PANEL_SOURCE_SHA=unknown
+LABEL org.opencontainers.image.source="https://github.com/Softdown-prog/Painel" \
+      org.opencontainers.image.revision="${PANEL_SOURCE_SHA}"
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 ARG CODEX_NPM_VERSION=0.167.0
 RUN npm install --global --no-audit --no-fund "@openai/codex@${CODEX_NPM_VERSION}" && npm cache clean --force
