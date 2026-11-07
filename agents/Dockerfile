@@ -6,7 +6,7 @@ RUN groupmod --gid 61110 node && usermod --uid 61110 --gid 61110 node && chown -
 RUN mkdir /workspace-general && chown 61110:61110 /workspace-general && chmod 700 /workspace-general
 RUN mkdir /workspace-admin && chown 61110:61110 /workspace-admin && chmod 700 /workspace-admin
 WORKDIR /app
-COPY bridge.mjs operations.mjs ./
+COPY bridge.mjs operations.mjs telemetry.mjs ./
 USER node
 ENV NODE_ENV=production CODEX_HOME=/home/node/.codex PORT=8091
 CMD ["node", "bridge.mjs"]
