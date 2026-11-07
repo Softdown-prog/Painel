@@ -8,8 +8,8 @@ test('traffic and resource history are integrated into canonical Angular navigat
  assert.match(shell,/hash === 'traffic'/);
  assert.match(markup,/<panel-traffic\s*\/>/);
  assert.match(markup,/selectPage\('traffic'\)/);
- assert.match(entry,/traffic:'traffic'/);
- assert.match(entry,/fragment === 'traffic'/);
+ assert.match(entry,/'traffic'/);
+ assert.match(entry,/location\\.replace\\('\\/angular\\/#'/);
 });
 test('traffic settings require typed approval and are not mistaken for billing usage',()=>{
  const code=get('angular/src/traffic.component.ts'),html=get('angular/src/traffic.component.html');
