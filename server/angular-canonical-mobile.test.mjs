@@ -5,7 +5,7 @@ import { runInNewContext } from 'node:vm';
 
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 const html = read('index.html');
-const script = html.match(/<script>([\\s\\S]*?)<\\/script>/)?.[1];
+const script = html.split('<script>')[1]?.split('</script>')[0];
 function navigate(url) {
   assert.ok(script, 'The root must redirect to canonical Angular');
   const location = new URL(url);
@@ -34,7 +34,8 @@ test('only Angular UI is served from the root, preserving useful old deep links'
   assert.equal(navigate('https://panel.test/#unknown'),'/angular/#overview');
   assert.equal(navigate('https://panel.test/#site?slug=my-site'),'/angular/#site?slug=my-site');
   assert.equal(navigate('https://panel.test/#site?slug=../bad'),'/angular/#apps');
-  assert.doesNotMatch(html, /<link[^>]+\\.css|<script[^>]+src=/i,'No secondary frontend assets');
+  assert.equal(html.includes('rel="stylesheet"'),false);
+  assert.equal(html.includes('src="'),false);
   assert.doesNotMatch(html,/legacy-tools|data-view|id="sidebar"/);
 });
 
