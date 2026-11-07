@@ -17,7 +17,7 @@ test('site detail has a native Angular deep link from Apps and can show malforme
 });
 test('canonical site deep links preserve validated slug and reject hostile query strings',()=>{
  const entry=read('index.html');
- const script=entry.match(/<!-- Angular is canonical;[\s\S]*?<script>([\s\S]*?)<\/script>/)?.[1];
+ const script=entry.split('<script>')[1]?.split('</script>')[0];
  assert.ok(script);
  const route=(url)=>{
    const u=new URL(url);
