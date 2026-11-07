@@ -104,7 +104,9 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
     s.status='running';s.reply='';active=s.id;save();
     try{await rpc('thread/resume',{threadId:s.id,excludeTurns:true});
      const run=await rpc('turn/start',{threadId:s.id,input:[{type:'text',text:b.message.trim()}],
-      cwd:join(workspace,s.project),approvalPolicy:'never',sandboxPolicy:{
+      cwd:join(workspace,s.project),approvalPolicy:'never',sandboxPolicy:s.project==='Geral'?{
+       type:'readOnly',access:{type:'restricted',includePlatformDefaults:true,
+       readableRoots:[join(workspace,'Geral')]}}:{
        type:'workspaceWrite',writableRoots:[join(workspace,s.project)],readOnlyAccess:{type:'restricted',
        includePlatformDefaults:true,readableRoots:[join(workspace,s.project)]},networkAccess:false}});
      if(active===s.id)s.turnId=run?.turn?.id||null;return json(res,202,{ok:true});
