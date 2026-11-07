@@ -3,6 +3,7 @@ import { DeploymentsComponent } from './deployments.component';
 import { AppsComponent } from './apps.component';
 import { GithubProjectsComponent } from './github-projects.component';
 import { TerminalComponent } from './terminal.component';
+import { AgentsComponent } from './agents.component';
 import { RevisionsComponent } from './revisions.component';
 import { PostgresComponent } from './postgres.component';
 import { DomainsComponent } from './domains.component';
@@ -20,12 +21,12 @@ import {parseAdminSession,expiredProtectedSession,maySubmitAdminLogin,type Admin
 @Component({
   selector: 'panel-app',
   standalone: true,
-  imports: [DeploymentsComponent, AppsComponent, GithubProjectsComponent, TerminalComponent, RevisionsComponent, PostgresComponent, DomainsComponent, TrafficComponent, SecretsComponent, SettingsComponent, LegacyServicesComponent, SiteDetailComponent, InfrastructureComponent],
+  imports: [DeploymentsComponent, AppsComponent, GithubProjectsComponent, TerminalComponent, AgentsComponent, RevisionsComponent, PostgresComponent, DomainsComponent, TrafficComponent, SecretsComponent, SettingsComponent, LegacyServicesComponent, SiteDetailComponent, InfrastructureComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
 export class AppComponent implements OnInit,OnDestroy {
-  readonly page = signal<'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains' | 'traffic' | 'secrets' | 'settings' | 'site' | 'infrastructure'>('overview');
+  readonly page = signal<'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'agents' | 'revisions' | 'database' | 'domains' | 'traffic' | 'secrets' | 'settings' | 'site' | 'infrastructure'>('overview');
   readonly selectedSiteSlug=signal<string|null>(null);
   readonly menuOpen = signal(false);
   @ViewChild('sidebarPanel') sidebarPanel?:ElementRef<HTMLElement>;
@@ -179,7 +180,7 @@ export class AppComponent implements OnInit,OnDestroy {
     this.selectedSiteSlug.set(null);
     if (hash === 'overview' || hash === 'containers' ||
         hash === 'deployments' || hash === 'apps' || hash === 'projects' ||
-        hash === 'terminal' || hash === 'revisions' ||
+        hash === 'terminal' || hash === 'agents' || hash === 'revisions' ||
         hash === 'database' || hash === 'domains' || hash === 'traffic' ||
         hash === 'secrets' || hash === 'settings' || hash === 'infrastructure') this.page.set(hash);
     else this.page.set('overview');
@@ -419,7 +420,7 @@ export class AppComponent implements OnInit,OnDestroy {
     }finally{if(epoch===this.authEpoch&&!this.destroyed)this.loading.set(false);}
   }
 
-  selectPage(page: 'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'revisions' | 'database' | 'domains' | 'traffic' | 'secrets' | 'settings' | 'infrastructure'): void {
+  selectPage(page: 'overview' | 'containers' | 'deployments' | 'apps' | 'projects' | 'terminal' | 'agents' | 'revisions' | 'database' | 'domains' | 'traffic' | 'secrets' | 'settings' | 'infrastructure'): void {
     this.page.set(page);
     this.menuOpen.set(false);
     if (window.location.hash !== '#' + page) window.location.hash = page;
