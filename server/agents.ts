@@ -30,7 +30,7 @@ export async function handleAgentRoute(req:IncomingMessage,res:ServerResponse,de
   }catch{deps.send(res,409,{error:'Operação não confirmada. Confira a proposta, o vínculo GitHub e o estado atual antes de reenviar.'});}
   return true;
  }
- const get=req.method==='GET'&&([' /agents/status','/agents/threads','/agents/models','/agents/usage'].includes(' '+path)||
+ const get=req.method==='GET'&&(['/agents/status','/agents/threads','/agents/models','/agents/usage'].includes(path)||
   /^\/agents\/threads\/[a-zA-Z0-9_-]{4,128}$/.test(path));
  const post=req.method==='POST'&&(path==='/agents/threads'||
   /^\/agents\/threads\/[a-zA-Z0-9_-]{4,128}\/(turns|cancel|title|settings)$/.test(path));
