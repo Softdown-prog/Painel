@@ -47,15 +47,18 @@ export function workspaceChanges(directory){
   files.push({path,content,mode:stats.mode&0o111?'100755':'100644'});
  }
  const diff=run(['diff','--no-ext-diff','--no-textconv','HEAD','--',...names]);
- return {baseSha,files,diff:diff.slice(0,128*1024)};
+ const snapshot={baseSha,files,diff:diff.slice(0,128*1024)};
+ if(Buffer.byteLength(JSON.stringify(snapshot))>192*1024)throw Error('Snapshot excede 192 KiB.');
+ return snapshot;
 }
 
 export class ToolCalls {
- constructor({stateDir,respond,now=Date.now}){
-  this.path=join(stateDir,'tool-calls.json');this.respond=respond;this.now=now;this.calls=new Map();
+ constructor({stateDir,respond,onDelivery=()=>{},now=Date.now}){
+  this.path=join(stateDir,'tool-calls.json');this.respond=respond;this.onDelivery=onDelivery;this.now=now;this.calls=new Map();
   if(existsSync(this.path))for(const call of JSON.parse(readFileSync(this.path,'utf8')).slice(-100)){
    if(!/^[a-f0-9]{32}$/.test(call.id)||!/^[a-f0-9]{64}$/.test(call.fingerprint))continue;
-   this.calls.set(call.id,{...call,status:['pending','running','awaiting_output'].includes(call.status)?'interrupted':call.status});
+   this.calls.set(call.id,{...call,status:['pending','running','awaiting_output'].includes(call.status)?'interrupted':call.status,
+    ...(call.deliveryState==='delivering'?{deliveryState:'unknown'}:{})});
   }
  }
  save(){
@@ -68,6 +71,7 @@ export class ToolCalls {
   if([...this.calls.values()].some(c=>c.threadId===session.id&&c.callId===params.callId))throw Error('Chamada duplicada.');
   if([...this.calls.values()].filter(c=>['pending','running','awaiting_output'].includes(c.status)).length>=8)throw Error('Fila cheia.');
   const args=params.arguments;
+  if(!params.tool.startsWith('consultar_')&&[...this.calls.values()].some(c=>c.mode==='approval'&&['pending','running','awaiting_output'].includes(c.status)))throw Error('Outra operação precisa ser concluída primeiro.');
   if(params.tool==='consultar_vps'||params.tool==='consultar_github'){
    const values=params.tool==='consultar_vps'?['containers','recursos']:['repositorios','execucoes','pull_requests'];
    if(Object.keys(args).join(',')!=='consulta'||!values.includes(args.consulta))throw Error('Consulta inválida.');
@@ -81,11 +85,18 @@ export class ToolCalls {
   const call={id,threadId:session.id,turnId:session.turnId,callId:params.callId,project:session.project,
    tool:params.tool,args:payload,mode:params.tool.startsWith('consultar_')?'read':'approval',
    createdAt,expiresAt:createdAt+15*60_000,status:'pending',rpcId};
-  call.fingerprint=createHash('sha256').update(JSON.stringify(call)).digest('hex');this.calls.set(id,call);this.save();return call;
+  call.fingerprint=createHash('sha256').update(JSON.stringify(call)).digest('hex');this.calls.set(id,call);
+  if(call.mode==='approval'){
+   call.rpcAnswered=true;
+   this.respond(rpcId,{contentItems:[{type:'inputText',text:JSON.stringify({stage:'proposed',executed:false,requiresApproval:true,operationId:id,
+    message:'Proposta registrada no painel. Nenhuma operação foi executada. Aguarde a decisão humana; não repita a proposta. O resultado será entregue em uma continuação.'})}],success:true});
+  }
+  this.save();return call;
  }
  get(id){this.expire();return this.calls.get(id);}
  list(){this.expire();return [...this.calls.values()];}
- public(call){const {rpcId,...value}=call;return value;}
+ public(call,{compact=false}={}){const {rpcId,summary,...value}=call;
+  return compact?{...value,args:call.mode==='read'?call.args:{},result:undefined}:value;}
  prepare(id,destination){const c=this.get(id);if(!c||c.status!=='pending'||c.mode!=='approval'||c.destination||!destination||JSON.stringify(destination).length>1024)throw Error('Destino inválido.');
   c.destination=destination;c.fingerprint=createHash('sha256').update(c.fingerprint+JSON.stringify(destination)).digest('hex');this.save();return this.public(c);}
  claim(id,fingerprint){const c=this.get(id);if(!c||c.status!=='pending'||c.fingerprint!==fingerprint)throw Error('Aprovação expirada ou já utilizada.');
@@ -93,15 +104,21 @@ export class ToolCalls {
  review(id,result){const c=this.get(id);if(!c||c.status!=='running')throw Error('Chamada indisponível.');c.status='awaiting_output';c.expiresAt=this.now()+15*60_000;c.result=result;this.save();}
  complete(id,result){
   const c=this.get(id);if(!c||!['pending','running','awaiting_output'].includes(c.status))throw Error('Chamada encerrada.');
-  c.status=result.success?'completed':'failed';c.summary=JSON.stringify(result).slice(0,18000);
-  this.respond(c.rpcId,{contentItems:[{type:'inputText',text:c.summary}],success:result.success===true});
+  c.status=result.success?'completed':'failed';c.summary=JSON.stringify(result);
+  if(c.rpcAnswered)c.deliveryState='pending';
+  else this.respond(c.rpcId,{contentItems:[{type:'inputText',text:c.summary}],success:result.success===true});
   delete c.args.files;delete c.args.diff;delete c.result;this.save();
+  if(c.rpcAnswered)queueMicrotask(()=>this.onDelivery());
  }
- cancelThread(id){for(const c of this.calls.values())if(c.threadId===id&&['pending','running','awaiting_output'].includes(c.status)){
-  this.respond(c.rpcId,{contentItems:[{type:'inputText',text:'Operação cancelada. Confira o estado remoto se o comando já foi enviado.'}],success:false});c.status='interrupted';
+ nextDelivery(){return [...this.calls.values()].find(c=>c.deliveryState==='pending');}
+ delivery(id,state){const c=this.calls.get(id);if(!c||!['pending','delivering','delivered','unknown'].includes(state))throw Error('Entrega inválida.');c.deliveryState=state;this.save();}
+ cancelThread(id,{actions=true}={}){for(const c of this.calls.values())if(c.threadId===id&&(actions||c.mode==='read')&&['pending','running','awaiting_output'].includes(c.status)){
+  if(!c.rpcAnswered)this.respond(c.rpcId,{contentItems:[{type:'inputText',text:'Operação cancelada. Confira o estado remoto se o comando já foi enviado.'}],success:false});c.status='interrupted';
  }this.save();}
  expire(){let changed=false;for(const c of this.calls.values())if(['pending','awaiting_output'].includes(c.status)&&this.now()>c.expiresAt){
   const pending=c.status==='pending';c.status='expired';changed=true;
-  this.respond(c.rpcId,{contentItems:[{type:'inputText',text:pending?'Aprovação expirou sem execução.':'Comando executado; revisão da saída expirou sem compartilhamento.'}],success:false});
+  const message=pending?'Aprovação expirou sem execução.':'Comando executado; revisão da saída expirou sem compartilhamento.';
+  if(!c.rpcAnswered)this.respond(c.rpcId,{contentItems:[{type:'inputText',text:message}],success:false});
+  else{c.summary=JSON.stringify({success:false,message});c.deliveryState='pending';queueMicrotask(()=>this.onDelivery());}
  }if(changed)this.save();}
 }

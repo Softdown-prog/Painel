@@ -19,7 +19,7 @@ export async function agentBridge(path:string,method='GET',payload?:object):Prom
 export async function handleAgentRoute(req:IncomingMessage,res:ServerResponse,deps:Deps):Promise<boolean>{
  const path=new URL(req.url||'/','http://panel.local').pathname;
  if(!path.startsWith('/agents'))return false;
- const decision=/^\/agents\/actions\/([a-f0-9]{32})\/(approve|deny|release)$/.exec(path);
+ const decision=/^\/agents\/actions\/([a-f0-9]{32})\/(approve|deny|release|cancel)$/.exec(path);
  if(path==='/agents/projects'||decision){
   if(process.env['PANEL_CODEX_OPERATIONS_ENABLED']!=='1'||!deps.operations){deps.send(res,503,{error:'Operações ainda não habilitadas.'});return true;}
   try{

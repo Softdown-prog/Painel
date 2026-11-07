@@ -170,6 +170,12 @@ export class AgentOperations {
   try{
    const data=await this.d.bridge('/tool-calls/'+id),c=data.call;
    if(!this.validCall(c)||c.id!==id||c.fingerprint!==input['fingerprint']||c.mode!=='approval')throw Error('A proposta mudou ou expirou.');
+   if(action==='cancel'){
+    const jobId=this.hostJobs.get(id);
+    if(c.tool!=='solicitar_comando_vps'||c.status!=='running'||!jobId)throw Error('Execução não confirmada; consulte o Terminal VPS.');
+    await (this.d.jobs??terminalJobManager)().cancel(jobId);
+    return {ok:true,warning:'Interrupção solicitada. Processos remotos desvinculados podem continuar; confira o estado.'};
+   }
    if(action==='deny'){
     if(!['pending','awaiting_output'].includes(c.status))throw Error('Operação já enviada. Use interromper para solicitar cancelamento.');
     return this.d.bridge('/tool-calls/'+id+'/deny','POST',input);
