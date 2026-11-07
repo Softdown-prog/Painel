@@ -36,9 +36,10 @@ test('cancelled requests stop and disallowed paths never reach fetch', async () 
 });
 test('canonical Angular alone owns the administrative entrypoint',()=>{
   const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
-  assert.match(html,/location\\.replace\\('\\/angular\\/#'/);
-  assert.doesNotMatch(html,/src="api-client\\.js"|src="script\\.js"/);
+  assert.ok(html.includes("location.replace('/angular/#'"));
+  assert.equal(html.includes('src="api-client.js"'),false);
+  assert.equal(html.includes('src="script.js"'),false);
   const code=readFileSync(new URL('../angular/src/app.component.ts',import.meta.url),'utf8');
-  assert.match(code,/readPanelApiObject\\(response\\)/);
-  assert.match(code,/credentials: 'same-origin'/);
+  assert.ok(code.includes('readPanelApiObject(response)'));
+  assert.ok(code.includes("credentials: 'same-origin'"));
 });
