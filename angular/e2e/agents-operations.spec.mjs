@@ -5,7 +5,8 @@ async function fixture(page,{publish=false,destination=true}={}){
  const action={id,fingerprint,tool:publish?'publicar_pull_request':'solicitar_comando_vps',mode:'approval',status:'pending',
   destination:destination?(publish?{repository:'Softdown-prog/Painel',branch:'main'}:{host:'fixture-vps',user:'root'}):undefined,
   args:publish?{title:'Fixture PR',description:'Alteração de teste',baseSha:'c'.repeat(40),diff:'diff fixture',files:[{path:'safe.md',content:'<script>window.bad=1</script>'}]}:{command:'uptime',reason:'Consultar a carga'}};
- const thread={id:'thread-e2e',project:publish?'Painel':'AdministracaoVPS',title:'Teste',status:'running',reply:'',messages:[],actions:[action]};
+ // Human approval outlives the initial model turn; polling must still work.
+ const thread={id:'thread-e2e',project:publish?'Painel':'AdministracaoVPS',title:'Teste',status:'completed',reply:'',messages:[],actions:[action]};
  await page.route('**/api/**',async route=>{
   const r=route.request(),path=new URL(r.url()).pathname.slice('/api'.length),method=r.method();
   requests.push({path,method,body:method==='POST'?r.postDataJSON():null});let body;

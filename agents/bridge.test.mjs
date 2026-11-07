@@ -7,11 +7,12 @@ import {validPrompt,projects,createBridge,codexArguments} from './bridge.mjs';
 import {EventEmitter,once} from 'node:events';
 import {PassThrough,Writable} from 'node:stream';
 
-async function fixture(t,{saved=[],operationsEnabled=false}={}){
+async function fixture(t,{saved=[],savedCalls=[],operationsEnabled=false}={}){
  const root=mkdtempSync(join(tmpdir(),'agent-protocol-'));
  const workspace=join(root,'workspace'),stateDir=join(root,'state');
  mkdirSync(workspace);mkdirSync(stateDir);mkdirSync(join(workspace,'Painel'));
  if(saved.length)writeFileSync(join(stateDir,'threads.json'),JSON.stringify(saved));
+ if(savedCalls.length)writeFileSync(join(stateDir,'tool-calls.json'),JSON.stringify(savedCalls));
  const calls=[],proc=new EventEmitter();
  proc.stdout=new PassThrough();proc.stderr=new PassThrough();
  let nextThread=0;
@@ -38,7 +39,7 @@ async function fixture(t,{saved=[],operationsEnabled=false}={}){
   if((await(await request('/status')).json()).ready)break;
   await new Promise(resolve=>setTimeout(resolve,5));
  }
- return {request,calls,notify,toolCall:params=>proc.stdout.write(JSON.stringify({id:'tool-rpc-1',method:'item/tool/call',params})+'\n')};
+ return {request,calls,notify,toolCall:(params,id='tool-rpc-1')=>proc.stdout.write(JSON.stringify({id,method:'item/tool/call',params})+'\n')};
 }
 
 test('private bridge rejects wrong and multibyte keys without crashing',async t=>{
@@ -129,7 +130,7 @@ test('validates prompts and protects bridge secret',()=>{
  assert.throws(()=>createBridge({secret:'short',workspace:'/tmp',stateDir:'/tmp'}));
 });
 
-test('real tool-call protocol queues host proposals without answering before approval',async t=>{
+test('host proposal acknowledges without execution and survives model turn completion',async t=>{
  const f=await fixture(t,{operationsEnabled:true});
  const status=await(await f.request('/status')).json();assert.ok(status.projects.includes('AdministracaoVPS'));
  const created=await(await f.request('/threads','POST',{project:'AdministracaoVPS'})).json();
@@ -139,8 +140,39 @@ test('real tool-call protocol queues host proposals without answering before app
  f.toolCall({threadId:thread.id,turnId:'turn-1',callId:'call-fixture',tool:'solicitar_comando_vps',arguments:{command:'uptime',reason:'Verificar a carga'}});
  await new Promise(resolve=>setTimeout(resolve,5));
  const list=await(await f.request('/tool-calls')).json();assert.equal(list.calls.length,1);assert.equal(list.calls[0].status,'pending');
- assert.equal(f.calls.some(x=>x.id==='tool-rpc-1'),false);
+ const receipt=f.calls.find(x=>x.id==='tool-rpc-1');assert.equal(receipt.result.success,true);
+ assert.equal(JSON.parse(receipt.result.contentItems[0].text).executed,false);
+ f.notify('turn/completed',{threadId:thread.id,turn:{status:'completed'}});
+ assert.equal((await(await f.request('/tool-calls')).json()).calls[0].status,'pending');
  const c=list.calls[0];
  assert.equal((await f.request('/tool-calls/'+c.id+'/deny','POST',{fingerprint:c.fingerprint})).status,200);
- assert.equal(f.calls.find(x=>x.id==='tool-rpc-1').result.success,false);
+ await new Promise(resolve=>setTimeout(resolve,15));
+ assert.equal(f.calls.filter(x=>x.id==='tool-rpc-1').length,1,'never answer an expired RPC again');
+ const continuation=f.calls.findLast(x=>x.method==='turn/start');
+ assert.equal(continuation.params.permissions,'panel_Geral');
+ assert.match(continuation.params.cwd,/-general$/);
+ f.toolCall({threadId:thread.id,turnId:'turn-1',callId:'summary-attempt',tool:'solicitar_comando_vps',arguments:{command:'uptime',reason:'should reject'}},'summary-rpc');
+ await new Promise(resolve=>setTimeout(resolve,5));
+ assert.equal(f.calls.find(x=>x.id==='summary-rpc').result.success,false);
+});
+
+test('reviewed result resumes after restart once and only in read-only summary mode',async t=>{
+ const id='e'.repeat(32),savedCall={id,threadId:'saved-admin',project:'AdministracaoVPS',tool:'solicitar_comando_vps',
+  status:'completed',mode:'approval',fingerprint:'f'.repeat(64),args:{command:'uptime'},rpcAnswered:true,
+  deliveryState:'pending',summary:JSON.stringify({success:true,exitCode:0,output:'fixture result'})};
+ const f=await fixture(t,{operationsEnabled:true,saved:[{id:'saved-admin',project:'AdministracaoVPS',messages:[]}],savedCalls:[savedCall]});
+ for(let i=0;i<30&&!f.calls.some(x=>x.method==='turn/start');i++)await new Promise(resolve=>setTimeout(resolve,5));
+ const start=f.calls.find(x=>x.method==='turn/start');assert.ok(start);assert.equal(start.params.permissions,'panel_Geral');
+ assert.match(start.params.input[0].text,/fixture result/);
+ f.notify('turn/completed',{threadId:'saved-admin',turn:{status:'completed'}});
+ await new Promise(resolve=>setTimeout(resolve,10));
+ assert.equal(f.calls.filter(x=>x.method==='turn/start').length,1);
+ const list=(await(await f.request('/tool-calls')).json()).calls;assert.equal(list[0].deliveryState,'delivered');
+});
+test('large conversation response is bounded without losing the latest message',async t=>{
+ const messages=Array.from({length:40},(_,i)=>({role:i%2?'assistant':'user',text:'😀'.repeat(6000)+i}));
+ const f=await fixture(t,{saved:[{id:'large-thread',project:'Painel',messages}]});
+ const response=await f.request('/threads/large-thread');const raw=await response.text();const data=JSON.parse(raw);
+ assert.equal(response.status,200);assert.ok(Buffer.byteLength(raw)<500000);assert.equal(data.thread.historyTruncated,true);
+ assert.equal(data.thread.messages.at(-1).text,messages.at(-1).text);
 });

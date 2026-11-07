@@ -25,6 +25,13 @@ o bridge o incorpora ao fingerprint imutável da proposta. Confira comando,
 usuário e host antes de clicar **Aprovar uma vez**. O comando só então usa o
 mesmo gerenciador SSH do Terminal VPS, compartilhando seus limites e trava.
 
+A ferramenta devolve imediatamente um recibo de proposta **não executada**.
+A espera humana não fica presa ao RPC nem ao turno do modelo: a proposta segue
+disponível mesmo depois que o Codex termina sua resposta. Ao compartilhar a saída,
+o bridge inicia uma continuação somente para interpretar os dados, com filesystem
+somente leitura e novas ferramentas operacionais bloqueadas. Isso não repete o
+comando. A UI acompanha operações pendentes mesmo com a conversa em repouso.
+
 A saída tem redação auxiliar de credenciais, mas comandos livres podem produzir
 dados sensíveis. Por isso a saída só retorna ao modelo depois de você revisá-la
 e clicar **Enviar saída ao Codex**. Também é possível copiar ou não compartilhar.
@@ -45,7 +52,8 @@ antes de reenviar qualquer ação incerta.
 O bridge obtém o diff e os arquivos reais da cópia, sem executar hooks,
 fsmonitor ou textconv do repositório. Bloqueia escapes por symlink, caminhos
 privados, binários e padrões de segredo. O limite inicial é 30 arquivos e
-128 KiB de conteúdo UTF-8. Arquivos novos, alterações e exclusões aparecem na
+128 KiB de conteúdo UTF-8 e 192 KiB de snapshot serializado. Uma operação com
+efeito aguarda decisão por vez. Arquivos novos, alterações e exclusões aparecem na
 revisão; a proposta mantém aquele snapshot, mesmo que a cópia mude depois.
 
 A API define o destino pelo vínculo protegido em `/data/agent-projects.json`,

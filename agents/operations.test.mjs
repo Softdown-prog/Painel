@@ -21,7 +21,8 @@ test('tool capabilities separate chat, project editing and host administration',
 });
 test('approval binds destination and exact payload; execution/result need separate decisions',t=>{
  const f=fixture(t),c=f.propose(),initial=c.fingerprint;
- assert.equal(c.status,'pending');assert.equal(f.responses.length,0);
+ assert.equal(c.status,'pending');assert.equal(f.responses.length,1);
+ assert.equal(JSON.parse(f.responses[0].result.contentItems[0].text).executed,false);
  f.store.prepare(c.id,{host:'fixture',user:'root',port:22});
  assert.notEqual(c.fingerprint,initial);
  assert.throws(()=>f.store.claim(c.id,initial));
@@ -29,14 +30,16 @@ test('approval binds destination and exact payload; execution/result need separa
  f.store.claim(c.id,c.fingerprint);assert.equal(c.status,'running');
  assert.throws(()=>f.store.claim(c.id,c.fingerprint));
  f.store.review(c.id,{success:true,output:'uptime fixture',exitCode:0});
- assert.equal(c.status,'awaiting_output');assert.equal(f.responses.length,0);
- f.store.complete(c.id,c.result);assert.equal(f.responses.length,1);assert.equal(f.responses[0].id,'rpc-test');
- assert.equal(f.responses[0].result.success,true);assert.throws(()=>f.store.complete(c.id,{success:true}));
+ assert.equal(c.status,'awaiting_output');assert.equal(f.responses.length,1);
+ f.store.complete(c.id,c.result);assert.equal(f.responses.length,1);assert.equal(c.deliveryState,'pending');
+ assert.equal(f.store.nextDelivery().id,c.id);f.store.delivery(c.id,'delivering');f.store.delivery(c.id,'delivered');
+ assert.equal(f.store.nextDelivery(),undefined);assert.throws(()=>f.store.complete(c.id,{success:true}));
 });
 test('wrong context, duplicate call and secret-bearing command are rejected',t=>{
- const f=fixture(t);f.propose();
+ const f=fixture(t),first=f.propose();
  assert.throws(()=>f.store.propose({threadId:session.id,turnId:session.turnId,callId:'call-0',tool:'solicitar_comando_vps',arguments:{command:'uptime',reason:'x'}},'rpc',session,f.root));
  assert.throws(()=>f.store.propose({threadId:'other',turnId:session.turnId,callId:'x',tool:'solicitar_comando_vps',arguments:{}},'rpc',session,f.root));
+ f.store.complete(first.id,{success:false,message:'fixture denied'});
  assert.throws(()=>f.propose('solicitar_comando_vps',{command:'echo '+('ghp_'+'a'.repeat(36)),reason:'test'}));
  assert.throws(()=>f.propose('solicitar_comando_vps',{command:'uptime',reason:'x'},{...session,project:'Geral'}));
 });
@@ -46,6 +49,14 @@ test('pending requests expire and restart never reauthorizes saved commands',t=>
  const next=f.propose(),restored=new ToolCalls({stateDir:f.root,respond:()=>assert.fail('restart must not execute')});
  assert.equal(restored.get(next.id).status,'interrupted');assert.throws(()=>restored.claim(next.id,next.fingerprint));
  assert.equal(JSON.parse(readFileSync(join(f.root,'tool-calls.json'))).every(x=>!('rpcId'in x)),true);
+});
+test('reviewed JSON remains complete while worker polling omits large history payloads',t=>{
+ const f=fixture(t),c=f.propose();f.store.claim(c.id,c.fingerprint);
+ const result={success:true,exitCode:0,output:'\\'.repeat(10000)};
+ f.store.review(c.id,result);f.store.complete(c.id,result);
+ assert.deepEqual(JSON.parse(c.summary),result);
+ const compact=f.store.public(c,{compact:true});assert.equal(compact.summary,undefined);assert.deepEqual(compact.args,{});
+ assert.ok(Buffer.byteLength(JSON.stringify(compact))<2000);
 });
 
 function repository(t){const root=mkdtempSync(join(tmpdir(),'agent-git-'));t.after(()=>rmSync(root,{recursive:true,force:true}));

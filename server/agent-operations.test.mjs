@@ -54,7 +54,7 @@ test('background reads return actual data but never execute a pending host comma
  const read=f.propose('consultar_vps',{consulta:'containers'},'Geral');
  await f.controller.step();assert.equal(f.jobsStarted.length,0);assert.equal(command.status,'pending');
  assert.deepEqual(command.destination,{host:'fixture-vps',user:'root',port:22});
- assert.equal(read.status,'completed');assert.match(read.summary,/independent/);assert.equal(f.responses.length,1);
+ assert.equal(read.status,'completed');assert.match(read.summary,/independent/);assert.equal(f.responses.length,2);
 });
 test('host command is exact, single-use and output is withheld until separately released',async t=>{
  const f=fixture(t),c=f.propose();await f.controller.step();
@@ -62,9 +62,9 @@ test('host command is exact, single-use and output is withheld until separately 
  await f.controller.decide(c.id,'approve',{fingerprint:c.fingerprint});assert.deepEqual(f.jobsStarted,['uptime']);
  await assert.rejects(f.controller.decide(c.id,'approve',{fingerprint:c.fingerprint}));assert.equal(f.jobsStarted.length,1);
  f.job.state='completed';f.job.exitCode=0;f.job.output='uptime result\npassword=secret-value\n';
- await f.controller.step();assert.equal(c.status,'awaiting_output');assert.equal(f.responses.length,0);
+ await f.controller.step();assert.equal(c.status,'awaiting_output');assert.equal(f.responses.length,1);
  assert.doesNotMatch(c.result.output,/secret-value/);
- await f.controller.decide(c.id,'release',{fingerprint:c.fingerprint});assert.equal(f.responses.length,1);assert.match(c.summary,/uptime result/);
+ await f.controller.decide(c.id,'release',{fingerprint:c.fingerprint});assert.equal(f.responses.length,1);assert.match(c.summary,/uptime result/);assert.equal(c.deliveryState,'pending');
 });
 test('denial, changed destination and project mismatch never start commands',async t=>{
  const f=fixture(t),c=f.propose();await f.controller.step();
@@ -76,6 +76,14 @@ test('denial, changed destination and project mismatch never start commands',asy
 test('lost in-memory job state is reported as unknown, never resubmitted',async t=>{
  const f=fixture(t),c=f.propose();await f.controller.step();f.store.claim(c.id,c.fingerprint);
  await f.controller.step();assert.equal(f.jobsStarted.length,0);assert.equal(c.status,'failed');assert.match(c.summary,/não confirmou/);
+});
+test('explicit command cancellation only targets the approved operation job',async t=>{
+ const f=fixture(t),c=f.propose();await f.controller.step();
+ await f.controller.decide(c.id,'approve',{fingerprint:c.fingerprint});
+ await f.controller.decide(c.id,'cancel',{fingerprint:c.fingerprint});
+ assert.deepEqual(f.cancelled,[f.job.id]);assert.equal(f.jobsStarted.length,1);
+ await assert.rejects(f.controller.decide('f'.repeat(32),'cancel',{fingerprint:c.fingerprint}));
+ assert.equal(f.cancelled.length,1);
 });
 test('GitHub publishing requires linked project, frozen destination and a new draft PR',async t=>{
  const f=fixture(t),c=f.propose();

@@ -42,9 +42,10 @@
     @if(conversation();as c){
      <header><strong>{{c.project}}</strong><span>{{c.status==='running'?'● Trabalhando…':c.status==='failed'?'Falha':c.status==='interrupted'?'Interrompida':'Pronto'}}</span></header>
      <div class="agents-messages" role="log" aria-label="Histórico da conversa" aria-live="polite">
+      @if(c.historyTruncated){<p class="agents-note">Mostrando as mensagens mais recentes para manter esta tela leve.</p>}
       @for(m of c.messages;track $index){
        <article [class.user]="m.role==='user'" [class.assistant]="m.role==='assistant'">
-        <strong>{{m.role==='user'?'Você':'Codex'}}</strong><p>{{m.text}}</p>
+        <strong>{{m.source==='operation'?'Painel · resultado':m.role==='user'?'Você':'Codex'}}</strong><p>{{m.text}}</p>
        </article>
       }
       @if(c.reply){<article class="assistant"><strong>Codex · escrevendo</strong><p>{{c.reply}}</p></article>}
@@ -73,7 +74,14 @@
          <pre>{{a.result?.output}}</pre>
          <button type="button" (click)="copy(a.result?.output??'')">Copiar saída</button>
          <div class="agents-actions"><button type="button" (click)="decide(a,'release')" [disabled]="busy()">Enviar saída ao Codex</button><button type="button" (click)="decide(a,'deny')" [disabled]="busy()">Não compartilhar</button></div>
-        } @else {<p>Executando a operação aprovada. Você pode acompanhar a tarefa pelo Terminal VPS.</p>}
+        } @else if(a.deliveryState==='unknown'){
+         <p>O envio do resultado não foi confirmado. Confira o histórico e o Terminal VPS antes de reenviar; o comando não será repetido.</p>
+        } @else if(a.deliveryState==='pending'||a.deliveryState==='delivering'){
+         <p>Resultado compartilhado. Aguardando o Codex analisar os dados.</p>
+        } @else {
+         <p>Executando a operação aprovada. Você pode acompanhar a tarefa pelo Terminal VPS.</p>
+         @if(a.tool==='solicitar_comando_vps'){<button type="button" (click)="decide(a,'cancel')" [disabled]="busy()">Interromper comando</button>}
+        }
        </section>
       }
      }

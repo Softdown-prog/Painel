@@ -1,11 +1,11 @@
 import {Component,OnInit,OnDestroy,signal} from '@angular/core';
 type Status={enabled:boolean;ready:boolean;active?:boolean;projects:string[];operationsEnabled?:boolean};
-type Message={role:'user'|'assistant';text:string};
+type Message={role:'user'|'assistant';text:string;source?:'operation'};
 type ThreadSummary={id:string;project:string;title:string;status:string};
-type Action={id:string;fingerprint:string;mode:string;tool:string;status:string;destination?:{repository?:string;branch?:string;host?:string;user?:string};
+type Action={id:string;fingerprint:string;mode:string;tool:string;status:string;deliveryState?:string;destination?:{repository?:string;branch?:string;host?:string;user?:string};
  args:{command?:string;reason?:string;title?:string;description?:string;baseSha?:string;diff?:string;files?:{path:string;content:string|null}[]};
  result?:{output?:string;exitCode?:number;state?:string;warning?:string}};
-type Thread=ThreadSummary&{messages:Message[];reply:string;actions?:Action[]};
+type Thread=ThreadSummary&{messages:Message[];reply:string;actions?:Action[];historyTruncated?:boolean};
 type Catalog={bindings:Record<string,{repository:string;branch:string}>;repositories:{fullName:string;branch:string}[]};
 @Component({selector:'panel-agents',standalone:true,
  templateUrl:'./agents.component.html',styleUrl:'./agents.component.css'})
@@ -25,7 +25,8 @@ export class AgentsComponent implements OnInit,OnDestroy {
  private fetchInFlight=false;
  async ngOnInit():Promise<void>{
   this.polling=setInterval(()=>{
-   if(this.conversation()?.status==='running')void this.poll();
+   const c=this.conversation();
+   if(c&&(c.status==='running'||c.actions?.some(a=>['pending','running','awaiting_output'].includes(a.status)||['pending','delivering'].includes(a.deliveryState??''))))void this.poll();
   },2500);
   await this.refresh();
  }
@@ -129,7 +130,7 @@ export class AgentsComponent implements OnInit,OnDestroy {
   }catch(e){if(!this.dead)this.error.set(this.message(e));}
   finally{this.busy.set(false);}
  }
- async decide(action:Action,decision:'approve'|'deny'|'release'):Promise<void>{
+ async decide(action:Action,decision:'approve'|'deny'|'release'|'cancel'):Promise<void>{
   if(this.busy()||!this.conversation()?.actions?.some(a=>a.id===action.id&&a.fingerprint===action.fingerprint))return;
   this.busy.set(true);this.error.set('');
   try{await this.api('/actions/'+action.id+'/'+decision,'POST',{fingerprint:action.fingerprint});

@@ -1,3 +1,11 @@
+### 2026-11-07 — Desacoplar aprovação humana do turno do Codex
+
+**Causa comprovada no teste real do PR #85:** consulta retornou os 13 containers; `uptime` foi aprovado e executou com código 0, mas a saída ainda não compartilhada foi marcada `interrupted` quando o turno do modelo encerrou. `finish()` cancelava toda a fila da conversa e a decisão humana dependia de um RPC temporário. API/Codex continuaram saudáveis, zero reinícios/OOM; nenhum outro projeto foi alterado.
+
+**Correção em branch:** recibo imediato de proposta não executada, fila independente do turno, revisão da saída e continuação posterior somente leitura/sem ferramentas operacionais; polling acompanha ações mesmo com modelo ocioso. Resultado já revisado pode ser entregue após reinício sem reexecutar o comando, com estado incerto explícito caso a confirmação da entrega se perca. Interrupção explícita direciona só o job aprovado. **Testes/CI/frontend/backend:** conferir nova revisão; a versão anterior está instalada, mas o fluxo de aprovação não é declarado concluído até repetir a validação real.
+
+**Validação local da correção:** 28 testes específicos e três E2E Chromium aprovados; typecheck, build Angular e check:js aprovados. Respostas JSON e histórico têm limites sem truncar um objeto JSON no meio; polling interno omite payloads antigos. Uma proposta com efeito por vez. CI, imagem e testes reais continuam separados desta evidência local.
+
 ### 2026-11-07 — Conectar Codex ao GitHub e à administração da VPS
 
 **Código em branch:** `feat/agents-operations-approval-20261107`, baseada na main `4a98d502`. Ferramentas dinâmicas do app-server 0.167.0, fila privada consultada pela API, modo Administração da VPS somente leitura no filesystem, comando exato com destino/fingerprint e aprovação única, revisão da saída antes de voltar ao modelo e publicação de snapshot Git em branch nova + PR em rascunho. Credenciais continuam só na API; nenhum novo socket, callback público, sudo ou alteração do broker. Reutiliza o gerenciador do Terminal VPS e os vínculos GitHub cadastrados.
