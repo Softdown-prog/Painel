@@ -36,7 +36,7 @@ jobs:
       - name: Prepare canonical Angular entrypoint only
         run: |
           mkdir dist
-          cp index.html _headers dist/
+          cp index.html 404.html _headers dist/
           if grep -Eq '(src|href)="[^"]+\\.(js|css)' dist/index.html; then
             echo 'The root entrypoint must not load legacy frontend files'
             exit 1
