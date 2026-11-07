@@ -23,7 +23,7 @@ export async function handleAgentRoute(req:IncomingMessage,res:ServerResponse,de
   const payload=post?await deps.body(req):undefined;
   const target=process.env['PANEL_CODEX_AGENT_URL']||'http://codex-agents:8091';
   const response=await fetch(target+path.slice('/agents'.length),{
-   method:req.method,redirect:'error',signal:AbortSignal.timeout(30000),
+   method:req.method || 'GET',redirect:'error',signal:AbortSignal.timeout(30000),
    headers:{'x-panel-agent-key':key,'content-type':'application/json'},
    ...(payload?{body:JSON.stringify(payload)}:{})
   });
