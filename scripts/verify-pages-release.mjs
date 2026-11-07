@@ -12,6 +12,11 @@ for (let attempt = 0; attempt < 24; attempt++) {
     assert.equal(homepage.status,200);
     const homepageHtml = await homepage.text();
     assert.match(homepageHtml,/location\.replace\('\/angular\/#'/);
+    assert.doesNotMatch(homepageHtml, /(?:src|href)="(?:styles|panel|terminal|apps)\\.css/);
+    for (const asset of ['panel.css','terminal-ui.js']) {
+      const obsolete = await fetch(base + '/' + asset + '?sha=' + sha, {signal:AbortSignal.timeout(15000)});
+      assert.equal(obsolete.status,404,'Old frontend still public: '+asset);
+    }
     const angular = await fetch(`${base}/angular/?sha=${sha}`, { signal: AbortSignal.timeout(15000) });
     assert.equal(angular.status, 200);
     const html = await angular.text();
