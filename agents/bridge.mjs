@@ -58,14 +58,23 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn,operati
   renameSync(stateFile+'.tmp',stateFile);}
  let proc,ready=false,authenticated=false,active=null,seq=0,registered=[];
  const requests=new Map(),loadedThreads=new Set();
- let modelsCache={at:0,models:[],supported:false};
+ let modelsCache={at:0,models:[],supported:false,configuredModel:null,configuredEffort:null};
  let usageCache={at:0,value:null};
  async function models(){
   if(Date.now()-modelsCache.at<60000)return modelsCache;
-  try{const response=await rpc('model/list',{limit:100,includeHidden:false});
-   const list=normalizeModels(response);
-   modelsCache={at:Date.now(),models:list,supported:list.length>0};
-  }catch{modelsCache={at:Date.now(),models:[],supported:false};}
+  const [catalog,configuration]=await Promise.allSettled([
+   rpc('model/list',{limit:100,includeHidden:false}),
+   rpc('config/read',{includeLayers:false})
+  ]);
+  const list=normalizeModels(catalog.status==='fulfilled'?catalog.value:null);
+  const config=configuration.status==='fulfilled'?configuration.value?.config:null;
+  const configuredModel=typeof config?.model==='string'&&/^[a-z0-9][a-z0-9._-]{0,79}$/i.test(config.model)?
+   config.model:null;
+  const configuredEffort=typeof config?.model_reasoning_effort==='string'&&
+   ['none','minimal','low','medium','high','xhigh','max'].includes(config.model_reasoning_effort)?
+   config.model_reasoning_effort:null;
+  modelsCache={at:Date.now(),models:list,supported:list.length>0,
+   configuredModel,configuredEffort};
   return modelsCache;
  }
  async function usage(){
@@ -176,7 +185,8 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn,operati
    if(!ready||!authenticated)return json(res,503,{error:'Codex não autenticado.'});
    const catalog=await models();
    return json(res,200,{supported:catalog.supported,models:catalog.models,
-    note:'Catálogo anunciado pelo Codex; acesso a um modelo só é confirmado após um turno.'});
+    configuredModel:catalog.configuredModel,configuredEffort:catalog.configuredEffort,
+    note:'Configuração lida do app-server; modelo anunciado não garante disponibilidade até executar um turno.'});
   }
   if(path==='/usage'&&req.method==='GET'){
    if(!ready||!authenticated)return json(res,503,{error:'Codex não autenticado.'});
