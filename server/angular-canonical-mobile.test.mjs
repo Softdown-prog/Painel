@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
@@ -37,6 +37,21 @@ test('only Angular UI is served from the root, preserving useful old deep links'
   assert.equal(html.includes('rel="stylesheet"'),false);
   assert.equal(html.includes('src="'),false);
   assert.doesNotMatch(html,/legacy-tools|data-view|id="sidebar"/);
+});
+
+test('builds cannot reintroduce a second CSS/JS frontend at repository root',()=>{
+  const root = new URL('../',import.meta.url);
+  const obsolete = readdirSync(root).filter(name=>name.endsWith('.css'));
+  assert.deepEqual(obsolete,[],'Global classic stylesheets must not return');
+  const pages=read('.github/workflows/deploy-pages.yml');
+  const web=read('web/Dockerfile');
+  const server=read('web/server.mjs');
+  assert.ok(pages.includes('cp index.html 404.html _headers dist/'));
+  assert.ok(web.includes('COPY --from=angular-builder'));
+  assert.equal(web.includes('COPY *.ts *.js *.css'),false);
+  assert.equal(web.includes('version-pages-assets.mjs'),false);
+  assert.ok(server.includes("pathname !== '/' && pathname !== '/index.html'"));
+  assert.equal(html.includes('rel="stylesheet"'),false);
 });
 
 test('mobile navigation is tactile, responsive and deep-linkable', () => {
