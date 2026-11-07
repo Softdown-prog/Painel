@@ -89,7 +89,7 @@ export class AgentOperations {
    }
    repositories.push({name:repo.fullName,branch:repo.branch,readable,canPush});
   }
-  let workspaces=[];
+  let workspaces:{project:string;repository:string;workspaceAvailable:boolean}[]=[];
   try{
    const response=await this.d.bridge('/status');
    const allowed=new Set(Array.isArray(response.projects)?response.projects:[]);
