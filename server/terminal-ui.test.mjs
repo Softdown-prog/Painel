@@ -158,6 +158,6 @@ test('only Angular terminal is publicly accessible',()=>{
  assert.equal(entry.includes('terminal.css'),false);
  assert.equal(entry.includes('id="terminalInput"'),false);
  assert.match(template,/textarea/);
- assert.match(code,/MAX_TERMINAL_COMMAND_BYTES/);
+ assert.match(code,/confirmedTerminalCommand/);
  assert.doesNotMatch(template,/maxlength="605"/);
 });
