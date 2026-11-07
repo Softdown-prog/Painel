@@ -48,12 +48,13 @@ export class AgentsComponent implements OnInit,OnDestroy {
    if(this.dead)return;
    this.status.set(st);
    if(!st.enabled)return;
-   if(st.projects.length&&!st.projects.includes(this.project()))this.project.set(st.projects[0]);
+   const firstProject=st.projects[0];
+   if(firstProject&&!st.projects.includes(this.project()))this.project.set(firstProject);
    const result=await this.api<{threads:ThreadSummary[]}>('/threads');
    if(this.dead)return;
    this.threads.set(result.threads);
    if(this.conversation())await this.open(this.conversation()!.id);
-   else if(result.threads.length)await this.open(result.threads[0].id);
+   else if(result.threads[0])await this.open(result.threads[0].id);
   }catch(e){if(!this.dead)this.error.set(this.message(e));}
   finally{this.loading.set(false);}
  }
