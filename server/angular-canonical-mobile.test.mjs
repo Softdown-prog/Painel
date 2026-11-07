@@ -5,70 +5,37 @@ import { runInNewContext } from 'node:vm';
 
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 const html = read('index.html');
-const script = html.match(/<!-- Angular is canonical;[\s\S]*?<script>([\s\S]*?)<\/script>/)?.[1];
+const script = html.match(/<script>([\\s\\S]*?)<\\/script>/)?.[1];
 function navigate(url) {
-  assert.ok(script, 'Canonical boot script must exist');
+  assert.ok(script, 'The root must redirect to canonical Angular');
   const location = new URL(url);
   let destination = null;
-  let classicClass = false;
   runInNewContext(script, {
     location: {
-      pathname: location.pathname, search: location.search, hash: location.hash,
-      replace: value => { destination = value; }
+      hash: location.hash, replace: value => { destination = value; }
     },
-    URLSearchParams, Set,
-    document: { documentElement: { classList: { add: value => { if (value === 'legacy-tools') classicClass = true; } } } }
+    URLSearchParams, Set
   }, { timeout: 500 });
-  return {destination,classicClass};
+  return destination;
 }
 
-test('Angular is the only canonical entrypoint for desktop and mobile URLs', () => {
-  assert.equal(navigate('https://panel.example.test/').destination,'/angular/#overview');
-  assert.equal(navigate('https://panel.example.test/index.html').destination,'/angular/#overview');
-  for (const [oldRoute,newRoute] of Object.entries({
-    overview:'overview',containers:'containers',apps:'apps',projects:'projects',deploys:'deployments',
-    deployments:'deployments',terminal:'terminal',revisions:'revisions',database:'database',domains:'domains',traffic:'traffic',secrets:'secrets',settings:'settings',infrastructure:'infrastructure'
-  })) {
-    assert.equal(navigate('https://panel.example.test/#'+oldRoute).destination,
-      '/angular/#'+newRoute);
+test('only Angular UI is served from the root, preserving useful old deep links',()=>{
+  assert.equal(navigate('https://panel.test/'),'/angular/#overview');
+  assert.equal(navigate('https://panel.test/?interface=classica#overview'),'/angular/#overview');
+  for (const [oldRoute, newRoute] of Object.entries({
+    overview:'overview',containers:'containers',apps:'apps',projects:'projects',terminal:'terminal',
+    agents:'agents',revisions:'revisions',database:'database',domains:'domains',traffic:'traffic',
+    secrets:'secrets',settings:'settings',infrastructure:'infrastructure',deployments:'deployments',
+    deploys:'deployments',services:'containers',logs:'terminal'
+  })){
+    assert.equal(navigate('https://panel.test/#'+oldRoute),'/angular/#'+newRoute);
+    assert.equal(navigate('https://panel.test/?interface=classica#'+oldRoute),'/angular/#'+newRoute);
   }
-  assert.equal(navigate('https://panel.example.test/?interface=classica#overview').destination,
-    '/angular/#overview','a second overview must not stay live');
-  assert.equal(navigate('https://panel.example.test/#unknown').destination,'/angular/#overview');
-  assert.equal(navigate('https://panel.example.test/?interface=classica#infrastructure').destination,
-    '/angular/#infrastructure', 'new Angular-only routes must not enter the legacy shell');
-});
-
-test('advanced legacy tools stay available explicitly, without a second default dashboard', () => {
-  for (const view of ['services','logs']) {
-    assert.equal(navigate('https://panel.example.test/#'+view).destination,
-      '/?interface=classica#'+view);
-    const result = navigate('https://panel.example.test/?interface=classica#'+view);
-    assert.equal(result.destination,null);
-    assert.equal(result.classicClass,true);
-  }
-  for(const view of ['terminal','revisions','database','domains','traffic','secrets','settings']){
-    assert.equal(navigate('https://panel.example.test/#'+view).destination,'/angular/#'+view);
-    assert.equal(navigate('https://panel.example.test/?interface=classica#'+view).destination,null);
-  }
-  const projectsResult = navigate('https://panel.example.test/?interface=classica#projects');
-  assert.equal(projectsResult.destination, null);
-  assert.equal(projectsResult.classicClass, true);
-  assert.match(html,/Voltar ao painel principal/);
-});
-
-test('legacy site deep links retain valid slugs and reject malformed identifiers', () => {
-  assert.equal(navigate('https://panel.example.test/#site?slug=meu-site').destination,
-    '/angular/#site?slug=meu-site');
-  assert.equal(navigate('https://panel.example.test/index.html#site?slug=app-123').destination,
-    '/angular/#site?slug=app-123');
-  for (const slug of ['', 'X', 'invalid%2Fpath', 'name%20with%20spaces']) {
-    assert.equal(navigate('https://panel.example.test/#site?slug='+slug).destination,
-      '/angular/#apps');
-  }
-  const classic = navigate('https://panel.example.test/?interface=classica#site?slug=meu-site');
-  assert.equal(classic.destination, null);
-  assert.equal(classic.classicClass, true);
+  assert.equal(navigate('https://panel.test/#unknown'),'/angular/#overview');
+  assert.equal(navigate('https://panel.test/#site?slug=my-site'),'/angular/#site?slug=my-site');
+  assert.equal(navigate('https://panel.test/#site?slug=../bad'),'/angular/#apps');
+  assert.doesNotMatch(html, /<link[^>]+\\.css|<script[^>]+src=/i,'No secondary frontend assets');
+  assert.doesNotMatch(html,/legacy-tools|data-view|id="sidebar"/);
 });
 
 test('mobile navigation is tactile, responsive and deep-linkable', () => {
