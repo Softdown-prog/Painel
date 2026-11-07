@@ -68,6 +68,40 @@ export class AgentOperations {
   return b;
  }
  async catalog(){return {bindings:this.bindings(),repositories:readRepositories(this.d.dataDir)};}
+ /** Read-only live GitHub probe; confirms credentials and registered repositories independently of Codex. */
+ async githubStatus(){
+  if(!this.enabled())return {enabled:false,authenticated:false,repositories:[],workspaces:[]};
+  const registered=readRepositories(this.d.dataDir).slice(0,12);
+  let authenticated=false;
+  const git=this.d.git??github;
+  try{const user=await git('/user');
+   authenticated=typeof user?.login==='string'&&user.login.length>0;
+  }catch{/* Missing/expired token or provider offline. Do not disclose credential details. */}
+  const repositories=[];
+  for(const repo of registered){
+   let readable=false,canPush=false;
+   if(authenticated){
+    try{
+     const data=await git('/repos/'+repo.fullName);
+     readable=data?.full_name===repo.fullName;
+     canPush=readable&&data.permissions?.push===true;
+    }catch{/* fail closed, no private response body */}
+   }
+   repositories.push({name:repo.fullName,branch:repo.branch,readable,canPush});
+  }
+  let workspaces:{project:string;repository:string;workspaceAvailable:boolean}[]=[];
+  try{
+   const response=await this.d.bridge('/status');
+   const allowed=new Set(Array.isArray(response.projects)?response.projects:[]);
+   const bindings=this.bindings();
+   workspaces=Object.entries(bindings).filter(([name,b])=>slug.test(name)&&
+    b&&typeof b==='object'&&typeof b.repository==='string').slice(0,50).map(([name,b])=>({
+     project:name,repository:b.repository,workspaceAvailable:allowed.has(name)
+   }));
+  }catch{/* Bridge is not currently connected; do not assert workspace access. */}
+  return {enabled:true,authenticated,repositories,workspaces,
+   note:'Conectividade API GitHub e cadastro de cópias; não prova que o Codex executou um commit ou PR.'};
+ }
  async bind(input:Record<string,unknown>){
   if(!this.enabled())throw Error('Operações do agente não habilitadas.');
   const project=input['project'],repository=input['repository'];

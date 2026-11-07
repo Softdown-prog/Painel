@@ -5,6 +5,7 @@ import {readFileSync,readdirSync,existsSync,writeFileSync,renameSync,mkdirSync} 
 import {join} from 'node:path';
 import {timingSafeEqual} from 'node:crypto';
 import {ToolCalls,toolsFor,ADMIN_PROJECT} from './operations.mjs';
+import {normalizeModels,validSelection,normalizeRateLimits,normalizeUsage,normalizeThreadTokens,safeTitle} from './telemetry.mjs';
 const slug=/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 const threadId=/^[a-zA-Z0-9_-]{4,128}$/;
 export const validPrompt=s=>typeof s==='string'&&s.trim().length>0&&s.length<=4000&&
@@ -44,13 +45,48 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn,operati
   for(const s of saved.slice(-100))if(threadId.test(s.id)&&slug.test(s.project))
    sessions.set(s.id,{id:s.id,project:s.project,title:String(s.title||s.project).slice(0,80),
     messages:(Array.isArray(s.messages)?s.messages:[]).filter(m=>['user','assistant'].includes(m.role)&&
-     typeof m.text==='string').slice(-40),status:'idle',reply:'',turnId:null});
+     typeof m.text==='string').slice(-40),status:'idle',reply:'',turnId:null,
+    createdAt:typeof s.createdAt==='string'?s.createdAt:null,updatedAt:typeof s.updatedAt==='string'?s.updatedAt:null,
+    model:typeof s.model==='string'?s.model:null,effort:typeof s.effort==='string'?s.effort:null,
+    effectiveModel:typeof s.effectiveModel==='string'?s.effectiveModel:null,
+    usage:s.usage&&typeof s.usage==='object'?normalizeThreadTokens({usage:s.usage}):null});
  }
  function save(){writeFileSync(stateFile+'.tmp',JSON.stringify([...sessions.values()].map(s=>({
-  id:s.id,project:s.project,title:s.title,messages:s.messages.slice(-40)}))),{mode:0o600});
+  id:s.id,project:s.project,title:s.title,messages:s.messages.slice(-40),
+  createdAt:s.createdAt,updatedAt:s.updatedAt,model:s.model,effort:s.effort,
+  effectiveModel:s.effectiveModel,usage:s.usage}))),{mode:0o600});
   renameSync(stateFile+'.tmp',stateFile);}
  let proc,ready=false,authenticated=false,active=null,seq=0,registered=[];
  const requests=new Map(),loadedThreads=new Set();
+ let modelsCache={at:0,models:[],supported:false,configuredModel:null,configuredEffort:null};
+ let usageCache={at:0,value:null};
+ async function models(){
+  if(Date.now()-modelsCache.at<60000)return modelsCache;
+  const [catalog,configuration]=await Promise.allSettled([
+   rpc('model/list',{limit:100,includeHidden:false}),
+   rpc('config/read',{includeLayers:false})
+  ]);
+  const list=normalizeModels(catalog.status==='fulfilled'?catalog.value:null);
+  const config=configuration.status==='fulfilled'?configuration.value?.config:null;
+  const configuredModel=typeof config?.model==='string'&&/^[a-z0-9][a-z0-9._-]{0,79}$/i.test(config.model)?
+   config.model:null;
+  const configuredEffort=typeof config?.model_reasoning_effort==='string'&&
+   ['none','minimal','low','medium','high','xhigh','max'].includes(config.model_reasoning_effort)?
+   config.model_reasoning_effort:null;
+  modelsCache={at:Date.now(),models:list,supported:list.length>0,
+   configuredModel,configuredEffort};
+  return modelsCache;
+ }
+ async function usage(){
+  if(usageCache.value&&Date.now()-usageCache.at<60000)return usageCache.value;
+  const [limits,activity]=await Promise.allSettled([
+   rpc('account/rateLimits/read',{}),rpc('account/usage/read',{})]);
+  const quota=normalizeRateLimits(limits.status==='fulfilled'?limits.value:null);
+  const tokens=normalizeUsage(activity.status==='fulfilled'?activity.value:null);
+  const value={quota,tokens,checkedAt:new Date().toISOString(),
+   disclaimer:'Limites da conta Codex; tokens não representam custo financeiro ou cobrança.'};
+  usageCache={at:Date.now(),value};return value;
+ }
  let delivering=false;
  const calls=operationsEnabled?new ToolCalls({stateDir,onDelivery:()=>void deliver(),respond:(id,result)=>{
   if(proc?.stdin.writable)proc.stdin.write(JSON.stringify({id,result})+'\n');
@@ -85,7 +121,8 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn,operati
   }catch{calls.delivery(c.id,'unknown');if(active===s.id)finish(s,'failed');}
   finally{delivering=false;if(!active&&calls.nextDelivery())queueMicrotask(()=>void deliver());}
  }
- function finish(s,status){calls?.cancelThread(s.id,{actions:false});s.status=status;if(s.reply)s.messages.push({role:'assistant',text:s.reply});
+ function finish(s,status){calls?.cancelThread(s.id,{actions:false});s.status=status;
+  s.updatedAt=new Date().toISOString();if(s.reply)s.messages.push({role:'assistant',text:s.reply});
   s.messages=s.messages.slice(-40);s.reply='';s.turnId=null;s.resultOnly=false;active=null;save();queueMicrotask(()=>void deliver());}
  function dispatch(x){
   if(x.method==='account/updated'){
@@ -106,6 +143,13 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn,operati
    proc.stdin.write(JSON.stringify(result?{id:x.id,result}:{id:x.id,error:{code:-32601,message:'Unsupported'}})+'\n');return;}
   const s=sessions.get(x.params?.threadId);if(!s||active!==s.id)return;
   if(x.method==='turn/started')s.turnId=x.params.turn?.id||null;
+  if(x.method==='thread/tokenUsage/updated'){
+   const observed=normalizeThreadTokens(x.params);
+   if(observed){s.usage=observed;save();}
+  }
+  if(x.method==='model/rerouted'&&typeof x.params.toModel==='string'){
+   s.effectiveModel=x.params.toModel.slice(0,80);save();
+  }
   if(x.method==='item/agentMessage/delta'&&typeof x.params.delta==='string')
    s.reply=(s.reply+x.params.delta).slice(0,24000);
   if(x.method==='item/completed'&&x.params.item?.type==='agentMessage'&&!s.reply&&
@@ -137,6 +181,17 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn,operati
   const path=new URL(req.url||'/','http://agent.local').pathname;
   if(path==='/status'&&req.method==='GET')return json(res,200,
    {enabled:true,ready:ready&&authenticated,projects:registered,active:!!active,...(calls?{operationsEnabled:true}:{})});
+  if(path==='/models'&&req.method==='GET'){
+   if(!ready||!authenticated)return json(res,503,{error:'Codex não autenticado.'});
+   const catalog=await models();
+   return json(res,200,{supported:catalog.supported,models:catalog.models,
+    configuredModel:catalog.configuredModel,configuredEffort:catalog.configuredEffort,
+    note:'Configuração lida do app-server; modelo anunciado não garante disponibilidade até executar um turno.'});
+  }
+  if(path==='/usage'&&req.method==='GET'){
+   if(!ready||!authenticated)return json(res,503,{error:'Codex não autenticado.'});
+   return json(res,200,await usage());
+  }
   if(calls&&path==='/tool-calls'&&req.method==='GET')return json(res,200,{calls:calls.list().map(c=>calls.public(c,{compact:true}))});
   const toolMatch=/^\/tool-calls\/([a-f0-9]{32})(?:\/(prepare|claim|result|review|deny|release))?$/.exec(path);
   if(calls&&toolMatch){try{
@@ -158,26 +213,50 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn,operati
    }
   }catch{return json(res,409,{error:'Operação encerrada, inválida ou expirada.'});}}
   if(path==='/threads'&&req.method==='GET')return json(res,200,
-   {threads:[...sessions.values()].map(s=>({id:s.id,project:s.project,title:s.title,status:s.status})).reverse()});
-  const m=/^\/threads\/([a-zA-Z0-9_-]{4,128})(?:\/(turns|cancel))?$/.exec(path);
+   {threads:[...sessions.values()].map(s=>({id:s.id,project:s.project,title:s.title,
+    status:s.status,createdAt:s.createdAt,updatedAt:s.updatedAt,model:s.model,effort:s.effort,
+    messageCount:s.messages.length})).sort((a,b)=>(b.updatedAt||b.createdAt||'').localeCompare(a.updatedAt||a.createdAt||''))});
+  const m=/^\/threads\/([a-zA-Z0-9_-]{4,128})(?:\/(turns|cancel|title|settings))?$/.exec(path);
   const s=m&&sessions.get(m[1]);
   if(s&&req.method==='GET'&&!m[2]){
    const messages=[...s.messages];while(messages.length>1&&Buffer.byteLength(JSON.stringify(messages))>480000)messages.shift();
    return json(res,200,{thread:{id:s.id,project:s.project,title:s.title,messages,status:s.status,reply:s.reply,
+    model:s.model,effort:s.effort,effectiveModel:s.effectiveModel,usage:s.usage,
+    createdAt:s.createdAt,updatedAt:s.updatedAt,
     ...(messages.length<s.messages.length?{historyTruncated:true}:{}),
     ...(calls?{actions:calls.list().filter(c=>c.threadId===s.id&&(['pending','running','awaiting_output'].includes(c.status)||['pending','delivering','unknown'].includes(c.deliveryState))).map(c=>calls.public(c))}:{})}});
   }
   if(req.method==='POST'&&(!ready||!authenticated))return json(res,503,{error:'Codex não autenticado. Faça login no servidor e reinicie o serviço.'});
   try{
+   if(s&&m[2]==='title'&&req.method==='POST'){
+    const b=await input(req);const title=safeTitle(b.title);
+    if(!title)return json(res,400,{error:'Título inválido (máximo 80 caracteres).'});
+    s.title=title;s.updatedAt=new Date().toISOString();save();return json(res,200,{ok:true});
+   }
+   if(s&&m[2]==='settings'&&req.method==='POST'){
+    if(active===s.id||s.status==='running')return json(res,409,{error:'Aguarde o término do turno.'});
+    const b=await input(req),selectedModel=b.model??null,selectedEffort=b.effort??null;
+    const catalog=await models();
+    if(!validSelection(catalog.models,selectedModel,selectedEffort))
+     return json(res,400,{error:'Modelo ou esforço não disponível no catálogo atual do Codex.'});
+    s.model=selectedModel;s.effort=selectedEffort;s.effectiveModel=null;
+    s.updatedAt=new Date().toISOString();save();return json(res,200,{ok:true});
+   }
    if(path==='/threads'&&req.method==='POST'){
     if(sessions.size>=100)return json(res,409,{error:'Limite de conversas atingido.'});
     const b=await input(req);if(typeof b.project!=='string'||!slug.test(b.project)||
      !registered.includes(b.project))return json(res,400,{error:'Projeto não autorizado.'});
+    const model=b.model??null,effort=b.effort??null;
+    if(!validSelection((await models()).models,model,effort))
+     return json(res,400,{error:'Modelo ou esforço não disponível no catálogo atual.'});
     const result=await rpc('thread/start',{cwd:projectDirectory(workspace,b.project),
      permissions:permissionName(b.project),approvalPolicy:'never',serviceName:'softdown_panel',
+     ...(model?{model}:{}),
      ...(calls?{dynamicTools:toolsFor(b.project)}:{})});
     const id=result?.thread?.id;if(typeof id!=='string'||!threadId.test(id))throw Error('Bad thread ID');
-    const created={id,project:b.project,title:b.project,messages:[],status:'idle',reply:'',turnId:null};
+    const now=new Date().toISOString();
+    const created={id,project:b.project,title:b.project,messages:[],status:'idle',reply:'',turnId:null,
+     createdAt:now,updatedAt:now,model,effort,effectiveModel:null,usage:null};
     sessions.set(id,created);loadedThreads.add(id);save();return json(res,201,{thread:created});
    }
    if(s&&m[2]==='turns'&&req.method==='POST'){
@@ -187,6 +266,8 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn,operati
      {error:'Mensagem inválida (até 4.000 caracteres).'});
     if(active)return json(res,409,{error:'Outra tarefa ainda está em execução.'});
     s.messages.push({role:'user',text:b.message.trim()});s.messages=s.messages.slice(-40);
+    if(s.title===s.project)s.title=b.message.trim().replace(/\s+/g,' ').slice(0,70);
+    s.updatedAt=new Date().toISOString();
     s.status='running';s.reply='';s.resultOnly=false;active=s.id;save();
     try{if(!loadedThreads.has(s.id)){
       await rpc('thread/resume',{threadId:s.id,excludeTurns:true,
@@ -194,7 +275,8 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn,operati
       loadedThreads.add(s.id);
      }
      const run=await rpc('turn/start',{threadId:s.id,input:[{type:'text',text:b.message.trim()}],
-      cwd:projectDirectory(workspace,s.project),approvalPolicy:'never',permissions:permissionName(s.project)});
+      cwd:projectDirectory(workspace,s.project),approvalPolicy:'never',permissions:permissionName(s.project),
+      ...(s.model?{model:s.model}:{}),...(s.effort?{effort:s.effort}:{})});
      if(active===s.id)s.turnId=run?.turn?.id||null;return json(res,202,{ok:true});
     }catch{if(active===s.id)finish(s,'failed');
      return json(res,502,{error:'Falha ao iniciar a tarefa.'});}

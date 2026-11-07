@@ -30,3 +30,24 @@
 .agent-binding{display:grid;gap:8px;padding:12px 0;border-bottom:1px solid var(--border,#344054);min-width:0}.agent-binding small{overflow-wrap:anywhere;color:var(--muted,#8595a6)}
 .agents button:disabled{opacity:.5;cursor:not-allowed}
 @media(max-width:700px){.agents-layout{grid-template-columns:minmax(0,1fr)}.agents-messages{max-height:50vh;min-height:180px}}
+
+.agent-usage{border:1px solid var(--border,#344054);border-radius:12px;padding:12px;min-width:0}
+.agent-usage>summary{cursor:pointer;font-weight:700;padding:6px;min-height:32px}
+.agent-usage-body{display:grid;gap:12px;padding:12px 4px;min-width:0}
+.agent-usage-body h3{font-size:1rem;margin:4px 0}
+.agent-usage-body button,.agent-model-controls button,.agent-title-row button{min-height:44px;border-radius:9px;padding:10px 12px;cursor:pointer}
+.agent-quota{display:grid;gap:8px;max-width:580px}
+.agent-quota>div{display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.agent-quota>div small{width:100%;opacity:.75}
+.agent-quota progress{width:100%;height:12px}
+.agent-daily{display:flex;flex-wrap:wrap;gap:8px}
+.agent-daily span{padding:6px 9px;border:1px solid var(--border,#344054);border-radius:8px}
+.agent-model-controls{display:grid;gap:8px;padding:12px 0;border-top:1px solid var(--border,#344054)}
+.agent-model-controls small,.agent-thread-meta small{color:var(--muted,#8595a6);overflow-wrap:anywhere}
+.agents-side input,.agent-title-row input{width:100%;min-width:0;min-height:44px;padding:10px;border:1px solid var(--border,#344054);border-radius:8px;background:transparent;color:inherit;font:inherit}
+.agent-thread-meta{display:grid;gap:7px;padding:10px 0;border-bottom:1px solid var(--border,#344054)}
+.agent-title-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;align-items:end}
+.agent-title-row label{grid-column:1/-1}
+.agent-title-row input{min-width:0}
+.agents-side .agents-thread small{white-space:normal;font-size:.8rem}
+@media(max-width:450px){.agent-title-row{grid-template-columns:minmax(0,1fr)}.agent-title-row label{grid-column:auto}}

@@ -32,6 +32,7 @@ function fixture(t){
  const jobs=()=>({start:async command=>{jobsStarted.push(command);return {...job};},get:async()=>({...job}),cancel:async id=>{cancelled.push(id);return {...job,state:'cancelled'};}});
  const git=async(path,method='GET',payload)=>{
   if(method!=='GET')mutations.push({path,method,payload});
+  if(path==='/user')return {login:'Softdown-prog'};
   if(path.endsWith('/Painel'))return {full_name:repo.fullName,permissions:{push:true}};
   if(path.includes('/compare/'))return {status:'ahead'};
   if(path.includes('/git/commits/')&&method==='GET')return {tree:{sha:'c'.repeat(40)}};
@@ -114,4 +115,17 @@ test('terminal redaction is bounded and masks known secrets, JWTs and private ke
  const text=secret+'\n'+('ghp_'+'a'.repeat(36))+'\npassword=hidden\n-----BEGIN OPENSSH PRIVATE KEY-----\nprivate fixture\n';
  const output=redactAgentOutput(text,[secret]);assert.doesNotMatch(output,/private-opaque|ghp_|=hidden|private fixture/);
  assert.ok(Buffer.byteLength(redactAgentOutput('😀'.repeat(64000)))<=12003);
+});
+
+test('GitHub check tests the configured account and repo without mutations or shell',async t=>{
+ const f=fixture(t);
+ const before=f.mutations.length;
+ const status=await f.controller.githubStatus();
+ assert.equal(status.enabled,true);
+ assert.equal(status.authenticated,true);
+ assert.deepEqual(status.repositories,[{name:'Softdown-prog/Painel',branch:'main',
+  readable:true,canPush:true}]);
+ assert.deepEqual(status.workspaces,[{project:'Painel',repository:'Softdown-prog/Painel',
+  workspaceAvailable:true}]);
+ assert.equal(f.mutations.length,before,'read-only probe may not publish or mutate');
 });
