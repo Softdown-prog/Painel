@@ -25,6 +25,7 @@ async function fixture(t,{saved=[],savedCalls=[],operationsEnabled=false}={}){
      {model:'codex-test',displayName:'Codex Test',defaultReasoningEffort:'medium',
       supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'medium'},{reasoningEffort:'high'}],isDefault:true}
     ]}:
+    request.method==='config/read'?{config:{model:'codex-test',model_reasoning_effort:'medium',apiKey:'MUST_NOT_LEAK'}}:
     request.method==='account/rateLimits/read'?{rateLimits:{limitId:'codex',
      primary:{usedPercent:23,windowDurationMins:300,resetsAt:1800000000},
      secondary:{usedPercent:40,windowDurationMins:10080,resetsAt:1800080000}}}:
@@ -191,6 +192,9 @@ test('model selection uses catalog only; settings do not replace existing histor
  const catalog=await(await f.request('/models')).json();
  assert.equal(catalog.models[0].id,'codex-test');
  assert.equal(catalog.models[0].defaultEffort,'medium');
+ assert.equal(catalog.configuredModel,'codex-test');
+ assert.equal(catalog.configuredEffort,'medium');
+ assert.equal(JSON.stringify(catalog).includes('MUST_NOT_LEAK'),false);
  assert.equal((await f.request('/threads','POST',{project:'Painel',model:'not-in-catalog',effort:'high'})).status,400);
  const created=await(await f.request('/threads','POST',{project:'Painel',model:'codex-test',effort:'high'})).json();
  const id=created.thread.id;
