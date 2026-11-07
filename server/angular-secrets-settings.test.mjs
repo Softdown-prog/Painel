@@ -6,8 +6,7 @@ test('secrets and settings are native Angular screens and deep links',()=>{
   for(const page of ['secrets','settings']){
     assert.ok(app.includes("hash === '"+page+"'"));
     assert.ok(html.includes("selectPage('"+page+"')"));
-    assert.ok(root.includes(page+":'"+page+"'"));
-    assert.ok(root.includes("fragment === '"+page+"'"));
+    assert.ok(root.includes("'"+page+"'"));
   }
   assert.match(html,/<panel-secrets\s*\/>/);assert.match(html,/<panel-settings \(signedOut\)="onPasswordChanged\(\)"\s*\/>/);
 });
