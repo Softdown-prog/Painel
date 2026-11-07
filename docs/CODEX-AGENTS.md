@@ -6,6 +6,13 @@
 
 O Angular (/#agents) chama somente /api/agents/* com a sessão administrativa atual. A API encaminha rotas explícitas a um bridge privado via chave de 32 bytes. O bridge mantém um processo `codex app-server --listen stdio://` e conversa pelo protocolo JSON-RPC. Assim, nenhum terminal livre ou socket Docker fica acessível pelo navegador.
 
+Além das conversas por projeto, a aba permite **Conversa geral (sem projeto)**.
+O bridge cria o diretório dedicado `/workspace/Geral` e configura os turnos nesse modo
+com política `readOnly`: a conversa geral não tem permissão de alterar repositórios,
+executar publicações ou escrever nos arquivos do workspace. O Codex continua sendo
+um agente voltado a programação, não uma réplica integral do ChatGPT (sem memória,
+arquivos de outras conversas ou ferramentas da interface ChatGPT).
+
 O agente só monta cópias dos projetos autorizados em `/srv/panel-codex/workspace/`. A versão inicial só suporta chat, lista de conversas, tarefas e cancelamento. Não há botão de deploy, merge, shell host nem aprovação de privilégios. O agente pode alterar arquivos **dessas cópias de trabalho**; revise o Git diff antes de transportar mudanças para outros serviços. A comunicação com os modelos requer internet. A política interna tenta bloquear rede para comandos de ferramentas, mas valide a aplicação real do sandbox no Docker.
 
 ## Pré-requisitos no Ubuntu host (operador autorizado)
