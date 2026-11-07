@@ -45,17 +45,17 @@ test('one authenticated bridge transport powers internal calls and chat with pre
  const base='http://127.0.0.1:'+server.address().port;
  assert.equal((await agentBridge('/status')).ready,true);
  await assert.rejects(()=>agentBridge('/denied'),/Bridge rejected request/);
- const api=await fetch(base+'/agents/status');
+ const api=await prior.fetch(base+'/agents/status');
  assert.equal(api.status,200);
  const status=await api.json();assert.equal(status.enabled,true);
- const quota=await fetch(base+'/agents/usage');
+ const quota=await prior.fetch(base+'/agents/usage');
  assert.equal(quota.status,429);assert.equal((await quota.json()).error,'Quota indisponível');
- const turn=await fetch(base+'/agents/threads/thread-1234/turns',{method:'POST',
+ const turn=await prior.fetch(base+'/agents/threads/thread-1234/turns',{method:'POST',
   headers:{'content-type':'application/json'},body:JSON.stringify({message:'Revisar código'})});
  assert.equal(turn.status,429);
  assert.equal(JSON.parse(upstream.at(-1).body).message,'Revisar código');
  assert.equal(upstream.at(-1).url,'http://bridge.test:8091/threads/thread-1234/turns');
- assert.equal((await fetch(base+'/agents/unknown')).status,404);
+ assert.equal((await prior.fetch(base+'/agents/unknown')).status,404);
  assert.equal(upstream.length,5);
- assert.doesNotMatch(JSON.stringify(await (await fetch(base+'/agents/status')).json()),/test-secret/);
+ assert.doesNotMatch(JSON.stringify(await (await prior.fetch(base+'/agents/status')).json()),/test-secret/);
 });
