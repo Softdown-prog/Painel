@@ -47,7 +47,8 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
  function save(){writeFileSync(stateFile+'.tmp',JSON.stringify([...sessions.values()].map(s=>({
   id:s.id,project:s.project,title:s.title,messages:s.messages.slice(-40)}))),{mode:0o600});
   renameSync(stateFile+'.tmp',stateFile);}
- let proc,ready=false,authenticated=false,active=null,seq=0,registered=[];const requests=new Map();
+ let proc,ready=false,authenticated=false,active=null,seq=0,registered=[];
+ const requests=new Map(),loadedThreads=new Set();
  function rpc(method,params){if(!proc?.stdin.writable)return Promise.reject(Error('Codex offline'));
   const id=++seq;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{
    requests.delete(id);reject(Error('Codex timeout'));},25000);requests.set(id,{resolve,reject,timer});
@@ -80,7 +81,7 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
   {cwd:workspace,stdio:['pipe','pipe','pipe'],env:process.env});proc.stderr.resume();
   createInterface({input:proc.stdout}).on('line',line=>{if(line.length>1000000)return;
    try{dispatch(JSON.parse(line));}catch{/* malformed event */}});
-  const down=()=>{ready=false;authenticated=false;for(const q of requests.values()){
+  const down=()=>{ready=false;authenticated=false;loadedThreads.clear();for(const q of requests.values()){
    clearTimeout(q.timer);q.reject(Error('Disconnected'));}requests.clear();
    if(active){const s=sessions.get(active);if(s)finish(s,'interrupted');}};
   proc.on('error',down);proc.on('exit',down);
@@ -115,7 +116,7 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
      permissions:permissionName(b.project),approvalPolicy:'never',serviceName:'softdown_panel'});
     const id=result?.thread?.id;if(typeof id!=='string'||!threadId.test(id))throw Error('Bad thread ID');
     const created={id,project:b.project,title:b.project,messages:[],status:'idle',reply:'',turnId:null};
-    sessions.set(id,created);save();return json(res,201,{thread:created});
+    sessions.set(id,created);loadedThreads.add(id);save();return json(res,201,{thread:created});
    }
    if(s&&m[2]==='turns'&&req.method==='POST'){
     if(active)return json(res,409,{error:'Outra tarefa ainda está em execução.'});
@@ -125,7 +126,11 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
     if(active)return json(res,409,{error:'Outra tarefa ainda está em execução.'});
     s.messages.push({role:'user',text:b.message.trim()});s.messages=s.messages.slice(-40);
     s.status='running';s.reply='';active=s.id;save();
-    try{await rpc('thread/resume',{threadId:s.id,excludeTurns:true,permissions:permissionName(s.project)});
+    try{if(!loadedThreads.has(s.id)){
+      await rpc('thread/resume',{threadId:s.id,excludeTurns:true,
+       cwd:projectDirectory(workspace,s.project),permissions:permissionName(s.project)});
+      loadedThreads.add(s.id);
+     }
      const run=await rpc('turn/start',{threadId:s.id,input:[{type:'text',text:b.message.trim()}],
       cwd:projectDirectory(workspace,s.project),approvalPolicy:'never',permissions:permissionName(s.project)});
      if(active===s.id)s.turnId=run?.turn?.id||null;return json(res,202,{ok:true});

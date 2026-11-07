@@ -1,16 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,mkdirSync,symlinkSync,rmSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,symlinkSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {validPrompt,projects,createBridge,codexArguments} from './bridge.mjs';
 import {EventEmitter,once} from 'node:events';
 import {PassThrough,Writable} from 'node:stream';
 
-async function fixture(t){
+async function fixture(t,{saved=[]}={}){
  const root=mkdtempSync(join(tmpdir(),'agent-protocol-'));
  const workspace=join(root,'workspace'),stateDir=join(root,'state');
  mkdirSync(workspace);mkdirSync(stateDir);mkdirSync(join(workspace,'Painel'));
+ if(saved.length)writeFileSync(join(stateDir,'threads.json'),JSON.stringify(saved));
  const calls=[],proc=new EventEmitter();
  proc.stdout=new PassThrough();proc.stderr=new PassThrough();
  let nextThread=0;
@@ -56,6 +57,8 @@ test('general chat stays read-only while registered project gets its own writabl
  assert.equal(run.params.permissions,'panel_Geral');
  assert.ok(run.params.cwd.endsWith('-general'));
  assert.equal(run.params.sandboxPolicy,undefined);
+ assert.equal(f.calls.filter(x=>x.method==='thread/resume').length,0,
+  'fresh threads have no rollout to resume before their first turn');
  f.notify('item/agentMessage/delta',{threadId:general.thread.id,delta:'Olá!'});
  f.notify('turn/completed',{threadId:general.thread.id,turn:{status:'completed'}});
  const reply=await(await f.request('/threads/'+general.thread.id)).json();
@@ -80,6 +83,18 @@ test('pinned CLI uses named permission profiles and hides credentials and other 
   assert.ok(args.includes('permissions.panel_'+p+'.network.enabled=false'));
  }
  assert.throws(()=>codexArguments('/workspace',['../outside']));
+});
+
+test('restored conversations resume once with the selected project scope',async t=>{
+ const f=await fixture(t,{saved:[{id:'saved-thread',project:'Painel',messages:[{role:'user',text:'Leia o README'}]}]});
+ const path='/threads/saved-thread';
+ assert.equal((await f.request(path+'/turns','POST',{message:'Continue'})).status,202);
+ const resume=f.calls.find(x=>x.method==='thread/resume');
+ assert.equal(resume.params.permissions,'panel_Painel');
+ assert.ok(resume.params.cwd.endsWith('Painel'));
+ f.notify('turn/completed',{threadId:'saved-thread',turn:{status:'completed'}});
+ assert.equal((await f.request(path+'/turns','POST',{message:'Continue outra vez'})).status,202);
+ assert.equal(f.calls.filter(x=>x.method==='thread/resume').length,1);
 });
 
 test('only one turn starts under concurrent requests and cancellation reaches Codex',async t=>{

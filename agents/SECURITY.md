@@ -30,6 +30,6 @@ e a rede das ferramentas. O processo confiável do Codex mantém acesso às suas
 credenciais para inferência e renovação de OAuth; elas não são retornadas ao chat.
 Reinicie somente o Codex depois de cadastrar um novo clone para registrar o perfil.
 
-`sandbox-smoke.mjs` testa nove verificações com arquivos sintéticos e o app-server
+`sandbox-smoke.mjs` testa onze verificações com arquivos sintéticos e o app-server
 real, sem chamadas a modelos ou credenciais reais. O workflow dedicado repete
 esses testes em Linux. Aprovação da CI não significa instalação na VPS.
