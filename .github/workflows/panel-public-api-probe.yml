@@ -1,0 +1,23 @@
+name: Probe public Panel API session (read-only)
+on:
+  pull_request:
+    paths:
+      - 'scripts/probe-public-panel-session.mjs'
+      - '.github/workflows/panel-public-api-probe.yml'
+      - 'angular/src/api-response.ts'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Probe only public HTTP status and session contract
+        run: node scripts/probe-public-panel-session.mjs
