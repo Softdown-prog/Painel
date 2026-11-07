@@ -11,13 +11,16 @@ export const validPrompt=s=>typeof s==='string'&&s.trim().length>0&&s.length<=40
 export function projects(dir){return existsSync(dir)?readdirSync(dir,{withFileTypes:true})
  .filter(d=>d.isDirectory()&&slug.test(d.name)).map(d=>d.name).sort():[];}
 export const permissionName=project=>'panel_'+project;
+// General chat has no project files. Keep its read-only cwd outside the denied
+// workspace tree: the pinned CLI cannot reopen a read-only child of that deny.
+export const projectDirectory=(workspace,project)=>project==='Geral'?workspace+'-general':join(workspace,project);
 export function codexArguments(workspace,registered,codexHome='/home/node/.codex'){
  const args=['app-server','--listen','stdio://','-c','default_permissions="panel_Geral"'];
  for(const project of registered){
   if(!slug.test(project))throw Error('Invalid project');
   const prefix='permissions.'+permissionName(project);
   const rules={':root':'read',[workspace]:'deny',[codexHome]:'deny',
-   '/run/secrets':'deny','/state':'deny',[join(workspace,project)]:project==='Geral'?'read':'write'};
+   '/run/secrets':'deny','/state':'deny',[projectDirectory(workspace,project)]:project==='Geral'?'read':'write'};
   const filesystem=Object.entries(rules).map(([path,access])=>JSON.stringify(path)+'='+JSON.stringify(access)).join(',');
   args.push('-c',prefix+'.filesystem={'+filesystem+'}');
   args.push('-c',prefix+'.network.enabled=false');
@@ -32,6 +35,7 @@ async function input(req){let n=0,s='';for await(const c of req){n+=c.length;
 export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
  if(typeof secret!=='string'||secret.length<32)throw Error('Missing bridge secret');
  mkdirSync(join(workspace,'Geral'),{recursive:true,mode:0o700});
+ mkdirSync(projectDirectory(workspace,'Geral'),{recursive:true,mode:0o700});
  const stateFile=join(stateDir,'threads.json'),sessions=new Map();
  if(existsSync(stateFile)){const saved=JSON.parse(readFileSync(stateFile,'utf8'));
   if(!Array.isArray(saved))throw Error('Invalid state file');
@@ -107,7 +111,7 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
     if(sessions.size>=100)return json(res,409,{error:'Limite de conversas atingido.'});
     const b=await input(req);if(typeof b.project!=='string'||!slug.test(b.project)||
      !registered.includes(b.project))return json(res,400,{error:'Projeto não autorizado.'});
-    const result=await rpc('thread/start',{cwd:join(workspace,b.project),
+    const result=await rpc('thread/start',{cwd:projectDirectory(workspace,b.project),
      permissions:permissionName(b.project),approvalPolicy:'never',serviceName:'softdown_panel'});
     const id=result?.thread?.id;if(typeof id!=='string'||!threadId.test(id))throw Error('Bad thread ID');
     const created={id,project:b.project,title:b.project,messages:[],status:'idle',reply:'',turnId:null};
@@ -123,7 +127,7 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
     s.status='running';s.reply='';active=s.id;save();
     try{await rpc('thread/resume',{threadId:s.id,excludeTurns:true,permissions:permissionName(s.project)});
      const run=await rpc('turn/start',{threadId:s.id,input:[{type:'text',text:b.message.trim()}],
-      cwd:join(workspace,s.project),approvalPolicy:'never',permissions:permissionName(s.project)});
+      cwd:projectDirectory(workspace,s.project),approvalPolicy:'never',permissions:permissionName(s.project)});
      if(active===s.id)s.turnId=run?.turn?.id||null;return json(res,202,{ok:true});
     }catch{if(active===s.id)finish(s,'failed');
      return json(res,502,{error:'Falha ao iniciar a tarefa.'});}

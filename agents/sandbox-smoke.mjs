@@ -5,7 +5,7 @@ import {mkdirSync,writeFileSync,readFileSync,existsSync} from 'node:fs';
 import assert from 'node:assert/strict';
 import {createServer,connect} from 'node:net';
 import {once} from 'node:events';
-import {codexArguments,permissionName} from './bridge.mjs';
+import {codexArguments,permissionName,projectDirectory} from './bridge.mjs';
 
 for(const p of ['/workspace/Geral','/workspace/Painel','/workspace/Other','/home/node/.codex','/state'])
  mkdirSync(p,{recursive:true});
@@ -30,12 +30,17 @@ function rpc(method,params){const id=++seq;return new Promise((resolve,reject)=>
  const timer=setTimeout(()=>{pending.delete(id);reject(Error('RPC timeout: '+stderr));},25000);
  pending.set(id,{resolve,reject,timer});proc.stdin.write(JSON.stringify({id,method,params})+'\n');
 });}
-const command=(project,argv)=>rpc('command/exec',{command:argv,cwd:'/workspace/'+project,
+const command=(project,argv)=>rpc('command/exec',{command:argv,cwd:projectDirectory('/workspace',project),
  permissionProfile:permissionName(project),timeoutMs:10000,outputBytesCap:2048});
 const results=[];
 try{
  await rpc('initialize',{clientInfo:{name:'panel_sandbox_test',version:'1.0'},capabilities:{experimentalApi:true}});
  proc.stdin.write('{"method":"initialized","params":{}}\n');
+ for(const project of ['Geral','Painel']){
+  const thread=await rpc('thread/start',{cwd:projectDirectory('/workspace',project),
+   permissions:permissionName(project),approvalPolicy:'never'});
+  assert.ok(thread.thread?.id);results.push('thread-start-'+project);
+ }
  const allowed=await command('Painel',['cat','/workspace/Painel/input.txt']);
  assert.equal(allowed.exitCode,0);assert.match(allowed.stdout,/allowed-fixture/);results.push('project-read');
  const write=await command('Painel',['sh','-c','printf ok > /workspace/Painel/output.txt']);
@@ -47,8 +52,8 @@ try{
   assert.doesNotMatch(denied.stdout,/other-fixture|fake-credential-fixture|fake-bridge-key|private-state-fixture/);
   results.push(name+'-denied');
  }
- const general=await command('Geral',['sh','-c','printf no > /workspace/Geral/forbidden.txt']);
- assert.notEqual(general.exitCode,0);assert.equal(existsSync('/workspace/Geral/forbidden.txt'),false);results.push('general-read-only');
+ const general=await command('Geral',['sh','-c','printf no > /workspace-general/forbidden.txt']);
+ assert.notEqual(general.exitCode,0);assert.equal(existsSync('/workspace-general/forbidden.txt'),false);results.push('general-read-only');
  const cross=await command('Geral',['cat','/workspace/Painel/input.txt']);
  assert.notEqual(cross.exitCode,0);results.push('general-project-isolation');
  const network=await command('Painel',['node','-e',

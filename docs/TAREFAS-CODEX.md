@@ -1,5 +1,7 @@
 ### 2026-11-07 — Instalar Codex e conectar a aba Agentes
 
+**Atualização PR #83:** sete checks verdes em `1e98a528`; serviço privado instalado e autenticado, API pública ainda não ativada. Teste fim a fim identificou leitura negada no cwd Geral. Correção incremental separa a conversa geral da árvore privada e adiciona regressão `thread/start` real ao teste Linux; CI e teste de inferência da nova revisão ainda precisam ser confirmados. Nenhum outro serviço foi reiniciado.
+
 **Código:** branch `feat/install-codex-agents-20261107`, aproveitando os quatro commits da revisão 65255cb e preservando main 7fb0720. CLI fixado em 0.167.0; identidade exclusiva 61110, rede administrativa existente, perfis nomeados reais por projeto, segredo privado e sandbox rootless. Corrigidos concorrência de turnos e tratamento de chave multibyte; conversa geral read-only. **Teste real:** nove verificações de isolamento no app-server real aprovadas, sem modelos ou credenciais reais; teste do bridge em Linux aprovado. **Login:** navegador oficial com Google concluído; fluxo beta por código falhou, sem copiar credenciais locais. **CI/Frontend/Backend público:** pendentes nesta revisão. **VPS:** imagem inicial preparada e autorização salva, perfis específicos autorizados pelo operador; ativação e conversa fim a fim ainda pendentes. Ver `docs/CODEX-AGENTS.md` e `agents/SECURITY.md`.
 
 ### 2026-11-07 — Corrigir erro de HTML na sessão e adicionar auditoria SAC

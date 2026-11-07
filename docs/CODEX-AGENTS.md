@@ -84,6 +84,10 @@ O `app-server` usa perfis nomeados de permissões da versão fixada; os campos
 legados `readOnlyAccess`/`access` não garantem isolamento nessa versão. O teste
 `agents/sandbox-smoke.mjs` verifica o protocolo real, leitura/escrita por projeto,
 bloqueio de credenciais/estado e rede das ferramentas, sem chamar modelos.
+O teste também abre conversas reais de protocolo, sem inferência. Conversa geral
+usa `/workspace-general`, diretório vazio e somente leitura fora da árvore
+privada dos projetos. Isso evita a falha da versão fixada ao reabrir um filho
+read-only de um diretório negado, preservando a proteção de `/workspace`.
 
 - Uma única tarefa ativa por vez. Não há conexão com docker.sock, ambiente real de produção, MCP de host ou vpsops.
 - Até 100 conversas persistidas; histórico local limitado a 40 mensagens por conversa. O Codex também pode manter histórico próprio no CODEX_HOME.

@@ -54,6 +54,7 @@ test('general chat stays read-only while registered project gets its own writabl
  assert.equal((await f.request('/threads/'+general.thread.id+'/turns','POST',{message:'Olá'})).status,202);
  let run=f.calls.findLast(x=>x.method==='turn/start');
  assert.equal(run.params.permissions,'panel_Geral');
+ assert.ok(run.params.cwd.endsWith('-general'));
  assert.equal(run.params.sandboxPolicy,undefined);
  f.notify('item/agentMessage/delta',{threadId:general.thread.id,delta:'Olá!'});
  f.notify('turn/completed',{threadId:general.thread.id,turn:{status:'completed'}});
@@ -72,7 +73,7 @@ test('pinned CLI uses named permission profiles and hides credentials and other 
  const policy=p=>args.find(x=>x.startsWith('permissions.panel_'+p+'.filesystem='));
  assert.ok(policy('Painel').includes('"/workspace"="deny"'));
  assert.ok(policy('Painel').includes(JSON.stringify(join('/workspace','Painel'))+'="write"'));
- assert.ok(policy('Geral').includes(JSON.stringify(join('/workspace','Geral'))+'="read"'));
+ assert.ok(policy('Geral').includes('"/workspace-general"="read"'));
  for(const p of ['Geral','Painel']){
   assert.ok(policy(p).includes('"/home/node/.codex"="deny"'));
   assert.ok(policy(p).includes('"/run/secrets"="deny"'));
