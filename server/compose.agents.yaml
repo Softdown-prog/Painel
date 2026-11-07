@@ -11,6 +11,8 @@ services:
   codex-agents:
     build:
       context: ../agents
+      args:
+        CODEX_NPM_VERSION: "${PANEL_CODEX_VERSION:-latest}"
     restart: unless-stopped
     user: "1000:1000"
     environment:
