@@ -1,3 +1,7 @@
+### 2026-11-07 — Instalar Codex e conectar a aba Agentes
+
+**Código:** branch `feat/install-codex-agents-20261107`, aproveitando os quatro commits da revisão 65255cb e preservando main 7fb0720. CLI fixado em 0.167.0; identidade exclusiva 61110, rede administrativa existente, perfis nomeados reais por projeto, segredo privado e sandbox rootless. Corrigidos concorrência de turnos e tratamento de chave multibyte; conversa geral read-only. **Teste real:** nove verificações de isolamento no app-server real aprovadas, sem modelos ou credenciais reais; teste do bridge em Linux aprovado. **Login:** navegador oficial com Google concluído; fluxo beta por código falhou, sem copiar credenciais locais. **CI/Frontend/Backend público:** pendentes nesta revisão. **VPS:** imagem inicial preparada e autorização salva, perfis específicos autorizados pelo operador; ativação e conversa fim a fim ainda pendentes. Ver `docs/CODEX-AGENTS.md` e `agents/SECURITY.md`.
+
 ### 2026-11-07 — Corrigir erro de HTML na sessão e adicionar auditoria SAC
 
 **Código proposto:** tratamento de resposta não JSON na sessão Angular; testes de regressão para HTML/Cloudflare/truncamento; probe de disponibilidade pública sem conteúdo sensível; workflow SAC PRE001–PRE005 real com checkout imutável da Data Library + compilação Angular oficial separada. **Estado:** código em PR, checks precisam ser conferidos; nenhum deploy ou teste SAC na VPS foi realizado. Ver `docs/PANEL-API-HTML-INCIDENT.md`.

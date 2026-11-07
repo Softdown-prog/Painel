@@ -1,6 +1,9 @@
 # Codex CLI e aba Agentes no Painel
 
-**Estado: código experimental na branch, NÃO instalado na VPS.** Sem autenticação real no host, deploy autorizado e testes de integração, o status no painel continua indisponível.
+**Estado em 07/11/2026: instalação em andamento.** CLI 0.167.0 construído na VPS,
+login por navegador concluído e nove testes reais de isolamento aprovados. A
+ativação do serviço, integração pública e CI desta revisão precisam ser conferidas
+separadamente; os resultados de laboratório não provam que o chat esteja publicado.
 
 ## Fluxo
 
@@ -27,20 +30,20 @@ O agente só monta cópias dos projetos autorizados em `/srv/panel-codex/workspa
 Execute conscientemente pelo SSH do host:
 
 ```bash
-sudo install -d -o 1000 -g 1000 -m 0700 /srv/panel-codex/workspace
-sudo install -d -o 1000 -g 1000 -m 0700 /srv/panel-codex/home
-sudo install -d -o 1000 -g 1000 -m 0700 /srv/panel-codex/state
+sudo install -d -o 61110 -g 61110 -m 0700 /srv/panel-codex/workspace
+sudo install -d -o 61110 -g 61110 -m 0700 /srv/panel-codex/home
+sudo install -d -o 61110 -g 61110 -m 0700 /srv/panel-codex/state
 sudo sh -c 'umask 027; openssl rand -hex 32 > /etc/softload-panel/agent-key'
-sudo chown root:1000 /etc/softload-panel/agent-key
+sudo chown root:61110 /etc/softload-panel/agent-key
 sudo chmod 0440 /etc/softload-panel/agent-key
 ```
 
-O valor do segredo **nunca** deve ser mostrado no log ou na interface. O overlay assume UID/GID 1000 para o processo Codex; confirme se há conflito com outros volumes ou usuários no seu host antes de aplicar.
+O valor do segredo **nunca** deve ser mostrado no log ou na interface. O overlay reserva UID/GID 61110 exclusivamente para panelcodex (sem shell de login ou sudo; o UID 1000 desta VPS pertence a vpsops). Ele usa UID/GID 61110 para o processo Codex; confirme se há conflito com outros volumes ou usuários no seu host antes de aplicar.
 
 ### 2. Preparar projeto separado
 
 ```bash
-sudo -u '#1000' git clone https://github.com/Softdown-prog/Painel.git /srv/panel-codex/workspace/Painel
+sudo -u '#61110' git clone https://github.com/Softdown-prog/Painel.git /srv/panel-codex/workspace/Painel
 ```
 
 Adicione outros projetos apenas como subdiretórios diretos e autorizados; mantenha um clone de desenvolvimento separado por projeto e usuário. O agente pode escrever nessas cópias. Para repos privados, faça clonagem com credencial temporária e remova-a do diretório de trabalho.
@@ -57,13 +60,30 @@ docker compose -f server/compose.yaml -f server/compose.agents.yaml run --rm --n
 
 Abra no navegador do celular o endereço que a CLI mostrar e insira o código. Esse fluxo guarda as credenciais no volume privado `/srv/panel-codex/home`; não envie os códigos de autorização a terceiros. Não confundir Codex com a ferramenta `openai` CLI voltada à API REST.
 
-**Nota:** o Dockerfile aceita `PANEL_CODEX_VERSION` via argumento de build; se ausente, usa `latest` apenas para desenvolvimento. Antes do build de produção, defina `PANEL_CODEX_VERSION` com uma versão testada do npm e valide a saída de `codex --version`. Se o login por código não for aceito, confira as configurações da conta e a documentação oficial.
+**Versão:** o Dockerfile e overlay fixam 0.167.0; `PANEL_CODEX_VERSION` só deve ser alterada após validar o protocolo e sandbox. A imagem de produção é versionada por `PANEL_CODEX_AGENT_IMAGE`. Antes de iniciar, instale os perfis descritos em [SECURITY.md](../agents/SECURITY.md), após autorização administrativa. O API usa sua rede privada existente; nenhuma terceira rede é adicionada ao contrato de deploy.
 
 ### 4. Ativação (separada da instalação/login)
 
 O overlay `server/compose.agents.yaml` também altera redes e mounts da API e, se aplicado, pode recriar o container da API. **Não** execute `up` em produção por conta deste documento. Homologue a configuração, a conectividade privada, a segurança e o login; depois ative em janela aprovada. Verifique sessões, `/api/agents/status`, criação de conversa, streaming por polling, interrupção, isolamento de projetos e limites de RAM.
 
 ## Limitações e manutenção
+
+### Conta Google e login no servidor
+
+Quem usa **Continuar com Google** mantém esse mesmo método na página oficial da
+OpenAI. Não é necessário criar uma senha separada do ChatGPT. Nunca coloque a
+senha do Google no Painel, no terminal ou em arquivos da VPS.
+
+O fluxo beta por código não concluiu nesta instalação. A alternativa oficial por
+navegador funcionou, com callback de localhost encaminhado por túnel SSH privado.
+A senha foi digitada somente pelo usuário no provedor; os tokens ficam no
+CODEX_HOME privado da VPS, UID 61110 e arquivos 0600. Nenhum token foi copiado
+para o repositório, para o navegador do painel ou para os resultados de teste.
+
+O `app-server` usa perfis nomeados de permissões da versão fixada; os campos
+legados `readOnlyAccess`/`access` não garantem isolamento nessa versão. O teste
+`agents/sandbox-smoke.mjs` verifica o protocolo real, leitura/escrita por projeto,
+bloqueio de credenciais/estado e rede das ferramentas, sem chamar modelos.
 
 - Uma única tarefa ativa por vez. Não há conexão com docker.sock, ambiente real de produção, MCP de host ou vpsops.
 - Até 100 conversas persistidas; histórico local limitado a 40 mensagens por conversa. O Codex também pode manter histórico próprio no CODEX_HOME.

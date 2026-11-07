@@ -1,7 +1,8 @@
 FROM node:24-bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
-ARG CODEX_NPM_VERSION=latest
-RUN npm install --global --no-audit --no-fund "@openai/codex@${CODEX_NPM_VERSION}"
+ARG CODEX_NPM_VERSION=0.167.0
+RUN npm install --global --no-audit --no-fund "@openai/codex@${CODEX_NPM_VERSION}" && npm cache clean --force
+RUN groupmod --gid 61110 node && usermod --uid 61110 --gid 61110 node && chown -R 61110:61110 /home/node
 WORKDIR /app
 COPY bridge.mjs ./
 USER node

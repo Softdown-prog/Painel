@@ -7,14 +7,15 @@ services:
       PANEL_CODEX_AGENT_KEY_FILE: /run/secrets/panel-agent-key
     volumes:
       - /etc/softload-panel/agent-key:/run/secrets/panel-agent-key:ro
-    networks: [proxy, codex_control]
   codex-agents:
+    image: "${PANEL_CODEX_AGENT_IMAGE:-vps-panel-codex:0.167.0}"
+    container_name: vps-panel-codex
     build:
       context: ../agents
       args:
-        CODEX_NPM_VERSION: "${PANEL_CODEX_VERSION:-latest}"
+        CODEX_NPM_VERSION: "${PANEL_CODEX_VERSION:-0.167.0}"
     restart: unless-stopped
-    user: "1000:1000"
+    user: "61110:61110"
     environment:
       CODEX_HOME: /home/node/.codex
       HOME: /home/node
@@ -26,13 +27,16 @@ services:
       - /srv/panel-codex/home:/home/node/.codex:rw
       - /srv/panel-codex/state:/state:rw
       - /etc/softload-panel/agent-key:/run/secrets/panel-agent-key:ro
-    networks: [codex_control, codex_egress]
+    networks: [proxy, codex_egress]
     read_only: true
     tmpfs: ["/tmp:size=64m,mode=1777"]
     mem_limit: 1g
     cpus: "1.5"
     pids_limit: 128
-    security_opt: ["no-new-privileges:true"]
+    security_opt:
+      - no-new-privileges:true
+      - apparmor=panel-codex
+      - seccomp=/etc/softload-panel/codex-seccomp.json
     cap_drop: [ALL]
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8091/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -40,6 +44,4 @@ services:
       timeout: 5s
       retries: 3
 networks:
-  codex_control:
-    internal: true
   codex_egress: {}
