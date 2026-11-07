@@ -32,7 +32,8 @@ test('canonical site deep links preserve validated slug and reject hostile query
  assert.equal(route('https://panel.test/#site?slug=meu-app').next,'/angular/#site?slug=meu-app');
  assert.equal(route('https://panel.test/#site?slug=..%2Fetc').next,'/angular/#apps');
  assert.equal(route('https://panel.test/#site?slug=aa&unexpected=1').next,'/angular/#site?slug=aa');
- assert.equal(route('https://panel.test/?interface=classica#site?slug=meu-app').legacy,true);
+ assert.equal(route('https://panel.test/?interface=classica#site?slug=meu-app').next,'/angular/#site?slug=meu-app');
+ assert.equal(route('https://panel.test/?interface=classica#site?slug=meu-app').legacy,false);
 });
 test('site detail reads only scoped APIs and requires typed confirmation before changes',()=>{
  const ts=read('angular/src/site-detail.component.ts'),html=read('angular/src/site-detail.component.html');
