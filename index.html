@@ -8,7 +8,7 @@
   <script>
     // Compatibility entrypoint only. There is ONE administrative UI: Angular.
     (() => {
-      const raw = location.hash.replace(/^#\/?/, '');
+      const raw = location.hash.startsWith('#/') ? location.hash.slice(2) : location.hash.slice(1);
       const [view, args] = raw.split('?');
       const known = new Set(['overview','containers','apps','projects','terminal','agents',
         'revisions','database','domains','traffic','secrets','settings','infrastructure','deployments']);
