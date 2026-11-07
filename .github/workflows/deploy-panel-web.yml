@@ -10,7 +10,6 @@ on:
       - '*.css'
       - 'index.html'
       - 'package.json'
-      - 'scripts/version-pages-assets.mjs'
       - 'operations/driver.py'
       - 'operations/web.py'
       - 'operations/test_operations.py'
