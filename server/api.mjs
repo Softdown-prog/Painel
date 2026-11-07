@@ -9,6 +9,7 @@ import { handleImageImportRoute } from './image-import.ts';
 import { handleDomainRoute } from './domains.ts';
 import { executeSshCommand, handleSshTerminalRoute } from './terminal-ssh.ts';
 import {handleSshTerminalJobRoute} from './terminal-jobs.ts';
+import {handleAgentRoute} from './agents.ts';
 import { handleRevisionRoute, startRevisionMonitor } from './revision-maintenance.ts';
 import { handlePublicationRoute, readPublicationHistory, startPublicationWorker } from './publications.ts';
 import { handleSecretsRoute } from './secrets.ts';
@@ -181,6 +182,7 @@ async function handler(req, res) {
   if (path === '/runtime' && req.method === 'GET') return send(res, 200,
     { node: process.versions.node, native: await nativeRuntime.probe(),
       resourceLimitsEnforcedBy: 'docker-cgroups' });
+  if (await handleAgentRoute(req, res, {send, body})) return;
   if (await handleSshTerminalJobRoute(req, res, {send, body})) return;
   if (await handleSshTerminalRoute(req, res, {send, body})) return;
   if (await handleSecretsRoute(req, res, {
