@@ -167,6 +167,7 @@ export class TerminalJobManager {
 
 const manager=new TerminalJobManager();
 const persistentManager=new PersistentTerminalJobManager();
+export function terminalJobManager(){return process.env['PANEL_TERMINAL_PERSISTENT']==='1'?persistentManager:manager;}
 export async function handleSshTerminalJobRoute(req:IncomingMessage,res:ServerResponse,deps:Deps):Promise<boolean>{
  const path=new URL(req.url||'/','http://panel.local').pathname;
  if(!path.startsWith('/terminal/ssh/jobs'))return false;
@@ -175,7 +176,7 @@ export async function handleSshTerminalJobRoute(req:IncomingMessage,res:ServerRe
  if(!(deps.configured??terminalSshConfig().valid)){
   deps.send(res,503,{error:'Acesso SSH ainda não configurado.'});return true;
  }
- const jobs=deps.manager??(process.env['PANEL_TERMINAL_PERSISTENT']==='1'?persistentManager:manager);
+ const jobs=deps.manager??terminalJobManager();
  const respondFailure=()=>deps.send(res,503,{error:'Não foi possível consultar o supervisor SSH. Se a tarefa já foi enviada, verifique o estado antes de tentar novamente.'});
  if(path==='/terminal/ssh/jobs/current'&&req.method==='GET'){
   try{deps.send(res,200,{job:await jobs.current()});}catch{respondFailure();}return true;

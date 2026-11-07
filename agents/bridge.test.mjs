@@ -7,7 +7,7 @@ import {validPrompt,projects,createBridge,codexArguments} from './bridge.mjs';
 import {EventEmitter,once} from 'node:events';
 import {PassThrough,Writable} from 'node:stream';
 
-async function fixture(t,{saved=[]}={}){
+async function fixture(t,{saved=[],operationsEnabled=false}={}){
  const root=mkdtempSync(join(tmpdir(),'agent-protocol-'));
  const workspace=join(root,'workspace'),stateDir=join(root,'state');
  mkdirSync(workspace);mkdirSync(stateDir);mkdirSync(join(workspace,'Painel'));
@@ -18,7 +18,7 @@ async function fixture(t,{saved=[]}={}){
  const notify=(method,params)=>proc.stdout.write(JSON.stringify({method,params})+'\n');
  proc.stdin=new Writable({write(chunk,_encoding,done){
   const request=JSON.parse(chunk.toString());calls.push(request);
-  if(request.id){
+  if(request.id&&request.method){
    const result=request.method==='account/read'?{account:{type:'chatgpt'}}:
     request.method==='thread/start'?{thread:{id:'thread-'+(++nextThread)}}:
     request.method==='turn/start'?{turn:{id:'turn-1'}}:{};
@@ -26,7 +26,7 @@ async function fixture(t,{saved=[]}={}){
   }done();
  }});
  proc.kill=()=>{proc.emit('exit',0);proc.stdin.end();proc.stdout.end();proc.stderr.end();};
- const secret='a'.repeat(64),service=createBridge({secret,workspace,stateDir,spawnCodex:()=>proc});
+ const secret='a'.repeat(64),service=createBridge({secret,workspace,stateDir,spawnCodex:()=>proc,operationsEnabled});
  service.start();service.server.listen(0,'127.0.0.1');await once(service.server,'listening');
  const base='http://127.0.0.1:'+service.server.address().port;
  const request=(path,method='GET',body,key=secret)=>fetch(base+path,{method,
@@ -38,7 +38,7 @@ async function fixture(t,{saved=[]}={}){
   if((await(await request('/status')).json()).ready)break;
   await new Promise(resolve=>setTimeout(resolve,5));
  }
- return {request,calls,notify};
+ return {request,calls,notify,toolCall:params=>proc.stdout.write(JSON.stringify({id:'tool-rpc-1',method:'item/tool/call',params})+'\n')};
 }
 
 test('private bridge rejects wrong and multibyte keys without crashing',async t=>{
@@ -119,7 +119,7 @@ test('account change events reflect logout without restarting the private bridge
 test('isolates project folders from symlinks',()=>{
  const root=mkdtempSync(join(tmpdir(),'agent-test-'));
  try{mkdirSync(join(root,'Painel'));mkdirSync(join(root,'.secret'));
-  symlinkSync('/etc',join(root,'outside'));
+  symlinkSync(join(root,'.secret'),join(root,'outside'),'junction');
   assert.deepEqual(projects(root),['Painel']);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
@@ -127,4 +127,20 @@ test('validates prompts and protects bridge secret',()=>{
  assert.equal(validPrompt('Corrija o compilador'),true);
  for(const s of ['', ' ', 'a'.repeat(4001), '\u0000', null])assert.equal(validPrompt(s),false);
  assert.throws(()=>createBridge({secret:'short',workspace:'/tmp',stateDir:'/tmp'}));
+});
+
+test('real tool-call protocol queues host proposals without answering before approval',async t=>{
+ const f=await fixture(t,{operationsEnabled:true});
+ const status=await(await f.request('/status')).json();assert.ok(status.projects.includes('AdministracaoVPS'));
+ const created=await(await f.request('/threads','POST',{project:'AdministracaoVPS'})).json();
+ const thread=created.thread;
+ assert.equal((await f.request('/threads/'+thread.id+'/turns','POST',{message:'Consulte uptime'})).status,202);
+ const start=f.calls.find(x=>x.method==='thread/start');assert.ok(start.params.dynamicTools.some(x=>x.name==='solicitar_comando_vps'));
+ f.toolCall({threadId:thread.id,turnId:'turn-1',callId:'call-fixture',tool:'solicitar_comando_vps',arguments:{command:'uptime',reason:'Verificar a carga'}});
+ await new Promise(resolve=>setTimeout(resolve,5));
+ const list=await(await f.request('/tool-calls')).json();assert.equal(list.calls.length,1);assert.equal(list.calls[0].status,'pending');
+ assert.equal(f.calls.some(x=>x.id==='tool-rpc-1'),false);
+ const c=list.calls[0];
+ assert.equal((await f.request('/tool-calls/'+c.id+'/deny','POST',{fingerprint:c.fingerprint})).status,200);
+ assert.equal(f.calls.find(x=>x.id==='tool-rpc-1').result.success,false);
 });

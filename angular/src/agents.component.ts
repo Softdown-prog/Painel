@@ -1,8 +1,12 @@
 import {Component,OnInit,OnDestroy,signal} from '@angular/core';
-type Status={enabled:boolean;ready:boolean;active?:boolean;projects:string[]};
+type Status={enabled:boolean;ready:boolean;active?:boolean;projects:string[];operationsEnabled?:boolean};
 type Message={role:'user'|'assistant';text:string};
 type ThreadSummary={id:string;project:string;title:string;status:string};
-type Thread=ThreadSummary&{messages:Message[];reply:string};
+type Action={id:string;fingerprint:string;mode:string;tool:string;status:string;destination?:{repository?:string;branch?:string;host?:string;user?:string};
+ args:{command?:string;reason?:string;title?:string;description?:string;baseSha?:string;diff?:string;files?:{path:string;content:string|null}[]};
+ result?:{output?:string;exitCode?:number;state?:string;warning?:string}};
+type Thread=ThreadSummary&{messages:Message[];reply:string;actions?:Action[]};
+type Catalog={bindings:Record<string,{repository:string;branch:string}>;repositories:{fullName:string;branch:string}[]};
 @Component({selector:'panel-agents',standalone:true,
  templateUrl:'./agents.component.html',styleUrl:'./agents.component.css'})
 export class AgentsComponent implements OnInit,OnDestroy {
@@ -14,6 +18,8 @@ export class AgentsComponent implements OnInit,OnDestroy {
  readonly busy=signal(false);
  readonly loading=signal(false);
  readonly error=signal('');
+ readonly catalog=signal<Catalog>({bindings:{},repositories:[]});
+ readonly repository=signal('');
  private polling:ReturnType<typeof setInterval>|null=null;
  private dead=false;
  private fetchInFlight=false;
@@ -48,6 +54,7 @@ export class AgentsComponent implements OnInit,OnDestroy {
    if(this.dead)return;
    this.status.set(st);
    if(!st.enabled)return;
+   if(st.operationsEnabled)this.catalog.set(await this.api<Catalog>('/projects'));
    const firstProject=st.projects[0];
    if(firstProject&&!st.projects.includes(this.project()))this.project.set(firstProject);
    const result=await this.api<{threads:ThreadSummary[]}>('/threads');
@@ -82,7 +89,7 @@ export class AgentsComponent implements OnInit,OnDestroy {
   if(this.dead)return;
   try{
    const reply=await this.api<{thread:Thread}>('/threads/'+encodeURIComponent(id));
-   if(!this.dead)this.conversation.set(reply.thread);
+   if(!this.dead){this.conversation.set(reply.thread);this.project.set(reply.thread.project);}
   }catch(e){if(!this.dead)this.error.set(this.message(e));}
  }
  async poll():Promise<void>{
@@ -122,5 +129,21 @@ export class AgentsComponent implements OnInit,OnDestroy {
   }catch(e){if(!this.dead)this.error.set(this.message(e));}
   finally{this.busy.set(false);}
  }
+ async decide(action:Action,decision:'approve'|'deny'|'release'):Promise<void>{
+  if(this.busy()||!this.conversation()?.actions?.some(a=>a.id===action.id&&a.fingerprint===action.fingerprint))return;
+  this.busy.set(true);this.error.set('');
+  try{await this.api('/actions/'+action.id+'/'+decision,'POST',{fingerprint:action.fingerprint});
+   if(!this.dead)await this.poll();
+  }catch(e){if(!this.dead)this.error.set(this.message(e));}finally{this.busy.set(false);}
+ }
+ chooseRepository(event:Event):void{const el=event.target;if(el instanceof HTMLSelectElement)this.repository.set(el.value);}
+ async bind():Promise<void>{
+  const project=this.project(),repository=this.repository();
+  if(this.busy()||!repository||['Geral','AdministracaoVPS'].includes(project))return;
+  this.busy.set(true);this.error.set('');
+  try{await this.api('/projects','POST',{project,repository});const result=await this.api<Catalog>('/projects');if(!this.dead)this.catalog.set(result);
+  }catch(e){if(!this.dead)this.error.set(this.message(e));}finally{this.busy.set(false);}
+ }
+ async copy(text:string):Promise<void>{try{await navigator.clipboard.writeText(text);}catch{this.error.set('Não foi possível copiar. Selecione a saída para copiar manualmente.');}}
  private message(e:unknown):string{return e instanceof Error?e.message:'Falha de conexão com o Codex.';}
 }

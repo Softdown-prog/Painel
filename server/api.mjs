@@ -9,7 +9,8 @@ import { handleImageImportRoute } from './image-import.ts';
 import { handleDomainRoute } from './domains.ts';
 import { executeSshCommand, handleSshTerminalRoute } from './terminal-ssh.ts';
 import {handleSshTerminalJobRoute} from './terminal-jobs.ts';
-import {handleAgentRoute} from './agents.ts';
+import {handleAgentRoute,agentBridge} from './agents.ts';
+import {AgentOperations} from './agent-operations.ts';
 import { handleRevisionRoute, startRevisionMonitor } from './revision-maintenance.ts';
 import { handlePublicationRoute, readPublicationHistory, startPublicationWorker } from './publications.ts';
 import { handleSecretsRoute } from './secrets.ts';
@@ -37,6 +38,16 @@ if (!existsSync(adminFile) && !existsSync(setupFile)) writeFileSync(setupFile, r
 
 const sessions = new Map();
 const failures = new Map();
+const agentOperations=new AgentOperations({dataDir,bridge:agentBridge,
+ inventory:async()=>{const data=await dockerJson('/containers/json?all=1&view=inventory');
+  if(!data||!Array.isArray(data.containers))throw Error('Inventário indisponível');return {...data,updatedAt:new Date().toISOString()};},
+ resources:async()=>{let info='';try{info=readFileSync('/proc/meminfo','utf8');}catch{}
+  const memory=await nativeRuntime.memory(totalmem(),freemem(),info),fs=statfsSync(dataDir);
+  return {memory,cpu:{load1:loadavg()[0],cores:cpus().length},disk:{total:Number(fs.bsize)*Number(fs.blocks),available:Number(fs.bsize)*Number(fs.bavail)},updatedAt:new Date().toISOString()};}
+});
+if(process.env.PANEL_CODEX_OPERATIONS_ENABLED==='1'){
+ const agentTimer=setInterval(()=>void agentOperations.step(),2500);agentTimer.unref();
+}
 const legacyEntries = legacySoftloadEntries();
 const managed = Object.freeze(Object.fromEntries(legacyEntries.map(([id, service]) => [id, service.container])));
 const controllable = new Set(legacyEntries.filter(([, service]) => service.controllable).map(([id]) => id));
@@ -182,7 +193,7 @@ async function handler(req, res) {
   if (path === '/runtime' && req.method === 'GET') return send(res, 200,
     { node: process.versions.node, native: await nativeRuntime.probe(),
       resourceLimitsEnforcedBy: 'docker-cgroups' });
-  if (await handleAgentRoute(req, res, {send, body})) return;
+  if (await handleAgentRoute(req, res, {send, body,operations:agentOperations})) return;
   if (await handleSshTerminalJobRoute(req, res, {send, body})) return;
   if (await handleSshTerminalRoute(req, res, {send, body})) return;
   if (await handleSecretsRoute(req, res, {

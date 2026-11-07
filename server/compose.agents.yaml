@@ -5,6 +5,7 @@ services:
       PANEL_CODEX_AGENTS_ENABLED: "1"
       PANEL_CODEX_AGENT_URL: http://codex-agents:8091
       PANEL_CODEX_AGENT_KEY_FILE: /run/secrets/panel-agent-key
+      PANEL_CODEX_OPERATIONS_ENABLED: "${PANEL_CODEX_OPERATIONS_ENABLED:-0}"
     volumes:
       - /etc/softload-panel/agent-key:/run/secrets/panel-agent-key:ro
   codex-agents:
@@ -22,6 +23,7 @@ services:
       PANEL_AGENT_KEY_FILE: /run/secrets/panel-agent-key
       PANEL_AGENT_WORKSPACE: /workspace
       PANEL_AGENT_STATE_DIR: /state
+      PANEL_CODEX_OPERATIONS_ENABLED: "${PANEL_CODEX_OPERATIONS_ENABLED:-0}"
     volumes:
       - /srv/panel-codex/workspace:/workspace:rw
       - /srv/panel-codex/home:/home/node/.codex:rw

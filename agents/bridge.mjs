@@ -4,6 +4,7 @@ import {createInterface} from 'node:readline';
 import {readFileSync,readdirSync,existsSync,writeFileSync,renameSync,mkdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {timingSafeEqual} from 'node:crypto';
+import {ToolCalls,toolsFor,ADMIN_PROJECT} from './operations.mjs';
 const slug=/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 const threadId=/^[a-zA-Z0-9_-]{4,128}$/;
 export const validPrompt=s=>typeof s==='string'&&s.trim().length>0&&s.length<=4000&&
@@ -13,14 +14,14 @@ export function projects(dir){return existsSync(dir)?readdirSync(dir,{withFileTy
 export const permissionName=project=>'panel_'+project;
 // General chat has no project files. Keep its read-only cwd outside the denied
 // workspace tree: the pinned CLI cannot reopen a read-only child of that deny.
-export const projectDirectory=(workspace,project)=>project==='Geral'?workspace+'-general':join(workspace,project);
-export function codexArguments(workspace,registered,codexHome='/home/node/.codex'){
+export const projectDirectory=(workspace,project)=>project==='Geral'?workspace+'-general':project===ADMIN_PROJECT?workspace+'-admin':join(workspace,project);
+export function codexArguments(workspace,registered,codexHome='/home/node/.codex',stateDir='/state'){
  const args=['app-server','--listen','stdio://','-c','default_permissions="panel_Geral"'];
  for(const project of registered){
   if(!slug.test(project))throw Error('Invalid project');
   const prefix='permissions.'+permissionName(project);
   const rules={':root':'read',[workspace]:'deny',[codexHome]:'deny',
-   '/run/secrets':'deny','/state':'deny',[projectDirectory(workspace,project)]:project==='Geral'?'read':'write'};
+   '/run/secrets':'deny',[stateDir]:'deny',[projectDirectory(workspace,project)]:['Geral',ADMIN_PROJECT].includes(project)?'read':'write'};
   const filesystem=Object.entries(rules).map(([path,access])=>JSON.stringify(path)+'='+JSON.stringify(access)).join(',');
   args.push('-c',prefix+'.filesystem={'+filesystem+'}');
   args.push('-c',prefix+'.network.enabled=false');
@@ -29,13 +30,14 @@ export function codexArguments(workspace,registered,codexHome='/home/node/.codex
 }
 const json=(res,status,value)=>{res.writeHead(status,{'content-type':'application/json',
  'cache-control':'no-store','x-content-type-options':'nosniff'});res.end(JSON.stringify(value));};
-async function input(req){let n=0,s='';for await(const c of req){n+=c.length;
- if(n>8192)throw Error('Large input');s+=c.toString('utf8');}
+async function input(req,max=8192){let n=0,s='';for await(const c of req){n+=c.length;
+ if(n>max)throw Error('Large input');s+=c.toString('utf8');}
  const v=JSON.parse(s);if(!v||Array.isArray(v)||typeof v!=='object')throw Error('Bad JSON');return v;}
-export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
+export function createBridge({secret,workspace,stateDir,spawnCodex=spawn,operationsEnabled=false}){
  if(typeof secret!=='string'||secret.length<32)throw Error('Missing bridge secret');
  mkdirSync(join(workspace,'Geral'),{recursive:true,mode:0o700});
  mkdirSync(projectDirectory(workspace,'Geral'),{recursive:true,mode:0o700});
+ if(operationsEnabled)mkdirSync(projectDirectory(workspace,ADMIN_PROJECT),{recursive:true,mode:0o700});
  const stateFile=join(stateDir,'threads.json'),sessions=new Map();
  if(existsSync(stateFile)){const saved=JSON.parse(readFileSync(stateFile,'utf8'));
   if(!Array.isArray(saved))throw Error('Invalid state file');
@@ -49,26 +51,36 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
   renameSync(stateFile+'.tmp',stateFile);}
  let proc,ready=false,authenticated=false,active=null,seq=0,registered=[];
  const requests=new Map(),loadedThreads=new Set();
+ const calls=operationsEnabled?new ToolCalls({stateDir,respond:(id,result)=>{
+  if(proc?.stdin.writable)proc.stdin.write(JSON.stringify({id,result})+'\n');
+ }}):null;
  function rpc(method,params){if(!proc?.stdin.writable)return Promise.reject(Error('Codex offline'));
   const id=++seq;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{
    requests.delete(id);reject(Error('Codex timeout'));},25000);requests.set(id,{resolve,reject,timer});
    proc.stdin.write(JSON.stringify({id,method,params})+'\n',error=>{
     if(error&&requests.has(id)){clearTimeout(timer);requests.delete(id);reject(Error('Codex disconnected'));}});
   });}
- function finish(s,status){s.status=status;if(s.reply)s.messages.push({role:'assistant',text:s.reply});
+ function finish(s,status){calls?.cancelThread(s.id);s.status=status;if(s.reply)s.messages.push({role:'assistant',text:s.reply});
   s.messages=s.messages.slice(-40);s.reply='';s.turnId=null;active=null;save();}
  function dispatch(x){
   if(x.method==='account/updated'){
    authenticated=Boolean(x.params?.authMode);return;}
   if(typeof x.id==='number'&&!x.method){const q=requests.get(x.id);if(!q)return;
    clearTimeout(q.timer);requests.delete(x.id);if(x.error)q.reject(Error('Codex rejected request'));else q.resolve(x.result);return;}
-  if(typeof x.id==='number'&&typeof x.method==='string'){
+  if((typeof x.id==='number'||typeof x.id==='string')&&typeof x.method==='string'){
+   if(x.method==='item/tool/call'&&calls){
+    try{const s=sessions.get(x.params?.threadId);if(!s||active!==s.id)throw Error('Inactive');
+     calls.propose(x.params,x.id,s,projectDirectory(workspace,s.project));
+    }catch{proc.stdin.write(JSON.stringify({id:x.id,result:{contentItems:[{type:'inputText',text:'Ferramenta rejeitada: escopo, argumentos ou arquivos inválidos.'}],success:false}})+'\n');}
+    return;
+   }
    // Fail closed for all privilege escalation/approval requests.
    const result=x.method==='item/permissions/requestApproval'?{permissions:{}}:
     x.method==='mcpServer/elicitation/request'?{action:'decline',content:null}:
     x.method.includes('requestApproval')?{decision:'decline'}:null;
    proc.stdin.write(JSON.stringify(result?{id:x.id,result}:{id:x.id,error:{code:-32601,message:'Unsupported'}})+'\n');return;}
   const s=sessions.get(x.params?.threadId);if(!s||active!==s.id)return;
+  if(x.method==='turn/started')s.turnId=x.params.turn?.id||null;
   if(x.method==='item/agentMessage/delta'&&typeof x.params.delta==='string')
    s.reply=(s.reply+x.params.delta).slice(0,24000);
   if(x.method==='item/completed'&&x.params.item?.type==='agentMessage'&&!s.reply&&
@@ -76,8 +88,8 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
   if(x.method==='turn/completed')finish(s,x.params.turn?.status==='completed'?'completed':
    x.params.turn?.status==='interrupted'?'interrupted':'failed');
  }
- function start(){registered=projects(workspace);
-  proc=spawnCodex('codex',codexArguments(workspace,registered,process.env.CODEX_HOME||'/home/node/.codex'),
+ function start(){registered=[...new Set([...projects(workspace),...(operationsEnabled?[ADMIN_PROJECT]:[])])].sort();
+  proc=spawnCodex('codex',codexArguments(workspace,registered,process.env.CODEX_HOME||'/home/node/.codex',stateDir),
   {cwd:workspace,stdio:['pipe','pipe','pipe'],env:process.env});proc.stderr.resume();
   createInterface({input:proc.stdout}).on('line',line=>{if(line.length>1000000)return;
    try{dispatch(JSON.parse(line));}catch{/* malformed event */}});
@@ -99,13 +111,34 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
    !timingSafeEqual(Buffer.from(candidate),Buffer.from(secret)))return json(res,404,{error:'Not found'});
   const path=new URL(req.url||'/','http://agent.local').pathname;
   if(path==='/status'&&req.method==='GET')return json(res,200,
-   {enabled:true,ready:ready&&authenticated,projects:registered,active:!!active});
+   {enabled:true,ready:ready&&authenticated,projects:registered,active:!!active,...(calls?{operationsEnabled:true}:{})});
+  if(calls&&path==='/tool-calls'&&req.method==='GET')return json(res,200,{calls:calls.list().map(c=>calls.public(c))});
+  const toolMatch=/^\/tool-calls\/([a-f0-9]{32})(?:\/(prepare|claim|result|review|deny|release))?$/.exec(path);
+  if(calls&&toolMatch){try{
+   const c=calls.get(toolMatch[1]);if(!c)return json(res,404,{error:'Operação não encontrada.'});
+   if(req.method==='GET'&&!toolMatch[2])return json(res,200,{call:calls.public(c)});
+   if(req.method==='POST'){
+    const b=await input(req,32768);if(b.fingerprint!==c.fingerprint)return json(res,409,{error:'A ação mudou. Confira novamente.'});
+    if(toolMatch[2]==='prepare')return json(res,200,{call:calls.prepare(c.id,b.destination)});
+    if(toolMatch[2]==='claim')return json(res,200,{call:calls.claim(c.id,b.fingerprint)});
+    if(toolMatch[2]==='result')calls.complete(c.id,b.result);
+    else if(toolMatch[2]==='review')calls.review(c.id,b.result);
+    else if(toolMatch[2]==='deny'&&['pending','awaiting_output'].includes(c.status)){
+     c.declinedAt=Date.now();c.declinedBy='administrator-session';
+     calls.complete(c.id,{success:false,message:c.status==='awaiting_output'?'Comando executado; saída não compartilhada.':'Operação recusada sem execução.'});
+    }
+    else if(toolMatch[2]==='release'&&c.status==='awaiting_output')calls.complete(c.id,c.result);
+    else return json(res,400,{error:'Operação inválida.'});
+    return json(res,200,{ok:true});
+   }
+  }catch{return json(res,409,{error:'Operação encerrada, inválida ou expirada.'});}}
   if(path==='/threads'&&req.method==='GET')return json(res,200,
    {threads:[...sessions.values()].map(s=>({id:s.id,project:s.project,title:s.title,status:s.status})).reverse()});
   const m=/^\/threads\/([a-zA-Z0-9_-]{4,128})(?:\/(turns|cancel))?$/.exec(path);
   const s=m&&sessions.get(m[1]);
   if(s&&req.method==='GET'&&!m[2])return json(res,200,{thread:{
-   id:s.id,project:s.project,title:s.title,messages:s.messages,status:s.status,reply:s.reply}});
+   id:s.id,project:s.project,title:s.title,messages:s.messages,status:s.status,reply:s.reply,
+   ...(calls?{actions:calls.list().filter(c=>c.threadId===s.id&&['pending','running','awaiting_output'].includes(c.status)).map(c=>calls.public(c))}:{})}});
   if(req.method==='POST'&&(!ready||!authenticated))return json(res,503,{error:'Codex não autenticado. Faça login no servidor e reinicie o serviço.'});
   try{
    if(path==='/threads'&&req.method==='POST'){
@@ -113,14 +146,15 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
     const b=await input(req);if(typeof b.project!=='string'||!slug.test(b.project)||
      !registered.includes(b.project))return json(res,400,{error:'Projeto não autorizado.'});
     const result=await rpc('thread/start',{cwd:projectDirectory(workspace,b.project),
-     permissions:permissionName(b.project),approvalPolicy:'never',serviceName:'softdown_panel'});
+     permissions:permissionName(b.project),approvalPolicy:'never',serviceName:'softdown_panel',
+     ...(calls?{dynamicTools:toolsFor(b.project)}:{})});
     const id=result?.thread?.id;if(typeof id!=='string'||!threadId.test(id))throw Error('Bad thread ID');
     const created={id,project:b.project,title:b.project,messages:[],status:'idle',reply:'',turnId:null};
     sessions.set(id,created);loadedThreads.add(id);save();return json(res,201,{thread:created});
    }
    if(s&&m[2]==='turns'&&req.method==='POST'){
     if(active)return json(res,409,{error:'Outra tarefa ainda está em execução.'});
-    if(!registered.includes(s.project)||!projects(workspace).includes(s.project))return json(res,409,{error:'Projeto indisponível.'});
+    if(!registered.includes(s.project)||(![ADMIN_PROJECT].includes(s.project)&&!projects(workspace).includes(s.project)))return json(res,409,{error:'Projeto indisponível.'});
     const b=await input(req);if(!validPrompt(b.message))return json(res,400,
      {error:'Mensagem inválida (até 4.000 caracteres).'});
     if(active)return json(res,409,{error:'Outra tarefa ainda está em execução.'});
@@ -139,7 +173,7 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
    }
    if(s&&m[2]==='cancel'&&req.method==='POST'){
     if(active!==s.id||!s.turnId)return json(res,409,{error:'Nenhuma tarefa ativa.'});
-    await rpc('turn/interrupt',{threadId:s.id,turnId:s.turnId});return json(res,200,{ok:true});
+    calls?.cancelThread(s.id);await rpc('turn/interrupt',{threadId:s.id,turnId:s.turnId});return json(res,200,{ok:true});
    }
   }catch{return json(res,502,{error:'Falha ao comunicar com o Codex.'});}
   return json(res,404,{error:'Recurso não encontrado.'});
@@ -150,6 +184,7 @@ if(process.argv[1]&&import.meta.url===new URL('file://'+process.argv[1]).href){
  const service=createBridge({secret:readFileSync(process.env.PANEL_AGENT_KEY_FILE||
   '/run/secrets/panel-agent-key','utf8').trim(),
   workspace:process.env.PANEL_AGENT_WORKSPACE||'/workspace',
-  stateDir:process.env.PANEL_AGENT_STATE_DIR||'/state'});
+  stateDir:process.env.PANEL_AGENT_STATE_DIR||'/state',
+  operationsEnabled:process.env.PANEL_CODEX_OPERATIONS_ENABLED==='1'});
  service.start();service.server.listen(Number(process.env.PORT||8091),'0.0.0.0');
 }
