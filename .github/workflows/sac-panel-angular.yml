@@ -1,0 +1,53 @@
+name: SAC audit of Panel Angular (pinned read-only)
+on:
+  pull_request:
+    paths:
+      - 'angular/**'
+      - 'scripts/sac-panel-audit.mjs'
+      - '.github/workflows/sac-panel-angular.yml'
+      - 'server/angular-api-response.test.mjs'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sac:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Panel (read-only GitHub credentials)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout pinned Data Library SAC analyzers
+        uses: actions/checkout@v4
+        with:
+          repository: Softdown-prog/Data_libray
+          ref: 98ca6986b79fa81f6a1595fb8a6d4950c757fe86
+          path: .sac-tool
+          persist-credentials: false
+      - name: Verify SAC analyzer revision
+        run: test "$(git -C .sac-tool rev-parse HEAD)" = "98ca6986b79fa81f6a1595fb8a6d4950c757fe86"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install trusted Angular and SAC toolchains
+        run: |
+          npm ci --prefix angular --ignore-scripts --no-audit --no-fund
+          npm ci --prefix .sac-tool/packages/angular-precompiler --ignore-scripts --no-audit --no-fund
+      - name: Run actual SAC-PRE001 through PRE005
+        env:
+          SAC_PIN_SHA: 98ca6986b79fa81f6a1595fb8a6d4950c757fe86
+        run: |
+          node --check scripts/sac-panel-audit.mjs
+          node scripts/sac-panel-audit.mjs > "$RUNNER_TEMP/sac-panel-report.json"
+          cat "$RUNNER_TEMP/sac-panel-report.json"
+      - name: Verify official Angular build independently
+        run: npm --prefix angular run build
+      - name: Upload source-free SAC summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sac-panel-angular-static-summary
+          path: ${{ runner.temp }}/sac-panel-report.json
+          if-no-files-found: ignore
+          retention-days: 14
