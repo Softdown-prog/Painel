@@ -28,7 +28,7 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
  function save(){writeFileSync(stateFile+'.tmp',JSON.stringify([...sessions.values()].map(s=>({
   id:s.id,project:s.project,title:s.title,messages:s.messages.slice(-40)}))),{mode:0o600});
   renameSync(stateFile+'.tmp',stateFile);}
- let proc,ready=false,active=null,seq=0;const requests=new Map();
+ let proc,ready=false,authenticated=false,active=null,seq=0;const requests=new Map();
  function rpc(method,params){if(!proc?.stdin.writable)return Promise.reject(Error('Codex offline'));
   const id=++seq;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{
    requests.delete(id);reject(Error('Codex timeout'));},25000);requests.set(id,{resolve,reject,timer});
@@ -58,12 +58,14 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
   {cwd:workspace,stdio:['pipe','pipe','pipe'],env:process.env});proc.stderr.resume();
   createInterface({input:proc.stdout}).on('line',line=>{if(line.length>1000000)return;
    try{dispatch(JSON.parse(line));}catch{/* malformed event */}});
-  const down=()=>{ready=false;for(const q of requests.values()){
+  const down=()=>{ready=false;authenticated=false;for(const q of requests.values()){
    clearTimeout(q.timer);q.reject(Error('Disconnected'));}requests.clear();
    if(active){const s=sessions.get(active);if(s)finish(s,'interrupted');}};
   proc.on('error',down);proc.on('exit',down);
   rpc('initialize',{clientInfo:{name:'softdown_panel',title:'Painel Agentes',version:'0.1.0'}})
-   .then(()=>{proc.stdin.write('{"method":"initialized","params":{}}\n');ready=true;})
+   .then(async()=>{proc.stdin.write('{"method":"initialized","params":{}}\n');ready=true;
+    const auth=await rpc('account/read',{refreshToken:false});authenticated=Boolean(auth?.account);
+   })
    .catch(()=>{ready=false;});
  }
  const server=createServer(async(req,res)=>{
@@ -73,14 +75,14 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
    !timingSafeEqual(Buffer.from(candidate),Buffer.from(secret)))return json(res,404,{error:'Not found'});
   const path=new URL(req.url||'/','http://agent.local').pathname;
   if(path==='/status'&&req.method==='GET')return json(res,200,
-   {enabled:true,ready,projects:projects(workspace),active:!!active});
+   {enabled:true,ready:ready&&authenticated,projects:projects(workspace),active:!!active});
   if(path==='/threads'&&req.method==='GET')return json(res,200,
    {threads:[...sessions.values()].map(s=>({id:s.id,project:s.project,title:s.title,status:s.status})).reverse()});
   const m=/^\/threads\/([a-zA-Z0-9_-]{4,128})(?:\/(turns|cancel))?$/.exec(path);
   const s=m&&sessions.get(m[1]);
   if(s&&req.method==='GET'&&!m[2])return json(res,200,{thread:{
    id:s.id,project:s.project,title:s.title,messages:s.messages,status:s.status,reply:s.reply}});
-  if(req.method==='POST'&&!ready)return json(res,503,{error:'Codex não conectado. Faça login no servidor.'});
+  if(req.method==='POST'&&(!ready||!authenticated))return json(res,503,{error:'Codex não autenticado. Faça login no servidor e reinicie o serviço.'});
   try{
    if(path==='/threads'&&req.method==='POST'){
     if(sessions.size>=100)return json(res,409,{error:'Limite de conversas atingido.'});
@@ -102,7 +104,8 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn}){
     try{await rpc('thread/resume',{threadId:s.id,excludeTurns:true});
      const run=await rpc('turn/start',{threadId:s.id,input:[{type:'text',text:b.message.trim()}],
       cwd:join(workspace,s.project),approvalPolicy:'never',sandboxPolicy:{
-       type:'workspaceWrite',writableRoots:[join(workspace,s.project)],networkAccess:false}});
+       type:'workspaceWrite',writableRoots:[join(workspace,s.project)],readOnlyAccess:{type:'restricted',
+       includePlatformDefaults:true,readableRoots:[join(workspace,s.project)]},networkAccess:false}});
      if(active===s.id)s.turnId=run?.turn?.id||null;return json(res,202,{ok:true});
     }catch{if(active===s.id)finish(s,'failed');
      return json(res,502,{error:'Falha ao iniciar a tarefa.'});}
