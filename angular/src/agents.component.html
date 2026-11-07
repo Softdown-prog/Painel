@@ -64,7 +64,8 @@
        <option [value]="option.id">{{option.label}}{{option.isDefault?' · padrão sugerido':''}}</option>
       }
      </select>
-     @if(!modelsSupported()){<small>Catálogo indisponível. O Codex usará o modelo configurado no servidor.</small>}
+     <small>Modelo configurado no servidor: {{configuredModel()??'não informado'}} · raciocínio padrão: {{configuredEffort()??'não informado'}}</small>
+     @if(!modelsSupported()){<small>Catálogo indisponível. O Codex usará a configuração do servidor, se houver.</small>}
      <label for="agentEffort">Nível de raciocínio</label>
      <select id="agentEffort" [value]="effort()" (change)="selectEffort($event)"
       [disabled]="busy()||!model()||!modelsSupported()">
