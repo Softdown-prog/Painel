@@ -20,10 +20,11 @@ export async function handleAgentRoute(req:IncomingMessage,res:ServerResponse,de
  const path=new URL(req.url||'/','http://panel.local').pathname;
  if(!path.startsWith('/agents'))return false;
  const decision=/^\/agents\/actions\/([a-f0-9]{32})\/(approve|deny|release|cancel)$/.exec(path);
- if(path==='/agents/projects'||decision){
+ if(path==='/agents/projects'||path==='/agents/projects/check'||decision){
   if(process.env['PANEL_CODEX_OPERATIONS_ENABLED']!=='1'||!deps.operations){deps.send(res,503,{error:'Operações ainda não habilitadas.'});return true;}
   try{
-   if(path==='/agents/projects'&&req.method==='GET')deps.send(res,200,await deps.operations.catalog());
+   if(path==='/agents/projects/check'&&req.method==='GET')deps.send(res,200,await deps.operations.githubStatus());
+   else if(path==='/agents/projects'&&req.method==='GET')deps.send(res,200,await deps.operations.catalog());
    else if(path==='/agents/projects'&&req.method==='POST')deps.send(res,200,await deps.operations.bind(await deps.body(req)));
    else if(decision&&req.method==='POST')deps.send(res,200,await deps.operations.decide(decision[1]!,decision[2]!,await deps.body(req)));
    else deps.send(res,405,{error:'Método não permitido.'});
