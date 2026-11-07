@@ -1,0 +1,28 @@
+.agents{display:grid;gap:16px;min-width:0}
+.agents-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.agents-head h2{margin:0 0 5px}.agents-head p{margin:0;color:var(--muted,#8695a8)}
+.agents-head button,.agents-side button,.agents-actions button{min-height:44px;border-radius:10px;padding:10px 14px;cursor:pointer}
+.agents-note,.agents-empty{color:var(--muted,#8595a6);line-height:1.5}
+.agents-error{color:#e58a8a}
+.agents-layout{display:grid;grid-template-columns:minmax(190px,250px) minmax(0,1fr);gap:16px;min-width:0}
+.agents-side,.agents-chat{min-width:0;border:1px solid var(--border,#344054);border-radius:14px;padding:14px;display:grid;gap:10px;align-content:start}
+.agents-side label,.agents-chat label{font-weight:600}
+.agents-side select,.agents-chat textarea{width:100%;min-width:0;padding:12px;border:1px solid var(--border,#344054);border-radius:8px;background:transparent;color:inherit;font:inherit}
+.agents-side option{color:#111}
+.agents-side h3{font-size:1rem;margin:8px 0 0}
+.agents-side .agents-thread{width:100%;text-align:left;display:grid;gap:3px;background:transparent;border:1px solid var(--border,#344054);color:inherit}
+.agents-thread.current{outline:2px solid #668ddd}
+.agents-thread small{opacity:.7}
+.agents-primary{background:#2959ba;color:white;border:0}
+.agents-chat header{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.agents-chat header span{font-size:.85rem;opacity:.8}
+.agents-messages{min-height:260px;max-height:540px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.agents-messages article{padding:12px;border:1px solid var(--border,#344054);border-radius:10px;max-width:94%;align-self:flex-start;min-width:0}
+.agents-messages article.user{align-self:flex-end;background:rgba(80,130,210,.12)}
+.agents-messages article p{white-space:pre-wrap;overflow-wrap:anywhere;margin:8px 0 0}
+.agents-chat form{display:grid;gap:10px}
+.agents-actions{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.agents-actions span{font-size:.8rem;opacity:.7}
+.agents-stop{border:1px solid #bb6060;color:#e99090;background:transparent}
+.agents button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:700px){.agents-layout{grid-template-columns:minmax(0,1fr)}.agents-messages{max-height:50vh;min-height:180px}}

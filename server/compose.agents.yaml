@@ -1,0 +1,45 @@
+# Opt-in. No public ports, Docker socket or host SSH.
+services:
+  api:
+    environment:
+      PANEL_CODEX_AGENTS_ENABLED: "1"
+      PANEL_CODEX_AGENT_URL: http://codex-agents:8091
+      PANEL_CODEX_AGENT_KEY_FILE: /run/secrets/panel-agent-key
+    volumes:
+      - /etc/softload-panel/agent-key:/run/secrets/panel-agent-key:ro
+    networks: [proxy, codex_control]
+  codex-agents:
+    build:
+      context: ../agents
+      args:
+        CODEX_NPM_VERSION: "${PANEL_CODEX_VERSION:-latest}"
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      CODEX_HOME: /home/node/.codex
+      HOME: /home/node
+      PANEL_AGENT_KEY_FILE: /run/secrets/panel-agent-key
+      PANEL_AGENT_WORKSPACE: /workspace
+      PANEL_AGENT_STATE_DIR: /state
+    volumes:
+      - /srv/panel-codex/workspace:/workspace:rw
+      - /srv/panel-codex/home:/home/node/.codex:rw
+      - /srv/panel-codex/state:/state:rw
+      - /etc/softload-panel/agent-key:/run/secrets/panel-agent-key:ro
+    networks: [codex_control, codex_egress]
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    mem_limit: 1g
+    cpus: "1.5"
+    pids_limit: 128
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8091/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+networks:
+  codex_control:
+    internal: true
+  codex_egress: {}

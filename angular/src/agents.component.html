@@ -1,0 +1,60 @@
+<section class="agents" aria-label="Agentes de programação">
+ <div class="agents-head">
+  <div><h2>Agentes · Codex</h2><p>Converse com o Codex e acompanhe tarefas nos projetos autorizados da VPS.</p></div>
+  <button type="button" (click)="refresh()" [disabled]="loading()||busy()">↻ Atualizar</button>
+ </div>
+ @if(error()){<p class="agents-error" role="alert">{{error()}}</p>}
+ @if(!status()?.enabled){
+  <p class="agents-note" role="status">O módulo ainda não foi ativado na VPS. A instalação e o login do Codex são necessários antes de conversar.</p>
+ } @else {
+  <p class="agents-note" role="status">{{status()?.ready?'Serviço Codex inicializado.':'Codex indisponível. Verifique o serviço e a autenticação na VPS.'}}</p>
+  <div class="agents-layout">
+   <aside class="agents-side" aria-label="Conversas e projetos">
+    <label for="agentProject">Projeto de trabalho</label>
+    <select id="agentProject" [value]="project()" (change)="chooseProject($event)" [disabled]="busy()||!status()?.ready">
+     @for(p of status()?.projects??[];track p){<option [value]="p">{{p}}</option>}
+    </select>
+    <button type="button" class="agents-primary" [disabled]="busy()||!project()||!status()?.ready" (click)="create()">+ Nova conversa</button>
+    <h3>Conversas</h3>
+    @for(t of threads();track t.id){
+     <button type="button" class="agents-thread" [class.current]="conversation()?.id===t.id"
+      [attr.aria-current]="conversation()?.id===t.id?'true':null"
+      [disabled]="busy()" (click)="open(t.id)">
+      <strong>{{t.title}}</strong><small>{{t.status==='running'?'Em execução':t.project}}</small>
+     </button>
+    } @empty {<p class="agents-empty">Nenhuma conversa criada.</p>}
+   </aside>
+   <div class="agents-chat">
+    @if(conversation();as c){
+     <header><strong>{{c.project}}</strong><span>{{c.status==='running'?'● Trabalhando…':c.status==='failed'?'Falha':c.status==='interrupted'?'Interrompida':'Pronto'}}</span></header>
+     <div class="agents-messages" role="log" aria-label="Histórico da conversa" aria-live="polite">
+      @for(m of c.messages;track $index){
+       <article [class.user]="m.role==='user'" [class.assistant]="m.role==='assistant'">
+        <strong>{{m.role==='user'?'Você':'Codex'}}</strong><p>{{m.text}}</p>
+       </article>
+      }
+      @if(c.reply){<article class="assistant"><strong>Codex · escrevendo</strong><p>{{c.reply}}</p></article>}
+      @if(c.status==='running'&&!c.reply){<p class="agents-note">O Codex está analisando o projeto. Você pode acompanhar por esta tela.</p>}
+     </div>
+     <form (submit)="submit($event)">
+      <label for="agentPrompt">Mensagem para o Codex</label>
+      <textarea id="agentPrompt" rows="4" maxlength="4000" [value]="prompt()"
+       (input)="updatePrompt($event)" [disabled]="busy()||c.status==='running'||!status()?.ready"
+       placeholder="Ex.: investigue os testes que falharam e proponha uma correção."></textarea>
+      <div class="agents-actions">
+       <span>{{prompt().length}} / 4000</span>
+       @if(c.status==='running'){
+        <button type="button" class="agents-stop" (click)="cancel()" [disabled]="busy()">Interromper tarefa</button>
+       } @else {
+        <button type="submit" class="agents-primary" [disabled]="busy()||!prompt().trim()||!status()?.ready">Enviar tarefa</button>
+       }
+      </div>
+     </form>
+    } @else {
+     <p class="agents-empty">Selecione uma conversa ou crie uma nova para começar.</p>
+    }
+   </div>
+  </div>
+  <p class="agents-note">O Codex só tem acesso aos projetos montados no seu container. Não recebe Docker, root ou permissão de publicação automática. Revise as alterações antes de publicar.</p>
+ }
+</section>
