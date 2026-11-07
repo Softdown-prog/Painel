@@ -37,11 +37,11 @@ jobs:
         run: |
           mkdir dist
           cp index.html 404.html _headers dist/
-          if grep -Eq '(src|href)="[^"]+\\.(js|css)' dist/index.html; then
+          if grep -Eq '(src|href)="[^"]+[.](js|css)' dist/index.html; then
             echo 'The root entrypoint must not load legacy frontend files'
             exit 1
           fi
-          printf '{"sha":"%s"}\\n' "$GITHUB_SHA" > dist/release.json
+          node -p 'JSON.stringify({sha:process.env.GITHUB_SHA})' > dist/release.json
 
       - name: Build and publish the only Angular frontend
         working-directory: angular
