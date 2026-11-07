@@ -149,12 +149,14 @@ test('classic terminal can request cancellation of an active SSH job',async()=>{
   assert.equal(cli.confirms.length,1);
   assert.equal(cli.requested.some(x=>x.url==='/api/terminal/ssh/jobs/'+id+'/cancel'),true);
 });
-test('only the Angular terminal is publicly accessible; no classic page or versioned legacy assets',()=>{
+test('only Angular terminal is publicly accessible',()=>{
  const entry=readFileSync(new URL('../index.html',import.meta.url),'utf8');
  const template=readFileSync(new URL('../angular/src/terminal.component.html',import.meta.url),'utf8');
  const code=readFileSync(new URL('../angular/src/terminal.component.ts',import.meta.url),'utf8');
- assert.match(entry,/location\\.replace\\('\\/angular\\/#'/);
- assert.doesNotMatch(entry,/terminal-ui\\.js|terminal\\.css|id="terminalInput"/);
+ assert.ok(entry.includes("location.replace('/angular/#'"));
+ assert.equal(entry.includes('terminal-ui.js'),false);
+ assert.equal(entry.includes('terminal.css'),false);
+ assert.equal(entry.includes('id="terminalInput"'),false);
  assert.match(template,/textarea/);
  assert.match(code,/MAX_TERMINAL_COMMAND_BYTES/);
  assert.doesNotMatch(template,/maxlength="605"/);
