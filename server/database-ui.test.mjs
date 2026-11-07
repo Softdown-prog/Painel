@@ -4,37 +4,26 @@ import { readFileSync } from 'node:fs';
 
 const file = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 
-test('database navigation and settings shortcut lead to an accessible panel with real tabs', () => {
-  const page = file('index.html');
-  assert.match(page, /href="#database" data-view="database"/);
-  assert.match(page, /id="database" data-title="Banco de Dados"/);
-  assert.match(page, /href="#database">Abrir Banco de Dados/);
-  assert.match(page, /src="database-ui.js"/);
-  assert.match(page, /href="database.css"/);
-  for (const section of ['Overview','Projects','Access','Data','Recovery','Monitor']) {
-    assert.match(page, new RegExp('id="dbTab' + section + '"'));
-    assert.match(page, new RegExp('id="dbPane' + section + '" role="tabpanel"'));
-  }
-  assert.match(file('script.js'), /refreshDatabasePanel/);
+test('database uses one Angular page with native navigation and views',()=>{
+ const root=file('index.html'),shell=file('angular/src/app.component.html');
+ const ts=file('angular/src/postgres.component.ts'),tpl=file('angular/src/postgres.component.html');
+ assert.ok(root.includes("'database'"));
+ assert.ok(root.includes("location.replace('/angular/#'"));
+ assert.match(shell,/selectPage\\('database'\\)/);
+ assert.match(shell,/<panel-postgres\\s*\\/>/);
+ assert.match(ts,/view=signal<'databases'\\|'roles'>/);
+ assert.match(tpl,/dbProject/);
+ assert.doesNotMatch(root,/src="database-ui\\.js"|href="database\\.css"/);
 });
-
-test('database creation is gated by backend security readiness and does not expose credentials', () => {
-  const page = file('index.html');
-  const view = page.split('id="database" data-title="Banco de Dados"')[1].split('id="settings" data-title=')[0];
-  assert.ok(view.includes('id="dbRefresh"'));
-  assert.match(view, /id="dbCreateForm"[^>]*hidden/);
-  assert.match(view, /disabled id="dbCreate"[^>]*>\+ Criar banco/);
-  assert.match(view, /disabled[^>]*>\+ Criar usuário/);
-  assert.match(view, /disabled[^>]*>Restaurar banco/);
-  assert.match(file('database-ui.ts'), /request<DatabaseStatus>/);
-  const client = file('database-ui.js');
-  assert.match(client, /panelApi\.request\("\/database\/status"\)/);
-  assert.match(client, /provisioningEnabled === true/);
-  assert.match(client, /method: "POST"/);
-  assert.match(client, /"\/database\/projects"/);
-  assert.doesNotMatch(client, /password\s*:/);
+test('Angular database provisioning requires server readiness and typed confirmation',()=>{
+ const ts=file('angular/src/postgres.component.ts'),tpl=file('angular/src/postgres.component.html');
+ assert.match(ts,/provisioningEnabled===true/);
+ assert.match(ts,/hostAuthentication==='cert'/);
+ assert.match(ts,/this\\.confirmation\\(\\)!==slug/);
+ assert.match(ts,/\\/database\\/projects/);
+ assert.match(tpl,/Preparar criação/);
+ assert.doesNotMatch(tpl,/type="password"|CREATE ROLE|CREATE DATABASE/);
 });
-
 test('Docker Compose remains without database containers and no PostgreSQL dependencies were added', () => {
   const compose = file('server/compose.yaml');
   const dependencies = JSON.parse(file('package.json'));
