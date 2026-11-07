@@ -146,9 +146,10 @@ export function createPanelWebServer({
         return json(res, 404, 'Arquivo não encontrado', 'NOT_FOUND');
       filename = 'angular/' + asset;
     } else {
-      filename = pathname === '/' ? 'index.html' : pathname.slice(1);
-      if (!/^(?:index\.html|[a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)*\.(?:js|css))$/.test(filename))
+      // The root is a compatibility redirect, not a second web application.
+      if (pathname !== '/' && pathname !== '/index.html')
         return json(res, 404, 'Arquivo não encontrado', 'NOT_FOUND');
+      filename = 'index.html';
     }
     let size;
     try {
