@@ -12,8 +12,8 @@ test('Angular includes GitHub projects page and keeps existing maintenance tools
   assert.match(app,/hash === 'projects'/);
   assert.match(html,/<panel-github-projects\s*\/>/);
   assert.match(html,/selectPage\('projects'\)/);
-  assert.match(root,/projects:'projects'/);
-  assert.match(root,/fragment === 'projects'/);
+  assert.match(root,/'projects'/);
+  assert.ok(root.includes("location.replace('/angular/#'"));
   assert.match(html,/selectPage\('terminal'\)/);
   assert.match(html,/selectPage\('database'\)/);
   assert.match(html,/selectPage\('domains'\)/);

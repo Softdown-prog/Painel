@@ -3,15 +3,14 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const file=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 
-test('PostgreSQL and Domains have Angular routes and preserve classic compatibility',()=>{
+test('PostgreSQL and Domains have Angular routes and preserve old entrypoint redirects',()=>{
  const app=file('angular/src/app.component.ts');
  const html=file('angular/src/app.component.html');
  const entry=file('index.html');
  for(const route of ['database','domains']){
    assert.ok(app.includes("hash === '"+route+"'"));
    assert.ok(html.includes("selectPage('"+route+"')"));
-   assert.ok(entry.includes(route+":'"+route+"'"));
-   assert.ok(entry.includes("fragment === '"+route+"'"));
+   assert.ok(entry.includes("'"+route+"'"),'Canonical redirect must recognize '+route);
  }
  assert.match(html,/<panel-postgres\s*\/>/);
  assert.match(html,/<panel-domains\s*\/>/);

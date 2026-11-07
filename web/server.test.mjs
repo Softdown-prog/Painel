@@ -45,13 +45,15 @@ async function setup(t) {
   });
   return {origin,calls};
 }
-test('serves index and JS from the VPS while forbidding private files and path traversal',async t=>{
+test('serves root redirect only, rejecting obsolete frontend assets and private files',async t=>{
   const {origin}=await setup(t);
   const html=await fetch(origin+'/');assert.equal(html.status,200);
   assert.match(await html.text(),/Painel local/);
   assert.match(html.headers.get('cache-control'),/no-cache/);
   const js=await fetch(origin+'/app.js?v=abcd');
-  assert.equal(js.status,200);assert.match(js.headers.get('content-type'),/javascript/);
+  assert.equal(js.status,404);
+  assert.equal((await fetch(origin+'/app.css')).status,404);
+  assert.equal((await fetch(origin+'/panel.css')).status,404);
   for(const path of ['/server/api.mjs','/.env','/package.json','/%2e%2e/README.md','//outside','/app%2fsecret.js']){
     const res=await fetch(origin+path,{redirect:'manual'});
     assert.notEqual(res.status,200,'Sensitive path must not succeed: '+path);

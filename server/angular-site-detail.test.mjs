@@ -17,7 +17,7 @@ test('site detail has a native Angular deep link from Apps and can show malforme
 });
 test('canonical site deep links preserve validated slug and reject hostile query strings',()=>{
  const entry=read('index.html');
- const script=entry.match(/<!-- Angular is canonical;[\s\S]*?<script>([\s\S]*?)<\/script>/)?.[1];
+ const script=entry.split('<script>')[1]?.split('</script>')[0];
  assert.ok(script);
  const route=(url)=>{
    const u=new URL(url);
@@ -32,7 +32,8 @@ test('canonical site deep links preserve validated slug and reject hostile query
  assert.equal(route('https://panel.test/#site?slug=meu-app').next,'/angular/#site?slug=meu-app');
  assert.equal(route('https://panel.test/#site?slug=..%2Fetc').next,'/angular/#apps');
  assert.equal(route('https://panel.test/#site?slug=aa&unexpected=1').next,'/angular/#site?slug=aa');
- assert.equal(route('https://panel.test/?interface=classica#site?slug=meu-app').legacy,true);
+ assert.equal(route('https://panel.test/?interface=classica#site?slug=meu-app').next,'/angular/#site?slug=meu-app');
+ assert.equal(route('https://panel.test/?interface=classica#site?slug=meu-app').legacy,false);
 });
 test('site detail reads only scoped APIs and requires typed confirmation before changes',()=>{
  const ts=read('angular/src/site-detail.component.ts'),html=read('angular/src/site-detail.component.html');

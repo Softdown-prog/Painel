@@ -33,15 +33,17 @@ jobs:
           npm run build:frontend
           npm run check:js
 
-      - name: Prepare static site with versioned assets
+      - name: Prepare canonical Angular entrypoint only
         run: |
           mkdir dist
-          cp index.html *.css *.js _headers dist/
-          node scripts/version-pages-assets.mjs
-          grep -q 'terminal-ui.js?v=' dist/index.html
-          ! grep -q 'Comando muito longo' dist/terminal-ui.js
+          cp index.html 404.html _headers dist/
+          if grep -Eq '(src|href)="[^"]+[.](js|css)' dist/index.html; then
+            echo 'The root entrypoint must not load legacy frontend files'
+            exit 1
+          fi
+          node -p 'JSON.stringify({sha:process.env.GITHUB_SHA})' > dist/release.json
 
-      - name: Build and publish Angular preview (not only the legacy interface)
+      - name: Build and publish the only Angular frontend
         working-directory: angular
         run: |
           npm install --no-audit --no-fund

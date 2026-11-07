@@ -4,26 +4,22 @@ import { readFileSync } from 'node:fs';
 
 const file = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 
-test('simple hosting navigation preserves technical view identifiers', () => {
-  const html = file('index.html');
-  for (const route of ['apps', 'projects', 'domains']) {
-    assert.match(html, new RegExp('href="#' + route + '"'));
-    assert.match(html, new RegExp('id="' + route + '"'));
-  }
-  for (const anchor of ['appCreateForm', 'domainCreateForm', 'domainAddressPreview', 'domainsHelp',
-    'domainCaddyPreview', 'domainCreateButton']) {
-    assert.match(html, new RegExp('id="' + anchor + '"'));
-  }
-  assert.match(html, /O que você quer fazer\?/);
-  assert.match(html, /Sites e apps/);
-  assert.match(html, /Ligar ao GitHub/);
-  assert.match(html, /Escolher um endereço/);
-  assert.match(html, /<details class="panel full-panel domain-technical">/);
-  assert.match(html, /id="hostedProjects"/);
-  assert.match(html, /hosted-projects-ui\.js/);
-  assert.match(html, /DNS E HTTPS GUIADOS/);
+test('canonical Angular contains hosting views and no classic navigation duplicates',()=>{
+ const root=file('index.html'),shell=file('angular/src/app.component.html');
+ const apps=file('angular/src/apps.component.html'),domains=file('angular/src/domains.component.html');
+ for(const route of ['apps','projects','domains']){
+  assert.ok(root.includes("'"+route+"'"));
+  assert.ok(shell.includes("selectPage('"+route+"')"));
+ }
+ assert.match(shell,/<panel-managed-apps\s*\/>/);
+ assert.match(shell,/<panel-domains\s*\/>/);
+ assert.match(shell,/<panel-github-projects\s*\/>/);
+ assert.match(apps,/Criar aplicação/);
+ assert.match(apps,/Ligar ao GitHub/);
+ assert.match(domains,/Domínios e HTTPS/);
+ assert.match(domains,/Publicar DNS e HTTPS/);
+ assert.doesNotMatch(root,/data-view=|id="hostedProjects"|hosted-projects-ui\.js/);
 });
-
 test('domain and app shortcuts keep labels and real publication status', () => {
   const domains = file('domains-ui.ts');
   const apps = file('apps-ui.ts');

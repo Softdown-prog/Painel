@@ -12,6 +12,11 @@ for (let attempt = 0; attempt < 24; attempt++) {
     assert.equal(homepage.status,200);
     const homepageHtml = await homepage.text();
     assert.match(homepageHtml,/location\.replace\('\/angular\/#'/);
+    assert.doesNotMatch(homepageHtml, /(?:src|href)="(?:styles|panel|terminal|apps)\\.css/);
+    // Cached files from earlier deployments can survive at some Cloudflare edges.
+    // Assert the new release has a real 404, without treating old edge cache as source.
+    const disabled = await fetch(base + '/legacy-disabled-' + sha + '.css', {signal:AbortSignal.timeout(15000)});
+    assert.equal(disabled.status,404,'Removed legacy routes must not fall back to the root HTML');
     const angular = await fetch(`${base}/angular/?sha=${sha}`, { signal: AbortSignal.timeout(15000) });
     assert.equal(angular.status, 200);
     const html = await angular.text();

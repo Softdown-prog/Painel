@@ -149,33 +149,15 @@ test('classic terminal can request cancellation of an active SSH job',async()=>{
   assert.equal(cli.confirms.length,1);
   assert.equal(cli.requested.some(x=>x.url==='/api/terminal/ssh/jobs/'+id+'/cancel'),true);
 });
-test('terminal page contains multiline textarea without 605-character maxlength',()=>{
-  const page=readFileSync(new URL('../index.html',import.meta.url),'utf8');
-  assert.match(page,/<textarea id="terminalInput"/);
-  assert.doesNotMatch(page,/id="terminalInput"[^>]*maxlength=/);
-  assert.doesNotMatch(source,/Comando muito longo/);
-});
-
-test('Pages deploy versions terminal assets, avoiding stale 600-character frontend',async()=>{
-  const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import('node:fs');
-  const { tmpdir } = await import('node:os');
-  const { join } = await import('node:path');
-  const { execFileSync } = await import('node:child_process');
-  const dir = mkdtempSync(join(tmpdir(),'panel-pages-asset-test-'));
-  const html = readFileSync(new URL('../index.html',import.meta.url),'utf8');
-  try {
-    writeFileSync(join(dir,'index.html'),html);
-    execFileSync(process.execPath,[new URL('../scripts/version-pages-assets.mjs',import.meta.url).pathname],{
-      env:{...process.env,GITHUB_SHA:'abcdef0123456789012345678901234567890123',PAGES_DIST_DIR:dir}
-    });
-    const published = readFileSync(join(dir,'index.html'),'utf8');
-    assert.match(published,/terminal-ui\.js\?v=abcdef012345/);
-    assert.match(published,/terminal\.css\?v=abcdef012345/);
-    assert.match(published,/api-client\.js\?v=abcdef012345/);
-    assert.doesNotMatch(published,/src="terminal-ui\.js"/);
-    const headers = readFileSync(new URL('../_headers',import.meta.url),'utf8');
-    assert.match(headers,/Cache-Control: no-cache/);
-  } finally {
-    rmSync(dir,{recursive:true,force:true});
-  }
+test('only Angular terminal is publicly accessible',()=>{
+ const entry=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+ const template=readFileSync(new URL('../angular/src/terminal.component.html',import.meta.url),'utf8');
+ const code=readFileSync(new URL('../angular/src/terminal.component.ts',import.meta.url),'utf8');
+ assert.ok(entry.includes("location.replace('/angular/#'"));
+ assert.equal(entry.includes('terminal-ui.js'),false);
+ assert.equal(entry.includes('terminal.css'),false);
+ assert.equal(entry.includes('id="terminalInput"'),false);
+ assert.match(template,/textarea/);
+ assert.match(code,/confirmedTerminalCommand/);
+ assert.doesNotMatch(template,/maxlength="605"/);
 });
