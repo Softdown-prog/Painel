@@ -1,5 +1,6 @@
 FROM node:24-bookworm-slim
-RUN npm install --global --no-audit --no-fund @openai/codex@latest
+ARG CODEX_NPM_VERSION=latest
+RUN npm install --global --no-audit --no-fund "@openai/codex@${CODEX_NPM_VERSION}"
 WORKDIR /app
 COPY bridge.mjs ./
 USER node
