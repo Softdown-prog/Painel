@@ -6,8 +6,27 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.parse
 import urllib.request
+
+def execute_ssh(command, payload):
+    encoded = json.dumps(payload)
+    for attempt in range(2):
+        process = subprocess.run(command, input=encoded, text=True, capture_output=True, timeout=1600)
+        try:
+            result = json.loads(process.stdout)
+            if isinstance(result, dict) and result.get('id') == payload['id'] and type(result.get('exitCode')) is int:
+                return result
+        except (ValueError, TypeError):
+            pass
+        if process.returncode == 255 and attempt == 0:
+            # Reuse the exact authenticated request. The host returns its saved
+            # receipt for a duplicate; never create another deployment identity.
+            time.sleep(30)
+            continue
+        return {'exitCode': 1, 'error': 'SSH transport failed; no valid executor result',
+                'transportExitCode': process.returncode}
 
 def main():
     url = os.environ['ACTIONS_ID_TOKEN_REQUEST_URL'] + '&audience=' + urllib.parse.quote('vps-operations:164.163.9.7')
@@ -68,11 +87,7 @@ def main():
                    '-o', 'StrictHostKeyChecking=yes', '-o', 'UserKnownHostsFile=' + str(hosts),
                    '-o', 'ConnectTimeout=20', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3',
                    'vpsops@164.163.9.7', 'operations-v1']
-        process = subprocess.run(command, input=json.dumps(payload), text=True, capture_output=True, timeout=1600)
-    try:
-        result = json.loads(process.stdout)
-    except (ValueError, TypeError):
-        result = {'exitCode': 1, 'error': 'SSH transport failed; no valid executor result', 'transportExitCode': process.returncode}
+        result = execute_ssh(command, payload)
     # No raw SSH stderr or runner environment is published (may contain sensitive transport details).
     Path('vps-result.json').write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result, indent=2))
@@ -80,7 +95,7 @@ def main():
     if summary:
         with open(summary, 'a') as file:
             file.write('## Resultado real da VPS\n```json\n' + json.dumps(result, indent=2) + '\n```\n')
-    return process.returncode or result.get('exitCode', 1)
+    return result.get('exitCode', 1)
 
 if __name__ == '__main__':
     sys.exit(main())

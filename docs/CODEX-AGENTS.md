@@ -100,10 +100,23 @@ read-only de um diretório negado, preservando a proteção de `/workspace`.
 
 | Marco | Estado |
 | --- | --- |
-| Código Angular / API / bridge | Proposto na branch |
-| Testes unitários e CI | A conferir no PR |
-| Deploy do frontend e da API | Pendente |
-| Instalação e login Codex na VPS | Pendente |
-| Chat com o serviço real | Pendente |
+| Código Angular / API / bridge | PR #83 integrado, main `47932caf` |
+| Testes unitários e CI | Oito testes do bridge + onze verificações reais de sandbox; sete checks verdes em `5a9e14df` |
+| Deploy do frontend e da API | Pages publicado; API/executor `47932caf` instalados e saudáveis, confirmado por Docker e auditoria do host |
+| Instalação e login Codex na VPS | CLI 0.167.0, imagem de código `5a9e14df`, login Google persistido com UID 61110 e modo 0600 |
+| Chat com o serviço real | Resposta e escrita sintéticas aprovadas; login existente e resposta pela aba pública confirmados |
+
+Em 07/11/2026, o navegador recebeu a resposta real “O chat do Codex no painel
+está funcionando.” A tarefa isolada criou `CodexLab/smoke.txt` com
+`CODEX-ARQUIVO-OK`. Outros projetos, Caddy, túnel e PostgreSQL foram preservados.
+O serviço privado consumia cerca de 82 MiB ocioso, limitado a 1 GiB e 1,5 CPU.
+O clone autorizado de desenvolvimento `Painel` está separado da produção.
+
+A primeira publicação backend instalou a revisão e registrou recibo com
+`exitCode: 0`, mas o Actions perdeu a conexão SSH antes de receber esse recibo.
+Reexecutar o job inteiro gerou outra identidade e revelou `SameFileError` na
+cópia de overlay da mesma revisão. Não foi alterado o broker root para contornar
+isso. A correção do cliente recupera o recibo usando exatamente a mesma
+solicitação autenticada; teste e publicação dessa correção têm status próprio.
 
 Documentação da OpenAI: https://developers.openai.com/codex/app-server e https://developers.openai.com/codex/auth.
