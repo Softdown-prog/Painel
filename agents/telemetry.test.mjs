@@ -24,7 +24,18 @@ test('quota windows keep server values and never invent weekly limits',()=>{
  }},account:{email:'no-leak'},credits:{secret:'no'}});
  assert.deepEqual(result.buckets[0].secondary,{usedPercent:66,windowDurationMins:10080,resetsAt:1780100000});
  assert.equal(JSON.stringify(result).includes('no-leak'),false);
- assert.equal(normalizeRateLimits({}).available,false);
+ assert.deepEqual(normalizeRateLimits({}),{
+  available:false,buckets:[],resetCreditsAvailable:null,ordinaryUsageAllowed:null
+ });
+ const credits=normalizeRateLimits({
+  rateLimits:{limitId:'codex',primary:{usedPercent:0,windowDurationMins:300,resetsAt:1780000000}},
+  rateLimitResetCredits:{availableCount:2,credits:[{id:'private-provider-id',status:'available'}]},
+  ordinaryUsageAllowed:false
+ });
+ assert.equal(credits.resetCreditsAvailable,2);
+ assert.equal(credits.ordinaryUsageAllowed,false);
+ assert.equal(JSON.stringify(credits).includes('private-provider-id'),false);
+ assert.equal(normalizeRateLimits({rateLimitResetCredits:{availableCount:0}}).resetCreditsAvailable,0);
 });
 test('token activity and missing values differ from zero',()=>{
  assert.deepEqual(normalizeUsage({}),{available:false,lifetimeTokens:null,daily:[]});
