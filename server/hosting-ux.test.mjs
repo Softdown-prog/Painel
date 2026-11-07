@@ -11,14 +11,14 @@ test('canonical Angular contains hosting views and no classic navigation duplica
   assert.ok(root.includes("'"+route+"'"));
   assert.ok(shell.includes("selectPage('"+route+"')"));
  }
- assert.match(shell,/<panel-managed-apps\\s*\\/>/);
- assert.match(shell,/<panel-domains\\s*\\/>/);
- assert.match(shell,/<panel-github-projects\\s*\\/>/);
+ assert.match(shell,/<panel-managed-apps\s*\/>/);
+ assert.match(shell,/<panel-domains\s*\/>/);
+ assert.match(shell,/<panel-github-projects\s*\/>/);
  assert.match(apps,/Criar aplicação/);
  assert.match(apps,/Ligar ao GitHub/);
  assert.match(domains,/Domínios e HTTPS/);
  assert.match(domains,/Publicar DNS e HTTPS/);
- assert.doesNotMatch(root,/data-view=|id="hostedProjects"|hosted-projects-ui\\.js/);
+ assert.doesNotMatch(root,/data-view=|id="hostedProjects"|hosted-projects-ui\.js/);
 });
 test('domain and app shortcuts keep labels and real publication status', () => {
   const domains = file('domains-ui.ts');
