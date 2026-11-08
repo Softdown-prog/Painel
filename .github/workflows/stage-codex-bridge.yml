@@ -4,12 +4,20 @@ on:
     paths:
       - 'agents/**'
       - 'server/compose.agents.yaml'
+      - 'operations/codex.py'
+      - 'operations/install_codex.py'
+      - 'operations/upgrade-vpsops-codex.sh'
+      - 'operations/test_codex*.py'
       - '.github/workflows/stage-codex-bridge.yml'
   push:
     branches: [main]
     paths:
       - 'agents/**'
       - 'server/compose.agents.yaml'
+      - 'operations/codex.py'
+      - 'operations/install_codex.py'
+      - 'operations/upgrade-vpsops-codex.sh'
+      - 'operations/test_codex*.py'
       - '.github/workflows/stage-codex-bridge.yml'
   workflow_dispatch:
     inputs:
