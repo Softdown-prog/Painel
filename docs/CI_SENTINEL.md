@@ -67,3 +67,19 @@ uma automação criada nela) quando houver suporte comprovado ao retorno.
 Até lá, o destino da automação geral permanece a conversa vinculada
 à própria automação; não é correto afirmar que roteamento entre chats
 já esteja ativo.
+
+## Ciclo de vida: vermelho, recuperado, regressão
+
+A partir desta revisão, cada registro novo inclui metadados **públicos**
+do workflow, da branch e da hora do run (não são identificadores de chat).
+Quando o GitHub comprova um sucesso posterior no **mesmo workflow e branch**,
+a linha do erro anterior passa a `recuperado`, preservando o run original.
+Se todas as linhas estiverem recuperadas, o issue de inbox é **fechado**.
+Uma nova falha na branch reabre o **mesmo issue**, sem criar um duplicado.
+Isso impede que a tarefa horária interprete um backlog histórico de
+issues abertos como dezenas de regressões ativas.
+
+Registros antigos sem contexto verificável não são fechados por adivinhação.
+A janela normal do coletor é de três horas; a ausência de um run verde
+nessa janela **não comprova** que a falha continua ativa. A automação
+ChatGPT ainda deve confirmar o estado atual antes de enviar notificações.

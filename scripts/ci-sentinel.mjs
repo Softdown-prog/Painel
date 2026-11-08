@@ -8,6 +8,44 @@ const OWN_WORKFLOW='CI Sentinel - todos os repositórios';
 
 export const isFailure=(status)=>BAD.has(status);
 export const mark=(id,attempt)=>`<!-- ci-sentinel:${id}:${attempt} -->`;
+
+// Store a GitHub-only workflow/branch/time hint alongside each failed
+// attempt so later successful runs can retire the issue without erasing it.
+// This is public CI metadata, NOT a ChatGPT conversation identifier.
+export function runContext(run){
+  const workflow=Number(run.workflow_id);
+  const branch=run.head_branch;
+  const updated=Date.parse(run.updated_at);
+  if(!Number.isSafeInteger(workflow)||workflow<=0||
+    typeof branch!=='string'||!branch||branch.length>200||
+    !Number.isFinite(updated))return '';
+  return `<!-- ci-sentinel-check:v1:${workflow}:${encodeURIComponent(branch)}:${updated} -->`;
+}
+function parseRunContext(row){
+  const match=row.match(/<!-- ci-sentinel-check:v1:(\d+):([^\s:]+):(\d+) -->/);
+  if(!match)return null;
+  let branch;
+  try{branch=decodeURIComponent(match[2]);}catch{return null;}
+  return {workflow:Number(match[1]),branch,updated:Number(match[3])};
+}
+export function reconcileRows(items,runs){
+  return items.map(row=>{
+    if(!row.includes(' · falha · '))return row;
+    const context=parseRunContext(row);
+    const identity=row.match(/<!-- ci-sentinel:(\d+):(\d+) -->/);
+    if(!context||!identity)return row; // Old rows remain unresolved, never guess.
+    const passed=runs.some(run=>run.conclusion==='success'&&
+      Number(run.workflow_id)===context.workflow&&
+      run.head_branch===context.branch&&
+      Date.parse(run.updated_at)>=context.updated&&
+      (String(run.id)===identity[1]||Date.parse(run.updated_at)>context.updated));
+    return passed?row.replace(' · falha · ',' · recuperado · '):row;
+  });
+}
+export function hasUnresolvedRows(items){
+  // Legacy/unclassified records remain open until independently verified.
+  return items.some(row=>!row.includes(' · recuperado · '));
+}
 export const clean=(value,max=100)=>String(value??'')
   .replace(/[\r\n\t]+/g,' ').replace(/[<>|\[\]()`\\]/g,' ')
   .replace(/\s+/g,' ').trim().slice(0,max);
@@ -139,10 +177,17 @@ async function failingJobs(api,name,runId,attempt,latest){
 export async function scan({api,owner=OWNER,inbox=INBOX,now=new Date(),logger=console}={}){
   const repositories=await listRepos(api,owner);
   const inboxPath=`/repos/${owner}/${inbox}/issues`;
-  const issues=await paginate(api,inboxPath+'?state=open',x=>x);
-  const existing=new Map(issues.filter(x=>x.title?.startsWith('[CI Sentinel] ')&&
-    !x.pull_request).map(x=>[x.title.slice('[CI Sentinel] '.length),x]));
-  const summary={repositories:repositories.length,created:0,updated:0,records:0,correlated:0,errors:[]};
+  // Include closed issues to reuse a historical inbox on later regression.
+  // Otherwise each burst after recovery would create another orphaned issue.
+  const issues=await paginate(api,inboxPath+'?state=all',x=>x);
+  const existing=new Map();
+  for(const issue of issues.filter(x=>x.title?.startsWith('[CI Sentinel] ')&&
+    !x.pull_request).sort((a,b)=>Number(b.number)-Number(a.number))){
+    const name=issue.title.slice('[CI Sentinel] '.length);
+    if(!existing.has(name))existing.set(name,issue);
+  }
+  const summary={repositories:repositories.length,created:0,updated:0,
+    closed:0,reopened:0,records:0,correlated:0,errors:[]};
   // Four simultaneous repositories minimize rate pressure on public Actions APIs.
   for(let offset=0;offset<repositories.length;offset+=4){
     await Promise.all(repositories.slice(offset,offset+4).map(async repository=>{
@@ -174,21 +219,40 @@ export async function scan({api,owner=OWNER,inbox=INBOX,now=new Date(),logger=co
               `[${clean(run.name,80)} — ${run.id}/${attempt}](${url}) · `+
               `${clean(run.head_branch,50)} · ${clean(run.head_sha,12)} · `+
               `${recovered?'recuperado':'falha'} · ${job}`+
-              (origin?' · origem '+origin:'')+' '+id);
+              (origin?' · origem '+origin:'')+' '+runContext(run)+' '+id);
             if(origin)summary.correlated++;
           }
         }
-        if(!fresh.length)return;
-        const body=issueBody(name,mergeRows(prior,fresh));
+        if(!issue&&!fresh.length)return;
+        const reconciled=reconcileRows(mergeRows(prior,fresh),runs);
+        const desiredState=hasUnresolvedRows(reconciled)?'open':'closed';
+        const body=issueBody(name,reconciled);
         if(issue){
-          await api(`${inboxPath}/${issue.number}`,{method:'PATCH',body:{body}});
-          summary.updated++;
+          if(issue.body!==body||issue.state!==desiredState){
+            // Snapshot state before the API mutation. Offline fixtures may
+            // return a shared object and update it in place.
+            const previousState=issue.state;
+            await api(`${inboxPath}/${issue.number}`,{
+              method:'PATCH',body:{body,state:desiredState}
+            });
+            summary.updated++;
+            if(previousState==='closed'&&desiredState==='open')summary.reopened++;
+            if(previousState==='open'&&desiredState==='closed')summary.closed++;
+          }
         }else{
-          await api(inboxPath,{method:'POST',body:{title:`[CI Sentinel] ${name}`,body}});
+          const created=await api(inboxPath,{method:'POST',body:{
+            title:`[CI Sentinel] ${name}`,body
+          }});
           summary.created++;
+          if(desiredState==='closed'){
+            await api(`${inboxPath}/${created.number}`,{
+              method:'PATCH',body:{state:'closed'}
+            });
+            summary.closed++;
+          }
         }
         summary.records+=fresh.length;
-        logger.log(`CI Sentinel: ${name}, novas falhas: ${fresh.length}`);
+        if(fresh.length)logger.log(`CI Sentinel: ${name}, novas falhas: ${fresh.length}`);
       }catch(error){
         const message=clean(error.message,180);
         summary.errors.push({repo:name,message});
