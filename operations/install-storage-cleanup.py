@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Install only the fixed housekeeping unit; never replace the deploy broker."""
 import argparse
-import fcntl
 import hashlib
 import json
 import os
@@ -14,6 +13,7 @@ EXECUTABLE = Path('/usr/local/sbin/vps-storage-cleanup')
 SYSTEMD = Path('/etc/systemd/system')
 
 def install(expected_sha=None):
+    import fcntl
     if os.geteuid() != 0:
         raise PermissionError('Host administrator required')
     root=Path('/var/lib/vps-storage-cleanup')
