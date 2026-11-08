@@ -4,20 +4,42 @@ on:
   schedule:
     - cron: '*/10 * * * *'
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/ci-sentinel.mjs'
+      - 'scripts/ci-sentinel.test.mjs'
+      - '.github/workflows/ci-sentinel.yml'
 
 permissions:
   contents: read
-  actions: read
-  issues: write
 
 concurrency:
-  group: ci-sentinel-softdown-prog
+  group: ci-sentinel-softdown-prog-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:
+  test:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Testar coletor sem rede
+        run: node --test scripts/ci-sentinel.test.mjs
+
   monitor:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 9
+    permissions:
+      contents: read
+      actions: read
+      issues: write
     steps:
       - uses: actions/checkout@v4
         with:
