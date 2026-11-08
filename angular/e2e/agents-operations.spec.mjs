@@ -65,10 +65,10 @@ test('copy response and operation result with accessible feedback',async({page,c
  await context.grantPermissions(['clipboard-read','clipboard-write']);
  await page.goto('/angular/#agents');
  await page.getByRole('button',{name:'Copiar resposta do Codex',exact:true}).click();
- await expect(page.getByRole('status')).toHaveText('Texto copiado.');
+ await expect(page.getByRole('status').filter({hasText:/^Texto copiado\.$/})).toBeVisible();
  expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe('Resposta de teste para copiar.');
  await page.getByRole('button',{name:'Copiar resultado da operação',exact:true}).click();
- expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe('Código de retorno: 0\nSaída de teste.');
+ await expect.poll(()=>page.evaluate(()=>navigator.clipboard.readText())).toBe('Código de retorno: 0\nSaída de teste.');
 });
 
 test('late conversation response cannot replace the last selected project',async({page})=>{
