@@ -1,85 +1,95 @@
-# Publicação controlada do bridge Codex na VPS
+# Rollout do Codex na VPS — um serviço, um fluxo
 
-**Objetivo:** concluir a atualização do serviço `vps-panel-codex` sem reiniciar API,
-executor, PostgreSQL, túnel ou outros projetos. Não confundir o deploy da API do
-Painel com o deploy separado do container Codex.
+**Objetivo:** atualizar apenas `vps-panel-codex` para que o chat Angular receba modelos,
+histórico e uso real de 5h/7 dias. **Não** reinstalar API, executor, PostgreSQL,
+Cloudflare, túnel, nem projetos hospedados. Um container saudável pode servir uma revisão antiga.
 
-## Estado e imagem
+## Como a publicação funciona
 
-A branch atual prepara uma imagem versionada do Codex CLI 0.167.0 e bridge
-de monitoramento. O workflow
-`.github/workflows/stage-codex-bridge.yml` testa código e isolamento em
-GitHub Actions e, **somente após chegar à main**, publica a imagem imutável
-`ghcr.io/softdown-prog/painel-codex@sha256:...`.
-Esse workflow **não instala** a imagem nem modifica a VPS. Não chama o broker
-administrativo, não usa chaves SSH e não altera o CODEX_HOME.
+A fonte é `agents/`, com CLI **fixo em 0.167.0**, e a **única** CI do Codex é
+`.github/workflows/stage-codex-bridge.yml`. Ela roda os testes reais do bridge
+e do sandbox AppArmor/seccomp sem conta/credenciais, publica a imagem em
+`ghcr.io/softdown-prog/painel-codex@sha256:...` e registra o digest imutável.
 
-O deploy regular da API publica somente `api` e `executor`. Ele não atualiza
-o serviço `codex-agents`. Um container saudável pode estar executando código
-antigo; nunca confundir `healthy` com versão publicada.
+A atualização do host é um **segundo job no mesmo workflow**, desabilitado por
+padrão. Não se deve misturar este job com o deploy regular da API. Para ativá-lo:
 
-## Requisitos antes do rollout
+- Na primeira utilização, um operador root da VPS deve instalar **somente a capacidade
+  Codex** no broker vpsops existente, a partir de um checkout confiável da `main`,
+  usando `sudo bash operations/upgrade-vpsops-codex.sh /caminho/para/Painel`.
+  O script confere política, arquivos e identidade esperados, sem executar Docker
+  `up`, sem modificar `/srv/panel-codex`, SSH/sudoers, segredos ou containers.
+- No GitHub Actions, configurar o ambiente protegido `vps-maintenance` com
+  aprovadores obrigatórios. Executar **Test, stage and optionally deploy pinned Codex bridge**
+  via `workflow_dispatch` na `main` e marcar `activate=true`.
+  Alternativamente, após a primeira instalação bem-sucedida, habilitar a variável
+  `PANEL_CODEX_DEPLOY_ENABLED=true` para realizar rollouts em commits de
+  `agents/**`. Sem essa variável, pushes apenas criam imagens, não atualizam a VPS.
+- O job usa somente a identidade OIDC e o executor privado já existente; ele
+  rejeita projeto não registrado, branch diferente de main, imagem não imutável,
+  SHA não autenticado e binário Codex diferente do fixado.
 
-1. Confirmar todos os checks do PR, inclusive SAC Angular, Chromium E2E e
-   `Codex agents (real isolated sandbox)`. Confirmar sucesso do workflow de
-   staging na main e guardar o **digest exato** publicado no job.
-2. Usar um terminal administrativo autorizado **na VPS** e conferir a
-   configuração Compose realmente instalada: arquivos de configuração
-   `com.docker.compose.project.config_files` do serviço `vps-panel-codex`,
-   revisão atual, nome do projeto e lista de mounts/redes. Não confiar
-   somente nos caminhos do checkout no GitHub.
-3. Confirmar que o digest novo possui os labels
-   `org.opencontainers.image.revision` da revisão em main e
-   `org.opencontainers.image.source=https://github.com/Softdown-prog/Painel`.
-   Não usar a tag `latest` nem reconstruir diretamente no host de produção.
-4. Examinar `docker compose config` **antes** de aplicar. O serviço deverá
-   manter UID/GID 61110, diretórios privados de CODEX_HOME, state e workspace,
-   chave somente leitura, AppArmor `panel-codex`, seccomp fixo,
-   `cap_drop: ALL`, sem `docker.sock`, sem portas publicadas, e limites
-   de 1 GiB / 1,5 vCPU.
-5. Subir **somente** `codex-agents` com `--no-deps --no-build --pull never`
-   após a imagem por digest estar presente. Não utilizar `docker compose down`,
-   `--remove-orphans`, `prune`, alteração de usuários ou recriação de volumes.
-   Persistir a referência imutável nas configurações administrativas autorizadas
-   para evitar que um próximo deploy da API restaure a imagem anterior.
+O workflow não abre SSH de shell arbitrário. A operação `deploy` está
+restrita ao projeto `panel-codex` e ao serviço `codex-agents`.
 
-**Este documento não executa o rollout.** A operação requer acesso aprovado
-ao host e verificação das particularidades do Compose em produção. Não há
-comando remoto arbitrário autorizado através do conector GitHub.
+## Verificação prévia e isolamento
 
-## Checagem pós-rollout
+O adaptador `operations/codex.py` usa **os Compose efetivos do container
+`softload-panel-api`** (não inventa caminhos nem procura um Docker alternativo).
+Antes de alterar qualquer configuração, exige:
 
-- O inventário OIDC da VPS deve confirmar `vps-panel-codex` running/healthy
-  **e** digest/revisão esperados, sem alterações nos IDs dos outros containers.
-- A aba `Agentes` deve receber `features.quotaWindows: true` de
-  `/api/agents/status`. Se não receber, o frontend exibirá um aviso de bridge
-  antigo; não declarar atualização concluída.
-- Abrir `Uso e limites do Codex` na sessão administrativa e confirmar:
-  `/api/agents/models` (modelos se a versão suportar), `/api/agents/usage`
-  (janelas e timestamps), porcentagem restante e contagem regressiva.
-- Testar um chat geral existente (sem alterar arquivos), depois uma tarefa
-  de projeto autorizado e a retomada do histórico; não apagar
-  `/srv/panel-codex/home`, `/state` ou `/workspace`.
-- Conferir que a API pública não expõe o token da conta, IDs opacos de créditos,
-  configuração privada, arquivos de projetos ou segredo do bridge.
+1. API e Codex saudáveis, no projeto Compose `softload-panel` e com os nomes
+   de serviços registrados; imagens atuais alinhadas à configuração instalada.
+2. Um único `compose.install.yaml` root-owned, com `compose.agents.yaml`
+   e todos os overlays apontando para o checkout canônico atual.
+3. UID/GID 61110; raiz read-only; `cap_drop: ALL`; sem portas públicas,
+   privilégios, recursos extras nem Docker socket; limites 1 GiB, 1,5 vCPU,
+   128 PIDs; AppArmor `panel-codex` e seccomp fixo.
+4. Os **quatro** mounts previstos e nenhum outro bind:
+   `/srv/panel-codex/workspace`, `home`, `state` e a chave
+   `/etc/softload-panel/agent-key` **somente leitura**.
+5. A imagem nova em digest `sha256:` com labels de origem e revisão do
+   commit autenticado, aprovada pelo teste de admissão **sem credenciais**.
 
-Os dados de consumo são fornecidos pelo Codex autenticado. Não preencher
-artificialmente janelas de 5h/7 dias ou horários de redefinição ausentes.
-A interface só mostra `Créditos de redefinição disponíveis` se a conta
-retornar uma quantidade numérica. Nenhum crédito é consumido pelo Painel.
+Somente então o adaptador grava atomicamente a referência nova no overlay
+administrativo e faz `docker compose up -d --no-deps --no-build --pull never codex-agents`.
+Isso não usa `down`, `prune`, `remove-orphans`, `restart` dos outros
+serviços ou alteração dos volumes persistentes. O overlay aprovado será copiado
+pelos próximos deploys regulares da API, evitando regressão para a imagem antiga.
 
-## Reversão
+O instalador exige coincidência de IDs dos demais containers antes e depois.
+Se o serviço não iniciar, a imagem ou a saúde não corresponderem, restaura
+o overlay anterior e executa rollback **somente do Codex** usando a imagem
+já existente localmente. Caso a configuração real divirja, para sem improvisar.
 
-Se a nova revisão não iniciar, usar **o digest anterior conhecido** do container
-`vps-panel-codex` e retornar somente o serviço `codex-agents` à imagem
-anterior. Os volumes existentes permanecem. Validar a restauração de saúde,
-histórico e isolamento. Não assumir que um container que reinicia pode fazer
-rollback de mudanças que já realizou em um clone; conferir `git diff` dos
-workspaces autorizados.
+## Como confirmar o resultado
 
-## Evidência
+Confira o recibo do workflow (`vps-result.json`) e um inventário novo
+(`[VPS] inventory`). É necessário ver `vps-panel-codex` running/healthy
+com o **SHA novo** e outros containers com os mesmos IDs.
 
-- Histórico e monitoramento: `docs/CODEX-AGENTS-MONITORING.md`.
-- Limites de segurança: `agents/SECURITY.md`.
-- Build de staging: `.github/workflows/stage-codex-bridge.yml`.
-- Teste real de sandbox: `.github/workflows/codex-agents.yml`.
+No Painel, em `Agentes`, verificar `features.quotaWindows: true` em
+`/api/agents/status`, histórico e seleção de modelo. A conta autenticada
+deve fornecer `/api/agents/models` e `/api/agents/usage`, janelas de 5h/7 dias
+e timestamps reais. Não inventar franquia, percentuais, créditos ou datas
+de renovação. A CI é sintética; ela **não comprova** os limites verdadeiros
+da conta ou operações autenticadas em projetos.
+
+O estado em `/srv/panel-codex/home`, `/srv/panel-codex/state` e
+`/srv/panel-codex/workspace` não deve ser apagado. O Codex pode executar
+tarefas e ter turnos em andamento; escolher uma janela de atualização
+que não interrompa o trabalho.
+
+## Se o rollout for bloqueado
+
+Uma falha de admissão deixa a produção inalterada. Se o Codex antigo estiver
+vinculado a um arquivo Compose diferente do canônico ou tiver outro perfil de
+segurança, o operador deve reconciliar **antes** de atualizar, sem desabilitar
+AppArmor/seccomp e sem conceder um terminal genérico à CI.
+
+## Fontes locais
+
+- `agents/SECURITY.md` — política do sandbox.
+- `docs/CODEX-AGENTS-MONITORING.md` — modelos e limites.
+- `operations/test_codex.py` — isolamento, OIDC, rollback e proibição de alteração de outros serviços.
+- `.github/workflows/stage-codex-bridge.yml` — testes, imagem e deploy opcional.

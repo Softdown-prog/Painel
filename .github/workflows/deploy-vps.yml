@@ -2,6 +2,12 @@ name: Deploy verified Panel backend to VPS
 on:
   push:
     branches: [main]
+    # Agents/operations/docs are not API binary changes. Do not restart API or executor.
+    paths:
+      - 'server/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-vps.yml'
   workflow_dispatch:
 
 permissions:

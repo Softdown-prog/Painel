@@ -12,7 +12,7 @@ import subprocess
 import time
 
 VERSION = 1
-PROFILES = {'panel-api', 'panel-executor', 'panel-web', 'http-json'}
+PROFILES = {'panel-api', 'panel-executor', 'panel-web', 'codex-bridge', 'http-json'}
 REMEDIATION = {
     'contract': 'Configure na VPS um contrato v1 para todos os serviços deste projeto.',
     'identity': 'Confira digest, origem e SHA das imagens publicadas pelo workflow.',
@@ -128,11 +128,18 @@ def candidate_command(name, image, rule, sha, key):
     elif profile == 'panel-web':
         env.update(PORT='8081', ADMISSION_KEY=key, PANEL_WEB_REVISION=sha,
                    PANEL_PUBLIC_ORIGIN='https://panel.example.test')
+    elif profile == 'codex-bridge':
+        # Runs an inert process without account credentials or app-server.
+        env.update(NODE_ENV='test')
     else:
         env.update(PORT=str(rule['port']), ALLOWED_ORIGINS='http://127.0.0.1:5173')
     for k, v in env.items():
         command += ['--env', k + '=' + v]
-    if profile in ('panel-api', 'panel-executor', 'panel-web'):
+    if profile == 'codex-bridge':
+        # Inert credential-free process; validate executable bridge and pinned CLI
+        # via docker exec. Never start app-server or access external inference.
+        command += ['--entrypoint', 'node', image, '-e', 'setInterval(()=>{},10000)']
+    elif profile in ('panel-api', 'panel-executor', 'panel-web'):
         command += ['--entrypoint', 'node', image, '--input-type=module', '-e',
                     {'panel-api': API_BOOT, 'panel-executor': EXECUTOR_BOOT, 'panel-web': WEB_BOOT}[profile]]
     else:
@@ -156,6 +163,20 @@ def probe(name, rule, sha, key, info):
     if rule['profile'] == 'panel-executor':
         docker(['exec', '-i', name, 'node', '--input-type=module', '-'],
                input=EXECUTOR_PROBE.encode(), timeout=10)
+    elif rule['profile'] == 'codex-bridge':
+        # Real module import and CLI binary in a throwaway container without
+        # credentials, persisted directories, egress or an account request.
+        probe_source = (
+            "import assert from 'node:assert/strict';"
+            "import {validPrompt,codexArguments} from '/app/bridge.mjs';"
+            "assert.equal(validPrompt('Teste local'),true);"
+            "assert.equal(validPrompt(''),false);"
+            "assert.equal(codexArguments('/workspace',['Geral'])[0],'app-server');"
+        )
+        docker(['exec',name,'node','--input-type=module','-e',probe_source],timeout=10)
+        version=docker(['exec',name,'codex','--version'],timeout=10).decode('utf-8','replace')
+        if not re.search(r'\b0\.167\.0\b',version):
+            raise ValueError('Unpinned Codex CLI version')
     else:
         # Enter ONLY the candidate's network namespace. No bridge/egress or host port.
         # HTTP parser/test lives on the host, not in the potentially broken image.
@@ -179,7 +200,8 @@ def admit(project, sha, images):
         im = json.loads(docker(['image', 'inspect', ref]))[0]
         labels = im['Config'].get('Labels') or {}
         expected_cmd = {'panel-api': ['node', 'api.mjs'], 'panel-executor': ['node', 'executor.mjs'],
-                        'panel-web': ['node', 'server.mjs']}.get(rule['profile'])
+                        'panel-web': ['node', 'server.mjs'],
+                        'codex-bridge': ['node','bridge.mjs']}.get(rule['profile'])
         if (labels.get('org.opencontainers.image.revision') != sha
                 or labels.get('org.opencontainers.image.source') != 'https://github.com/' + project['repository']
                 or im['Config'].get('Volumes')
