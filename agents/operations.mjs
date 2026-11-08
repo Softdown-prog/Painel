@@ -20,16 +20,21 @@ export function toolsFor(project){
 export const safeText=(s,max=4000)=>typeof s==='string'&&s.length>0&&s.length<=max&&!/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(s);
 export const containsSecret=s=>/-----BEGIN (?:[A-Z ]*PRIVATE KEY)|\b(?:gh[pousr]_|github_pat_|sk-proj-|APP_USR-|cfat_|cfut_|AKIA)[A-Za-z0-9_\/-]{10,}|\bre_[A-Za-z0-9_]{20,}|\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/i.test(s);
 
-export function workspaceChanges(directory){
+export function workspaceChanges(directory,origin){
  const root=realpathSync(directory), git=join(root,'.git');
  if(!lstatSync(git).isDirectory()||lstatSync(git).isSymbolicLink()||realpathSync(git)!==git)throw Error('Clone Git inválido.');
  const run=args=>execFileSync('git',['--no-pager','--git-dir='+git,'--work-tree='+root,
   '-c','core.fsmonitor=false','-c','core.hooksPath=/dev/null','-c','core.attributesFile=/dev/null',...args],
   {cwd:root,env:{PATH:process.env.PATH,LANG:'C.UTF-8',HOME:'/nonexistent',GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null',GIT_OPTIONAL_LOCKS:'0'},
    encoding:'utf8',timeout:8000,maxBuffer:256*1024,stdio:['ignore','pipe','pipe']});
- const baseSha=run(['rev-parse','--verify','HEAD']).trim();
+ let baseSha=run(['rev-parse','--verify','HEAD']).trim();
  if(!/^[a-f0-9]{40}$/.test(baseSha))throw Error('Revisão Git inválida.');
- const names=[...new Set((run(['diff','--no-ext-diff','--no-textconv','--name-only','-z','HEAD'])+
+ let baseline='HEAD';
+ if(origin){
+  if(!/^[a-f0-9]{40}$/.test(origin.localBase??'')||!/^[a-f0-9]{40}$/.test(origin.sourceSha??''))throw Error('Origem Git inválida.');
+  run(['merge-base','--is-ancestor',origin.localBase,'HEAD']);baseline=origin.localBase;baseSha=origin.sourceSha;
+ }
+ const names=[...new Set((run(['diff','--no-ext-diff','--no-textconv','--name-only','-z',baseline])+
   run(['ls-files','--others','--exclude-standard','-z'])).split('\0').filter(Boolean))].sort();
  if(!names.length||names.length>30)throw Error('Selecione de 1 a 30 arquivos alterados.');
  let bytes=0;const files=[];
@@ -46,7 +51,7 @@ export function workspaceChanges(directory){
   if(/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(content)||containsSecret(content))throw Error('Conteúdo binário ou possível segredo: publicação bloqueada.');
   files.push({path,content,mode:stats.mode&0o111?'100755':'100644'});
  }
- const diff=run(['diff','--no-ext-diff','--no-textconv','HEAD','--',...names]);
+ const diff=run(['diff','--no-ext-diff','--no-textconv',baseline,'--',...names]);
  const snapshot={baseSha,files,diff:diff.slice(0,128*1024)};
  if(Buffer.byteLength(JSON.stringify(snapshot))>192*1024)throw Error('Snapshot excede 192 KiB.');
  return snapshot;
@@ -65,7 +70,7 @@ export class ToolCalls {
   while(this.calls.size>100){const oldest=[...this.calls].find(([,v])=>!['pending','running','awaiting_output'].includes(v.status));if(!oldest)break;this.calls.delete(oldest[0]);}
   writeFileSync(this.path+'.tmp',JSON.stringify([...this.calls.values()].map(({rpcId,...c})=>c)),{mode:0o600});renameSync(this.path+'.tmp',this.path);
  }
- propose(params,rpcId,session,directory){
+ propose(params,rpcId,session,directory,origin){
   if(!session||!session.turnId||session.turnId!==params.turnId||session.id!==params.threadId||
    !toolsFor(session.project).some(x=>x.name===params.tool)||!params.arguments||Array.isArray(params.arguments)||typeof params.arguments!=='object')throw Error('Ferramenta fora do escopo.');
   if([...this.calls.values()].some(c=>c.threadId===session.id&&c.callId===params.callId))throw Error('Chamada duplicada.');
@@ -80,7 +85,7 @@ export class ToolCalls {
   }else{
    if(Object.keys(args).sort().join(',')!=='description,title'||!safeText(args.title,120)||!safeText(args.description,4000)||containsSecret(args.title+args.description))throw Error('Descrição inválida.');
   }
-  const payload=params.tool==='publicar_pull_request'?{...args,...workspaceChanges(directory)}:{...args};
+  const payload=params.tool==='publicar_pull_request'?{...args,...workspaceChanges(directory,origin)}:{...args};
   const createdAt=this.now(),id=randomBytes(16).toString('hex');
   const call={id,threadId:session.id,turnId:session.turnId,callId:params.callId,project:session.project,
    tool:params.tool,args:payload,mode:params.tool.startsWith('consultar_')?'read':'approval',
