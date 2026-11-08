@@ -128,6 +128,9 @@ def candidate_command(name, image, rule, sha, key):
     elif profile == 'panel-web':
         env.update(PORT='8081', ADMISSION_KEY=key, PANEL_WEB_REVISION=sha,
                    PANEL_PUBLIC_ORIGIN='https://panel.example.test')
+    elif profile == 'codex-bridge':
+        # Runs an inert process without account credentials or app-server.
+        env.update(NODE_ENV='test')
     else:
         env.update(PORT=str(rule['port']), ALLOWED_ORIGINS='http://127.0.0.1:5173')
     for k, v in env.items():
