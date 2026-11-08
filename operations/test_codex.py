@@ -1,5 +1,6 @@
 """Codex sidecar rollout regression: isolated, no Docker or production writes."""
 import copy
+import fcntl
 import json
 from pathlib import Path
 import tempfile
@@ -162,7 +163,8 @@ class CodexActivation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             overlay,original,current,calls,ins,run,verify=self.fixture(root,fail=fail)
             project={'adapter':'codex','containers':{codex.SERVICE:codex.CONTAINER}}
-            with patch.object(codex,'inspect',side_effect=ins),\
+            with patch.object(codex,'PANEL_DEPLOY_LOCK',Path(root)/'panel.lock'),\
+                 patch.object(codex,'inspect',side_effect=ins),\
                  patch.object(codex,'run',side_effect=run),\
                  patch.object(codex,'_compose_args',return_value=(['docker','compose'],overlay)),\
                  patch.object(codex,'_check_compose'),\
@@ -198,7 +200,8 @@ class CodexActivation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             overlay,original,current,calls,ins,run,verify=self.fixture(root)
             project={'adapter':'codex','containers':{codex.SERVICE:codex.CONTAINER}}
-            with patch.object(codex,'inspect',side_effect=ins),\
+            with patch.object(codex,'PANEL_DEPLOY_LOCK',Path(root)/'panel.lock'),\
+                 patch.object(codex,'inspect',side_effect=ins),\
                  patch.object(codex,'run',side_effect=run),\
                  patch.object(codex,'_compose_args',return_value=(['docker','compose'],overlay)),\
                  patch.object(codex,'_check_compose',side_effect=[None,ValueError('Unsafe overlay')]),\
@@ -210,6 +213,17 @@ class CodexActivation(unittest.TestCase):
             self.assertEqual(current['image'],OLD)
             self.assertEqual(json.loads(overlay.read_text()),original)
             self.assertFalse(any('up' in argv for argv in calls))
+
+    def test_concurrent_panel_deploy_is_rejected_before_any_codex_action(self):
+        with tempfile.TemporaryDirectory() as root:
+            lock=Path(root)/'panel.lock'
+            with lock.open('a') as held:
+                fcntl.flock(held,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                with patch.object(codex,'PANEL_DEPLOY_LOCK',lock),\
+                     patch.object(codex,'inspect') as inspect:
+                    with self.assertRaises(BlockingIOError):
+                        codex.codex_activate({'adapter':'codex'},SHA,{codex.SERVICE:IMAGE},None)
+                    inspect.assert_not_called()
 
     def test_opt_in_script_is_syntax_valid_and_no_unsafe_container_commands(self):
         source=(ROOT/'upgrade-vpsops-codex.sh').read_text()
