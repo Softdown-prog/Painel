@@ -1,3 +1,17 @@
+### 2026-11-08 — Raciocínio no modo automático e repositórios da conta
+
+**Diagnóstico real:** serviço `ff34103` anuncia oito modelos com esforços reais,
+mas a UI bloqueava o raciocínio com modelo Automático. A API restringia consultas
+e publicações ao cadastro individual (somente Painel configurado).
+**Código desta branch:** níveis anunciados utilizáveis no Automático com modelo
+explicitado ao aplicar; autorização administrativa única da identidade GitHub,
+descoberta paginada de repositórios próprios e preparação isolada somente do
+selecionado, sem transferir tokens ao modelo ou ampliar deploy/Docker. Histórico,
+contas e cópias existentes preservados; PRs continuam exigindo revisão do diff.
+**Validação:** typecheck e 35 testes específicos locais passaram; testes de
+importação GNU tar devem rodar em Linux/CI. CI, frontend publicado, API instalada
+e sidecar instalado precisam de confirmação independente para a revisão final.
+
 ### 2026-11-08 — Seccomp normalizado pelo Docker bloqueava o rollout
 
 **Causa comprovada no host:** Codex continuava em `f3046f6` após Pages publicar

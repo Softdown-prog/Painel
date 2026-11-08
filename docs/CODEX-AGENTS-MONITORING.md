@@ -8,6 +8,12 @@ o navegador chama apenas /api/agents/* após autenticação no Painel.
 
 ### Configurações de modelo
 
+O seletor de raciocínio também funciona com **Automático**: usa os níveis do
+modelo configurado, se anunciado no catálogo, ou do modelo sugerido por
+`model/list`. Ao escolher um nível, a interface identifica qual modelo será
+fixado ao aplicar a seleção. Manter **Padrão do modelo** no modo automático não
+fixa modelo nem esforço. Rótulos em português não inventam novos níveis.
+
 - GET /api/agents/models encaminha model/list e config/read ao processo já
   autenticado, mas filtra para somente id/nome do modelo, esforços disponíveis,
   esforço padrão e configurações de modelo do servidor. Não envia providers,

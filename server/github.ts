@@ -99,6 +99,27 @@ export async function github(path: string, method = 'GET', payload?: object): Pr
   }
   return response.status === 204 ? null : response.json();
 }
+/** Download only a selected GitHub commit; never forward credentials to redirects. */
+export async function githubArchive(repository:string,sha:string):Promise<Response>{
+  if(!/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]{1,100}$/.test(repository)||
+     ['.','..'].includes(repository.split('/')[1]!)||!/^[a-f0-9]{40}$/.test(sha))throw new GitHubError(400,'Origem inválida.');
+  const secret=token();if(!secret)throw new GitHubError(503,'Conecte sua conta GitHub.');
+  const response=await fetch('https://api.github.com/repos/'+repository+'/tarball/'+sha,{
+    redirect:'manual',signal:AbortSignal.timeout(90000),
+    headers:{authorization:'Bearer '+secret,'user-agent':'softload-console','x-github-api-version':'2022-11-28'}});
+  let archive=response;
+  if(response.status===302){
+    const url=new URL(response.headers.get('location')||'');
+    if(url.protocol!=='https:'||url.hostname!=='codeload.github.com'||url.port||url.username||url.password||
+       !url.pathname.startsWith('/'+repository+'/'))throw new GitHubError(502,'Destino GitHub inválido.');
+    await response.body?.cancel();
+    archive=await fetch(url,{redirect:'error',signal:AbortSignal.timeout(90000),headers:{'user-agent':'softload-console'}});
+  }
+  if(!archive.ok||!archive.body||Number(archive.headers.get('content-length')||0)>32*1024*1024){
+    await archive.body?.cancel();throw new GitHubError(409,'Cópia indisponível ou maior que 32 MiB.');
+  }
+  return archive;
+}
 export async function handleGitHubRoute(req: IncomingMessage, res: ServerResponse, deps: Dependencies): Promise<boolean> {
   const url = new URL(req.url || '/', 'http://localhost');
   const path = url.pathname;

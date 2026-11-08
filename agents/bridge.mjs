@@ -6,6 +6,7 @@ import {join} from 'node:path';
 import {timingSafeEqual} from 'node:crypto';
 import {ToolCalls,toolsFor,ADMIN_PROJECT} from './operations.mjs';
 import {normalizeModels,validSelection,normalizeRateLimits,normalizeUsage,normalizeThreadTokens,safeTitle} from './telemetry.mjs';
+import {Workspaces} from './workspaces.mjs';
 const slug=/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/;
 const threadId=/^[a-zA-Z0-9_-]{4,128}$/;
 export const validPrompt=s=>typeof s==='string'&&s.trim().length>0&&s.length<=4000&&
@@ -56,7 +57,8 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn,operati
   createdAt:s.createdAt,updatedAt:s.updatedAt,model:s.model,effort:s.effort,
   effectiveModel:s.effectiveModel,usage:s.usage}))),{mode:0o600});
   renameSync(stateFile+'.tmp',stateFile);}
- let proc,ready=false,authenticated=false,active=null,seq=0,registered=[];
+ let proc,ready=false,authenticated=false,active=null,seq=0,registered=[],importing=false;
+ const copies=new Workspaces(workspace,stateDir);
  const requests=new Map(),loadedThreads=new Set();
  let modelsCache={at:0,models:[],supported:false,configuredModel:null,configuredEffort:null};
  let usageCache={at:0,value:null};
@@ -98,7 +100,7 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn,operati
     if(error&&requests.has(id)){clearTimeout(timer);requests.delete(id);reject(Error('Codex disconnected'));}});
   });}
  async function deliver(){
-  if(!calls||delivering||active||!ready||!authenticated)return;
+  if(!calls||delivering||active||importing||!ready||!authenticated)return;
   const c=calls.nextDelivery();if(!c)return;
   const s=sessions.get(c.threadId);if(!s){calls.delivery(c.id,'unknown');return;}
   let result;try{result=JSON.parse(c.summary);if(!result||typeof result!=='object')throw Error('Invalid');}
@@ -132,7 +134,7 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn,operati
   if((typeof x.id==='number'||typeof x.id==='string')&&typeof x.method==='string'){
    if(x.method==='item/tool/call'&&calls){
     try{const s=sessions.get(x.params?.threadId);if(!s||active!==s.id||s.resultOnly)throw Error('Inactive or result-only turn');
-     calls.propose(x.params,x.id,s,projectDirectory(workspace,s.project));
+     calls.propose(x.params,x.id,s,projectDirectory(workspace,s.project),copies.origin(s.project));
     }catch{proc.stdin.write(JSON.stringify({id:x.id,result:{contentItems:[{type:'inputText',text:'Ferramenta rejeitada: escopo, argumentos ou arquivos inválidos.'}],success:false}})+'\n');}
     return;
    }
@@ -160,18 +162,19 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn,operati
  function start(){registered=[...new Set([...projects(workspace),...(operationsEnabled?[ADMIN_PROJECT]:[])])].sort();
   proc=spawnCodex('codex',codexArguments(workspace,registered,process.env.CODEX_HOME||'/home/node/.codex',stateDir),
   {cwd:workspace,stdio:['pipe','pipe','pipe'],env:process.env});proc.stderr.resume();
+  const instance=proc;
   createInterface({input:proc.stdout}).on('line',line=>{if(line.length>1000000)return;
-   try{dispatch(JSON.parse(line));}catch{/* malformed event */}});
-  const down=()=>{ready=false;authenticated=false;loadedThreads.clear();for(const q of requests.values()){
+   if(proc!==instance)return;try{dispatch(JSON.parse(line));}catch{/* malformed event */}});
+  const down=()=>{if(proc!==instance)return;ready=false;authenticated=false;loadedThreads.clear();for(const q of requests.values()){
    clearTimeout(q.timer);q.reject(Error('Disconnected'));}requests.clear();
    if(active){const s=sessions.get(active);if(s)finish(s,'interrupted');}};
   proc.on('error',down);proc.on('exit',down);
   rpc('initialize',{clientInfo:{name:'softdown_panel',title:'Painel Agentes',version:'0.1.0'},
    capabilities:{experimentalApi:true}})
-   .then(async()=>{proc.stdin.write('{"method":"initialized","params":{}}\n');ready=true;
-    const auth=await rpc('account/read',{refreshToken:false});authenticated=Boolean(auth?.account);void deliver();
+   .then(async()=>{if(proc!==instance)return;instance.stdin.write('{"method":"initialized","params":{}}\n');ready=true;
+    const auth=await rpc('account/read',{refreshToken:false});if(proc!==instance)return;authenticated=Boolean(auth?.account);void deliver();
    })
-   .catch(()=>{ready=false;});
+   .catch(()=>{if(proc===instance)ready=false;});
  }
  const server=createServer(async(req,res)=>{
   if(req.method==='GET'&&req.url==='/health')return json(res,ready?200:503,{ok:ready});
@@ -181,8 +184,23 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn,operati
   const path=new URL(req.url||'/','http://agent.local').pathname;
   if(path==='/status'&&req.method==='GET')return json(res,200,
    {enabled:true,ready:ready&&authenticated,projects:registered,active:!!active,
-    features:{modelSelection:true,quotaWindows:true,historySearch:true},
+    features:{modelSelection:true,quotaWindows:true,historySearch:true,workspaceImport:!!calls},
     ...(calls?{operationsEnabled:true}:{})});
+  if(calls&&path==='/workspaces'&&req.method==='GET')return json(res,200,{workspaces:Object.fromEntries(
+   Object.entries(copies.list()).map(([key,value])=>{const {localBase,...meta}=value;return [key,meta];}))});
+  if(calls&&path==='/workspaces'&&req.method==='POST'){
+   if(active||importing||!ready||!authenticated)return json(res,409,{error:'Aguarde a tarefa atual ou a inicialização do Codex.'});
+   importing=true;
+   try{
+    const result=await copies.receive(req,{project:req.headers['x-panel-project'],repository:req.headers['x-panel-repository'],
+     branch:req.headers['x-panel-branch'],sourceSha:req.headers['x-panel-source-sha']});
+    const previous=proc;proc=null;ready=false;authenticated=false;loadedThreads.clear();
+    for(const q of requests.values()){clearTimeout(q.timer);q.reject(Error('Project profiles reloading'));}requests.clear();
+    previous?.kill('SIGTERM');modelsCache.at=0;usageCache={at:0,value:null};start();
+    return json(res,201,{ok:true,...result});
+   }catch{return json(res,409,{error:'Cópia não preparada: confira limite de tamanho e arquivos; cópias existentes são preservadas.'});}
+   finally{importing=false;void deliver();}
+  }
   if(path==='/models'&&req.method==='GET'){
    if(!ready||!authenticated)return json(res,503,{error:'Codex não autenticado.'});
    const catalog=await models();
@@ -228,6 +246,7 @@ export function createBridge({secret,workspace,stateDir,spawnCodex=spawn,operati
     ...(messages.length<s.messages.length?{historyTruncated:true}:{}),
     ...(calls?{actions:calls.list().filter(c=>c.threadId===s.id&&(['pending','running','awaiting_output'].includes(c.status)||['pending','delivering','unknown'].includes(c.deliveryState))).map(c=>calls.public(c))}:{})}});
   }
+  if(req.method==='POST'&&importing)return json(res,409,{error:'Aguarde a preparação do projeto.'});
   if(req.method==='POST'&&(!ready||!authenticated))return json(res,503,{error:'Codex não autenticado. Faça login no servidor e reinicie o serviço.'});
   try{
    if(s&&m[2]==='title'&&req.method==='POST'){

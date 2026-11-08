@@ -4,6 +4,8 @@ import {join} from 'node:path';
 import {github,readRepositories,validRepository,validRef} from './github.ts';
 import {terminalJobManager} from './terminal-jobs.ts';
 import {terminalSshConfig} from './terminal-ssh.ts';
+import {AgentGitHub,agentRepository} from './agent-github.ts';
+import {agentBridgeUpload} from './agents.ts';
 
 type Binding={repository:string;branch:string};
 type Call={id:string;threadId:string;project:string;tool:string;mode:string;status:string;
@@ -42,6 +44,7 @@ export function validatePublication(args:Record<string,any>):void{
 }
 
 export class AgentOperations {
+ readonly account:AgentGitHub;
  private readonly d:Dependencies;
  private readonly mappingFile:string;
  private busy=false;
@@ -50,6 +53,7 @@ export class AgentOperations {
  private readonly secrets:string[]=[];
  constructor(d:Dependencies){
   this.d=d;this.mappingFile=join(d.dataDir,'agent-projects.json');
+  this.account=new AgentGitHub({dataDir:d.dataDir,...(d.git?{git:d.git}:{}),bridge:d.bridge,upload:agentBridgeUpload});
   for(const key of ['PANEL_EDGE_KEY_FILE','PANEL_CODEX_AGENT_KEY_FILE','PANEL_GITHUB_TOKEN_FILE','PANEL_TERMINAL_SSH_KEY_FILE']){
    try{const path=process.env[key];if(path)this.secrets.push(readFileSync(path,'utf8').trim());}catch{/* Optional credential absent. */}
   }
@@ -63,11 +67,22 @@ export class AgentOperations {
  }
  private binding(project:string):Binding{
   const b=this.bindings()[project];
-  if(!b||!validRepository(b.repository)||!validRef(b.branch)||!readRepositories(this.d.dataDir).some(r=>r.fullName===b.repository&&r.branch===b.branch))
+  if(!b||!agentRepository(b.repository)||!validRef(b.branch)||!(readRepositories(this.d.dataDir).some(r=>r.fullName===b.repository&&r.branch===b.branch)||this.account.allows(b.repository)))
    throw Error('Conecte o projeto a um repositório autorizado antes de publicar.');
   return b;
  }
  async catalog(){return {bindings:this.bindings(),repositories:readRepositories(this.d.dataDir)};}
+ async openProject(input:Record<string,unknown>){
+  if(!this.enabled())throw Error('Operações não habilitadas.');
+  const repository=input['repository'];await this.account.resolve(repository);
+  const mappings=this.bindings(),status=await this.d.bridge('/status');
+  const saved=Object.entries(mappings).find(([p,b])=>b.repository===repository&&(!input['branch']||b.branch===input['branch'])&&status.projects?.includes(p));
+  if(saved)return {project:saved[0],...saved[1],reused:true};
+  const result=await this.account.prepare(input);
+  const latest=this.bindings();latest[result.project]={repository:result.repository,branch:result.branch};
+  writeFileSync(this.mappingFile+'.tmp',JSON.stringify(latest),{mode:0o600});renameSync(this.mappingFile+'.tmp',this.mappingFile);
+  return result;
+ }
  /** Read-only live GitHub probe; confirms credentials and registered repositories independently of Codex. */
  async githubStatus(){
   if(!this.enabled())return {enabled:false,authenticated:false,repositories:[],workspaces:[]};
@@ -109,6 +124,10 @@ export class AgentOperations {
   const linked=readRepositories(this.d.dataDir).find(r=>r.fullName===repository);
   const status=await this.d.bridge('/status');
   if(!linked||!status.projects.includes(project))throw Error('Projeto ou repositório não autorizado.');
+  if(project.startsWith('gh_')){
+   const origin=(await this.d.bridge('/workspaces')).workspaces?.[project];
+   if(!origin||origin.repository!==linked.fullName||origin.branch!==linked.branch)throw Error('A cópia pertence a outro repositório. Abra o projeto correto.');
+  }
   const mappings=this.bindings();mappings[project]={repository,branch:linked.branch};
   writeFileSync(this.mappingFile+'.tmp',JSON.stringify(mappings),{mode:0o600});renameSync(this.mappingFile+'.tmp',this.mappingFile);
   return {ok:true};
@@ -124,7 +143,10 @@ export class AgentOperations {
   }
   if(c.tool==='consultar_github'){
    if(Object.keys(c.args).join(',')!=='consulta')throw Error('Consulta inválida.');
-   if(c.args['consulta']==='repositorios')return {repositories:readRepositories(this.d.dataDir).map(r=>({repository:r.fullName,branch:r.branch,workflow:r.workflow}))};
+   if(c.args['consulta']==='repositorios'){
+    if((await this.account.check().catch(()=>null))?.active){const result=await this.account.list();return {repositories:result.repositories.slice(0,50).map(r=>({repository:r.fullName,branch:r.branch})),hasMore:result.hasMore||result.repositories.length>50};}
+    return {repositories:readRepositories(this.d.dataDir).map(r=>({repository:r.fullName,branch:r.branch,workflow:r.workflow}))};
+   }
    const b=this.binding(c.project),git=this.d.git??github;
    if(c.args['consulta']==='execucoes'){
     const data=await git('/repos/'+b.repository+'/actions/runs?per_page=10&branch='+encodeURIComponent(b.branch));
@@ -181,6 +203,7 @@ export class AgentOperations {
  }
  private async publish(c:Call){
   const registered=this.binding(c.project);validatePublication(c.args);
+  if(this.account.allows(registered.repository))await this.account.assertAccount();
   if(!c.destination||c.destination['repository']!==registered.repository||c.destination['branch']!==registered.branch)throw Error('Destino alterado.');
   // Freeze the approved destination before any asynchronous GitHub call.
   const b={repository:String(c.destination['repository']),branch:String(c.destination['branch'])};

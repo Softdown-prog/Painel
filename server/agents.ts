@@ -5,6 +5,17 @@ import type {AgentOperations} from './agent-operations.ts';
 type Deps={send:(res:ServerResponse,status:number,body:unknown)=>void;
  body:(req:IncomingMessage)=>Promise<Record<string,unknown>>;operations?:AgentOperations};
 type AgentReply={status:number;body:Record<string,unknown>};
+export async function agentBridgeUpload(archive:Response,meta:Record<string,string>):Promise<any>{
+ const secret=readFileSync(process.env['PANEL_CODEX_AGENT_KEY_FILE']||'/run/secrets/panel-agent-key','utf8').trim();
+ if(secret.length<32||!archive.body)throw Error('Import unavailable');
+ const response=await fetch((process.env['PANEL_CODEX_AGENT_URL']||'http://codex-agents:8091')+'/workspaces',{
+  method:'POST',redirect:'error',signal:AbortSignal.timeout(90000),duplex:'half',body:archive.body,
+  headers:{'x-panel-agent-key':secret,'content-type':'application/gzip',
+   'x-panel-project':meta['project']!,'x-panel-repository':meta['repository']!,
+   'x-panel-branch':meta['branch']!,'x-panel-source-sha':meta['sourceSha']!}
+ } as RequestInit&{duplex:'half'});
+ const value=await response.json();if(!response.ok)throw Error('Cópia recusada; confira tamanho, arquivos e serviço.');return value;
+}
 
 /** Private Codex transport shared by chat, admin and model metadata. */
 async function requestAgentBridge(path:string,method='GET',payload?:object):Promise<AgentReply>{
@@ -37,10 +48,14 @@ export async function handleAgentRoute(req:IncomingMessage,res:ServerResponse,de
  const path=new URL(req.url||'/','http://panel.local').pathname;
  if(!path.startsWith('/agents'))return false;
  const decision=/^\/agents\/actions\/([a-f0-9]{32})\/(approve|deny|release|cancel)$/.exec(path);
- if(path==='/agents/projects'||path==='/agents/projects/check'||decision){
+ if(path==='/agents/projects'||path==='/agents/projects/check'||path==='/agents/projects/open'||path==='/agents/github'||path==='/agents/github/repositories'||decision){
   if(process.env['PANEL_CODEX_OPERATIONS_ENABLED']!=='1'||!deps.operations){deps.send(res,503,{error:'Operações ainda não habilitadas.'});return true;}
   try{
-   if(path==='/agents/projects/check'&&req.method==='GET')deps.send(res,200,await deps.operations.githubStatus());
+   if(path==='/agents/github'&&req.method==='GET')deps.send(res,200,await deps.operations.account.check());
+   else if(path==='/agents/github'&&req.method==='POST')deps.send(res,200,await deps.operations.account.enable(await deps.body(req)));
+   else if(path==='/agents/github/repositories'&&req.method==='GET')deps.send(res,200,await deps.operations.account.list(Number(new URL(req.url!,'http://panel.local').searchParams.get('page')||1)));
+   else if(path==='/agents/projects/open'&&req.method==='POST')deps.send(res,200,await deps.operations.openProject(await deps.body(req)));
+   else if(path==='/agents/projects/check'&&req.method==='GET')deps.send(res,200,await deps.operations.githubStatus());
    else if(path==='/agents/projects'&&req.method==='GET')deps.send(res,200,await deps.operations.catalog());
    else if(path==='/agents/projects'&&req.method==='POST')deps.send(res,200,await deps.operations.bind(await deps.body(req)));
    else if(decision&&req.method==='POST')deps.send(res,200,await deps.operations.decide(decision[1]!,decision[2]!,await deps.body(req)));
@@ -61,6 +76,10 @@ export async function handleAgentRoute(req:IncomingMessage,res:ServerResponse,de
  try{
   const payload=post?await deps.body(req):undefined;
   const reply=await requestAgentBridge(path.slice('/agents'.length),req.method||'GET',payload);
+  if(path==='/agents/status'&&reply.status===200&&deps.operations){
+   const features=reply.body['features'] as Record<string,unknown>|undefined;
+   reply.body['features']={...features,accountRepositories:features?.['workspaceImport']===true};
+  }
   deps.send(res,reply.status,reply.body);
  }catch{deps.send(res,503,{error:'Agentes indisponíveis. Verifique o Codex na VPS.'});}
  return true;

@@ -73,7 +73,7 @@ jobs:
             -v "$PWD/agents:/tests:ro" \
             -v "$key:/run/secrets/panel-agent-key:ro" \
             --entrypoint sh panel-codex:stage \
-            -c 'node --test /tests/bridge.test.mjs /tests/operations.test.mjs /tests/telemetry.test.mjs && node /tests/sandbox-smoke.mjs'
+            -c 'node --test /tests/bridge.test.mjs /tests/operations.test.mjs /tests/telemetry.test.mjs /tests/workspaces.test.mjs && node /tests/sandbox-smoke.mjs'
       - name: Set up GHCR builder
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: docker/setup-buildx-action@v3

@@ -67,9 +67,35 @@
   </details>
   <div class="agents-layout">
    <aside class="agents-side" aria-label="Conversas e projetos">
+    @if(status()?.features?.accountRepositories){
+     <details open class="agent-binding">
+      <summary>Meus repositórios GitHub</summary>
+      @if(accountError()){<p role="alert">{{accountError()}}</p>}
+      @if(accountScope();as scope){
+       <p>Conta conectada: <strong>{{scope.owner}}</strong></p>
+       @if(!scope.active){
+        <p>Autorize uma vez todos os seus repositórios acessíveis pela conexão atual. Depois escolha qual abrir.</p>
+        <button type="button" (click)="authorizeAccount()" [disabled]="accountBusy()||busy()">Autorizar todos os meus repositórios</button>
+       } @else {
+        <p>Seus repositórios estão autorizados. Somente o escolhido será copiado para a VPS.</p>
+        <label for="agentRepoSearch">Buscar repositório carregado</label>
+        <input id="agentRepoSearch" type="search" maxlength="100" [value]="accountQuery()" (input)="searchAccountRepos($event)">
+        <label for="agentAccountRepo">Repositório para trabalhar</label>
+        <select id="agentAccountRepo" [value]="accountRepo()" (change)="chooseAccountRepo($event)" [disabled]="accountBusy()||busy()">
+         <option value="">Selecione um repositório</option>
+         @for(repo of filteredAccountRepos();track repo.fullName){<option [value]="repo.fullName">{{repo.fullName}}{{repo.private?' · privado':''}}{{repo.readOnly?' · leitura':''}}</option>}
+        </select>
+        <button type="button" (click)="openAccountRepo()" [disabled]="accountBusy()||busy()||!accountRepo()">{{busy()?'Preparando cópia…':'Abrir no Codex'}}</button>
+        @if(accountHasMore()){<button type="button" (click)="moreAccountRepos()" [disabled]="accountBusy()">Carregar mais repositórios</button>}
+        <small>A cópia é isolada; não instala dependências nem altera a produção. Publicações exigem revisão do diff e aprovação.</small>
+       }
+      } @else {<p>Conferindo a conta conectada…</p>}
+      <button type="button" (click)="refreshAccount()" [disabled]="accountBusy()||busy()">Atualizar repositórios</button>
+     </details>
+    }
     <label for="agentProject">Tipo de conversa / projeto</label>
     <select id="agentProject" [value]="project()" (change)="chooseProject($event)" [disabled]="busy()||!status()?.ready">
-     @for(p of status()?.projects??[];track p){<option [value]="p">{{p==='Geral'?'Conversa geral (sem projeto)':p==='AdministracaoVPS'?'Administração da VPS':p}}</option>}
+     @for(p of status()?.projects??[];track p){<option [value]="p">{{p==='Geral'?'Conversa geral (sem projeto)':p==='AdministracaoVPS'?'Administração da VPS':catalog().bindings[p]?.repository??p}}</option>}
     </select>
     <div class="agent-model-controls">
      <label for="agentModel">Modelo do Codex</label>
@@ -83,14 +109,11 @@
      @if(!modelsSupported()){<small>Catálogo indisponível. O Codex usará a configuração do servidor, se houver.</small>}
      <label for="agentEffort">Nível de raciocínio</label>
      <select id="agentEffort" [value]="effort()" (change)="selectEffort($event)"
-      [disabled]="busy()||!model()||!modelsSupported()">
+      [disabled]="busy()||!reasoningModel()?.efforts?.length||!modelsSupported()">
       <option value="">Padrão do modelo</option>
-      @for(option of models();track option.id){
-       @if(option.id===model()){
-        @for(level of option.efforts;track level){<option [value]="level">{{level}}</option>}
-       }
-      }
+      @for(level of reasoningModel()?.efforts??[];track level){<option [value]="level">{{effortLabel(level)}}</option>}
      </select>
+     @if(!model()&&reasoningModel();as resolved){<small>Ao escolher um nível, ele será aplicado ao modelo {{resolved.label}}.</small>}
      <small>As configurações escolhidas valem para a próxima conversa criada ou após aplicar na conversa atual.</small>
      @if(conversation();as selected){
       <button type="button" (click)="saveSettings()" [disabled]="busy()||selected.status==='running'||!status()?.ready">
