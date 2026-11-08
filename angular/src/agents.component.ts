@@ -1,9 +1,11 @@
 import {Component,OnInit,OnDestroy,signal,computed} from '@angular/core';
 import {availablePercent,quotaCountdown,type CodexQuotaWindow} from './codex-quota';
 type Status={enabled:boolean;ready:boolean;active?:boolean;projects:string[];operationsEnabled?:boolean;
- features?:{modelSelection?:boolean;quotaWindows?:boolean;historySearch?:boolean}};
+ features?:{modelSelection?:boolean;quotaWindows?:boolean;historySearch?:boolean;accountRepositories?:boolean}};
 type Message={role:'user'|'assistant';text:string;source?:'operation'};
 type Model={id:string;label:string;efforts:string[];defaultEffort:string|null;isDefault:boolean};
+type AccountScope={mode:string;owner:string;active:boolean};
+type AccountRepo={fullName:string;branch:string;private:boolean;readOnly:boolean};
 type QuotaWindow=CodexQuotaWindow;
 type Usage={checkedAt:string;quota:{available:boolean;resetCreditsAvailable?:number|null;ordinaryUsageAllowed?:boolean|null;
  buckets:{id:string;label:string;primary:QuotaWindow|null;secondary:QuotaWindow|null}[]};
@@ -38,6 +40,17 @@ export class AgentsComponent implements OnInit,OnDestroy {
  readonly configuredEffort=signal<string|null>(null);
  readonly model=signal('');
  readonly effort=signal('');
+ readonly reasoningModel=computed(()=>this.models().find(m=>m.id===(this.model()||this.configuredModel()))??
+  (!this.model()?this.models().find(m=>m.isDefault):undefined));
+ readonly accountScope=signal<AccountScope|null>(null);
+ readonly accountRepos=signal<AccountRepo[]>([]);
+ readonly accountRepo=signal('');
+ readonly accountQuery=signal('');
+ readonly accountBusy=signal(false);
+ readonly accountError=signal('');
+ readonly accountHasMore=signal(false);
+ private accountPage=0;
+ readonly filteredAccountRepos=computed(()=>this.accountRepos().filter(r=>r.fullName.toLocaleLowerCase().includes(this.accountQuery().trim().toLocaleLowerCase())));
  readonly titleDraft=signal('');
  readonly historyQuery=signal('');
  readonly visibleThreads=computed(()=>{
@@ -93,6 +106,7 @@ export class AgentsComponent implements OnInit,OnDestroy {
    this.status.set(st);
    if(!st.enabled)return;
    if(st.operationsEnabled)this.catalog.set(await this.api<Catalog>('/projects'));
+   if(st.features?.accountRepositories)void this.refreshAccount();
    if(st.ready)void this.refreshMetadata();
    const firstProject=st.projects[0];
    if(firstProject&&!st.projects.includes(this.project()))this.project.set(firstProject);
@@ -127,8 +141,47 @@ export class AgentsComponent implements OnInit,OnDestroy {
  }
  selectEffort(event:Event):void{
   const el=event.target;if(!(el instanceof HTMLSelectElement))return;
-  if(!el.value||this.models().find(m=>m.id===this.model())?.efforts.includes(el.value))
+  if(!el.value||this.reasoningModel()?.efforts.includes(el.value))
    this.effort.set(el.value);
+ }
+ private selection():{model:string|null;effort:string|null}{return {
+  model:this.model()||(this.effort()?this.reasoningModel()?.id:null)||null,effort:this.effort()||null};}
+ effortLabel(value:string):string{return ({none:'Sem raciocínio adicional',minimal:'Mínimo',low:'Baixo',medium:'Médio',high:'Alto',xhigh:'Muito alto',max:'Máximo'} as Record<string,string>)[value]??value;}
+ async refreshAccount():Promise<void>{
+  if(this.dead||this.accountBusy())return;this.accountBusy.set(true);this.accountError.set('');
+  try{const scope=await this.api<AccountScope>('/github');if(this.dead)return;this.accountScope.set(scope);
+   if(scope.active)await this.loadAccountPage(1);else this.accountRepos.set([]);
+  }catch(e){if(!this.dead)this.accountError.set(this.message(e));}finally{this.accountBusy.set(false);}
+ }
+ async authorizeAccount():Promise<void>{
+  if(this.accountBusy()||this.busy())return;this.accountBusy.set(true);this.accountError.set('');
+  try{const scope=await this.api<AccountScope>('/github','POST',{mode:'account'});if(this.dead)return;this.accountScope.set(scope);await this.loadAccountPage(1);
+  }catch(e){if(!this.dead)this.accountError.set(this.message(e));}finally{this.accountBusy.set(false);}
+ }
+ private async loadAccountPage(page:number):Promise<void>{
+  const result=await this.api<{repositories:AccountRepo[];hasMore:boolean}>('/github/repositories?page='+page);
+  if(this.dead)return;this.accountPage=page;this.accountHasMore.set(result.hasMore);
+  const all=page===1?result.repositories:[...this.accountRepos(),...result.repositories];
+  this.accountRepos.set([...new Map(all.map(r=>[r.fullName,r])).values()]);
+ }
+ async moreAccountRepos():Promise<void>{
+  if(this.accountBusy())return;this.accountBusy.set(true);
+  try{await this.loadAccountPage(this.accountPage+1);}catch(e){if(!this.dead)this.accountError.set(this.message(e));}finally{this.accountBusy.set(false);}
+ }
+ chooseAccountRepo(event:Event):void{const el=event.target;if(el instanceof HTMLSelectElement)this.accountRepo.set(el.value);}
+ searchAccountRepos(event:Event):void{const el=event.target;if(el instanceof HTMLInputElement)this.accountQuery.set(el.value.slice(0,100));}
+ async openAccountRepo():Promise<void>{
+  if(this.accountBusy()||this.busy()||!this.accountRepo())return;this.busy.set(true);this.accountError.set('');
+  try{
+   const result=await this.api<{project:string}>('/projects/open','POST',{repository:this.accountRepo()});
+   if(this.dead)return;
+   for(let i=0;i<12;i++){
+    const st=await this.api<Status>('/status');if(this.dead)return;this.status.set(st);
+    if(st.ready)break;await new Promise(resolve=>setTimeout(resolve,500));
+   }
+   this.catalog.set(await this.api<Catalog>('/projects'));this.project.set(result.project);
+   this.busy.set(false);await this.create();
+  }catch(e){if(!this.dead)this.accountError.set(this.message(e));}finally{this.busy.set(false);}
  }
  async refreshMetadata():Promise<void>{
   if(this.dead||this.metadataBusy()||!this.status()?.ready)return;
@@ -153,7 +206,7 @@ export class AgentsComponent implements OnInit,OnDestroy {
   this.busy.set(true);this.error.set('');
   try{
    await this.api('/threads/'+encodeURIComponent(t.id)+'/settings','POST',
-    {model:this.model()||null,effort:this.effort()||null});
+    this.selection());
    await this.open(t.id);
   }catch(e){if(!this.dead)this.error.set(this.message(e));}
   finally{this.busy.set(false);}
@@ -200,8 +253,7 @@ export class AgentsComponent implements OnInit,OnDestroy {
   if(this.busy()||!this.status()?.ready||!this.project())return;
   this.busy.set(true);this.error.set('');
   try{
-   const response=await this.api<{thread:Thread}>('/threads','POST',{project:this.project(),
-    model:this.model()||null,effort:this.effort()||null});
+   const response=await this.api<{thread:Thread}>('/threads','POST',{project:this.project(),...this.selection()});
    if(this.dead)return;
    await this.open(response.thread.id);
    const list=await this.api<{threads:ThreadSummary[]}>('/threads');
