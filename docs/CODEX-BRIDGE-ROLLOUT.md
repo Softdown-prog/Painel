@@ -53,6 +53,10 @@ Antes de alterar qualquer configuração, exige:
 3. UID/GID 61110; raiz read-only; `cap_drop: ALL`; sem portas públicas,
    privilégios, recursos extras nem Docker socket; limites 1 GiB, 1,5 vCPU,
    128 PIDs; AppArmor `panel-codex` e seccomp fixo.
+   Docker inspect pode expandir `seccomp=/etc/softload-panel/codex-seccomp.json`
+   para o JSON completo. Nesse caso a validação exige igualdade de toda a
+   política com o arquivo root-owned registrado; `unconfined`, conteúdo parcial,
+   políticas diferentes ou múltiplas opções seccomp são recusados.
 4. Os **quatro** mounts previstos e nenhum outro bind:
    `/srv/panel-codex/workspace`, `home`, `state` e a chave
    `/etc/softload-panel/agent-key` **somente leitura**.

@@ -64,6 +64,22 @@ def deploy(project, args, token, state):
 
 
 class InstalledCompose(unittest.TestCase):
+    def test_docker_inspect_expanded_seccomp_must_equal_entire_registered_policy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            profile = Path(directory)/'seccomp.json'
+            expected = {'defaultAction':'SCMP_ACT_ERRNO','syscalls':[{'names':['read'],'action':'SCMP_ACT_ALLOW'}]}
+            profile.write_text(json.dumps(expected))
+            with patch.object(codex,'SECCOMP_PROFILE',profile), patch.object(codex,'_root_owned',return_value=True):
+                self.assertTrue(codex._seccomp_matches(['apparmor=panel-codex','seccomp='+json.dumps(expected,indent=2)]))
+                self.assertTrue(codex._seccomp_matches(['seccomp='+str(profile)]))
+                for value in ('unconfined','{}','{invalid',json.dumps(dict(expected,defaultAction='SCMP_ACT_ALLOW')),
+                              json.dumps(dict(expected,syscalls=[]))):
+                    with self.subTest(value=value):
+                        self.assertFalse(codex._seccomp_matches(['seccomp='+value]))
+                self.assertFalse(codex._seccomp_matches(['seccomp='+str(profile),'seccomp='+str(profile)]))
+                with patch.object(codex,'_root_owned',return_value=False):
+                    self.assertFalse(codex._seccomp_matches(['seccomp='+json.dumps(expected)]))
+
     def test_sixteen_registered_overlays_select_last_codex_image_override(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
