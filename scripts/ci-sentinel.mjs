@@ -12,6 +12,50 @@ export const clean=(value,max=100)=>String(value??'')
   .replace(/[\r\n\t]+/g,' ').replace(/[<>|\[\]()`\\]/g,' ')
   .replace(/\s+/g,' ').trim().slice(0,max);
 
+// Public opaque correlation hint, NEVER a ChatGPT URL, conversation ID,
+// access token or identity. A GitHub PR can forge this marker: it must never
+// authorize actions or imply that a notification reached a conversation.
+export function parseOrigin(value){
+  const source=String(value??'');
+  const tags=[
+    ...source.matchAll(/(?:^|\n)<!-- ci-sentinel-origin:v1:([a-f0-9]{32}) -->(?=\r?\n|$)/g),
+    ...source.matchAll(/(?:^|\n)CI-Sentinel-Origin: v1:([a-f0-9]{32})(?=\r?\n|$)/g)
+  ];
+  const ids=new Set(tags.map(match=>match[1]));
+  return ids.size===1?'v1:'+Array.from(ids)[0]:null;
+}
+
+// Only resolve origin metadata for an already failed run. The association
+// comes from GitHub's run.pull_requests or the exact run.head_sha, never from
+// the branch name, the file content, or a user-supplied network address.
+export async function originForRun(api,name,run,cache=new Map()){
+  const id=String(run.id??'')+':'+String(run.head_sha??'');
+  if(cache.has(id))return cache.get(id);
+  const numbers=[...new Set((Array.isArray(run.pull_requests)?run.pull_requests:[])
+    .map(pr=>pr?.number).filter(n=>Number.isInteger(n)&&n>0))].slice(0,3);
+  const candidates=new Set();
+  for(const number of numbers){
+    try{
+      const pr=await api('/repos/'+name+'/pulls/'+number);
+      const parsed=parseOrigin(pr?.body);
+      if(parsed)candidates.add(parsed);
+    }catch(error){
+      if(![403,404].includes(error.status))throw error;
+    }
+  }
+  let result=candidates.size===1?[...candidates][0]:null;
+  if(!result&&candidates.size===0&&/^[0-9a-f]{40}$/.test(run.head_sha??'')){
+    try{
+      const commit=await api('/repos/'+name+'/commits/'+run.head_sha);
+      result=parseOrigin(commit?.commit?.message);
+    }catch(error){
+      if(![403,404].includes(error.status))throw error;
+    }
+  }
+  cache.set(id,result);
+  return result;
+}
+
 export function rows(body){
   return String(body??'').split('\n').filter(line=>line.startsWith('- ')&&
     /<!-- ci-sentinel:\d+:\d+ -->/.test(line));
@@ -98,7 +142,7 @@ export async function scan({api,owner=OWNER,inbox=INBOX,now=new Date(),logger=co
   const issues=await paginate(api,inboxPath+'?state=open',x=>x);
   const existing=new Map(issues.filter(x=>x.title?.startsWith('[CI Sentinel] ')&&
     !x.pull_request).map(x=>[x.title.slice('[CI Sentinel] '.length),x]));
-  const summary={repositories:repositories.length,created:0,updated:0,records:0,errors:[]};
+  const summary={repositories:repositories.length,created:0,updated:0,records:0,correlated:0,errors:[]};
   // Four simultaneous repositories minimize rate pressure on public Actions APIs.
   for(let offset=0;offset<repositories.length;offset+=4){
     await Promise.all(repositories.slice(offset,offset+4).map(async repository=>{
@@ -109,10 +153,15 @@ export async function scan({api,owner=OWNER,inbox=INBOX,now=new Date(),logger=co
         const prior=rows(issue?.body);
         const seen=new Set(prior.map(row=>row.match(/<!-- ci-sentinel:\d+:\d+ -->/)?.[0]));
         const fresh=[];
+        const originCache=new Map();
         for(const run of runs){
           if(!run.id||(!isFailure(run.conclusion)&&Number(run.run_attempt||1)<=1))continue;
           const attempts=await getAttempts(api,name,run);
-          for(const {entry,attempt} of attempts){
+          // Existing records must never get a second origin tag appended.
+          const unseen=attempts.filter(({attempt})=>!seen.has(mark(run.id,attempt)));
+          if(unseen.length===0)continue;
+          const origin=await originForRun(api,name,run,originCache);
+          for(const {entry,attempt} of unseen){
             const id=mark(run.id,attempt);
             if(seen.has(id))continue;
             const job=await failingJobs(api,name,run.id,attempt,Number(run.run_attempt)||1);
@@ -124,7 +173,9 @@ export async function scan({api,owner=OWNER,inbox=INBOX,now=new Date(),logger=co
             fresh.push(`- ${clean(entry.updated_at??run.updated_at,30)} · `+
               `[${clean(run.name,80)} — ${run.id}/${attempt}](${url}) · `+
               `${clean(run.head_branch,50)} · ${clean(run.head_sha,12)} · `+
-              `${recovered?'recuperado':'falha'} · ${job} ${id}`);
+              `${recovered?'recuperado':'falha'} · ${job}`+
+              (origin?' · origem '+origin:'')+' '+id);
+            if(origin)summary.correlated++;
           }
         }
         if(!fresh.length)return;

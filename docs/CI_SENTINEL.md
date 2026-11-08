@@ -21,3 +21,49 @@ Executar manualmente: Actions → CI Sentinel - todos os repositórios → Run w
 
 Repositórios privados exigiriam credenciais adicionais para leitura;
 esse fluxo monitora os 28 repositórios públicos atualmente acessíveis.
+
+## Origem de conversa: correlação opcional (v1)
+
+Uma falha de CI é identificada por SHA/run/PR. O GitHub não fornece a
+conversa de ChatGPT que gerou o commit. Para não confundir várias conversas
+que desenvolvem o mesmo repositório, o Sentinel suporta uma **chave opaca
+de correlação** de 128 bits (32 caracteres hexadecimais minúsculos).
+
+Em um PR criado a partir de uma conversa, acrescente ao corpo do PR:
+
+```text
+<!-- ci-sentinel-origin:v1:0123456789abcdef0123456789abcdef -->
+```
+
+Em um commit direto sem PR, use um trailer no fim da mensagem:
+
+```text
+CI-Sentinel-Origin: v1:0123456789abcdef0123456789abcdef
+```
+
+Os valores acima são **exemplos de formato**, não IDs registrados nem
+segredos. Gere uma chave nova e aleatória por conversa de origem, use a
+mesma chave em seus commits/PRs e mantenha o vínculo chave→conversa apenas
+em um contexto **privado**. O Sentinel lê somente o corpo do PR associado
+ao run pelo GitHub ou a mensagem do SHA exato e registra a chave em seu
+issue de histórico, quando encontrada. Não publica URLs de conversas,
+identificadores reais de thread, conteúdo de chats ou tokens de acesso.
+A chave é uma **dica não confiável**: qualquer autor de PR público pode
+copiá-la; jamais serve como autorização para executar comandos ou mexer em
+credenciais.
+
+Se não houver origem, ou houver marcadores conflitantes, a falha fica
+registrada **sem destino inventado**. Nenhuma mensagem é enviada para
+outra conversa por este coletor.
+
+### Limitação ainda não resolvida
+
+Registrar a chave **não implementa entrega em uma conversa antiga**.
+As ferramentas atuais não oferecem ao GitHub Actions a capacidade de
+publicar uma mensagem em um thread arbitrário do ChatGPT. A entrega
+na conversa de origem só poderá ser ativada por um mecanismo privado,
+autorizado pelo usuário e associado àquela conversa (por exemplo,
+uma automação criada nela) quando houver suporte comprovado ao retorno.
+Até lá, o destino da automação geral permanece a conversa vinculada
+à própria automação; não é correto afirmar que roteamento entre chats
+já esteja ativo.
