@@ -167,6 +167,7 @@ class CodexActivation(unittest.TestCase):
                  patch.object(codex,'inspect',side_effect=ins),\
                  patch.object(codex,'run',side_effect=run),\
                  patch.object(codex,'_compose_args',return_value=(['docker','compose'],overlay)),\
+                 patch.object(codex,'_assert_idle'),\
                  patch.object(codex,'_check_compose'),\
                  patch.object(codex,'_other_ids',return_value={'unrelated':'same-id'}),\
                  patch.object(codex,'wait_healthy'),\
@@ -204,6 +205,7 @@ class CodexActivation(unittest.TestCase):
                  patch.object(codex,'inspect',side_effect=ins),\
                  patch.object(codex,'run',side_effect=run),\
                  patch.object(codex,'_compose_args',return_value=(['docker','compose'],overlay)),\
+                 patch.object(codex,'_assert_idle'),\
                  patch.object(codex,'_check_compose',side_effect=[None,ValueError('Unsafe overlay')]),\
                  patch.object(codex,'_other_ids',return_value={'unrelated':'same-id'}),\
                  patch.object(codex,'wait_healthy'),\
@@ -230,7 +232,8 @@ class CodexActivation(unittest.TestCase):
         subprocess.run(['bash','-n',str(ROOT/'upgrade-vpsops-codex.sh')],
                        check=True,capture_output=True)
         self.assertIn('[[ "$EUID" -eq 0',source)
-        self.assertIn('os.replace',source)
+        self.assertIn('install_codex.py',source)
+        self.assertIn('os.replace',(ROOT/'install_codex.py').read_text())
         self.assertNotIn('docker compose down',source)
         self.assertNotIn('docker restart',source)
         self.assertNotIn('rm -rf /srv/panel-codex',source)

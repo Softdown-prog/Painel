@@ -18,6 +18,7 @@ SERVICE = 'codex-agents'
 PROJECT = 'softload-panel'
 # Same lock that receiver.py holds during API/executor deployment.
 PANEL_DEPLOY_LOCK = Path('/var/lib/vps-operations/panel.lock')
+PANEL_CURRENT = Path('/opt/vps-panel/current')
 SECRET = '/etc/softload-panel/agent-key'
 BINDS = {
     '/workspace': ('/srv/panel-codex/workspace', False),
@@ -49,29 +50,48 @@ def _assert_container(container, *, api=False):
             raise ValueError('Codex persistent binds or read-only secret differ')
 
 
+def _root_owned(path):
+    value = path.stat()
+    return value.st_uid == 0 and not value.st_mode & 0o022
+
+
 def _compose_args(api):
     labels = api['Config']['Labels']
     paths = labels.get('com.docker.compose.project.config_files', '').split(',')
-    if not paths or len(paths) > 10:
+    if not paths or len(paths) > 32:
         raise ValueError('Missing registered Compose configuration')
-    current = Path('/opt/vps-panel/current').resolve()
+    current = PANEL_CURRENT.resolve()
     if not current.is_dir():
         raise ValueError('Canonical Panel deployment pointer missing')
     for path in paths:
         p = Path(path)
         if (p.parent.resolve() != current or
-            not re.fullmatch(r'compose(?:\.[a-z-]+)?\.yaml', p.name) or not p.is_file() or p.is_symlink()):
+            not re.fullmatch(r'compose(?:\.[a-z-]+)?\.yaml', p.name) or not p.is_file() or p.is_symlink() or
+            not _root_owned(p)):
             raise ValueError('Unrecognized Compose overlay')
-    if len(set(paths)) != len(paths) or not any(Path(x).name == 'compose.agents.yaml' for x in paths):
+    if len(set(paths)) != len(paths) or not any(Path(x).name in ('compose.agents.yaml', 'compose.codex-local.yaml') for x in paths):
         raise ValueError('Codex Compose profile absent or duplicated')
-    install = [Path(x) for x in paths if Path(x).name == 'compose.install.yaml']
-    if len(install) != 1:
-        raise ValueError('Exactly one local image overlay is required')
-    if install[0].stat().st_uid != 0:
-        raise ValueError('Image overlay must be root owned')
+    # The installed API can have many independent overlays. Change the last
+    # registered JSON image override for this service, never a guessed base file.
+    install = []
+    for path in map(Path, paths):
+        if path.name in ('compose.install.yaml', 'compose.agent-operations-local.yaml'):
+            doc = json.loads(path.read_text())
+            if isinstance(doc.get('services', {}).get(SERVICE, {}).get('image'), str):
+                install.append(path)
+    if not install:
+        raise ValueError('Registered Codex image override missing')
     prefix = ['docker', 'compose', '--project-name', PROJECT,
-              '--env-file', '/etc/softload-panel/runtime.env']
-    return prefix + [arg for path in paths for arg in ('-f', path)], install[0]
+              '--env-file', '/etc/softload-panel/runtime.env', '--project-directory', str(current)]
+    return prefix + [arg for path in paths for arg in ('-f', path)], install[-1]
+
+
+def _assert_idle():
+    # Credentials remain inside the existing trusted API, not command arguments.
+    source = "import {agentBridge} from './agents.ts';const s=await agentBridge('/status');console.log(JSON.stringify({ready:s.ready,active:s.active}));"
+    state = json.loads(run(['docker','exec',API,'node','--input-type=module','-e',source],text=True))
+    if state.get('ready') is not True or state.get('active') is not False:
+        raise ValueError('Codex unavailable or task active; retry after it finishes')
 
 
 def _check_compose(args, image):
@@ -136,6 +156,7 @@ def _codex_activate_locked(project, sha, images, log):
     old_api, old_codex = inspect(API), inspect(CONTAINER)
     _assert_container(old_api,api=True)
     _assert_container(old_codex)
+    _assert_idle()
     args, overlay = _compose_args(old_api)
     old_bytes = overlay.read_bytes()
     local = json.loads(old_bytes)

@@ -29,6 +29,7 @@ export class AgentsComponent implements OnInit,OnDestroy {
  readonly busy=signal(false);
  readonly loading=signal(false);
  readonly error=signal('');
+ readonly copyFeedback=signal('');
  readonly catalog=signal<Catalog>({bindings:{},repositories:[]});
  readonly repository=signal('');
  readonly models=signal<Model[]>([]);
@@ -55,6 +56,7 @@ export class AgentsComponent implements OnInit,OnDestroy {
  private lastMetadataCheck=0;
  private dead=false;
  private fetchInFlight=false;
+ private selectionSequence=0;
  async ngOnInit():Promise<void>{
   this.polling=setInterval(()=>{
    const now=Date.now();
@@ -209,12 +211,13 @@ export class AgentsComponent implements OnInit,OnDestroy {
  }
  async open(id:string):Promise<void>{
   if(this.dead)return;
+  const sequence=++this.selectionSequence;
   try{
    const reply=await this.api<{thread:Thread}>('/threads/'+encodeURIComponent(id));
-   if(!this.dead){this.conversation.set(reply.thread);this.project.set(reply.thread.project);
+   if(!this.dead&&sequence===this.selectionSequence){this.conversation.set(reply.thread);this.project.set(reply.thread.project);
     this.model.set(reply.thread.model??'');this.effort.set(reply.thread.effort??'');
     this.titleDraft.set(reply.thread.title);}
-  }catch(e){if(!this.dead)this.error.set(this.message(e));}
+  }catch(e){if(!this.dead&&sequence===this.selectionSequence)this.error.set(this.message(e));}
  }
  async poll():Promise<void>{
   const selected=this.conversation();
@@ -277,6 +280,10 @@ export class AgentsComponent implements OnInit,OnDestroy {
   try{await this.api('/projects','POST',{project,repository});const result=await this.api<Catalog>('/projects');if(!this.dead)this.catalog.set(result);
   }catch(e){if(!this.dead)this.error.set(this.message(e));}finally{this.busy.set(false);}
  }
- async copy(text:string):Promise<void>{try{await navigator.clipboard.writeText(text);}catch{this.error.set('Não foi possível copiar. Selecione a saída para copiar manualmente.');}}
+ async copy(text:string):Promise<void>{
+  this.copyFeedback.set('');
+  try{await navigator.clipboard.writeText(text);if(!this.dead)this.copyFeedback.set('Texto copiado.');}
+  catch{if(!this.dead)this.copyFeedback.set('Não foi possível copiar. Selecione o texto para copiar manualmente.');}
+ }
  private message(e:unknown):string{return e instanceof Error?e.message:'Falha de conexão com o Codex.';}
 }

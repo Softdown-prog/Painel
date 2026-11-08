@@ -1,3 +1,22 @@
+### 2026-11-07 — Concluir entrega das melhorias do Codex
+
+**Diagnóstico real:** API/executor `e9c1dcc`, Codex `f3046f6`, todos healthy.
+O bootstrap/rollout preparado não estava instalado no broker. Seu código exigia
+`panel-web` e até 10 overlays/perfil canônico, enquanto a VPS possui 16 overlays
+e perfil local. Substituir o driver inteiro também removeria o adaptador `shadow`
+existente no host. Essas são falhas distintas, comprovadas pelo inventário e
+comparação somente leitura; CI verde do estágio não significou atualização do Codex.
+
+**Código desta etapa:** bootstrap mínimo preservando os adaptadores/política,
+verificação da admissão conhecida, suporte aos overlays reais sem diminuir
+isolamento, bloqueio durante turno ativo e testes de regressão. UI permite copiar
+mensagens/resultados e ignora respostas atrasadas de outra conversa ao trocar de
+projeto. **CI aprovado/frontend publicado/backend instalado/produção validada:**
+consultar o PR e recibo do rollout desta revisão; não considerar o inventário
+anterior como validação da nova imagem. Nenhuma credencial, volume ou serviço de
+outro projeto deve ser alterado. Código e testes não autorizam um bootstrap root
+automático pela CI; continua sendo uma etapa administrativa explícita.
+
 ### 2026-11-07 — Desacoplar aprovação humana do turno do Codex
 
 **Causa comprovada no teste real do PR #85:** consulta retornou os 13 containers; `uptime` foi aprovado e executou com código 0, mas a saída ainda não compartilhada foi marcada `interrupted` quando o turno do modelo encerrou. `finish()` cancelava toda a fila da conversa e a decisão humana dependia de um RPC temporário. API/Codex continuaram saudáveis, zero reinícios/OOM; nenhum outro projeto foi alterado.

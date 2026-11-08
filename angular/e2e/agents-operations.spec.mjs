@@ -7,13 +7,14 @@ async function fixture(page,{publish=false,destination=true}={}){
   args:publish?{title:'Fixture PR',description:'Alteração de teste',baseSha:'c'.repeat(40),diff:'diff fixture',files:[{path:'safe.md',content:'<script>window.bad=1</script>'}]}:{command:'uptime',reason:'Consultar a carga'}};
  // Human approval outlives the initial model turn; polling must still work.
  const thread={id:'thread-e2e',project:publish?'Painel':'AdministracaoVPS',title:'Teste',status:'completed',reply:'',messages:[],actions:[action]};
+ const threads=[thread];
  await page.route('**/api/**',async route=>{
   const r=route.request(),path=new URL(r.url()).pathname.slice('/api'.length),method=r.method();
   requests.push({path,method,body:method==='POST'?r.postDataJSON():null});let body;
   if(path==='/session')body={authenticated:true,setupRequired:false};
   else if(path==='/agents/status')body={enabled:true,ready:true,operationsEnabled:true,projects:['Geral','Painel','AdministracaoVPS']};
   else if(path==='/agents/projects')body={bindings:{Painel:{repository:'Softdown-prog/Painel',branch:'main'}},repositories:[{fullName:'Softdown-prog/Painel',branch:'main'}]};
-  else if(path==='/agents/threads')body={threads:[thread]};
+  else if(path==='/agents/threads')body={threads};
   else if(path==='/agents/threads/'+thread.id)body={thread};
   else if(path==='/agents/actions/'+id+'/approve'){
    if(publish){thread.status='completed';thread.actions=[];thread.messages=[{role:'assistant',text:'PR em rascunho criado.'}];}
@@ -24,7 +25,7 @@ async function fixture(page,{publish=false,destination=true}={}){
   }else{await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Unmocked '+path})});return;}
   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
  });
- return {requests,action};
+ return {requests,action,thread,threads};
 }
 test('host command needs one approval and output needs explicit release',async({page})=>{
  const f=await fixture(page);await page.goto('/angular/#agents');
@@ -55,4 +56,41 @@ test('draft PR proposal displays repository and file content as inert text',asyn
  await expect(card.locator('pre').last()).toContainText('<script>window.bad=1</script>');
  expect(await page.evaluate(()=>window.bad)).toBeUndefined();
  await card.getByRole('button',{name:'Aprovar uma vez'}).click();await expect(page.getByRole('log')).toContainText('PR em rascunho criado.');
+});
+
+test('copy response and operation result with accessible feedback',async({page,context})=>{
+ const f=await fixture(page);
+ f.thread.messages=[{role:'assistant',text:'Resposta de teste para copiar.'},
+  {role:'user',source:'operation',text:'Código de retorno: 0\nSaída de teste.'}];
+ await context.grantPermissions(['clipboard-read','clipboard-write']);
+ await page.goto('/angular/#agents');
+ await page.getByRole('button',{name:'Copiar resposta do Codex',exact:true}).click();
+ await expect(page.getByRole('status').filter({hasText:/^Texto copiado\.$/})).toBeVisible();
+ expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe('Resposta de teste para copiar.');
+ await page.getByRole('button',{name:'Copiar resultado da operação',exact:true}).click();
+ await expect.poll(async()=>(await page.evaluate(()=>navigator.clipboard.readText())).replace(/\r\n/g,'\n')).toBe('Código de retorno: 0\nSaída de teste.');
+});
+
+test('late conversation response cannot replace the last selected project',async({page})=>{
+ const f=await fixture(page);
+ const b={...f.thread,id:'thread-b',title:'Conversa B',project:'Painel',actions:[]};
+ const c={...f.thread,id:'thread-c',title:'Conversa C',project:'Geral',actions:[]};
+ f.threads.push(b,c);
+ let release,requested;
+ const arrived=new Promise(resolve=>{requested=resolve;});
+ const delayed=new Promise(resolve=>{release=resolve;});
+ await page.route('**/api/agents/threads/thread-b',async route=>{
+  requested();await delayed;
+  await route.fulfill({contentType:'application/json',body:JSON.stringify({thread:b})});
+ });
+ await page.route('**/api/agents/threads/thread-c',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({thread:c})}));
+ await page.goto('/angular/#agents');
+ await page.getByRole('button',{name:/^Conversa B/}).click();await arrived;
+ await page.getByRole('button',{name:/^Conversa C/}).click();
+ await expect(page.locator('.agents-chat header')).toContainText('Conversa C');
+ const returned=page.waitForResponse('**/api/agents/threads/thread-b');release();
+ await (await returned).finished();
+ await page.getByLabel('Mensagem para o Codex',{exact:true}).fill('Rascunho na conversa C');
+ await expect(page.getByLabel('Tipo de conversa / projeto',{exact:true})).toHaveValue('Geral');
+ await expect(page.locator('.agents-chat header')).toContainText('Conversa C');
 });
