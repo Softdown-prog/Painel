@@ -55,7 +55,7 @@ function openssl(args: string[]): void {
   execFileSync("openssl", args, { timeout: 10000, stdio: "ignore" });
 }
 export function issueCertificate(
-  role: string, dataDir: string, env: NodeJS.ProcessEnv = process.env,
+  role: string, dataDir: string, env: NodeJS.ProcessEnv = process.env, database?: string,
 ): IssuedCertificate {
   if (!ROLE.test(role)) throw new Error("Invalid PostgreSQL role");
   const tlsDir = tlsDirectory(env);
@@ -99,7 +99,7 @@ export function issueCertificate(
     copyFileSync(join(tlsDir, "ca.crt"), join(pending, "ca.crt"));
     // Private key and CA are not exposed through the API or browser.
     writeFileSync(join(pending, "connection.json"), JSON.stringify({
-      database: "p_" + role.slice(2), user: role,
+      database: database || "p_" + role.slice(2), user: role,
       host: env['PANEL_POSTGRES_HOST'] || "vps-postgres",
       port: Number(env['PANEL_POSTGRES_PORT'] || 5432),
       sslMode: "verify-full", authentication: "client-certificate",
@@ -125,4 +125,18 @@ export function issueCertificate(
     cleanup();
     throw error;
   }
+}
+
+/** Only server-derived identities may read certificates. Never accepts a file path. */
+export function projectTls(role: string, dataDir: string, database?: string): TlsMaterial {
+  if (!ROLE.test(role)) throw new Error('Invalid PostgreSQL role');
+  const dir = join(dataDir, 'database-credentials', role.slice(2).replaceAll('_', '-'));
+  const stat = lstatSync(dir);
+  if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0)
+    throw new Error('Credential folder is not private');
+  const binding = JSON.parse(checkedFile(join(dir, 'connection.json'), true)) as {database?: unknown; user?: unknown};
+  if (binding.user !== role || (database !== undefined && binding.database !== database))
+    throw new Error('Certificate belongs to another database identity');
+  return {ca: checkedFile(join(dir, 'ca.crt'), false), cert: checkedFile(join(dir, 'client.crt'), false),
+    key: checkedFile(join(dir, 'client.key'), true), rejectUnauthorized: true};
 }

@@ -15,6 +15,7 @@ import { handleRevisionRoute, startRevisionMonitor } from './revision-maintenanc
 import { handlePublicationRoute, readPublicationHistory, startPublicationWorker } from './publications.ts';
 import { handleSecretsRoute } from './secrets.ts';
 import { handleDatabaseRoute } from './database.ts';
+import { handleDatabaseAdminRoute } from './database-admin.ts';
 import { externalCounters, handleTrafficRoute, startTrafficMonitor } from './traffic.ts';
 import { observeDeployRuns, startDeployTrafficMonitor } from './deploy-traffic.ts';
 import { inspectDeployedServices, runDeploymentStatus } from './deploy-verification.mjs';
@@ -207,6 +208,7 @@ async function handler(req, res) {
       return valid;
     }
   })) return;
+  if (await handleDatabaseAdminRoute(req, res, { send, body, dataDir })) return;
   if (await handleDatabaseRoute(req, res, { send, body, dataDir })) return;
   if (await handleRevisionRoute(req, res, { send, body, dataDir })) return;
   if (await handleTrafficRoute(req, res, { send, body, dataDir })) return;

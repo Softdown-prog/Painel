@@ -1,0 +1,86 @@
+<section class="manager" aria-label="Administração do banco">
+  <header><div><small>BANCO SELECIONADO</small><h3>{{database()}}</h3></div>
+    <button type="button" (click)="closed.emit()" [disabled]="busy()">← Todos os bancos</button></header>
+  @if(error()){<p class="error" role="alert">{{error()}}</p>}
+  @if(notice()){<p class="success" role="status">{{notice()}}</p>}
+  @if(busy()){<p role="status">Executando no PostgreSQL da VPS…</p>}
+  <nav aria-label="Gerenciar banco">
+    @for(item of [{id:'tables',label:'Tabelas e dados'},{id:'sql',label:'Editor SQL'},{id:'backups',label:'Backups'},{id:'access',label:'Acessos'}];track item.id){
+      <button type="button" [attr.aria-pressed]="tab()===item.id" [disabled]="busy()" (click)="switchTab($any(item.id))">{{item.label}}</button>
+    }
+  </nav>
+  @if(tab()==='tables'){
+    <div class="actions"><button type="button" (click)="loadTables()" [disabled]="busy()">Atualizar tabelas</button>
+      <button type="button" (click)="createTable()" [disabled]="busy()">+ Criar tabela</button></div>
+    <div class="table-list" aria-label="Tabelas do banco">
+      @for(table of tables();track table.schema+'.'+table.name){
+        <article><div><strong>{{table.schema}}.{{table.name}}</strong><small>{{size(table.size_bytes)}} · {{table.estimated_rows==='-1'?'Sem estimativa':table.estimated_rows+' linhas estimadas'}}</small></div>
+          <button type="button" (click)="openTable(table)" [disabled]="busy()||!['r','p'].includes(table.kind)">Abrir dados</button>
+          <button type="button" (click)="prepareSql('SELECT * FROM '+quote(table.schema)+'.'+quote(table.name)+' LIMIT 100;');write.set(false)" [disabled]="busy()">Consultar SQL</button>
+          <button type="button" class="danger" (click)="dropTable(table)" [disabled]="busy()">Excluir tabela…</button></article>
+      }@empty{<p>Nenhuma tabela carregada. Atualize a lista ou crie uma tabela.</p>}
+    </div>
+    @if(selected();as table){
+      <h4>{{table.schema}}.{{table.name}}</h4>
+      <details><summary>Estrutura e tipos das colunas</summary><div class="scroll"><table><thead><tr><th>Coluna</th><th>Tipo</th><th>Chave</th><th>Obrigatória</th><th>Automática</th></tr></thead><tbody>
+        @for(col of columns();track col.name){<tr><td>{{col.name}}</td><td>{{col.type}}</td><td>{{col.primary?'Primária':'—'}}</td><td>{{col.nullable?'Não':'Sim'}}</td><td>{{col.generated?'Sim':'Não'}}</td></tr>}
+      </tbody></table></div></details>
+      <div class="actions"><button type="button" (click)="startEdit('insert')" [disabled]="busy()||!columns().length">+ Adicionar registro</button>
+        <button type="button" (click)="openTable(table,offset()-50)" [disabled]="busy()||offset()===0">Anterior</button>
+        <span>A partir da linha {{offset()+1}}</span><button type="button" (click)="openTable(table,offset()+50)" [disabled]="busy()||!more()">Próxima</button></div>
+      @if(!canEdit()&&columns().length){<p>Sem chave primária: edição por linha indisponível. Use o SQL com confirmação.</p>}
+      <div class="scroll" tabindex="0" aria-label="Registros, role para ver todas as colunas"><table><thead><tr><th>Ações</th>@for(col of columns();track col.name){<th>{{col.name}}</th>}</tr></thead><tbody>
+        @for(row of rows();track $index){<tr><td><div class="actions"><button type="button" (click)="startEdit('update',row)" [disabled]="busy()||!canEdit()">Editar</button><button type="button" class="danger" (click)="startEdit('delete',row)" [disabled]="busy()||!canEdit()">Excluir</button></div></td>
+          @for(col of columns();track col.name){<td><span class="cell" [title]="text(row[col.name])">{{text(row[col.name])}}</span></td>}</tr>
+        }@empty{<tr><td>Nenhum registro nesta página.</td></tr>}
+      </tbody></table></div>
+      @if(edit();as e){<section class="confirm" aria-label="Alterar registro">
+        <h4>{{e.action==='insert'?'Adicionar registro':e.action==='update'?'Editar registro':'Excluir registro'}}</h4>
+        @if(e.action!=='insert'){<p>Chave: {{json(e.key)}}. Uma versão desatualizada será recusada.</p>}
+        @if(e.action!=='delete'){<label for="db-row-values">Valores (JSON)</label><textarea id="db-row-values" [value]="values()" (input)="values.set($any($event.target).value);confirm.set('')" spellcheck="false" [disabled]="busy()"></textarea>
+          <small>Valores são apresentados como texto para preservar números grandes. Use null para NULL e omita colunas com valor automático/padrão. Objetos e listas também podem ser informados no JSON.</small>}
+        <label for="db-row-confirm">Digite {{database()}} para confirmar a alteração</label><input id="db-row-confirm" [value]="confirm()" (input)="confirm.set($any($event.target).value)" autocomplete="off" [disabled]="busy()"/>
+        <div class="actions"><button type="button" (click)="cancel()" [disabled]="busy()">Cancelar</button><button type="button" (click)="saveRow()" [disabled]="busy()||confirm()!==database()">Confirmar {{e.action==='delete'?'exclusão':'gravação'}}</button></div>
+      </section>}
+    }
+  }
+  @if(tab()==='sql'){
+    <p>Uma instrução por execução, somente neste banco. Consultas exibem até 100 linhas; duração máxima de 8 segundos. Permissões globais e arquivos do servidor ficam bloqueados.</p>
+    <label for="db-sql">SQL</label><textarea id="db-sql" [value]="sql()" (input)="sql.set($any($event.target).value);confirm.set('')" spellcheck="false" [disabled]="busy()"></textarea>
+    <label class="check"><input type="checkbox" [checked]="write()" (change)="write.set($any($event.target).checked);confirm.set('')" [disabled]="busy()"/>Permitir alteração de dados e estrutura</label>
+    @if(write()){<p class="warning">Esta instrução pode alterar ou excluir dados. Confira o SQL e mantenha um backup.</p><label for="db-sql-confirm">Digite {{database()}} para autorizar</label><input id="db-sql-confirm" [value]="confirm()" (input)="confirm.set($any($event.target).value)" [disabled]="busy()" autocomplete="off"/>}
+    <button type="button" (click)="executeSql()" [disabled]="busy()||!sql().trim()||(write()&&confirm()!==database())">{{write()?'Confirmar e executar SQL':'Executar consulta'}}</button>
+    @if(sqlResult();as result){<p>{{result.command}} · {{result.rows.length}} linhas exibidas @if(result.affectedRows!==null){ · {{result.affectedRows}} afetadas } @if(result.truncated){ · Resultado limitado a 100 linhas }</p>
+      <div class="scroll" tabindex="0" aria-label="Resultado SQL"><table><thead><tr>@for(col of result.columns;track $index){<th>{{col}}</th>}</tr></thead><tbody>
+        @for(row of result.rows;track $index){<tr>@for(col of result.columns;track $index){<td><span class="cell">{{text(row[col])}}</span></td>}</tr>}
+      </tbody></table></div><button type="button" (click)="copy(json(result))">Copiar resultado</button>}
+  }
+  @if(tab()==='backups'){
+    <p>Backups completos do banco, com estrutura e dados. Até 64 MB por arquivo e 256 MB no total. As cópias ficam no disco da VPS: baixe para também guardar fora dela.</p>
+    <button type="button" (click)="backup()" [disabled]="busy()">Criar backup agora</button>
+    <div class="table-list">@for(b of backupList();track b.id){<article><div><strong>{{b.createdAt}}</strong><small>{{size(b.sizeBytes)}} · SHA-256 verificado no download</small></div><button type="button" (click)="download(b)" [disabled]="busy()">Baixar backup</button><button type="button" class="danger" (click)="prepare('remove-backup',b.id)" [disabled]="busy()">Excluir cópia local…</button></article>}@empty{<p>Nenhum backup criado pelo painel para este banco.</p>}</div>
+    <h4>Restaurar em {{database()}}</h4><p>O destino precisa estar vazio. Para recuperar sem sobrescrever o original, crie um novo banco na lista principal e abra esta aba.</p>
+    <label for="db-backup-source">Banco de origem do backup</label><select id="db-backup-source" [value]="source()" (change)="source.set($any($event.target).value);restoreId.set('');loadBackups()" [disabled]="busy()">
+      @if(!databaseNames().includes(database())){<option [value]="database()">{{database()}} (excluído)</option>}
+      @for(name of databaseNames();track name){@if(name!=='postgres'){<option [value]="name">{{name}}</option>}}
+    </select><label for="db-backup-id">Backup</label><select id="db-backup-id" [value]="restoreId()" (change)="restoreId.set($any($event.target).value);cancel()" [disabled]="busy()"><option value="">Escolha um backup</option>@for(b of restoreList();track b.id){<option [value]="b.id">{{b.createdAt}} · {{size(b.sizeBytes)}}</option>}</select>
+    <button type="button" (click)="prepare('restore')" [disabled]="busy()||!restoreId()">Preparar restauração</button>
+    <details class="danger-zone"><summary>Excluir este banco</summary><p>Cria um backup antes da exclusão. Conexões ativas impedem a operação. Contas e certificados são preservados para revisão.</p><button type="button" class="danger" (click)="prepare('drop')" [disabled]="busy()">Preparar exclusão do banco…</button></details>
+  }
+  @if(tab()==='access'){
+    @if(access();as a){<dl><dt>Servidor interno</dt><dd>{{a['host']}}:{{a['port']}}</dd><dt>Banco</dt><dd>{{a['database']}}</dd><dt>Proprietário</dt><dd>{{a['owner']}}</dd><dt>Identidade do editor</dt><dd>{{a['identity']}}</dd><dt>Autenticação</dt><dd>Certificado privado, sem senha no navegador</dd></dl><p>{{a['message']}}</p>
+      <details><summary>Permissões de tabelas</summary><pre>{{json(a['grants'])}}</pre></details>
+      <details><summary>Identidades criadas para este banco</summary><pre>{{json(a['identities'])}}</pre></details>
+      <h4>Configurar acesso de uma aplicação</h4><p>Cria uma identidade separada, com certificado guardado na VPS. Aplica permissões em tabelas atuais e futuras criadas pelo proprietário, sem alterar senhas de serviços existentes.</p>
+      <label for="db-access-name">Nome do acesso</label><input id="db-access-name" placeholder="relatorios" maxlength="12" [value]="accessName()" (input)="accessName.set($any($event.target).value);confirm.set('')" [disabled]="busy()" autocomplete="off"/>
+      <label for="db-access-permission">Permissão</label><select id="db-access-permission" [value]="accessPermission()" (change)="accessPermission.set($any($event.target).value);confirm.set('')" [disabled]="busy()"><option value="read">Somente leitura</option><option value="write">Leitura e gravação</option><option value="none">Revogar permissões deste acesso</option></select>
+      <label for="db-access-confirm">Digite {{database()}} para alterar o acesso</label><input id="db-access-confirm" [value]="confirm()" (input)="confirm.set($any($event.target).value)" [disabled]="busy()" autocomplete="off"/>
+      <button type="button" (click)="saveAccess()" [disabled]="busy()||confirm()!==database()||accessName().length<2">Aplicar acesso</button>
+      <p>Para gerenciar permissões, use GRANT ou REVOKE no editor SQL. Use somente identidades já cadastradas para este projeto; as identidades dos outros bancos permanecem separadas.</p>
+      <button type="button" (click)="prepareSql('SELECT grantee, table_schema, table_name, privilege_type\nFROM information_schema.role_table_grants\nWHERE table_schema = \'public\';');write.set(false)" [disabled]="busy()">Consultar permissões no SQL</button>
+    }
+  }
+  @if(pending();as action){<section class="confirm" aria-label="Confirmação de operação do banco"><h4>{{action==='restore'?'Restaurar backup':action==='drop'?'Excluir banco':'Excluir backup local'}}</h4><p>Revise o banco selecionado antes de continuar: {{database()}}.</p>
+    <label for="db-action-confirm">Digite {{database()}} para confirmar</label><input id="db-action-confirm" [value]="confirm()" (input)="confirm.set($any($event.target).value)" autocomplete="off" [disabled]="busy()"/>
+    <div class="actions"><button type="button" (click)="cancel()" [disabled]="busy()">Cancelar</button><button type="button" class="danger" (click)="confirmAction()" [disabled]="busy()||confirm()!==database()">Confirmar {{action==='restore'?'restauração':'exclusão'}}</button></div></section>}
+</section>

@@ -4,15 +4,17 @@ import { join } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 type Send = (res: ServerResponse, status: number, data: unknown) => void;
-type Client = {
+export type DatabaseClient = {
   connect(): Promise<void>;
   query(sql: string): Promise<{ rows: Record<string, unknown>[] }>;
   end(): Promise<void>;
 };
+type Client = DatabaseClient;
 type ClientFactory = (options: Record<string, unknown>) => Client;
 type Security = {
   hostAuthentication: "trust" | "cert" | "other" | "unknown";
   provisioningEnabled: boolean;
+  adminAuthentication?: 'verified-certificate';
   message: string;
 };
 type DatabaseStatus = {
@@ -32,7 +34,7 @@ const SLUG = /^[a-z][a-z0-9-]{1,29}$/;
 const MAX_MANAGED = 40;
 let provisioning = false;
 
-function options(env: Environment, ssl?: TlsMaterial, role?: string, database?: string): Record<string, unknown> {
+export function databaseOptions(env: Environment, ssl?: TlsMaterial, role?: string, database?: string): Record<string, unknown> {
   const port = Number(env['PANEL_POSTGRES_PORT'] || 5432);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("invalid port");
   return {
@@ -43,6 +45,19 @@ function options(env: Environment, ssl?: TlsMaterial, role?: string, database?: 
     connectionTimeoutMillis: 3000, query_timeout: 4000, statement_timeout: 4000,
     application_name: "vps-panel-database",
   };
+}
+const options = databaseOptions;
+export const CERTIFICATE_GROUP = 'vps_panel_certificate_clients';
+export async function verifyCertificateLane(client: Client, env: Environment, factory?: ClientFactory): Promise<boolean> {
+  if (env['PANEL_POSTGRES_CERTIFICATE_LANE'] !== '1' || !signerReady(env)) return false;
+  const live = await client.query('SELECT ssl, client_dn FROM pg_stat_ssl WHERE pid=pg_backend_pid()');
+  const user = env['PANEL_POSTGRES_USER'];
+  if (!user || live.rows[0]?.['ssl'] !== true || !['/CN=' + user, 'CN=' + user].includes(String(live.rows[0]?.['client_dn']))) return false;
+  const create = await factoryOrPg(factory), tls = adminTls(env)!;
+  const bare = create(options(env, {...tls, cert: '', key: ''}));
+  try { await bare.connect(); return false; }
+  catch (error) { return !!error && typeof error === 'object' && 'code' in error && error.code === '28000'; }
+  finally { await bare.end().catch(() => {}); }
 }
 async function factoryOrPg(factory?: ClientFactory): Promise<ClientFactory> {
   if (factory) return factory;
@@ -112,6 +127,7 @@ export async function getDatabaseStatus(
     const row = info.rows[0];
     if (!row || typeof row['version'] !== "string") throw new Error("bad response");
     const auth = assessRules(rules.rows);
+    const secureLane = await verifyCertificateLane(client, env, factory);
     return {
       ...base, enabled: true, integration: "connected",
       instance: { version: row['version'] },
@@ -121,7 +137,9 @@ export async function getDatabaseStatus(
       roles: roles.rows.map(role => ({
         name: String(role['name']), canLogin: role['can_login'] === true, superuser: role['superuser'] === true,
       })),
-      security: security(auth, env),
+      security: secureLane ? {...security(auth, env), adminAuthentication: 'verified-certificate',
+        provisioningEnabled: env['PANEL_POSTGRES_WRITE_ENABLED'] === '1',
+        message: 'Administração do painel protegida por certificado e verificada no servidor. As autenticações dos serviços existentes foram preservadas.'} : security(auth, env),
       metrics: {
         databaseCount: Number(row['database_count']),
         connections: Number(row['connections']),
@@ -178,7 +196,8 @@ export async function createProjectDatabase(
       throw new ProvisionError(409, "Projeto já possui certificados registrados nesta VPS.");
     client = await connectAs(admin);
     const rules = await client.query("SELECT type, auth_method, error FROM pg_hba_file_rules ORDER BY line_number");
-    if (assessRules(rules.rows) !== "cert")
+    const secureLane = await verifyCertificateLane(client, env, factory);
+    if (assessRules(rules.rows) !== "cert" && !secureLane)
       throw new ProvisionError(403, "O PostgreSQL ainda aceita conexões sem certificado. Criação bloqueada.");
     const live = await client.query("SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()");
     if (live.rows[0]?.['ssl'] !== true)
@@ -212,6 +231,7 @@ export async function createProjectDatabase(
     await client.query("CREATE ROLE " + pair.role +
       " LOGIN PASSWORD NULL NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS");
     createdRole = true;
+    if (secureLane) await client.query('GRANT ' + CERTIFICATE_GROUP + ' TO ' + pair.role);
     await client.query("CREATE DATABASE " + pair.db + " OWNER " + pair.role);
     createdDb = true;
     await client.query("REVOKE ALL ON DATABASE " + pair.db + " FROM PUBLIC");
