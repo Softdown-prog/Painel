@@ -15,10 +15,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Policy, races, quarantine, symlinks and real deployment locks
-        run: python3 -m unittest discover -s operations -p 'test_storage_cleanup.py' -v
+        run: python3 -m unittest discover -s operations -p 'test_storage_cleanup*.py' -v
       - name: Real Docker fixture without global prune
         run: python3 operations/storage-cleanup-docker-smoke.py
       - name: Verify persistent systemd units
         run: |
           sudo install -m 0755 operations/storage_cleanup.py /usr/local/sbin/vps-storage-cleanup
           systemd-analyze verify operations/vps-storage-cleanup.service operations/vps-storage-cleanup.timer operations/vps-storage-cleanup.path
+      - name: Check real Docker CLI under the production systemd sandbox
+        run: |
+          sudo systemd-run --unit=gc-sandbox-${{ github.run_id }} --wait --pipe --collect \
+            --property=ProtectHome=yes --property=ProtectSystem=full --property=NoNewPrivileges=yes \
+            /usr/local/sbin/vps-storage-cleanup --check-docker

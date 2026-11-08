@@ -1,28 +1,46 @@
 #!/usr/bin/env python3
 """Install only the fixed housekeeping unit; never replace the deploy broker."""
+import argparse
 import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
 
+SOURCE = Path(__file__).resolve().parent
+DATA = Path('/var/lib/docker/volumes/softload_panel_data/_data')
+EXECUTABLE = Path('/usr/local/sbin/vps-storage-cleanup')
+SYSTEMD = Path('/etc/systemd/system')
 
-def install():
+def install(expected_sha=None):
+    import fcntl
     if os.geteuid() != 0:
         raise PermissionError('Host administrator required')
-    source = Path(__file__).resolve().parent
+    root=Path('/var/lib/vps-storage-cleanup')
+    root.mkdir(mode=0o700,exist_ok=True)
+    with (root/'cleanup.lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        install_checked(expected_sha)
+
+
+def install_checked(expected_sha):
+    if os.geteuid() != 0:
+        raise PermissionError('Host administrator required')
+    source = SOURCE
     volume = json.loads(subprocess.check_output([
         'docker', 'volume', 'inspect', 'softload_panel_data'], text=True))[0]
-    expected = Path('/var/lib/docker/volumes/softload_panel_data/_data')
-    if Path(volume['Mountpoint']).resolve() != expected or not expected.is_dir():
+    if Path(volume['Mountpoint']).resolve() != DATA or not DATA.is_dir():
         raise ValueError('Unexpected Panel data volume; no installation performed')
-    files = {'storage_cleanup.py': Path('/usr/local/sbin/vps-storage-cleanup')}
+    files = {'storage_cleanup.py': EXECUTABLE}
     for suffix in ['service', 'timer', 'path']:
         name = 'vps-storage-cleanup.' + suffix
-        files[name] = Path('/etc/systemd/system') / name
+        files[name] = SYSTEMD / name
     for name, destination in files.items():
-        if destination.is_symlink() or (destination.exists() and destination.read_bytes() != (source / name).read_bytes()):
-            raise ValueError('Existing housekeeping installation requires checksum-reviewed update')
+        if destination.is_symlink():
+            raise ValueError('Refusing symlink installation')
+        if destination.exists() and destination.read_bytes() != (source / name).read_bytes():
+            if name != 'storage_cleanup.py' or expected_sha != hashlib.sha256(destination.read_bytes()).hexdigest():
+                raise ValueError('Existing housekeeping installation requires checksum-reviewed update')
     for name, destination in files.items():
         temporary = destination.with_name('.' + destination.name + '.install-' + str(os.getpid()))
         data = (source / name).read_bytes()
@@ -37,4 +55,6 @@ def install():
 
 
 if __name__ == '__main__':
-    install()
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--expected-installed-sha256')
+    install(parser.parse_args().expected_installed_sha256)

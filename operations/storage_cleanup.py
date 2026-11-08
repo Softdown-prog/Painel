@@ -42,7 +42,8 @@ def atomic(path, value, mode=0o600):
 def docker(*args, check=True):
     result = subprocess.run(['/usr/bin/docker', *args], capture_output=True, text=True,
                             timeout=120, env={'PATH': '/usr/bin:/bin',
-                            'DOCKER_HOST': 'unix:///var/run/docker.sock'})
+                            'DOCKER_HOST': 'unix:///var/run/docker.sock',
+                            'HOME': str(ROOT), 'DOCKER_CONFIG': str(ROOT / 'docker-config')})
     if check and result.returncode:
         raise RuntimeError('Docker maintenance query failed')
     return result
@@ -255,11 +256,19 @@ if __name__ == '__main__':
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--scheduled', action='store_true')
     parser.add_argument('--min-unused-hours', type=float, default=6)
+    parser.add_argument('--check-docker', action='store_true')
     args = parser.parse_args()
     if not 0 <= args.min_unused_hours <= 720:
         parser.error('Invalid unused-image grace period')
     try:
-        outcome = execute(args.apply or args.scheduled, args.min_unused_hours * 3600, args.scheduled)
+        if args.check_docker:
+            if os.geteuid() != 0:
+                raise PermissionError('Host administrator required')
+            ROOT.mkdir(mode=0o700, exist_ok=True)
+            docker('buildx', 'du')
+            outcome = {'dockerReady': True, 'privateConfig': True}
+        else:
+            outcome = execute(args.apply or args.scheduled, args.min_unused_hours * 3600, args.scheduled)
         print(json.dumps(outcome))
     except Exception as error:
         # No raw subprocess output, account configuration or credential values in logs.

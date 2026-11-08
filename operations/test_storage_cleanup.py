@@ -55,6 +55,14 @@ class StorageCleanupTests(unittest.TestCase):
         self.assertEqual(gc.repository('localhost:5000/shop/app:tag'), 'localhost:5000/shop/app')
         self.assertEqual(gc.repository('ghcr.io/user/app@sha256:abc'), 'ghcr.io/user/app')
 
+    def test_docker_cli_uses_own_writable_config_not_root_home_or_credentials(self):
+        with patch.object(gc.subprocess, 'run', return_value=SimpleNamespace(returncode=0)) as run:
+            gc.docker('buildx', 'du')
+        environment=run.call_args.kwargs['env']
+        self.assertEqual(environment['DOCKER_CONFIG'], str(gc.ROOT / 'docker-config'))
+        self.assertEqual(environment['HOME'], str(gc.ROOT))
+        self.assertNotIn('REGISTRY_TOKEN', environment)
+
     def test_reference_repoint_or_new_container_blocks_deletion(self):
         target = {'id': B, 'refs': ['example/app:old']}
         response = SimpleNamespace(returncode=0, stdout=json.dumps([{'Id': A}]))
