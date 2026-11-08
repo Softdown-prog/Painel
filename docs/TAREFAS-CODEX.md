@@ -1,6 +1,6 @@
 ### 2026-11-08 — Administração PostgreSQL pelo painel
 
-**Código implementado, instalação pendente:** navegador de tabelas/estrutura,
+**Código implementado e instalado:** navegador de tabelas/estrutura,
 CRUD com chave primária e xmin, SQL isolado por proprietário não superusuário,
 provisionamento por certificado com faixa HBA dedicada, backups/download com
 SHA-256, restauração transacional em banco vazio e exclusão confirmada com backup.
@@ -9,8 +9,42 @@ Não instala outro painel/container nem expõe portas PostgreSQL.
 **Validação local:** typecheck, build frontend, check:js e build Angular aprovados;
 novos testes unitários aprovados. Testes POSIX de certificados existentes dependem
 do CI Linux (permissões chmod não são representadas pelo Windows).
-**CI/Docker real:** em validação no PR desta branch; não equivale a instalação.
-**Frontend publicado:** pendente. **Backend instalado/produção validada:** pendente.
+**Código:** [PR #110](https://github.com/Softdown-prog/Painel/pull/110), merge
+`6a020da32c6112ca13d2f0dbca14ac3a5fb9df9a`.
+**CI aprovado:** 327 testes Node (326 aprovados/1 skip preexistente), 119 testes
+de navegador, tipagem/lint/build e testes Docker/Rust/admissão aprovados.
+[CI/Angular](https://github.com/Softdown-prog/Painel/actions/runs/42520335978)
+e [PostgreSQL 18 real](https://github.com/Softdown-prog/Painel/actions/runs/42520592116).
+**Frontend publicado:** [Pages](https://github.com/Softdown-prog/Painel/actions/runs/42520592083)
+aprovado; domínio principal entregou HTTP 200, bundle `main-LNFIDHFT.js` com os
+controles novos. `/api/session` principal e pages.dev confirmaram a revisão acima.
+**Backend instalado:** [deploy verificado](https://github.com/Softdown-prog/Painel/actions/runs/42520592081)
+aprovado; API e executor na revisão `6a020da`, healthy. API por digest
+`sha256:1ca1aed155b19e9e443cbc25a59d08cd35ce0f648baf217377ee4dcdc10309ad`.
+**Produção validada:** login existente HTTP 200; sem sessão HTTP 401; Terrania
+abriu suas nove tabelas via identidade isolada `terrania_owner`, sem alterações
+em seus registros. Dois bancos descartáveis passaram por criação, SQL/CRUD,
+conflito de versão HTTP 409, recusa de gravação somente leitura/superusuário,
+acesso leitura/revogação, backup de 4.583 bytes com SHA-256 e restauração em
+destino vazio. Restauração sobre destino ocupado recusada HTTP 409. Bancos,
+backups e cinco identidades/certificados de teste foram removidos.
+**Host:** SSL/HBA via reload, PostgreSQL sem reinício (iniciado em 31/10 00:32 UTC),
+sem portas publicadas. Regras de clientes existentes preservadas; faixa do
+painel exige certificado. Overlay privado `compose.postgres-admin-local.yaml`
+registrado por último e preservado pelo driver nas próximas revisões. Conta
+admin preservada por hash do arquivo; 12 containers alheios mantiveram seus IDs.
+Softload encerrou com exit 0/sem OOM durante a janela de inatividade, com wake
+healthy; a intervenção não executou start/stop nesse projeto.
+**Recuperação:** backup criptografado existente do Terrania executado; somente
+HBA/auto.conf, registro Compose e metadados essenciais preservados em
+`/etc/vps-postgres-admin/rollback-20261108T202905Z`. A primeira validação HBA
+antes de SSL foi revertida; a sequência corrigida ativa SSL antes de validar
+hostssl. Uma tentativa de flags antes do overlay PostgreSQL também foi revertida;
+a instalação final usa overlay por último e confirmou TLS/CN/recusa sem certificado.
+
+**Limites deliberados:** SQL restrito a um banco/proprietário isolado, banco
+de sistema protegido, backup até 64 MB e restauração somente em banco vazio.
+Não importa dumps enviados pelo navegador nem revela certificados privados.
 Ver [controles, limites e procedimento de reversão](POSTGRES-ADMIN.md).
 
 ### 2026-11-08 — Limpeza real do host e resultado verificável
