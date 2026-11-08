@@ -1,3 +1,20 @@
+### 2026-11-08 — Importação Codex entre volumes Docker separados
+
+**Produção anterior desta tarefa:** PR #99 integrado em `a617b24`; CI aprovado,
+Pages/API/executor publicados e Codex instalado pelo digest `f0a229758e0e…`.
+Conta `Softdown-prog` autorizada uma vez; 28 repositórios próprios retornados.
+Rollback da primeira tentativa de inicialização preservou o chat; a segunda
+ativação passou na admissão, saúde e verificação do SHA, sem trocar outros serviços.
+**Falha comprovada na validação real:** importação respondia 409; `rename` de
+`/state` para `/workspace` retorna `EXDEV`, pois são mounts Docker distintos.
+**Código corrigido:** arquivo compactado permanece no estado privado; extração
+ocorre em staging oculto e privado no volume de trabalho, com ativação por rename
+no mesmo mount, limites e baseline preservados. Teste Docker exige mounts
+separados e comprova sucesso, limpeza do staging e preservação de alterações.
+**Pendente nesta revisão:** CI da correção, instalação do novo sidecar e teste
+final de abertura/conversa real. Não confundir a saúde de `a617b24` com validação
+do fluxo de importação corrigido.
+
 ### 2026-11-08 — Raciocínio no modo automático e repositórios da conta
 
 **Diagnóstico real:** serviço `ff34103` anuncia oito modelos com esforços reais,

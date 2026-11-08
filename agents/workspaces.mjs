@@ -1,5 +1,5 @@
 /** Trusted bridge import. No credentials, repo hooks, build or install scripts. */
-import {mkdtempSync,mkdirSync,readFileSync,writeFileSync,renameSync,existsSync,readdirSync,lstatSync,chmodSync,rmSync,createWriteStream} from 'node:fs';
+import {mkdtempSync,readFileSync,writeFileSync,renameSync,existsSync,readdirSync,lstatSync,chmodSync,rmSync,createWriteStream} from 'node:fs';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {Transform} from 'node:stream';
@@ -34,15 +34,20 @@ export class Workspaces {
   const destination=join(this.workspace,meta.project),origins=this.list();
   if(existsSync(destination))throw Error('Cópia existente preservada; use a conversa do projeto.');
   if(Object.keys(origins).length>=32)throw Error('Limite de 32 cópias atingido.');
-  this.busy=true;const temp=mkdtempSync(join(this.stateDir,'import-'));let installed=false;
+  this.busy=true;let temp,staging,installed=false;
   try{
+   temp=mkdtempSync(join(this.stateDir,'import-'));
    const archive=join(temp,'source.tgz');let bytes=0;
    const limit=new Transform({transform(chunk,_e,done){bytes+=chunk.length;done(bytes>MAX_ARCHIVE?Error('Arquivo excede 32 MiB.'):null,chunk);}});
    await pipeline(stream,limit,createWriteStream(archive,{mode:0o600,flags:'wx'}));
    const names=run('tar',['-tzf',archive,'--quoting-style=escape'],temp);
    const details=run('tar',['-tzvf',archive,'--numeric-owner','--quoting-style=escape'],temp);
    validateArchiveListing(names,details);
-   const root=join(temp,'source');mkdirSync(root,{mode:0o700});
+   // /state and /workspace are separate Docker mounts, even on the same host
+   // disk. Stage beside the destination so the final rename remains atomic.
+   // Dot-prefixed staging is not a registered project; model permissions deny
+   // the workspace parent and allow only its selected project directory.
+   const root=staging=mkdtempSync(join(this.workspace,'.import-'));
    run('tar',['-xzf',archive,'--strip-components=1','--no-same-owner','--no-same-permissions','-C',root],temp);
    function secure(dir){for(const item of readdirSync(dir,{withFileTypes:true})){
     const path=join(dir,item.name),stat=lstatSync(path);
@@ -61,6 +66,7 @@ export class Workspaces {
    writeFileSync(this.file+'.tmp',JSON.stringify(origins),{mode:0o600});renameSync(this.file+'.tmp',this.file);
    return {project:meta.project,repository:meta.repository,branch:meta.branch,sourceSha:meta.sourceSha};
   }catch(error){if(installed)rmSync(destination,{recursive:true,force:true});throw error;}
-  finally{this.busy=false;rmSync(temp,{recursive:true,force:true});}
+  finally{this.busy=false;if(staging)rmSync(staging,{recursive:true,force:true});
+   if(temp)rmSync(temp,{recursive:true,force:true});}
  }
 }
