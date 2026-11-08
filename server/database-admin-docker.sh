@@ -18,6 +18,7 @@ done
 cp "$tmp/admin.crt" "$tmp/admin.key" "$tls/"
 cp "$tmp/server.crt" "$tmp/server.key" "$tls/ca.crt" "$tmp/server/"
 chmod 600 "$tls/"* "$tmp/server/"*
+sudo chown -R 0:0 "$tmp/data"
 sudo chown -R 999:999 "$tmp/server"
 docker network create --internal "$network" >/dev/null
 docker run -d --name "$pg" --network "$network" --network-alias vps-postgres --memory 384m \
