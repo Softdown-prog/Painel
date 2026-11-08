@@ -1,10 +1,13 @@
 # Codex CLI e aba Agentes no Painel
 
-**Estado em 07/11/2026:** Codex 0.167.0 instalado, autenticado por Google e chat
-público validado; API/executor `4a98d502` publicados com CI e deploy aprovados.
-A etapa seguinte de ferramentas administrativas e publicação por PR está na
-branch de operações, desabilitada por padrão e ainda precisa de ativação e teste
-reais. Ver [operações do agente](AGENT-OPERATIONS.md).
+**Última auditoria em 07/11/2026:** Codex 0.167.0 autenticado por Google.
+Comandos com aprovação e PRs em rascunho foram validados na revisão `f3046f6`
+(PRs #85/#86; teste #87 fechado sem merge). A API já avançou para `e9c1dcc`,
+mas o container Codex permaneceu em `f3046f6`: modelos/quotas/histórico novos no
+GitHub ainda precisam do rollout independente. Consulte
+[a atualização isolada](CODEX-BRIDGE-ROLLOUT.md) e
+[operações do agente](AGENT-OPERATIONS.md). CI e deploy da API não comprovam
+qual revisão está no container Codex.
 
 ## Fluxo
 

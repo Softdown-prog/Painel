@@ -1,7 +1,9 @@
 # Operações do Codex pelo Painel
 
-Código em desenvolvimento na branch `feat/agents-operations-approval-20261107`.
-Não confundir implementação/testes com ativação das operações na VPS.
+Implementação integrada pelos PRs #85/#86. Na VPS, `f3046f6` passou no teste
+real de `uptime` (exit 0, saída liberada e interpretada pelo modelo) e criou
+o draft PR #87 com um único arquivo de teste; ele foi fechado sem merge.
+Atualizações posteriores de API, UI e sidecar têm validações separadas.
 
 O Codex não recebe SSH, sudo, Docker socket ou token GitHub. O app-server usa
 quatro ferramentas dinâmicas da versão 0.167.0, atendidas por uma fila privada

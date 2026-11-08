@@ -19,6 +19,11 @@ padrão. Não se deve misturar este job com o deploy regular da API. Para ativá
   usando `sudo bash operations/upgrade-vpsops-codex.sh /caminho/para/Painel`.
   O script confere política, arquivos e identidade esperados, sem executar Docker
   `up`, sem modificar `/srv/panel-codex`, SSH/sudoers, segredos ou containers.
+  Preserva o driver instalado (inclusive adaptadores locais como `shadow`) e
+  insere somente o despacho Codex após a admissão existente. A atualização da
+  admissão exige equivalência AST com a versão anterior conhecida; divergências
+  desconhecidas bloqueiam a instalação. Não exige cadastrar `panel-web` nem
+  substitui a política completa pelo exemplo do repositório.
 - No GitHub Actions, configurar o ambiente protegido `vps-maintenance` com
   aprovadores obrigatórios. Executar **Test, stage and optionally deploy pinned Codex bridge**
   via `workflow_dispatch` na `main` e marcar `activate=true`.
@@ -40,8 +45,11 @@ Antes de alterar qualquer configuração, exige:
 
 1. API e Codex saudáveis, no projeto Compose `softload-panel` e com os nomes
    de serviços registrados; imagens atuais alinhadas à configuração instalada.
-2. Um único `compose.install.yaml` root-owned, com `compose.agents.yaml`
-   e todos os overlays apontando para o checkout canônico atual.
+2. Até 32 overlays registrados, root-owned e sem escrita de grupo/outros,
+   todos no checkout canônico. Aceita o perfil `compose.agents.yaml` ou o
+   `compose.codex-local.yaml` já instalado. Atualiza o último override JSON
+   registrado contendo a imagem do Codex (`compose.install.yaml` ou
+   `compose.agent-operations-local.yaml`), preservando todos os demais campos.
 3. UID/GID 61110; raiz read-only; `cap_drop: ALL`; sem portas públicas,
    privilégios, recursos extras nem Docker socket; limites 1 GiB, 1,5 vCPU,
    128 PIDs; AppArmor `panel-codex` e seccomp fixo.
@@ -50,6 +58,8 @@ Antes de alterar qualquer configuração, exige:
    `/etc/softload-panel/agent-key` **somente leitura**.
 5. A imagem nova em digest `sha256:` com labels de origem e revisão do
    commit autenticado, aprovada pelo teste de admissão **sem credenciais**.
+6. Bridge pronto e sem turno ativo, consultado através da API já confiável.
+   Se houver tarefa, recusa o rollout para nova tentativa após sua conclusão.
 
 Somente então o adaptador grava atomicamente a referência nova no overlay
 administrativo e faz `docker compose up -d --no-deps --no-build --pull never codex-agents`.
