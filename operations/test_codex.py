@@ -3,6 +3,7 @@ import copy
 import json
 from pathlib import Path
 import tempfile
+import subprocess
 import unittest
 from unittest.mock import patch
 import admission
@@ -176,6 +177,34 @@ class CodexActivation(unittest.TestCase):
 
     def test_failed_install_restores_prior_image_and_overlay(self):
         self.run_case(True)
+
+    def test_failed_preflight_does_not_restart_an_active_chat(self):
+        with tempfile.TemporaryDirectory() as root:
+            overlay,original,current,calls,ins,run,verify=self.fixture(root)
+            project={'adapter':'codex','containers':{codex.SERVICE:codex.CONTAINER}}
+            with patch.object(codex,'inspect',side_effect=ins),\
+                 patch.object(codex,'run',side_effect=run),\
+                 patch.object(codex,'_compose_args',return_value=(['docker','compose'],overlay)),\
+                 patch.object(codex,'_check_compose',side_effect=[None,ValueError('Unsafe overlay')]),\
+                 patch.object(codex,'_other_ids',return_value={'unrelated':'same-id'}),\
+                 patch.object(codex,'wait_healthy'),\
+                 patch.object(codex,'verify_project',side_effect=verify):
+                with self.assertRaises(ValueError):
+                    codex.codex_activate(project,SHA,{codex.SERVICE:IMAGE},None)
+            self.assertEqual(current['image'],OLD)
+            self.assertEqual(json.loads(overlay.read_text()),original)
+            self.assertFalse(any('up' in argv for argv in calls))
+
+    def test_opt_in_script_is_syntax_valid_and_no_unsafe_container_commands(self):
+        source=(ROOT/'upgrade-vpsops-codex.sh').read_text()
+        subprocess.run(['bash','-n',str(ROOT/'upgrade-vpsops-codex.sh')],
+                       check=True,capture_output=True)
+        self.assertIn('[[ "$EUID" -eq 0',source)
+        self.assertIn('os.replace',source)
+        self.assertNotIn('docker compose down',source)
+        self.assertNotIn('docker restart',source)
+        self.assertNotIn('rm -rf /srv/panel-codex',source)
+
 
 
 if __name__=='__main__':
