@@ -1,0 +1,18 @@
+name: PostgreSQL administration integration
+on:
+  pull_request:
+    paths: ['server/**', 'angular/src/*postgres*', 'angular/src/database-manager*', '.github/workflows/database-admin.yml']
+  push:
+    branches: [main]
+    paths: ['server/**', 'angular/src/*postgres*', 'angular/src/database-manager*', '.github/workflows/database-admin.yml']
+permissions:
+  contents: read
+jobs:
+  postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n server/database-admin-docker.sh
+      - run: python3 -m py_compile server/prepare-database-admin-vps.py
+      - run: bash server/database-admin-docker.sh

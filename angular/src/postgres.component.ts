@@ -1,8 +1,9 @@
 import {Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, signal} from '@angular/core';
+import {DatabaseManagerComponent} from './database-manager.component';
 
 type Database = {name:string;owner:string;sizeBytes:number};
 type Role = {name:string;canLogin:boolean;superuser:boolean};
-type Security = {hostAuthentication:'trust'|'cert'|'other'|'unknown';provisioningEnabled:boolean;message:string};
+type Security = {hostAuthentication:'trust'|'cert'|'other'|'unknown';provisioningEnabled:boolean;adminAuthentication?:'verified-certificate';message:string};
 type DbStatus = {
   engine:'postgresql';integration:'not_configured'|'connected'|'unavailable';enabled:boolean;
   instance:{version:string}|null;databases:Database[]|null;roles:Role[]|null;
@@ -24,7 +25,7 @@ function validStatus(v:unknown):v is DbStatus {
     typeof s.security.message==='string' && typeof s.security.provisioningEnabled==='boolean' &&
     ['trust','cert','other','unknown'].includes(s.security.hostAuthentication);
 }
-@Component({selector:'panel-postgres',standalone:true,
+@Component({selector:'panel-postgres',standalone:true,imports:[DatabaseManagerComponent],
   templateUrl:'./postgres.component.html',styleUrl:'./postgres.component.css'})
 export class PostgresComponent implements OnInit, OnDestroy {
   readonly status=signal<DbStatus|null>(null);
@@ -35,17 +36,27 @@ export class PostgresComponent implements OnInit, OnDestroy {
   readonly project=signal('');
   readonly confirmation=signal('');
   readonly pending=signal(false);
-  readonly view=signal<'databases'|'roles'>('databases');
+  readonly view=signal<'databases'|'roles'|'backups'>('databases');
+  readonly savedBackups=signal<{database:string;createdAt:string;sizeBytes:number}[]>([]);
+  readonly selectedDatabase=signal('');
+  readonly databaseNames=computed(()=>this.status()?.databases?.map(db=>db.name)??[]);
   @ViewChild('dbConfirmInput') private confirmInput?:ElementRef<HTMLInputElement>;
   @ViewChild('dbProjectInput') private projectInput?:ElementRef<HTMLInputElement>;
   private focusTimer:ReturnType<typeof setTimeout>|null=null;
   private destroyed=false;
   readonly enabled=computed(()=>{
     const s=this.status();
-    return s?.integration==='connected' && s.security?.hostAuthentication==='cert' &&
+    return s?.integration==='connected' && (s.security?.hostAuthentication==='cert'||s.security?.adminAuthentication==='verified-certificate') &&
       s.security?.provisioningEnabled===true;
   });
   readonly validProject=computed(()=>PROJECT.test(this.project()));
+  async showBackups():Promise<void>{
+    if(this.working()||this.loading())return;
+    this.view.set('backups');this.loading.set(true);this.error.set('');this.savedBackups.set([]);
+    try{this.savedBackups.set((await this.api<{backups:{database:string;createdAt:string;sizeBytes:number}[]}>('/database/admin/backups')).backups);}
+    catch(e){this.error.set(e instanceof Error?e.message:'Não foi possível consultar os backups.');}
+    finally{this.loading.set(false);}
+  }
   ngOnInit():void {void this.refresh();}
   ngOnDestroy():void{
     this.destroyed=true;

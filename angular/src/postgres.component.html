@@ -13,6 +13,9 @@
       <small>Verificado: {{date(s.checkedAt)}}</small>
     </div>
     @if(s.integration==='connected'&&s.instance&&s.metrics){
+      @if(selectedDatabase()){
+        <panel-database-manager [database]="selectedDatabase()" [databaseNames]="databaseNames()" (closed)="selectedDatabase.set('');refresh()"/>
+      }@else{
       <div class="db-metrics">
         <div><small>VERSÃO</small><strong>{{s.instance.version}}</strong></div>
         <div><small>BANCOS</small><strong>{{s.metrics.databaseCount}}</strong></div>
@@ -27,18 +30,27 @@
       <div class="db-tabs" role="group" aria-label="Inventário PostgreSQL">
         <button type="button" [attr.aria-pressed]="view()==='databases'" (click)="view.set('databases')">Bancos ({{s.databases?.length??0}})</button>
         <button type="button" [attr.aria-pressed]="view()==='roles'" (click)="view.set('roles')">Identidades ({{s.roles?.length??0}})</button>
+        <button type="button" [attr.aria-pressed]="view()==='backups'" (click)="showBackups()" [disabled]="loading()||!enabled()">Todos os backups</button>
       </div>
       @if(view()==='databases'){
         <section class="db-list" aria-label="Bancos cadastrados">
           @for(db of s.databases??[];track db.name){
-            <article><div><strong>{{db.name}}</strong><small>Proprietário: {{db.owner}}</small></div><span>{{bytes(db.sizeBytes)}}</span></article>
+            <article><div><strong>{{db.name}}</strong><small>Proprietário: {{db.owner}}</small></div><span>{{bytes(db.sizeBytes)}}</span>
+              @if(db.name!=='postgres'){<button type="button" (click)="selectedDatabase.set(db.name)" [disabled]="!enabled()||loading()||working()">Gerenciar banco</button>}
+              @else{<small>Banco de sistema protegido</small>}
+            </article>
           }@empty{<p>Nenhum banco informado pelo servidor.</p>}
         </section>
-      }@else{
+      }@else if(view()==='roles'){
         <section class="db-list" aria-label="Identidades PostgreSQL">
           @for(role of s.roles??[];track role.name){
             <article><div><strong>{{role.name}}</strong><small>{{role.canLogin?'Login habilitado':'Sem login'}} · {{role.superuser?'Superusuário':'Não é superusuário'}}</small></div></article>
           }@empty{<p>Nenhuma identidade informada.</p>}
+        </section>
+      }@else{
+        <section class="db-list" aria-label="Backups preservados">
+          @for(backup of savedBackups();track $index){<article><div><strong>{{backup.database}}</strong><small>{{date(backup.createdAt)}} · {{bytes(backup.sizeBytes)}}</small></div><button type="button" (click)="selectedDatabase.set(backup.database)">Gerenciar backups</button></article>}
+          @empty{<p>Nenhum backup criado pelo painel. Backups anteriores à integração permanecem nas rotinas originais.</p>}
         </section>
       }
       <section class="db-create" aria-labelledby="db-create-title">
@@ -67,6 +79,7 @@
           </div>
         }
       </section>
+      }
     }@else{
       <p class="db-muted">Sem inventário confiável nesta leitura. A criação de bancos permanece bloqueada.</p>
     }

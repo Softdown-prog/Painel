@@ -1,0 +1,9 @@
+# Install as compose.postgres-admin-local.yaml AFTER compose.postgres.yaml.
+# Preserve this local overlay on every rollout. Run prepare-database-admin-vps.py first.
+services:
+  api:
+    environment:
+      PANEL_POSTGRES_USER: panel_db_admin
+      PANEL_POSTGRES_TLS_ENABLED: "1"
+      PANEL_POSTGRES_WRITE_ENABLED: "1"
+      PANEL_POSTGRES_CERTIFICATE_LANE: "1"

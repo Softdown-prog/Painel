@@ -1,3 +1,18 @@
+### 2026-11-08 — Administração PostgreSQL pelo painel
+
+**Código implementado, instalação pendente:** navegador de tabelas/estrutura,
+CRUD com chave primária e xmin, SQL isolado por proprietário não superusuário,
+provisionamento por certificado com faixa HBA dedicada, backups/download com
+SHA-256, restauração transacional em banco vazio e exclusão confirmada com backup.
+Não instala outro painel/container nem expõe portas PostgreSQL.
+
+**Validação local:** typecheck, build frontend, check:js e build Angular aprovados;
+novos testes unitários aprovados. Testes POSIX de certificados existentes dependem
+do CI Linux (permissões chmod não são representadas pelo Windows).
+**CI/Docker real:** em validação no PR desta branch; não equivale a instalação.
+**Frontend publicado:** pendente. **Backend instalado/produção validada:** pendente.
+Ver [controles, limites e procedimento de reversão](POSTGRES-ADMIN.md).
+
 ### 2026-11-08 — Limpeza real do host e resultado verificável
 
 **Causa confirmada:** monitor existente habilitado, porém `considered:0`: seu
