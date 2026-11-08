@@ -1,0 +1,9 @@
+[Unit]
+Description=Process authenticated Panel cleanup requests
+
+[Path]
+PathChanged=/var/lib/docker/volumes/softload_panel_data/_data/host-storage-cleanup-request.json
+Unit=vps-storage-cleanup.service
+
+[Install]
+WantedBy=multi-user.target

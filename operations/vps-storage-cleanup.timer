@@ -1,0 +1,11 @@
+[Unit]
+Description=Check six-hour VPS cleanup and retry deferred work
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+AccuracySec=30s
+Unit=vps-storage-cleanup.service
+
+[Install]
+WantedBy=timers.target

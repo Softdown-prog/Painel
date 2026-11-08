@@ -1,0 +1,17 @@
+[Unit]
+Description=Verified unused-image and build-cache cleanup for the VPS
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/vps-storage-cleanup --scheduled
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectSystem=full
+Nice=15
+IOSchedulingClass=idle
+MemoryMax=192M
+CPUQuota=30%
+TimeoutStartSec=15min
+UMask=0077

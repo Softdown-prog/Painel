@@ -37,7 +37,7 @@ test('Revisions restrict cleanup to known API with explicit typing confirmation'
  assert.match(code,/LIMPAR_REVISOES_ANTIGAS/);
  assert.match(code,/confirmText\(\)!=='LIMPAR'/);
  assert.match(html,/Confirmar remoção/);
- assert.match(html,/\[disabled\]="working\(\)\|\|!r.enabled\|\|r.oldCount===0"/);
+ assert.match(html,/\[disabled\]="working\(\)\|\|!r.enabled\|\|\(r.oldCount===0&&!r.hostMaintenance\?\.installed\)"/);
 });
 
 test('SSH terminal requires the exact confirmed command, including multiline whitespace',()=>{

@@ -7,6 +7,7 @@
   type Report = {
     checkedAt:string; enabled:boolean; automatic:boolean; ageDays:number; keepPerApp:number;
     scheduler?:{intervalHours:number;enabledByCompose:boolean;automaticDefault:boolean};
+    hostMaintenance?:{installed:boolean;status?:string;checkedAt?:number;removed?:number;failed?:number;bytesFreed?:number};
     oldCount:number; oldBytesEstimate:number; totalImports:number; entries:RevisionEntry[]; history:History[];
     hostInventory:{available:boolean;total:number;totalBytesEstimate:number;untagged:number;multipleVersionRepositories:{repository:string;versions:number}[];images:{id:string;tags:string[];sizeBytes:number;createdAt:string|null;containers:number|null}[]};
   };
@@ -97,8 +98,13 @@
     autoButton.textContent=report.automatic?'Pausar limpeza automática':'Ativar limpeza automática';
     autoButton.dataset['automatic']=String(report.automatic);
     const button=get('revisionsCleanupButton') as HTMLButtonElement;
-    button.disabled=!report.enabled||report.oldCount===0;
-    button.title=!report.enabled?'A limpeza precisa ser habilitada pelo administrador na VPS.':report.oldCount===0?'Não há imagens antigas elegíveis.':'Excluir apenas imagens antigas verificadas';
+    button.disabled=!report.enabled||(report.oldCount===0&&!report.hostMaintenance?.installed);
+    button.title=report.hostMaintenance?.installed?'Limpar imagens órfãs e cache na VPS, preservando containers e volumes.':!report.enabled?'A limpeza precisa ser habilitada pelo administrador na VPS.':report.oldCount===0?'Não há imagens antigas elegíveis.':'Excluir apenas imagens antigas verificadas';
+    const maintenance=report.hostMaintenance;
+    if(maintenance?.installed){
+      const status=maintenance.status==='queued'?'Solicitada; aguardando execução':maintenance.status==='completed'?'Concluída':maintenance.status==='waiting-deploy'?'Aguardando deploy':maintenance.status==='partial'?'Parcial':maintenance.status==='paused'?'Pausada':'Falha; consulte os registros';
+      get('revisionsCompose').textContent+=' Limpeza do host: '+status+' · '+(maintenance.removed??0)+' imagens · '+bytes(maintenance.bytesFreed??0)+' liberados no disco'+(maintenance.checkedAt?' · '+date(new Date(maintenance.checkedAt).toISOString()):'')+'.';
+    }
     reportCache=report;
     renderRevisionRows();
     const host=report.hostInventory;
@@ -152,7 +158,7 @@
     const element=get('revisionsAutoButton') as HTMLButtonElement;
     const next=element.dataset['automatic']!=='true';
     if(!confirm(next
-      ? 'Ativar limpeza automática a cada 6 horas?\n\nSomente imagens importadas há mais de 14 dias e fora das duas versões preservadas por aplicação poderão ser removidas.'
+      ? 'Ativar limpeza automática a cada 6 horas?\n\nA rotina preserva containers, volumes e imagens em uso. O coletor instalado na VPS também trata imagens órfãs e cache, aguardando deploys ativos.'
       : 'Pausar a limpeza automática de revisões antigas?'))return;
     element.disabled=true;
     try{
@@ -168,14 +174,14 @@
     (window as any).refreshRevisionActivity?.();
   });
   get('revisionsCleanupButton').addEventListener('click',async()=>{
-    if(!confirm('Excluir SOMENTE imagens antigas importadas pelo Painel?\\n\\nA versão em uso, backups, containers e volumes serão preservados. A operação não poderá ser desfeita.'))return;
+    if(!confirm('Limpar imagens antigas elegíveis e cache da VPS?\\n\\nA versão em uso, backups, containers e volumes serão preservados. A operação não poderá ser desfeita.'))return;
     const btn=get('revisionsCleanupButton') as HTMLButtonElement;
     btn.disabled=true;
     info('Solicitando limpeza de imagens antigas...');
     try{
       const result=await call('/maintenance/revisions/cleanup',{method:'POST',
         headers:{'content-type':'application/json'},body:JSON.stringify({confirm:'LIMPAR_REVISOES_ANTIGAS'})});
-      info('Limpeza solicitada: '+result.removed+' imagens removidas, '+result.failed+' falhas. Atualizando...');
+      info(result.hostCleanupQueued?result.message:'Limpeza solicitada: '+result.removed+' imagens removidas, '+result.failed+' falhas. Atualizando...');
       await refreshManagedRevisions();
     }catch(error){info(error instanceof Error?error.message:'Falha ao limpar imagens antigas.');await refreshManagedRevisions();}
   });
