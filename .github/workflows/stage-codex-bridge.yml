@@ -113,16 +113,16 @@ jobs:
         env:
           VPS_OPERATION: deploy
           VPS_PROJECT: panel-codex
-          VPS_IMAGES: '{"codex-agents":"ghcr.io/softdown-prog/painel-codex@\u0024{{ needs.stage.outputs.digest }}"}'
-          VPS_SSH_KEY: \u0024{{ secrets.VPS_OPERATIONS_SSH_KEY }}
-          VPS_KNOWN_HOSTS: \u0024{{ secrets.VPS_OPERATIONS_KNOWN_HOSTS }}
-          GITHUB_TOKEN: \u0024{{ secrets.GITHUB_TOKEN }}
+          VPS_IMAGES: '{"codex-agents":"ghcr.io/softdown-prog/painel-codex@${{ needs.stage.outputs.digest }}"}'
+          VPS_SSH_KEY: ${{ secrets.VPS_OPERATIONS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_OPERATIONS_KNOWN_HOSTS }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 operations/client.py
       - name: Preserve sanitized host receipt
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: panel-codex-rollout-\u0024{{ github.sha }}
+          name: panel-codex-rollout-${{ github.sha }}
           path: vps-result.json
           if-no-files-found: warn
           retention-days: 30
