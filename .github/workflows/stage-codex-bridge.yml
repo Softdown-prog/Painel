@@ -1,23 +1,35 @@
-name: Stage pinned Codex bridge image (no VPS changes)
+name: Test, stage and optionally deploy pinned Codex bridge
 on:
   pull_request:
     paths:
       - 'agents/**'
+      - 'server/compose.agents.yaml'
       - '.github/workflows/stage-codex-bridge.yml'
   push:
     branches: [main]
     paths:
       - 'agents/**'
+      - 'server/compose.agents.yaml'
       - '.github/workflows/stage-codex-bridge.yml'
   workflow_dispatch:
+    inputs:
+      activate:
+        type: boolean
+        default: false
+        description: 'Deploy somente Codex após autorização de host e revisão'
 permissions:
   contents: read
   packages: write
+concurrency:
+  group: vps-panel-codex-immutable-rollout
+  cancel-in-progress: false
 jobs:
   stage:
     if: github.repository == 'Softdown-prog/Painel'
     runs-on: ubuntu-24.04
     timeout-minutes: 18
+    outputs:
+      digest: ${{ steps.publish.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -83,3 +95,34 @@ jobs:
         run: |
           echo "Codex image staged at ghcr.io/softdown-prog/painel-codex@${{ steps.publish.outputs.digest }}"
           echo "Image does not update the VPS by itself; apply the separate reviewed rollout."
+
+  deploy:
+    needs: stage
+    # Default OFF: host policy, approved environment and explicit opt-in required.
+    if: github.repository == 'Softdown-prog/Painel' && github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.activate == true) || (github.event_name == 'push' && vars.PANEL_CODEX_DEPLOY_ENABLED == 'true'))
+    runs-on: ubuntu-24.04
+    environment: vps-maintenance
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy ONLY codex-agents using the approved VPS broker
+        env:
+          VPS_OPERATION: deploy
+          VPS_PROJECT: panel-codex
+          VPS_IMAGES: '{"codex-agents":"ghcr.io/softdown-prog/painel-codex@\u0024{{ needs.stage.outputs.digest }}"}'
+          VPS_SSH_KEY: \u0024{{ secrets.VPS_OPERATIONS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: \u0024{{ secrets.VPS_OPERATIONS_KNOWN_HOSTS }}
+          GITHUB_TOKEN: \u0024{{ secrets.GITHUB_TOKEN }}
+        run: python3 operations/client.py
+      - name: Preserve sanitized host receipt
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: panel-codex-rollout-\u0024{{ github.sha }}
+          path: vps-result.json
+          if-no-files-found: warn
+          retention-days: 30
