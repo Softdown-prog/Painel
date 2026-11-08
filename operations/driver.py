@@ -224,6 +224,9 @@ def deploy(project, args, token, state):
                 result = panel_activate(project, sha, images, log)
             elif project['adapter'] == 'compose':
                 result = compose_activate(project, sha, images, log)
+            elif project['adapter'] == 'codex':
+                from codex import codex_activate
+                result = codex_activate(project, sha, images, log)
             else:
                 raise ValueError('Unauthorized deployment adapter')
             return dict(result, admission=admission)
