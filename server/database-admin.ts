@@ -206,6 +206,10 @@ function cliEnvironment(scope: Scope, env: Env): NodeJS.ProcessEnv {
     PGOPTIONS: '-c statement_timeout=45000 -c lock_timeout=2000'};
 }
 async function command(command: 'pg_dump'|'pg_restore', args: string[], scope: Scope, env: Env, output?: string): Promise<void> {
+  // libpq interprets --dbname strings containing '=' or URI prefixes as connection options.
+  // Catalog identifiers remain fully quoted elsewhere; CLI backup names deliberately use a stricter contract.
+  if (!/^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,62}$/.test(scope.database))
+    throw new DatabaseError(400,'Backup pelo painel requer nome de banco com letras, números, pontos, traços ou sublinhados.');
   await new Promise<void>((resolve,reject) => {
     const fd = output ? openSync(output, 'wx', 0o600) : null;
     const child = spawn(command, args, {env: cliEnvironment(scope, env), stdio: ['ignore',fd ?? 'ignore','ignore']});
