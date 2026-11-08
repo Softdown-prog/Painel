@@ -10,13 +10,15 @@
         "vps-command.yml",
         "deploy-panel-web.yml",
         "vps-maintenance.yml",
-        "code-mcp-vps.yml"
+        "code-mcp-vps.yml",
+        "stage-codex-bridge.yml"
       ],
       "projects": [
         "panel",
         "infrastructure",
         "terrania",
-        "panel-web"
+        "panel-web",
+        "panel-codex"
       ],
       "operations": [
         "deploy",
@@ -108,6 +110,24 @@
         "services": {
           "web": {
             "profile": "panel-web"
+          }
+        }
+      }
+    },
+    "panel-codex": {
+      "repository": "Softdown-prog/Painel",
+      "adapter": "codex",
+      "containers": {
+        "codex-agents": "vps-panel-codex"
+      },
+      "images": {
+        "codex-agents": "ghcr.io/softdown-prog/painel-codex"
+      },
+      "admission": {
+        "version": 1,
+        "services": {
+          "codex-agents": {
+            "profile": "codex-bridge"
           }
         }
       }
