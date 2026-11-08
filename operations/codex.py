@@ -20,12 +20,31 @@ PROJECT = 'softload-panel'
 PANEL_DEPLOY_LOCK = Path('/var/lib/vps-operations/panel.lock')
 PANEL_CURRENT = Path('/opt/vps-panel/current')
 SECRET = '/etc/softload-panel/agent-key'
+SECCOMP_PROFILE = Path('/etc/softload-panel/codex-seccomp.json')
 BINDS = {
     '/workspace': ('/srv/panel-codex/workspace', False),
     '/home/node/.codex': ('/srv/panel-codex/home', False),
     '/state': ('/srv/panel-codex/state', False),
     '/run/secrets/panel-agent-key': (SECRET, True),
 }
+
+
+def _seccomp_matches(options):
+    values = [value.removeprefix('seccomp=') for value in options if value.startswith('seccomp=')]
+    if len(values) != 1:
+        return False
+    # Compose config contains a path; Docker inspect expands that file to JSON.
+    # Compare the entire policy, not a prefix, syscall name, or enabled flag.
+    if values[0] == str(SECCOMP_PROFILE):
+        return True
+    try:
+        if SECCOMP_PROFILE.is_symlink() or not _root_owned(SECCOMP_PROFILE):
+            return False
+        applied = json.loads(values[0])
+        expected = json.loads(SECCOMP_PROFILE.read_text())
+        return isinstance(applied, dict) and bool(applied) and applied == expected
+    except (OSError, ValueError, TypeError):
+        return False
 
 
 def _assert_container(container, *, api=False):
@@ -43,7 +62,7 @@ def _assert_container(container, *, api=False):
             host.get('PidsLimit') != 128 or
             'ALL' not in (host.get('CapDrop') or []) or
             'apparmor=panel-codex' not in (host.get('SecurityOpt') or []) or
-            'seccomp=/etc/softload-panel/codex-seccomp.json' not in (host.get('SecurityOpt') or [])):
+            not _seccomp_matches(host.get('SecurityOpt') or [])):
             raise ValueError('Codex host security differs from registered profile')
         mounts = {m['Destination']: (m.get('Source'), not m.get('RW', True)) for m in container.get('Mounts', []) if m.get('Type') == 'bind'}
         if mounts != BINDS:

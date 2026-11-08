@@ -1,3 +1,13 @@
+### 2026-11-08 — Seccomp normalizado pelo Docker bloqueava o rollout
+
+**Causa comprovada no host:** Codex continuava em `f3046f6` após Pages publicar
+`375cc0e`. O bootstrap restrito foi instalado preservando projetos/IDs; o preflight
+recusou a política porque Docker inspect devolve `seccomp={JSON}` e o adaptador
+buscava o caminho literal. RAM/CPU/UID/AppArmor corretos; não houve troca de imagem.
+**Correção:** comparar a política JSON inteira com o arquivo registrado root-owned,
+recusando diferenças, perfil irrestrito, duplicatas e JSON inválido. Testes Linux
+e rollout precisam ser conferidos nesta revisão. Nenhum perfil foi afrouxado.
+
 ### 2026-11-07 — Concluir entrega das melhorias do Codex
 
 **Diagnóstico real:** API/executor `e9c1dcc`, Codex `f3046f6`, todos healthy.
