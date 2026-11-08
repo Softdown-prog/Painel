@@ -3,6 +3,16 @@ name: Deploy panel to Cloudflare Pages
 on:
   push:
     branches: [main]
+    # Codex/host-only commits must not rebuild an unchanged Angular public UI.
+    paths:
+      - 'angular/**'
+      - 'functions/**'
+      - 'index.html'
+      - '404.html'
+      - '_headers'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
 
 permissions:
