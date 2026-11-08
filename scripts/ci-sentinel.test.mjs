@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {isFailure,clean,mark,rows,mergeRows,issueBody,scan,client,parseOrigin,originForRun} from './ci-sentinel.mjs';
+import {isFailure,clean,mark,rows,mergeRows,issueBody,scan,client,parseOrigin,originForRun,
+  runContext,reconcileRows,hasUnresolvedRows} from './ci-sentinel.mjs';
 const NOW=new Date('2026-11-08T14:00:00Z');
 function run(id,{conclusion='failure',attempt=1,updated='2026-11-08T13:30:00Z'}={}){
   return {id,run_attempt:attempt,conclusion,workflow_id:5,name:'CI principal',
@@ -24,10 +25,14 @@ function mock({runs=[],repos=['Terrania'],issues=[],attempts={},prBodies={},comm
     if(path.includes('/actions/runs/')&&path.includes('/jobs?'))return {jobs};
     if(path.includes('/issues?'))return storage;
     if(method==='POST'&&path.endsWith('/issues')){
-      const newIssue={number:storage.length+1,...body};storage.push(newIssue);return newIssue;
+      const newIssue={number:storage.length+1,state:'open',...body};
+      storage.push(newIssue);return newIssue;
     }
     if(method==='PATCH'){
-      const item=storage.find(x=>path.endsWith('/'+x.number));item.body=body.body;return item;
+      const item=storage.find(x=>path.endsWith('/'+x.number));
+      if(body.body!==undefined)item.body=body.body;
+      if(body.state!==undefined)item.state=body.state;
+      return item;
     }
     throw Error('Unexpected API '+method+' '+path);
   };
@@ -132,4 +137,47 @@ test('conflicting PR origin markers never choose an arbitrary destination',async
   }});
   const origin=await originForRun(m.api,'Softdown-prog/Terrania',r);
   assert.equal(origin,null);
+});
+
+test('a later successful run retires only the matching failing workflow and branch',()=>{
+  const broken=run(300,{updated:'2026-11-08T13:20:00Z'});
+  const row='- red · falha · compilation '+runContext(broken)+' '+mark(300,1);
+  const unrelated=run(301,{conclusion:'success',updated:'2026-11-08T13:30:00Z'});
+  unrelated.head_branch='another-branch';
+  assert.deepEqual(reconcileRows([row],[unrelated]),[row]);
+  assert.equal(hasUnresolvedRows([row]),true);
+  const green=run(302,{conclusion:'success',updated:'2026-11-08T13:50:00Z'});
+  const next=reconcileRows([row],[green]);
+  assert.match(next[0],/ · recuperado · /);
+  assert.equal(hasUnresolvedRows(next),false);
+  assert.match(next[0],/ci-sentinel:300:1/,'do not lose the old red commit');
+});
+test('open inbox closes on recovered CI and reopens on new red commit, without duplicates',async()=>{
+  const items=[run(400,{updated:'2026-11-08T13:25:00Z'})];
+  const m=mock({runs:items});
+  const first=await scan({api:m.api,now:NOW,logger:silent});
+  assert.equal(first.created,1);
+  assert.equal(m.storage[0].state,'open');
+  items.unshift(run(401,{conclusion:'success',updated:'2026-11-08T13:48:00Z'}));
+  const second=await scan({api:m.api,now:NOW,logger:silent});
+  assert.equal(second.closed,1);
+  assert.equal(m.storage[0].state,'closed');
+  assert.match(m.storage[0].body,/400:1/);
+  assert.match(m.storage[0].body,/recuperado/);
+  const third=await scan({api:m.api,now:NOW,logger:silent});
+  assert.equal(third.updated,0,'do not rewrite a stable, recovered issue');
+  items.unshift(run(402,{updated:'2026-11-08T13:55:00Z'}));
+  const fourth=await scan({api:m.api,now:NOW,logger:silent});
+  assert.equal(fourth.reopened,1);
+  assert.equal(fourth.created,0);
+  assert.equal(m.storage.length,1);
+  assert.equal(m.storage[0].state,'open');
+  assert.match(m.storage[0].body,/402:1/);
+  assert.match(m.storage[0].body,/400:1/);
+});
+test('legacy rows without verifiable context never get auto-closed',()=>{
+  const old=['- 2026 historical red '+mark(75,1)];
+  assert.equal(hasUnresolvedRows(reconcileRows(old,[
+    run(76,{conclusion:'success',updated:'2026-11-08T13:40:00Z'})
+  ])),true);
 });
