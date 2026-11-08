@@ -143,10 +143,12 @@ def codex_activate(project, sha, images, log):
     new_overlay['services'][SERVICE].setdefault('labels',{})['org.opencontainers.image.revision'] = sha
     before = _other_ids()
     updated = False
+    activation_attempted = False
     try:
         atomic_json(overlay,new_overlay)
         updated = True
         _check_compose(args,new_image)
+        activation_attempted = True
         run(args + ['up','-d','--no-deps','--no-build','--pull','never',SERVICE],log=log,timeout=120)
         wait_healthy([CONTAINER],seconds=120)
         new = inspect(CONTAINER)
@@ -160,9 +162,12 @@ def codex_activate(project, sha, images, log):
     except BaseException:
         if updated:
             _restore_overlay(overlay,old_bytes)
-            run(args + ['up','-d','--no-deps','--no-build','--pull','never',SERVICE],log=log,timeout=120)
-            wait_healthy([CONTAINER],seconds=120)
-            _assert_container(inspect(CONTAINER))
-            if _other_ids() != before:
-                raise RuntimeError('Unrelated container changed during rollback')
+            # A failed offline config check has not touched Docker production;
+            # restore the config only, without interrupting an active chat.
+            if activation_attempted:
+                run(args + ['up','-d','--no-deps','--no-build','--pull','never',SERVICE],log=log,timeout=120)
+                wait_healthy([CONTAINER],seconds=120)
+                _assert_container(inspect(CONTAINER))
+                if _other_ids() != before:
+                    raise RuntimeError('Unrelated container changed during rollback')
         raise
