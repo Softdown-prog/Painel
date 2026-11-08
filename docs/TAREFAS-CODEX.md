@@ -11,9 +11,24 @@ ativação passou na admissão, saúde e verificação do SHA, sem trocar outros
 ocorre em staging oculto e privado no volume de trabalho, com ativação por rename
 no mesmo mount, limites e baseline preservados. Teste Docker exige mounts
 separados e comprova sucesso, limpeza do staging e preservação de alterações.
-**Pendente nesta revisão:** CI da correção, instalação do novo sidecar e teste
-final de abertura/conversa real. Não confundir a saúde de `a617b24` com validação
-do fluxo de importação corrigido.
+**Código/CI aprovados:** PR #100, merge `100147c624760d23defbd6dd4de0eb78f4b10e87`;
+Console CI `42475015791` e estágio Docker `42475015960` aprovados. Teste real entre
+mounts passou sem credenciais, além dos testes de sandbox e proteção de cópias.
+**Frontend publicado/API instalada:** `a617b24` (PR #99), sem mudanças adicionais
+necessárias nesta correção exclusiva do importador.
+**Backend Codex instalado:** `100147c`, digest
+`sha256:60ff73671d6811adca9e277578a340e91fc108f5310f267083016c667aa6e6f9`.
+Admissão, revisão e saúde confirmadas pelo recibo privado
+`/run/panel-agent-account-100147c/rollout-receipt.json`; outros IDs de containers e
+hashes dos perfis de segurança preservados. Login OAuth mantido, arquivo 0600.
+**Produção validada:** autorização da conta persistente, 28 repositórios retornados;
+proprietário externo recusado. Abertura pela API autenticada da branch de teste
+do Painel criou `gh_1433232532_d9042447` na revisão `b51ad1e`, sem sobrescrever a
+cópia legada. Nova conversa finalizou com `CODEX-REPOS-OK` e a primeira linha
+correta do README; árvore Git limpa após o teste. Modelo anunciado e esforço
+`high` persistiram na conversa Geral de teste após a atualização. Os oito testes
+E2E específicos e o gate completo Chromium passaram; inspeção visual manual
+neste chat indisponível porque o controle do navegador estava desativado no Work.
 
 ### 2026-11-08 — Raciocínio no modo automático e repositórios da conta
 
@@ -25,9 +40,11 @@ explicitado ao aplicar; autorização administrativa única da identidade GitHub
 descoberta paginada de repositórios próprios e preparação isolada somente do
 selecionado, sem transferir tokens ao modelo ou ampliar deploy/Docker. Histórico,
 contas e cópias existentes preservados; PRs continuam exigindo revisão do diff.
-**Validação:** typecheck e 35 testes específicos locais passaram; testes de
-importação GNU tar devem rodar em Linux/CI. CI, frontend publicado, API instalada
-e sidecar instalado precisam de confirmação independente para a revisão final.
+**Validação:** implementação integrada no PR #99; CI, Pages, API e sidecar
+verificados. A importação revelou `EXDEV` apenas nos mounts reais, corrigido no
+PR #100 e validado em produção conforme o registro acima. Nenhuma autorização
+de deploy/Docker foi ampliada; apenas repositórios próprios acessíveis à
+credencial GitHub existente entram no novo escopo do Codex.
 
 ### 2026-11-08 — Seccomp normalizado pelo Docker bloqueava o rollout
 
