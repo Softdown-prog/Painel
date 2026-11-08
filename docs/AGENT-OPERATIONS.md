@@ -51,6 +51,36 @@ antes de reenviar qualquer ação incerta.
 
 ## Publicações no GitHub
 
+### Autorizar a conta uma vez
+
+Em **Agentes Codex → Meus repositórios GitHub**, o administrador pode autorizar
+todos os repositórios pertencentes à conta autenticada pela conexão existente.
+A API confirma `/user`, salva ID/login e descobre os repositórios públicos e
+privados que aquela credencial pode ler. Não amplia permissões do token/App,
+nem altera permissões de deploy, Docker ou cadastros de outros módulos.
+Trocar para outra identidade GitHub invalida essa autorização até reconfirmar.
+
+Escolher **Abrir no Codex** prepara somente o repositório selecionado, em sua
+branch padrão. Credenciais permanecem na API: o bridge recebe apenas o arquivo
+da revisão GitHub fixada, por rede privada autenticada. Importação recusa
+travessia de caminhos, links, arquivos especiais e `.git`; limita o arquivo
+compactado a 32 MiB, a cópia a 128 MiB/8.000 entradas e mantém até 32 cópias.
+Não instala dependências, não executa scripts do repositório e não sobrescreve
+cópias existentes. Repositórios grandes ou com links exigem tratamento separado.
+
+A cópia tem baseline Git local, sem importar todo o histórico remoto. A origem
+real e seu SHA ficam no estado privado, fora do alcance do modelo; a publicação
+usa esse SHA real e inclui alterações desde o baseline, inclusive commits locais.
+O modelo continua vendo apenas seu projeto. Novos perfis são carregados reiniciando
+somente o subprocesso app-server, sem encerrar outros containers nem apagar chats;
+a preparação é recusada enquanto houver um turno do modelo em execução.
+
+O botão autoriza a conta, mas não clona todos os repositórios. Descoberta é
+paginada; pesquisas na interface filtram os repositórios já carregados. O cadastro
+anterior por repositório continua compatível, assim como os PRs em rascunho e a
+aprovação individual do diff. A origem de uma cópia importada não pode ser
+substituída por outro vínculo.
+
 O bridge obtém o diff e os arquivos reais da cópia, sem executar hooks,
 fsmonitor ou textconv do repositório. Bloqueia escapes por symlink, caminhos
 privados, binários e padrões de segredo. O limite inicial é 30 arquivos e
