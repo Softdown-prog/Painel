@@ -11,7 +11,7 @@ test('database uses one Angular page with native navigation and views',()=>{
  assert.ok(root.includes("location.replace('/angular/#'"));
  assert.match(shell,/selectPage\('database'\)/);
  assert.match(shell,/<panel-postgres\s*\/>/);
- assert.match(ts,/view=signal<'databases'\|'roles'>/);
+ assert.match(ts,/view=signal<'databases'\|'roles'\|'backups'>/);
  assert.match(tpl,/dbProject/);
  assert.doesNotMatch(root,/src="database-ui\.js"|href="database\.css"/);
 });
