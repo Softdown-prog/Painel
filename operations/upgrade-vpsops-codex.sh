@@ -13,6 +13,7 @@ for f in "$installed/receiver.py" "$installed/driver.py" "$installed/admission.p
          "$source_dir/operations/admission.py" "$source_dir/operations/policy.example.json" \
          /usr/local/libexec/vps-operations /etc/sudoers.d/vps-operations; do
   [[ -f "$f" ]] || { echo "Arquivo esperado ausente: $f" >&2; exit 2; }
+  [[ ! -L "$f" ]] || { echo "Caminho simbólico não autorizado: $f" >&2; exit 2; }
 done
 grep -Fq 'admission = admit(project, sha, images)' "$installed/driver.py" || {
   echo "Barreira de admissão ausente; não é seguro instalar o novo adaptador." >&2; exit 2;
@@ -20,8 +21,12 @@ grep -Fq 'admission = admit(project, sha, images)' "$installed/driver.py" || {
 grep -Fq '/usr/local/libexec/vps-operations' /etc/sudoers.d/vps-operations || {
   echo "Executor vpsops divergente; nada foi modificado." >&2; exit 2;
 }
-python3 -m py_compile "$source_dir/operations/codex.py" \
-  "$source_dir/operations/driver.py" "$source_dir/operations/admission.py"
+python3 - "$source_dir" <<'PY'
+import ast,pathlib,sys
+folder=pathlib.Path(sys.argv[1])/'operations'
+for name in ('codex.py','driver.py','admission.py'):
+    ast.parse((folder/name).read_text(),filename=name)
+PY
 python3 - "$source_dir" <<'PY'
 import json,os,pathlib,sys,tempfile
 src=pathlib.Path(sys.argv[1])
