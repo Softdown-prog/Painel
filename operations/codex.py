@@ -4,6 +4,7 @@ The root-owned host broker must opt in explicitly. Never change any other servic
 production volume, network, login, Docker daemon or existing application image.
 """
 import copy
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -15,6 +16,8 @@ CONTAINER = 'vps-panel-codex'
 API = 'softload-panel-api'
 SERVICE = 'codex-agents'
 PROJECT = 'softload-panel'
+# Same lock that receiver.py holds during API/executor deployment.
+PANEL_DEPLOY_LOCK = Path('/var/lib/vps-operations/panel.lock')
 SECRET = '/etc/softload-panel/agent-key'
 BINDS = {
     '/workspace': ('/srv/panel-codex/workspace', False),
@@ -117,6 +120,17 @@ def _restore_overlay(path, original):
 
 
 def codex_activate(project, sha, images, log):
+    # The receiver already holds panel-codex.lock. Also acquire panel.lock:
+    # API rollouts copy this very Compose overlay into future releases.
+    with PANEL_DEPLOY_LOCK.open('a') as panel_lock:
+        fcntl.flock(panel_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            return _codex_activate_locked(project, sha, images, log)
+        finally:
+            fcntl.flock(panel_lock, fcntl.LOCK_UN)
+
+
+def _codex_activate_locked(project, sha, images, log):
     if project.get('adapter') != 'codex' or set(project.get('containers',{})) != {SERVICE}:
         raise ValueError('Only Codex sidecar deployment allowed')
     old_api, old_codex = inspect(API), inspect(CONTAINER)
