@@ -70,6 +70,12 @@
   @if(tab()==='access'){
     @if(access();as a){<dl><dt>Servidor interno</dt><dd>{{a['host']}}:{{a['port']}}</dd><dt>Banco</dt><dd>{{a['database']}}</dd><dt>Proprietário</dt><dd>{{a['owner']}}</dd><dt>Identidade do editor</dt><dd>{{a['identity']}}</dd><dt>Autenticação</dt><dd>Certificado privado, sem senha no navegador</dd></dl><p>{{a['message']}}</p>
       <details><summary>Permissões de tabelas</summary><pre>{{json(a['grants'])}}</pre></details>
+      <details><summary>Identidades criadas para este banco</summary><pre>{{json(a['identities'])}}</pre></details>
+      <h4>Configurar acesso de uma aplicação</h4><p>Cria uma identidade separada, com certificado guardado na VPS. Aplica permissões em tabelas atuais e futuras criadas pelo proprietário, sem alterar senhas de serviços existentes.</p>
+      <label for="db-access-name">Nome do acesso</label><input id="db-access-name" placeholder="relatorios" maxlength="12" [value]="accessName()" (input)="accessName.set($any($event.target).value);confirm.set('')" [disabled]="busy()" autocomplete="off"/>
+      <label for="db-access-permission">Permissão</label><select id="db-access-permission" [value]="accessPermission()" (change)="accessPermission.set($any($event.target).value);confirm.set('')" [disabled]="busy()"><option value="read">Somente leitura</option><option value="write">Leitura e gravação</option><option value="none">Revogar permissões deste acesso</option></select>
+      <label for="db-access-confirm">Digite {{database()}} para alterar o acesso</label><input id="db-access-confirm" [value]="confirm()" (input)="confirm.set($any($event.target).value)" [disabled]="busy()" autocomplete="off"/>
+      <button type="button" (click)="saveAccess()" [disabled]="busy()||confirm()!==database()||accessName().length<2">Aplicar acesso</button>
       <p>Para gerenciar permissões, use GRANT ou REVOKE no editor SQL. Use somente identidades já cadastradas para este projeto; as identidades dos outros bancos permanecem separadas.</p>
       <button type="button" (click)="prepareSql('SELECT grantee, table_schema, table_name, privilege_type\nFROM information_schema.role_table_grants\nWHERE table_schema = \'public\';');write.set(false)" [disabled]="busy()">Consultar permissões no SQL</button>
     }

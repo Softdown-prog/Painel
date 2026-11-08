@@ -128,12 +128,15 @@ export function issueCertificate(
 }
 
 /** Only server-derived identities may read certificates. Never accepts a file path. */
-export function projectTls(role: string, dataDir: string): TlsMaterial {
+export function projectTls(role: string, dataDir: string, database?: string): TlsMaterial {
   if (!ROLE.test(role)) throw new Error('Invalid PostgreSQL role');
   const dir = join(dataDir, 'database-credentials', role.slice(2).replaceAll('_', '-'));
   const stat = lstatSync(dir);
   if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0)
     throw new Error('Credential folder is not private');
+  const binding = JSON.parse(checkedFile(join(dir, 'connection.json'), true)) as {database?: unknown; user?: unknown};
+  if (binding.user !== role || (database !== undefined && binding.database !== database))
+    throw new Error('Certificate belongs to another database identity');
   return {ca: checkedFile(join(dir, 'ca.crt'), false), cert: checkedFile(join(dir, 'client.crt'), false),
     key: checkedFile(join(dir, 'client.key'), true), rejectUnauthorized: true};
 }

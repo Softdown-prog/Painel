@@ -21,6 +21,7 @@ export class DatabaseManagerComponent implements OnInit {
   readonly backupList=signal<Backup[]>([]);readonly source=signal('');readonly restoreList=signal<Backup[]>([]);
   readonly restoreId=signal('');readonly pending=signal<'drop'|'restore'|'remove-backup'|null>(null);readonly removeId=signal('');
   readonly access=signal<Entry|null>(null);
+  readonly accessName=signal('');readonly accessPermission=signal('read');
   ngOnInit():void{this.source.set(this.database());if(this.databaseNames().includes(this.database()))void this.loadTables();
     else{this.tab.set('backups');void this.loadBackups();}}
   private async api<T>(action:string,method='GET',body?:object,database=this.database()):Promise<T>{
@@ -85,6 +86,14 @@ export class DatabaseManagerComponent implements OnInit {
       if(!Array.isArray(result.rows)||!Array.isArray(result.columns))throw Error('Resultado SQL inválido.');
       this.sqlResult.set(result);this.confirm.set('');
       if(this.write())this.notice.set('Instrução executada. Atualize as tabelas para conferir a alteração.');
+    });
+  }
+  async saveAccess():Promise<void>{
+    if(this.confirm()!==this.database())return;
+    await this.run(async()=>{
+      const result=await this.api<{ok:boolean;message:string}>('access','POST',{name:this.accessName(),permission:this.accessPermission(),confirmation:this.confirm()});
+      if(result.ok!==true)throw Error('A configuração de acesso não foi confirmada.');
+      this.access.set(await this.api<Entry>('access'));this.confirm.set('');this.notice.set(result.message);
     });
   }
   prepareSql(sql:string):void{this.tab.set('sql');this.cancel();this.sql.set(sql);this.write.set(true);this.sqlResult.set(null);}

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {handleDatabaseAdminRoute} from './database-admin.ts';
 import {getDatabaseStatus,createProjectDatabase} from './database.ts';
 import {adminTls} from './postgres-cert.ts';
+import {projectTls} from './postgres-cert.ts';
 import {Client} from 'pg';
 
 async function request(db,action,body,query=''){
@@ -31,6 +32,14 @@ assert.equal((await request('alpha','sql',{sql:'DROP TABLE public.items',write:t
 ok(await request('alpha','rows',{schema:'public',table:'items',action:'insert',values:{id:'9007199254740993',name:'test',amount:'9999999999999999.99'},confirmation:'alpha'}));
 let rows=ok(await request('alpha','rows',null,'?schema=public&table=items'));
 assert.equal(rows.rows[0].id,'9007199254740993');assert.equal(rows.rows[0].amount,'9999999999999999.99');
+const reader=ok(await request('alpha','access',{name:'relatorios',permission:'read',confirmation:'alpha'}));
+const accessClient=new Client({host:'vps-postgres',database:'alpha',user:reader.identity,ssl:projectTls(reader.identity,'/data','alpha')});
+await accessClient.connect();assert.equal((await accessClient.query('SELECT count(*)::int AS n FROM public.items')).rows[0].n,1);
+await assert.rejects(accessClient.query("INSERT INTO public.items VALUES(2,'blocked',0)"),e=>e.code==='42501');
+await accessClient.end();
+ok(await request('alpha','access',{name:'relatorios',permission:'none',confirmation:'alpha'}));
+const disabled=new Client({host:'vps-postgres',database:'alpha',user:reader.identity,ssl:projectTls(reader.identity,'/data','alpha')});
+await assert.rejects(disabled.connect());await disabled.end().catch(()=>{});
 const version=rows.rows[0].__panel_version;
 ok(await request('alpha','rows',{schema:'public',table:'items',action:'update',values:{name:'updated'},key:{id:'9007199254740993'},version,confirmation:'alpha'}));
 assert.equal((await request('alpha','rows',{schema:'public',table:'items',action:'delete',key:{id:'9007199254740993'},version,confirmation:'alpha'})).status,409);

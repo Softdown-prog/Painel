@@ -111,12 +111,12 @@ async function scoped(database: string, dataDir: string, env: Env): Promise<Scop
       });
     }
     // Recheck membership every time: a stale or externally modified identity must not gain global powers.
-    const membership = await admin.query('SELECT r.rolsuper, r.rolcreaterole, r.rolcreatedb, r.rolbypassrls, r.rolreplication, ARRAY(SELECT p.rolname FROM pg_auth_members m JOIN pg_roles p ON p.oid=m.roleid WHERE m.member=r.oid ORDER BY p.rolname) AS memberships FROM pg_roles r WHERE r.rolname=$1', [role]);
+    const membership = await admin.query('SELECT r.rolsuper, r.rolcreaterole, r.rolcreatedb, r.rolbypassrls, r.rolreplication, ARRAY(SELECT p.rolname::text FROM pg_auth_members m JOIN pg_roles p ON p.oid=m.roleid WHERE m.member=r.oid ORDER BY p.rolname) AS memberships FROM pg_roles r WHERE r.rolname=$1', [role]);
     const row = membership.rows[0];
     if (!row || ['rolsuper','rolcreaterole','rolcreatedb','rolbypassrls','rolreplication'].some(k => row[k] !== false) ||
       JSON.stringify(row['memberships']) !== JSON.stringify([owner, CERTIFICATE_GROUP].sort()))
       throw new DatabaseError(403, 'Identidade do editor alterada fora do painel. Revise as permissões.');
-    const client = await connect({...databaseOptions(env, projectTls(role, dataDir), role, database),
+    const client = await connect({...databaseOptions(env, projectTls(role, dataDir, database), role, database),
       query_timeout: 10_000, statement_timeout: 8_000, lock_timeout: 2000, idle_in_transaction_session_timeout: 10_000});
     try { await client.query('SET ROLE ' + identifier(owner)); }
     catch (error) { await client.end().catch(() => {}); throw error; }
@@ -244,6 +244,67 @@ async function tableList(client: SqlClient): Promise<Row> {
     WHERE c.relkind IN ('r','p','v','m') AND n.nspname<>'information_schema' AND n.nspname !~ '^pg_' ORDER BY n.nspname,c.relname LIMIT 200`);
   return {tables:result.rows};
 }
+function accessPrefix(database: string): string {
+  return 'u_access_' + createHash('sha256').update(database).digest('hex').slice(0,8) + '_';
+}
+async function grantAccess(scope: Scope, input: Row, dataDir: string, env: Env): Promise<Row> {
+  confirmation(input,scope.database);
+  const name = input['name'], permission = input['permission'];
+  if (typeof name !== 'string' || !/^[a-z][a-z0-9-]{1,11}$/.test(name) || !['read','write','none'].includes(String(permission)))
+    throw new DatabaseError(400,'Use um nome de 2 a 12 letras/números/traços e escolha leitura, leitura/gravação ou revogar.');
+  const role = accessPrefix(scope.database) + name.replaceAll('-','_'), quoted = identifier(role);
+  const admin = await administrator(env);
+  try {
+    const exists = (await admin.query('SELECT 1 FROM pg_roles WHERE rolname=$1',[role])).rows.length>0;
+    if (!exists) {
+      if (permission === 'none') throw new DatabaseError(404,'Identidade não encontrada.');
+      const count = await admin.query('SELECT count(*)::int AS count FROM pg_roles WHERE left(rolname,$1)=$2',[accessPrefix(scope.database).length,accessPrefix(scope.database)]);
+      if (Number(count.rows[0]?.['count'])>=20) throw new DatabaseError(409,'Limite de 20 identidades por banco atingido.');
+      const cert = issueCertificate(role,dataDir,env,scope.database);
+      let created = false;
+      try {
+        await admin.query('CREATE ROLE '+quoted+' LOGIN CONNECTION LIMIT 5 PASSWORD NULL NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS');
+        created=true;await admin.query('GRANT '+identifier(CERTIFICATE_GROUP)+' TO '+quoted);cert.publish();
+      } catch(error) {if(created)await admin.query('DROP ROLE '+quoted).catch(()=>{});throw error;}
+      finally{cert.cleanup();}
+    } else {
+      projectTls(role,dataDir,scope.database);
+      const check=await admin.query('SELECT r.rolsuper,r.rolcreatedb,r.rolcreaterole,r.rolreplication,r.rolbypassrls,ARRAY(SELECT p.rolname::text FROM pg_auth_members m JOIN pg_roles p ON p.oid=m.roleid WHERE m.member=r.oid ORDER BY p.rolname) AS memberships FROM pg_roles r WHERE r.rolname=$1',[role]);
+      const r=check.rows[0];
+      if(!r||['rolsuper','rolcreatedb','rolcreaterole','rolreplication','rolbypassrls'].some(k=>r[k]!==false)||JSON.stringify(r['memberships'])!==JSON.stringify([CERTIFICATE_GROUP]))
+        throw new DatabaseError(403,'Esta identidade foi alterada fora do painel; revise antes de conceder acesso.');
+    }
+  } finally {await admin.end().catch(()=>{});}
+  const client=scope.client;
+  await client.query('BEGIN');
+  try {
+    const schemas=await client.query("SELECT nspname AS name FROM pg_namespace WHERE nspname<>'information_schema' AND nspname !~ '^pg_' AND pg_has_role(nspowner,'USAGE') ORDER BY nspname LIMIT 100");
+    for(const s of schemas.rows){
+      const schema=identifier(s['name']);
+      await client.query('REVOKE ALL ON ALL TABLES IN SCHEMA '+schema+' FROM '+quoted);
+      await client.query('REVOKE ALL ON ALL SEQUENCES IN SCHEMA '+schema+' FROM '+quoted);
+      await client.query('ALTER DEFAULT PRIVILEGES FOR ROLE '+identifier(scope.owner)+' IN SCHEMA '+schema+' REVOKE ALL ON TABLES FROM '+quoted);
+      await client.query('ALTER DEFAULT PRIVILEGES FOR ROLE '+identifier(scope.owner)+' IN SCHEMA '+schema+' REVOKE ALL ON SEQUENCES FROM '+quoted);
+      if(permission==='none')await client.query('REVOKE ALL ON SCHEMA '+schema+' FROM '+quoted);
+      else {
+        await client.query('GRANT USAGE ON SCHEMA '+schema+' TO '+quoted);
+        const privileges=permission==='write'?'SELECT,INSERT,UPDATE,DELETE':'SELECT';
+        await client.query('GRANT '+privileges+' ON ALL TABLES IN SCHEMA '+schema+' TO '+quoted);
+        await client.query('ALTER DEFAULT PRIVILEGES FOR ROLE '+identifier(scope.owner)+' IN SCHEMA '+schema+' GRANT '+privileges+' ON TABLES TO '+quoted);
+        if(permission==='write'){
+          await client.query('GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA '+schema+' TO '+quoted);
+          await client.query('ALTER DEFAULT PRIVILEGES FOR ROLE '+identifier(scope.owner)+' IN SCHEMA '+schema+' GRANT USAGE,SELECT ON SEQUENCES TO '+quoted);
+        }
+      }
+    }
+    await client.query((permission==='none'?'REVOKE CONNECT ON DATABASE ':'GRANT CONNECT ON DATABASE ')+identifier(scope.database)+(permission==='none'?' FROM ':' TO ')+quoted);
+    await client.query('COMMIT');
+    const authority=await administrator(env);
+    try{await authority.query('ALTER ROLE '+quoted+(permission==='none'?' NOLOGIN':' LOGIN'));}
+    finally{await authority.end().catch(()=>{});}
+    return {ok:true,identity:role,permission,credentialsStored:true,message:permission==='none'?'Permissões concedidas pelo painel revogadas.':'Acesso configurado para tabelas atuais e futuras criadas pelo proprietário. Certificado privado guardado somente na VPS.'};
+  } catch(error){await client.query('ROLLBACK').catch(()=>{});throw error;}
+}
 type Dependencies = {send(res: ServerResponse,status: number,data: unknown): void;
   body(req: IncomingMessage): Promise<Row>; dataDir: string; env?: Env};
 export async function handleDatabaseAdminRoute(req: IncomingMessage, res: ServerResponse, deps: Dependencies): Promise<boolean> {
@@ -334,9 +395,11 @@ export async function handleDatabaseAdminRoute(req: IncomingMessage, res: Server
         finally { await admin.end().catch(() => {}); }
         return {ok:true,backup,message:'Banco excluído; backup de segurança preservado. Identidades e arquivos privados não foram removidos.'};
       }
+      if (action === 'access' && method === 'POST') return grantAccess(scope!,input,deps.dataDir,env);
       if (action === 'access' && method === 'GET') {
         const r = await client!.query('SELECT grantee, privilege_type FROM information_schema.role_table_grants WHERE table_schema NOT IN (\'pg_catalog\',\'information_schema\') AND grantee NOT LIKE \'pg_%\' GROUP BY grantee, privilege_type ORDER BY grantee,privilege_type LIMIT 100');
-        return {database,owner:scope!.owner,identity:scope!.role,host:env['PANEL_POSTGRES_HOST']||'vps-postgres',port:Number(env['PANEL_POSTGRES_PORT']||5432),
+        const identities=await client!.query('SELECT rolname AS name,rolcanlogin AS login FROM pg_roles WHERE left(rolname,$1)=$2 ORDER BY rolname',[accessPrefix(database).length,accessPrefix(database)]);
+        return {database,owner:scope!.owner,identity:scope!.role,identities:identities.rows,host:env['PANEL_POSTGRES_HOST']||'vps-postgres',port:Number(env['PANEL_POSTGRES_PORT']||5432),
           authentication:'client-certificate',credentialsStored:true,grants:r.rows,
           message:'Certificados privados permanecem na VPS. Permissões de tabelas podem ser administradas pelo SQL deste banco; alterações globais de superusuário são bloqueadas.'};
       }
