@@ -68,7 +68,7 @@ test('copy response and operation result with accessible feedback',async({page,c
  await expect(page.getByRole('status').filter({hasText:/^Texto copiado\.$/})).toBeVisible();
  expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe('Resposta de teste para copiar.');
  await page.getByRole('button',{name:'Copiar resultado da operação',exact:true}).click();
- await expect.poll(()=>page.evaluate(()=>navigator.clipboard.readText())).toBe('Código de retorno: 0\nSaída de teste.');
+ await expect.poll(async()=>(await page.evaluate(()=>navigator.clipboard.readText())).replace(/\r\n/g,'\n')).toBe('Código de retorno: 0\nSaída de teste.');
 });
 
 test('late conversation response cannot replace the last selected project',async({page})=>{
