@@ -163,11 +163,13 @@
       @for(m of c.messages;track $index){
        <article [class.user]="m.role==='user'" [class.assistant]="m.role==='assistant'">
         <strong>{{m.source==='operation'?'Painel · resultado':m.role==='user'?'Você':'Codex'}}</strong><p>{{m.text}}</p>
+        <button type="button" (click)="copy(m.text)" [attr.aria-label]="m.source==='operation'?'Copiar resultado da operação':m.role==='assistant'?'Copiar resposta do Codex':'Copiar mensagem enviada'">Copiar</button>
        </article>
       }
       @if(c.reply){<article class="assistant"><strong>Codex · escrevendo</strong><p>{{c.reply}}</p></article>}
       @if(c.status==='running'&&!c.reply){<p class="agents-note">O Codex está analisando o projeto. Você pode acompanhar por esta tela.</p>}
      </div>
+     @if(copyFeedback()){<p role="status" class="agents-note">{{copyFeedback()}}</p>}
      @for(a of c.actions??[];track a.id){
       @if(a.mode==='approval'){
        <section class="agent-approval" aria-label="Confirmação de operação">
