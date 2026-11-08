@@ -1,0 +1,33 @@
+name: CI Sentinel - todos os repositórios
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+concurrency:
+  group: ci-sentinel-softdown-prog
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Testar coletor sem rede
+        run: node --test scripts/ci-sentinel.test.mjs
+      - name: Verificar falhas de todos os projetos públicos
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/ci-sentinel.mjs
