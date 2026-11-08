@@ -78,6 +78,8 @@ def plan(images, containers, first_unused, now, minimum_age=INTERVAL, protected_
     """Age means continuously observed unused, never the image's build timestamp."""
     used = {c['Image'] for c in containers}  # Includes stopped and rollback containers.
     repos = {repository(r) for i in images if i['Id'] in used for r in image_refs(i)}
+    managed = {c['Image'] for c in containers if c.get('Config', {}).get('Labels', {}).get('com.softload.panel.managed') == 'true'}
+    managed_repos = {repository(r) for i in images if i['Id'] in managed for r in image_refs(i)}
     protected = set(protected_refs)
     state, targets = {}, []
     for image in images:
@@ -85,7 +87,7 @@ def plan(images, containers, first_unused, now, minimum_age=INTERVAL, protected_
         if not IMAGE_ID.fullmatch(identity):
             raise ValueError('Invalid image identity')
         refs = image_refs(image)
-        if identity in used or protected.intersection(refs):
+        if identity in used or protected.intersection(refs) or any(repository(r) in managed_repos for r in refs):
             continue
         stamp = first_unused.get(identity, now)
         if not isinstance(stamp, (int, float)) or isinstance(stamp, bool) or stamp > now:

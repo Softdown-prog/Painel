@@ -47,6 +47,10 @@ class StorageCleanupTests(unittest.TestCase):
         self.images[1]['RepoTags'].append('unregistered/spare:old')
         self.assertEqual(gc.plan(self.images, self.containers, {B: 0}, 30000)[1], [])
 
+    def test_managed_application_repositories_keep_their_own_ledger_policy(self):
+        self.containers[0]['Config'] = {'Labels': {'com.softload.panel.managed': 'true'}}
+        self.assertEqual(gc.plan(self.images, self.containers, {B: 0}, 30000)[1], [])
+
     def test_registry_port_and_digest_parsing(self):
         self.assertEqual(gc.repository('localhost:5000/shop/app:tag'), 'localhost:5000/shop/app')
         self.assertEqual(gc.repository('ghcr.io/user/app@sha256:abc'), 'ghcr.io/user/app')

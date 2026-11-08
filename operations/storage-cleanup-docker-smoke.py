@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import subprocess
 import tempfile
+import storage_cleanup as cleanup
 from storage_cleanup import docker, inventory, plan, remove_target
 
 name = 'vps-gc-disposable-fixture'
@@ -10,6 +11,8 @@ tags = ['vps-gc-fixture:current', 'vps-gc-fixture:old']
 try:
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory)
+        cleanup.DATA = path / 'panel-data'
+        cleanup.DATA.mkdir()
         for index, tag in enumerate(tags):
             (path / 'Dockerfile').write_text(f'FROM busybox:1.37\nLABEL test.revision="{index}"\n')
             docker('build', '-t', tag, str(path))
