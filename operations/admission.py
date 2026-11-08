@@ -172,7 +172,7 @@ def probe(name, rule, sha, key, info):
         )
         docker(['exec',name,'node','--input-type=module','-e',probe_source],timeout=10)
         version=docker(['exec',name,'codex','--version'],timeout=10).decode('utf-8','replace')
-        if not re.search(r'\\b0\\.167\\.0\\b',version):
+        if not re.search(r'\b0\.167\.0\b',version):
             raise ValueError('Unpinned Codex CLI version')
     else:
         # Enter ONLY the candidate's network namespace. No bridge/egress or host port.
