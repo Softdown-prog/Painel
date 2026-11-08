@@ -229,12 +229,15 @@ export async function scan({api,owner=OWNER,inbox=INBOX,now=new Date(),logger=co
         const body=issueBody(name,reconciled);
         if(issue){
           if(issue.body!==body||issue.state!==desiredState){
+            // Snapshot state before the API mutation. Offline fixtures may
+            // return a shared object and update it in place.
+            const previousState=issue.state;
             await api(`${inboxPath}/${issue.number}`,{
               method:'PATCH',body:{body,state:desiredState}
             });
             summary.updated++;
-            if(issue.state==='closed'&&desiredState==='open')summary.reopened++;
-            if(issue.state==='open'&&desiredState==='closed')summary.closed++;
+            if(previousState==='closed'&&desiredState==='open')summary.reopened++;
+            if(previousState==='open'&&desiredState==='closed')summary.closed++;
           }
         }else{
           const created=await api(inboxPath,{method:'POST',body:{
