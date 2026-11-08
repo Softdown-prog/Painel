@@ -11,6 +11,8 @@ tags = ['vps-gc-fixture:current', 'vps-gc-fixture:old']
 try:
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory)
+        cleanup.ROOT = path / 'cleanup-state'
+        cleanup.ROOT.mkdir(mode=0o700)
         cleanup.DATA = path / 'panel-data'
         cleanup.DATA.mkdir()
         for index, tag in enumerate(tags):

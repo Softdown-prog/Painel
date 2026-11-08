@@ -11,10 +11,18 @@ Timer independente, integração do botão existente via UUID/arquivo fixo e
 resultado em bytes reais, com estados solicitado/aguardando/concluído/falha nas
 duas interfaces. Ver [operação e limites](LIMPEZA-ARMAZENAMENTO-VPS.md).
 
-**Estados de entrega:** código implementado nesta branch; CI, frontend publicado,
-backend instalado e produção ainda precisam de confirmação nos recibos do PR.
-Não considerar esta entrada evidência de instalação. O relatório final do PR
-registrará SHA, medição antes/depois e execução real, sem credenciais.
+**Código/CI:** PR #106 integrado, checks aprovados, incluindo Docker e navegador.
+**Frontend/API:** Pages e backend publicados em `186ae44`; API/executor healthy,
+login administrativo real HTTP 200 e botão HTTP 202 com UUID/fila confirmados.
+**Host:** coletor/timer/path instalados, código SHA256
+`554e026b0a50dd9cd8d59151c237c0092fd8fdd4e0e17c0fbd7cb0df6993e13f`.
+Limpeza inicial removeu 13 imagens, zero falhas, recuperando 3.364.499.456 bytes
+(18.411.741.184 → 15.047.241.728 usados), mesmos 14 containers e sete volumes.
+**Correção operacional adicional:** o acionamento pelo serviço revelou
+`mkdir /root/.docker: read-only file system`; o sandbox ficou preservado. Este
+follow-up dá ao CLI diretório privado e acrescenta teste systemd real. Código,
+CI e instalação dessa correção devem ser confirmados no recibo do próximo PR.
+O runner enxuto passou no diagnóstico real; A7 PR #112 integrado.
 
 ### 2026-11-08 — Importação Codex entre volumes Docker separados
 

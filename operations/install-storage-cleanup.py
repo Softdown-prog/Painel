@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Install only the fixed housekeeping unit; never replace the deploy broker."""
+import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -7,7 +9,17 @@ from pathlib import Path
 import subprocess
 
 
-def install():
+def install(expected=None):
+    if os.geteuid() != 0:
+        raise PermissionError('Host administrator required')
+    root=Path('/var/lib/vps-storage-cleanup')
+    root.mkdir(mode=0o700,exist_ok=True)
+    with (root/'cleanup.lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        install_checked(expected)
+
+
+def install_checked(expected):
     if os.geteuid() != 0:
         raise PermissionError('Host administrator required')
     source = Path(__file__).resolve().parent
@@ -21,8 +33,11 @@ def install():
         name = 'vps-storage-cleanup.' + suffix
         files[name] = Path('/etc/systemd/system') / name
     for name, destination in files.items():
-        if destination.is_symlink() or (destination.exists() and destination.read_bytes() != (source / name).read_bytes()):
-            raise ValueError('Existing housekeeping installation requires checksum-reviewed update')
+        if destination.is_symlink():
+            raise ValueError('Refusing symlink installation')
+        if destination.exists() and destination.read_bytes() != (source / name).read_bytes():
+            if name != 'storage_cleanup.py' or expected != hashlib.sha256(destination.read_bytes()).hexdigest():
+                raise ValueError('Existing housekeeping installation requires checksum-reviewed update')
     for name, destination in files.items():
         temporary = destination.with_name('.' + destination.name + '.install-' + str(os.getpid()))
         data = (source / name).read_bytes()
@@ -37,4 +52,6 @@ def install():
 
 
 if __name__ == '__main__':
-    install()
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--expected-installed-sha256')
+    install(parser.parse_args().expected_installed_sha256)

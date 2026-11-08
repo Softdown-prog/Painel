@@ -69,3 +69,12 @@ no volume persistente. A imagem não incorpora mais pacote compactado e segunda
 cópia dos binários. O volume de registro e ferramentas não é lixo e não é alvo
 deste coletor. Redução da imagem e remoção das camadas antigas devem ser medidas
 separadamente; somar tamanhos de imagens compartilhadas não mede espaço livre.
+
+### Configuração privada do cliente Docker
+
+O serviço preserva ProtectHome=yes/NoNewPrivileges e usa HOME/DOCKER_CONFIG em
+/var/lib/vps-storage-cleanup. Não copia a configuração nem os tokens de /root.
+O teste de CI executa --check-docker sob o mesmo sandbox do systemd, além da
+fixture Docker e testes de autorização/concorrência. Atualizar uma instalação
+existente exige --expected-installed-sha256 com o hash previamente auditado;
+o instalador adquire a trava do coletor e recusa trocar units diferentes.
