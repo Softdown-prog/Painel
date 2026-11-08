@@ -58,6 +58,22 @@ class CodexPolicy(unittest.TestCase):
             with self.subTest(key=key),self.assertRaises(ValueError):
                 receiver.validate_claims(dict(claims,**{key:value}),policy,'panel-codex','deploy',now=1235)
 
+    def test_single_codex_pipeline_and_no_unrelated_auto_redeploy(self):
+        workflows=ROOT.parent/'.github'/'workflows'
+        stage=(workflows/'stage-codex-bridge.yml').read_text()
+        self.assertFalse((workflows/'codex-agents.yml').exists())
+        for suite in ('bridge.test.mjs','operations.test.mjs','telemetry.test.mjs','sandbox-smoke.mjs'):
+            self.assertIn(suite,stage)
+        self.assertIn('PANEL_CODEX_DEPLOY_ENABLED',stage)
+        self.assertIn('environment: vps-maintenance',stage)
+        self.assertIn('VPS_PROJECT: panel-codex',stage)
+        self.assertIn('inputs.activate == true',stage)
+        for other in ('deploy-vps.yml','deploy-pages.yml'):
+            contents=(workflows/other).read_text()
+            self.assertIn('paths:',contents)
+            self.assertNotIn("'agents/**'",contents)
+            self.assertNotIn('panel-codex',contents)
+
     def test_no_access_added_to_other_github_repositories(self):
         policy=json.loads((ROOT/'policy.example.json').read_text())
         terrania=policy['repositories']['1438758092']
