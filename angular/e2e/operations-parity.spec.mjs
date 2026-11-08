@@ -25,8 +25,9 @@ const revisionReport={
     images:[],multipleVersionRepositories:[{repository:'ghcr.io/softdown-prog/alpha',versions:3}]}
 };
 
-async function fixture(page,{failLinks=false,holdFirstRun=false}={}){
+async function fixture(page,{failLinks=false,holdFirstRun=false,hostCleanup=false}={}){
   const state={requests:[],releaseFirst:null};
+  let hostQueued=false;
   await page.route('**/api/**',async route=>{
     const req=route.request();
     const path=new URL(req.url()).pathname.slice('/api'.length);
@@ -57,9 +58,11 @@ async function fixture(page,{failLinks=false,holdFirstRun=false}={}){
         output:'saída de teste, sem VPS',truncated:false,durationMs:1000,
         error:null,fingerprint:'test-only'}};
     }else if(method==='GET'&&path==='/maintenance/revisions'){
-      body=revisionReport;
+      body=hostCleanup?{...revisionReport,oldCount:0,entries:[],totalImports:0,
+        hostMaintenance:{installed:true,status:hostQueued?'queued':'completed',bytesFreed:1048576,removed:1,intervalHours:6}}:revisionReport;
     }else if(method==='POST'&&path==='/maintenance/revisions/cleanup'){
-      body={removed:1,failed:0};
+      if(hostCleanup){hostQueued=true;status=202;body={removed:0,failed:0,hostCleanupQueued:true,message:'Limpeza da VPS solicitada. Atualize para conferir o resultado.'};}
+      else body={removed:1,failed:0};
     }else{
       status=503;body={error:'Endpoint ausente da fixture: '+method+' '+path};
     }
@@ -131,6 +134,22 @@ test('Revisões exige digitar LIMPAR para habilitar limpeza de imagens',async ({
   await expect(confirm.getByRole('button',{name:'Confirmar alteração'})).toBeEnabled();
   await confirm.getByRole('button',{name:'Cancelar'}).click();
   expect(state.requests.some(r=>r.method==='POST')).toBe(false);
+});
+
+test('coletor do host funciona sem importações e não anuncia conclusão de pedido assíncrono',async ({page})=>{
+  const state=await fixture(page,{hostCleanup:true});
+  await page.goto('/angular/#revisions');
+  const button=page.getByRole('button',{name:'Limpar imagens antigas elegíveis'});
+  await expect(button).toBeEnabled();
+  await button.click();
+  const confirmation=page.getByRole('group',{name:'Confirmar alteração de revisões'});
+  await expect(confirmation.getByRole('button',{name:'Confirmar alteração'})).toBeDisabled();
+  await confirmation.getByRole('textbox').fill('LIMPAR');
+  await confirmation.getByRole('button',{name:'Confirmar alteração'}).click();
+  await expect(page.getByText('Limpeza da VPS solicitada. Atualize para conferir o resultado.')).toBeVisible();
+  await expect(page.getByText(/Limpeza do host: solicitada; aguardando execução/)).toBeVisible();
+  await expect(page.getByText(/^Limpeza concluída:/)).toHaveCount(0);
+  expect(state.requests.filter(r=>r.method==='POST'&&r.path==='/maintenance/revisions/cleanup')).toHaveLength(1);
 });
 
 test('vínculos GitHub permanecem responsivos em tela de 320 pixels',async ({page})=>{
