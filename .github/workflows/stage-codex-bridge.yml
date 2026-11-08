@@ -90,11 +90,11 @@ jobs:
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=https://github.com/Softdown-prog/Painel
-      - name: Record image digest for manual sidecar-only rollout
+      - name: Report immutable digest and separate activation gate
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
           echo "Codex image staged at ghcr.io/softdown-prog/painel-codex@${{ steps.publish.outputs.digest }}"
-          echo "Image does not update the VPS by itself; apply the separate reviewed rollout."
+          echo "Staging never updates the host. Only the independent protected deploy job can install it."
 
   deploy:
     needs: stage
