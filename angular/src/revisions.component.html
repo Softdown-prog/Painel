@@ -22,20 +22,25 @@
     }@else{
       <p class="tip">Estado do agendador Compose não informado nesta consulta.</p>
     }
+    @if(r.hostMaintenance;as maintenance){
+      @if(maintenance.installed){
+        <p class="tip" role="status">Limpeza do host: {{maintenance.status==='queued'?'solicitada; aguardando execução':maintenance.status==='completed'?'concluída':maintenance.status==='waiting-deploy'?'aguardando deploy':maintenance.status==='partial'?'parcial':maintenance.status==='paused'?'pausada':'falha'}} · {{maintenance.removed??0}} imagens removidas · {{bytes(maintenance.bytesFreed)}} realmente liberados. O coletor preserva containers e volumes; imagens recém-observadas aguardam seis horas.</p>
+      }
+    }
     <div class="actions">
       <button type="button" (click)="request('toggle')" [disabled]="working()||!r.enabled">
         {{r.automatic?'Pausar limpeza automática':'Ativar limpeza automática'}}</button>
       <button type="button" class="remove" (click)="request('cleanup')"
-        [disabled]="working()||!r.enabled||r.oldCount===0">Limpar imagens antigas elegíveis</button>
+        [disabled]="working()||!r.enabled||(r.oldCount===0&&!r.hostMaintenance?.installed)">Limpar imagens antigas elegíveis</button>
     </div>
     @if(!r.enabled){<p class="tip">Limpeza desabilitada na VPS. Nenhum botão acima executará remoções sem a configuração do servidor.</p>}
     @if(confirmAction();as action){
       <div class="confirmation" role="group" aria-label="Confirmar alteração de revisões">
         @if(action==='toggle'){
           <strong>{{r.automatic?'Pausar':'Ativar'}} limpeza automática?</strong>
-          <p>A configuração será aplicada à rotina de limpeza da VPS, que verifica apenas revisões gerenciadas pelo Painel.</p>
+          <p>A configuração será aplicada à rotina de limpeza da VPS, incluindo o coletor do host quando instalado. Ele aguarda deploys ativos e não remove containers ou volumes.</p>
         }@else{
-          <strong>Confirmar remoção das {{r.oldCount}} imagens elegíveis?</strong>
+          <strong>Confirmar limpeza das imagens elegíveis e cache da VPS?</strong>
           <p>A API protege versões ativas, de rollback e recentes. A remoção de imagens é irreversível; os tamanhos são estimados.</p>
           <label>Digite LIMPAR para confirmar
             <input [value]="confirmText()" (input)="confirmText.set($any($event.target).value)" spellcheck="false" autocapitalize="off" autocomplete="off"></label>

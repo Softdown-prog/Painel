@@ -1,3 +1,21 @@
+### 2026-11-08 — Limpeza real do host e resultado verificável
+
+**Causa confirmada:** monitor existente habilitado, porém `considered:0`: seu
+escopo era apenas o ledger de importações (14 dias/duas revisões). Não tratava
+imagens de pipelines externos nem cache. O runner LHS também incorporava pacote
+compactado e binários duplicados na imagem, além do volume persistente necessário.
+
+**Código:** coletor fixo root com travas dos deploys, proteção de todos os
+containers/volumes/importações, observação persistente e exclusão sem force.
+Timer independente, integração do botão existente via UUID/arquivo fixo e
+resultado em bytes reais, com estados solicitado/aguardando/concluído/falha nas
+duas interfaces. Ver [operação e limites](LIMPEZA-ARMAZENAMENTO-VPS.md).
+
+**Estados de entrega:** código implementado nesta branch; CI, frontend publicado,
+backend instalado e produção ainda precisam de confirmação nos recibos do PR.
+Não considerar esta entrada evidência de instalação. O relatório final do PR
+registrará SHA, medição antes/depois e execução real, sem credenciais.
+
 ### 2026-11-08 — Importação Codex entre volumes Docker separados
 
 **Produção anterior desta tarefa:** PR #99 integrado em `a617b24`; CI aprovado,

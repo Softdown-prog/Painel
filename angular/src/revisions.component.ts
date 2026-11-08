@@ -6,6 +6,7 @@ type History={at:string;source:string;removed:number;failed:number;bytesEstimate
 type Image={id:string;tags:string[];sizeBytes:number;createdAt:string|null;containers:number|null};
 type Report={checkedAt:string;enabled:boolean;automatic:boolean;ageDays:number;keepPerApp:number;
  scheduler?:{intervalHours:number;enabledByCompose:boolean;automaticDefault:boolean};
+ hostMaintenance?:{installed:boolean;status?:string;checkedAt?:number;removed?:number;failed?:number;bytesFreed?:number};
  oldCount:number;oldBytesEstimate:number;totalImports:number;entries:Entry[];history:History[];
  hostInventory:{available:boolean;total:number;untagged:number;totalBytesEstimate:number;images:Image[];
  multipleVersionRepositories:{repository:string;versions:number}[]}};
@@ -52,7 +53,7 @@ export class RevisionsComponent implements OnInit {
   }
   request(action:'cleanup'|'toggle'):void{
     const r=this.report();
-    if(this.working()||!r?.enabled||(action==='cleanup'&&r.oldCount===0))return;
+    if(this.working()||!r?.enabled||(action==='cleanup'&&r.oldCount===0&&!r.hostMaintenance?.installed))return;
     this.confirmAction.set(action);this.confirmText.set('');this.error.set('');
   }
   cancel():void{this.confirmAction.set(null);this.confirmText.set('');}
@@ -66,9 +67,9 @@ export class RevisionsComponent implements OnInit {
         const outcome=await this.api<{message:string}>('/maintenance/revisions/settings','POST',{automatic:!r.automatic});
         this.notice.set(outcome.message);
       }else{
-        const outcome=await this.api<{removed:number;failed:number}>('/maintenance/revisions/cleanup','POST',
+        const outcome=await this.api<{removed:number;failed:number;hostCleanupQueued?:boolean;message?:string}>('/maintenance/revisions/cleanup','POST',
           {confirm:'LIMPAR_REVISOES_ANTIGAS'});
-        this.notice.set('Limpeza concluída: '+outcome.removed+' removidas, '+outcome.failed+' falhas.');
+        this.notice.set(outcome.hostCleanupQueued?outcome.message||'Limpeza da VPS solicitada. Atualize para conferir o resultado.':'Limpeza concluída: '+outcome.removed+' removidas, '+outcome.failed+' falhas.');
       }
       this.cancel();
     }catch(e){this.error.set(this.message(e));}

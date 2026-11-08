@@ -1,5 +1,6 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { dockerRequest, type DockerRequest } from './apps.ts';
 import { readImports } from './image-import.ts';
@@ -8,8 +9,9 @@ type Import = ReturnType<typeof readImports>[number];
 type Image = { Id?: string; Size?: number; RepoDigests?: string[] };
 type Container = { Id?: string; ImageID?: string; Names?: string[]; Labels?: Record<string,string>; State?: string };
 type Entry = Import & { ref: string; sizeBytes: number; status: 'em_uso'|'reserva'|'recente'|'protegida'|'antiga'|'ausente'; reason: string };
-type Report = { checkedAt: string; enabled: boolean; automatic: boolean; scheduler: { intervalHours: number; enabledByCompose: boolean; automaticDefault: boolean }; ageDays: number; keepPerApp: number; totalImports: number; oldCount: number; oldBytesEstimate: number; entries: Entry[]; history: History[]; lastResult: History | null; hostInventory: HostInventory };
+type Report = { checkedAt: string; enabled: boolean; automatic: boolean; scheduler: { intervalHours: number; enabledByCompose: boolean; automaticDefault: boolean }; ageDays: number; keepPerApp: number; totalImports: number; oldCount: number; oldBytesEstimate: number; entries: Entry[]; history: History[]; lastResult: History | null; hostInventory: HostInventory; hostMaintenance:HostMaintenance };
 type History = { at: string; source: 'manual'|'automatic'; considered: number; removed: number; failed: number; bytesEstimate: number; message: string };
+type HostMaintenance = {installed:boolean;status?:string;checkedAt?:number;removed?:number;failed?:number;bytesFreed?:number;intervalHours?:number};
 type HostImage = { Id?:string; RepoTags?:string[]; RepoDigests?:string[]; Size?:number; Created?:number; Containers?:number };
 type HostInventory = { available:boolean; total:number; totalBytesEstimate:number; untagged:number;
  multipleVersionRepositories:{repository:string;versions:number}[]; images:{id:string;tags:string[];sizeBytes:number;createdAt:string|null;containers:number|null}[] };
@@ -32,7 +34,28 @@ const DAY = 86400000;
 const RECORD_NAME = 'image-imports.json';
 const HISTORY_NAME = 'revision-cleanup-history.json';
 const SETTINGS_NAME = 'revision-cleanup-settings.json';
+const HOST_REPORT_NAME = 'host-storage-cleanup-report.json';
 let cleaning = false;
+function hostMaintenance(dataDir:string):HostMaintenance{
+ try{
+  const raw:unknown=JSON.parse(readFileSync(join(dataDir,HOST_REPORT_NAME),'utf8'));
+  if(!raw||typeof raw!=='object'||Array.isArray(raw))return {installed:false};
+  const value=raw as Record<string,unknown>;
+  if(value['installed']!==true||typeof value['status']!=='string'||
+    !['completed','partial','failed','waiting-deploy','paused'].includes(value['status']))return {installed:false};
+  const result:HostMaintenance={installed:true,status:value['status']};
+  for(const key of ['checkedAt','removed','failed','bytesFreed','intervalHours'] as const){
+   const number=value[key];
+   if(typeof number==='number'&&Number.isSafeInteger(number)&&number>=0)result[key]=number;
+  }
+  try{
+   const request=JSON.parse(readFileSync(join(dataDir,'host-storage-cleanup-request.json'),'utf8')) as Record<string,unknown>;
+   if(typeof request['id']==='string'&&typeof request['requestedAt']==='number'&&
+      request['requestedAt']>(result.checkedAt||0)&&value['requestId']!==request['id'])result.status='queued';
+  }catch{ /* No pending host request. */ }
+  return result;
+ }catch{return {installed:false};}
+}
 class CleanupError extends Error {
  readonly status: number;
  constructor(status:number,message:string){super(message);this.status=status;}
@@ -172,7 +195,7 @@ export async function revisionReport(dataDir:string,docker:DockerRequest=dockerR
    totalImports:entries.length,oldCount:oldRefs.size,
    oldBytesEstimate:[...oldRefs.values()].reduce((sum,e)=>sum+e.sizeBytes,0),
    entries:entries.slice().sort((a,b)=>Date.parse(b.importedAt)-Date.parse(a.importedAt)),
-   history,lastResult:history.at(-1)||null,hostInventory:hostImages};
+   history,lastResult:history.at(-1)||null,hostInventory:hostImages,hostMaintenance:hostMaintenance(dataDir)};
 }
 async function perform(dataDir:string,docker:DockerRequest,now:number,source:'manual'|'automatic'):Promise<History>{
  if(cleaning)throw new CleanupError(409,'Uma limpeza já está em andamento.');
@@ -240,6 +263,12 @@ export async function handleRevisionRoute(req:IncomingMessage,res:ServerResponse
    if(Object.keys(input).length!==1||input['confirm']!=='LIMPAR_REVISOES_ANTIGAS')
     throw new CleanupError(400,'Confirmação necessária para remover revisões antigas.');
    const outcome=await perform(deps.dataDir,docker,now,'manual');
+   if(hostMaintenance(deps.dataDir).installed){
+    store(deps.dataDir,'host-storage-cleanup-request.json',{id:randomUUID(),requestedAt:now});
+    send(202,{ok:outcome.failed===0,...outcome,hostCleanupQueued:true,
+      message:'Limpeza da VPS solicitada. Atualize esta tela para conferir o espaço realmente liberado; a tarefa aguarda se houver deploy ativo.'});
+    return true;
+   }
    send(200,{ok:outcome.failed===0,...outcome});
    return true;
   }

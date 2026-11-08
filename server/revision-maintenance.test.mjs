@@ -38,6 +38,29 @@ function env(){
  function destroy(){rmSync(dir,{force:true,recursive:true});}
  return {dir,items,docker,deleted,destroy};
 }
+
+test('host report exposes measured bytes only and manual host cleanup is queued, not claimed complete',async()=>{
+ const x=env();
+ try{
+  writeFileSync(join(x.dir,'host-storage-cleanup-report.json'),JSON.stringify({installed:true,status:'completed',checkedAt:now-1000,
+   bytesFreed:123456,removed:2,failed:0,intervalHours:6,privateToken:'must-not-leak'}));
+  let report=await revisionReport(x.dir,x.docker,now);
+  assert.equal(report.hostMaintenance.bytesFreed,123456);
+  assert.equal('privateToken' in report.hostMaintenance,false);
+  let response;
+  await handleRevisionRoute({url:'/maintenance/revisions/cleanup',method:'POST'}, {}, {
+   dataDir:x.dir,docker:x.docker,enabled:true,now:()=>now,
+   body:async()=>({confirm:'LIMPAR_REVISOES_ANTIGAS'}),send:(_r,status,value)=>{response={status,value};}
+  });
+  assert.equal(response.status,202);assert.equal(response.value.hostCleanupQueued,true);
+  const request=JSON.parse(readFileSync(join(x.dir,'host-storage-cleanup-request.json'),'utf8'));
+  assert.match(request.id,/^[a-f0-9-]{36}$/);assert.equal(request.requestedAt,now);
+  report=await revisionReport(x.dir,x.docker,now);
+  assert.equal(report.hostMaintenance.status,'queued');
+  writeFileSync(join(x.dir,'host-storage-cleanup-report.json'),JSON.stringify({installed:true,status:'completed',checkedAt:now-1,requestId:request.id,bytesFreed:99}));
+  assert.equal((await revisionReport(x.dir,x.docker,now)).hostMaintenance.status,'completed');
+ }finally{x.destroy();}
+});
 test('report retains running rollback, last 2 per application and recent images',async()=>{
  const x=env();
  try{
