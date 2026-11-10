@@ -6,8 +6,16 @@ sem valores, apesar de o PostgreSQL permitir `DEFAULT VALUES`.
 **Correção proposta:** metadados de valores padrão, pré-preenchimento apenas de
 campos obrigatórios sem padrão (incluindo chave manual), inserção com valores
 padrão quando não houver colunas explícitas e testes de regressão.
-**Situação:** código em branch; CI e navegador real pendentes; nada publicado na
-VPS ou no Cloudflare. Nenhum deploy ou alteração de dados solicitada.
+**Código em revisão:** [PR #115](https://github.com/Softdown-prog/Painel/pull/115),
+SHA `fea3e68f402c`.
+**CI aprovado no SHA acima:** [Console CI (unitários, typecheck e E2E Angular)](https://github.com/Softdown-prog/Painel/actions/runs/42731988473),
+[PostgreSQL real](https://github.com/Softdown-prog/Painel/actions/runs/42731988868),
+[SAC Angular](https://github.com/Softdown-prog/Painel/actions/runs/42731988727),
+[admissão Docker](https://github.com/Softdown-prog/Painel/actions/runs/42731988436) e
+[Node/Rust](https://github.com/Softdown-prog/Painel/actions/runs/42731988445).
+E2E usou API simulada, não sessão de produção.
+**Frontend publicado:** não. **Backend instalado:** não. **VPS real e navegador autenticado:** não validados.
+Nenhum deploy ou alteração de dados solicitada.
 
 ### 2026-11-08 — Administração PostgreSQL pelo painel
 
