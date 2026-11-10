@@ -1,0 +1,81 @@
+name: Attest VPS public SSH host key from established trust (read-only)
+on:
+  issues:
+    types: [opened]
+permissions:
+  contents: read
+jobs:
+  attest:
+    if: github.repository == 'Softdown-prog/Painel' && github.ref == 'refs/heads/main' && github.event.issue.user.id == 189416996 && github.event.issue.title == '[VPS] attest-hostkey'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Confirm live public host key matches trusted Panel secret
+        id: verify
+        env:
+          TRUSTED_KNOWN_HOSTS: ${{ secrets.VPS_OPERATIONS_KNOWN_HOSTS }}
+          HOST: '164.163.9.7'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import os
+          import pathlib
+          import subprocess
+          import tempfile
+
+          host=os.environ['HOST']
+          trusted=os.environ.get('TRUSTED_KNOWN_HOSTS','')
+          if not trusted.strip():
+              raise SystemExit('No trusted host-key secret configured')
+          with tempfile.TemporaryDirectory() as directory:
+              known=pathlib.Path(directory)/'known_hosts'
+              known.write_text(trusted.rstrip()+'\n',encoding='utf-8')
+              known.chmod(0o600)
+              lookup=subprocess.run(['ssh-keygen','-F',host,'-f',str(known)],
+                                    text=True,capture_output=True,timeout=10)
+              if lookup.returncode!=0: raise SystemExit('Pinned host not found in Panel trust store')
+              def parse(lines):
+                  items=set()
+                  for line in lines.splitlines():
+                      fields=line.split()
+                      if not fields or fields[0].startswith('#'):continue
+                      for i in range(len(fields)-1):
+                          if fields[i] in {'ssh-ed25519','ssh-rsa'} or fields[i].startswith('ecdsa-sha2-'):
+                              try: raw=base64.b64decode(fields[i+1],validate=True)
+                              except Exception: break
+                              items.add((fields[i],raw))
+                              break
+                  return items
+              pins=parse(lookup.stdout)
+              if not pins: raise SystemExit('No valid pinned host public key')
+              probe=subprocess.run(['ssh-keyscan','-T','8','-p','22','-t','ed25519,ecdsa,rsa',host],
+                                   text=True,capture_output=True,timeout=25)
+              observed=parse(probe.stdout)
+              matched=sorted(pins & observed,key=lambda x:('ed25519' not in x[0],x[0]))
+              if not matched: raise SystemExit('UNSAFE: live SSH keys differ from independently trusted Panel host keys')
+              # Emit ONLY the public key received from network after matching the
+              # previously trusted Panel key. Never expose the secret or stderr.
+              lines=['**Identidade SSH confirmada** por comparação criptográfica com o known_hosts do Painel.',
+                     'Chave(s) pública(s) observada(s) e validada(s):','```']
+              for alg,raw in matched:
+                  b64=base64.b64encode(raw).decode('ascii')
+                  lines.append(f'{host} {alg} {b64}')
+              lines.append('```')
+              lines.append('Fingerprint(s) SHA256:')
+              for alg,raw in matched:
+                  digest=base64.b64encode(hashlib.sha256(raw).digest()).decode().rstrip('=')
+                  lines.append(f'- {alg}: SHA256:{digest}')
+              pathlib.Path('hostkey-attestation.md').write_text('\n'.join(lines)+'\n',encoding='utf-8')
+          PY
+      - name: Return verified public key to authorized diagnostic issue
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body-file hostkey-attestation.md
