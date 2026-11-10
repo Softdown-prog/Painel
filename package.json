@@ -10,7 +10,8 @@
     "build:frontend": "tsc --ignoreConfig api-client.ts database-ui.ts publication-history-ui.ts panel-api.d.ts resource-history-ui.ts github-ui.ts apps-ui.ts projects-ui.ts hosted-projects-ui.ts domains-ui.ts terminal-ui.ts traffic-ui.ts --target ES2022 --module preserve --moduleResolution bundler --lib ES2022,DOM --skipLibCheck revisions-ui.ts site-detail-ui.ts secrets-ui.ts revision-activity-ui.ts",
     "lint": "npm --prefix angular run lint",
     "mcp:index": "node tools/repo-mcp/cli.mjs index",
-    "mcp:test": "node --test tools/repo-mcp/repo-mcp.test.mjs"
+    "mcp:test": "node --test tools/repo-mcp/repo-mcp.test.mjs",
+    "test:fuzz": "node --experimental-strip-types --test server/fuzz-general.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
