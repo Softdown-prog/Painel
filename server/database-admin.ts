@@ -12,7 +12,7 @@ type Result = {rows: Row[]; rowCount: number | null; fields?: {name: string}[]};
 export type SqlClient = {connect(): Promise<void>; end(): Promise<void>;
   query(sql: string | {text: string; values?: unknown[]; queryMode?: string}, values?: unknown[]): Promise<Result>};
 type Env = NodeJS.ProcessEnv;
-type Column = {name: string; type: string; nullable: boolean; generated: boolean; primary: boolean};
+type Column = {name: string; type: string; nullable: boolean; generated: boolean; defaulted: boolean; primary: boolean};
 type Scope = {client: SqlClient; database: string; owner: string; role: string; credentials: string};
 class DatabaseError extends Error {
   status: number;
