@@ -1,3 +1,22 @@
+### 2026-11-10 — Fuzzer geral determinístico (PR #116; branch em revisão)
+
+**Primeira execução real:** workflow [General deterministic fuzz](https://github.com/Softdown-prog/Painel/actions/runs/42810335688),
+seed 20261110, 2.000 casos por grupo: cinco grupos aprovados, três reprovaram.
+Falhas: `__proto__` na inserção Angular, parâmetros duplicados aceitos em
+algumas operações Docker e exceção do validador SSH para JSON `null`.
+
+**Correções:** `Object.fromEntries` para colunas PostgreSQL especiais sem
+alterar protótipos, recusa global de query string duplicada antes da autorização
+Docker e rejeição de corpo SSH não objeto antes de ler chaves.
+**Reexecução:** [fuzz de regressão](https://github.com/Softdown-prog/Painel/actions/runs/42810525140)
+aprovado, oito de oito grupos, seed 20261110, `FUZZ_CASES=2000`.
+Criados testes unitários permanentes; CI geral final deve ser conferido no PR.
+
+**Fronteiras:** apenas testes offline com entradas aleatórias/mutadas e
+stubs de PostgreSQL/Docker/SSH. Sem teste invasivo de host, sem dados reais,
+sem autenticação pública, sem merge, sem deploy.
+**Frontend publicado:** não. **Backend instalado:** não. **VPS validada:** não.
+
 ### 2026-11-09 — Correção de inserção de registros PostgreSQL (branch em revisão)
 
 **Bug identificado no código:** ao adicionar registro, a interface colocava `null` em colunas com
