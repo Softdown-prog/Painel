@@ -1,0 +1,28 @@
+name: General deterministic fuzz (offline)
+on:
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'agents/**'
+      - 'angular/src/database-row-values.ts'
+      - '.github/workflows/fuzz-general.yml'
+      - 'package.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fuzz:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      FUZZ_SEED: '20261110'
+      FUZZ_CASES: '2000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck
+      - name: Fuzz offline, deterministic; no VPS access or mutable operations
+        run: npm run test:fuzz
