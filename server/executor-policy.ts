@@ -54,6 +54,10 @@ export async function authorize(input:{method:string;url:string;payload?:unknown
  try{u=new URL(input.url,'http://docker.internal')}catch{return denied('Malformed URI')}
  if(!u.pathname.startsWith('/v1.45/'))return denied('Unsupported Docker version');
  const path=u.pathname.slice('/v1.45'.length),q=u.searchParams;
+ // URLSearchParams.get() returns only the first occurrence; Docker may resolve
+ // duplicate keys differently. Refuse ambiguous requests before authorization.
+ const params=[...q.keys()];
+ if(params.length!==new Set(params).size)return denied('Duplicate query parameters');
  if(method==='GET'){
   // Explicit inventory-only request. Executor returns a sanitized projection,
   // never unfiltered Docker container data or new write permissions.
