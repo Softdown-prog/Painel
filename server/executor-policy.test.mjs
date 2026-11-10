@@ -43,6 +43,14 @@ test('create policy forbids privilege escalation, mounts, custom networks, extra
  assert.equal(validCreate('softload-candidate-foreign',candidate,[]),false);
  assert.equal(validCreate('softload-backup-demo',candidate,[]),false);
 });
+test('duplicate HTTP query keys are never allowed, even when the first value is safe',async()=>{
+ for(const [method,url] of [
+  ['GET','/v1.45/containers/json?all=1&size=1&size=0'],
+  ['GET','/v1.45/containers/json?all=1&all=0'],
+  ['POST','/v1.45/containers/softload-app-demo/restart?t=10&t=900'],
+  ['GET','/v1.45/containers/softload-app-demo/logs?tail=100&tail=999']
+ ])assert.equal((await check(method,url)).ok,false,url);
+});
 test('read API supports only bounded allowlisted requests and filters nonowned containers',async()=>{
  for(const url of ['/v1.45/containers/json?all=1','/v1.45/containers/json?all=1&size=1',
  '/v1.45/containers/json?all=1&filters='+encodeURIComponent(JSON.stringify({label:['com.softload.panel.managed=true']}))]){
