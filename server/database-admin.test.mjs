@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {identifier, confirmation, editRow, handleDatabaseAdminRoute} from './database-admin.ts';
+import {initialInsertValues} from '../angular/src/database-row-values.ts';
 
 test('identifiers are quoted, including quotes, and unsafe/oversized names fail',()=>{
   assert.equal(identifier('a"; DROP DATABASE postgres;--'),'"a""; DROP DATABASE postgres;--"');
@@ -21,6 +22,25 @@ test('insert binds values and rejects generated/unknown columns',async()=>{
   assert.ok(!c.calls[1].sql.includes(value));assert.deepEqual(c.calls[1].values,[value]);
   await assert.rejects(editRow(c,'public','clients',{action:'insert',values:{id:1}}),/editáveis/);
   await assert.rejects(editRow(c,'public','clients',{action:'insert',values:{missing:1}}),/editáveis/);
+});
+test('insert preserves PostgreSQL defaults and allows manual primary keys',async()=>{
+  const columns=[
+    {name:'codigo',nullable:false,generated:false,defaulted:false,primary:true},
+    {name:'criado_em',nullable:false,generated:false,defaulted:true,primary:false},
+    {name:'descricao',nullable:true,generated:false,defaulted:false,primary:false},
+    {name:'id_automatico',nullable:false,generated:true,defaulted:false,primary:false}
+  ];
+  assert.deepEqual(initialInsertValues(columns),{codigo:null});
+  assert.deepEqual(initialInsertValues(columns.slice(1)),{});
+  const c=client(columns);
+  await editRow(c,'public','catalogo',{action:'insert',values:{codigo:'ABC-01'}});
+  assert.match(c.calls[1].sql,/INSERT INTO "public"\."catalogo" \("codigo"\) VALUES \(\$1\)/);
+  assert.deepEqual(c.calls[1].values,['ABC-01']);
+  const defaults=client(columns);
+  await editRow(defaults,'public','catalogo',{action:'insert',values:{}});
+  assert.equal(defaults.calls[1].sql,'INSERT INTO "public"."catalogo" DEFAULT VALUES');
+  assert.deepEqual(defaults.calls[1].values,[]);
+  await assert.rejects(editRow(c,'public','catalogo',{action:'update',values:{},key:{codigo:'ABC-01'},version:'17'}),/editáveis/);
 });
 test('updates/deletes require primary key and optimistic row version',async()=>{
   const c=client(cols);
