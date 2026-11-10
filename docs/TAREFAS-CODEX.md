@@ -1,3 +1,14 @@
+### 2026-11-09 — Correção de inserção de registros PostgreSQL (branch em revisão)
+
+**Bug identificado no código:** ao adicionar registro, a interface colocava `null` em colunas com
+`DEFAULT` e não apresentava chaves primárias manuais. O backend rejeitava `INSERT`
+sem valores, apesar de o PostgreSQL permitir `DEFAULT VALUES`.
+**Correção proposta:** metadados de valores padrão, pré-preenchimento apenas de
+campos obrigatórios sem padrão (incluindo chave manual), inserção com valores
+padrão quando não houver colunas explícitas e testes de regressão.
+**Situação:** código em branch; CI e navegador real pendentes; nada publicado na
+VPS ou no Cloudflare. Nenhum deploy ou alteração de dados solicitada.
+
 ### 2026-11-08 — Administração PostgreSQL pelo painel
 
 **Código implementado e instalado:** navegador de tabelas/estrutura,
