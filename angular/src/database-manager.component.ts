@@ -1,8 +1,9 @@
 import {Component, input, output, signal, OnInit} from '@angular/core';
+import {initialInsertValues} from './database-row-values';
 
 type Entry = Record<string,unknown>;
 type Table = {schema:string;name:string;kind:string;size_bytes:string;estimated_rows:string};
-type Column = {name:string;type:string;nullable:boolean;generated:boolean;primary:boolean};
+type Column = {name:string;type:string;nullable:boolean;generated:boolean;primary:boolean;defaulted:boolean};
 type Backup = {id:string;database:string;sizeBytes:number;sha256:string;createdAt:string};
 type Tab = 'tables'|'sql'|'backups'|'access';
 @Component({selector:'panel-database-manager',standalone:true,
@@ -60,10 +61,10 @@ export class DatabaseManagerComponent implements OnInit {
     this.cancel();this.selected.set(table);await this.fetchRows(table,offset);
   });}
   startEdit(action:'insert'|'update'|'delete',row:Entry={}):void{
-    this.cancel();const key:Entry={},values:Entry={};
+    this.cancel();const key:Entry={},values:Entry=action==='insert'?initialInsertValues(this.columns()):{};
     for(const col of this.columns()){
-      if(col.primary)key[col.name]=row[col.name];
-      if(!col.generated && action!=='delete' && (action!=='insert' || !col.primary))values[col.name]=action==='insert'?null:row[col.name];
+      if(col.primary && action!=='insert')key[col.name]=row[col.name];
+      if(!col.generated && action==='update')values[col.name]=row[col.name];
     }
     this.edit.set({action,key,version:String(row['__panel_version']??'')});this.values.set(JSON.stringify(values,null,2));
   }
