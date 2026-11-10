@@ -12,7 +12,7 @@ type Result = {rows: Row[]; rowCount: number | null; fields?: {name: string}[]};
 export type SqlClient = {connect(): Promise<void>; end(): Promise<void>;
   query(sql: string | {text: string; values?: unknown[]; queryMode?: string}, values?: unknown[]): Promise<Result>};
 type Env = NodeJS.ProcessEnv;
-type Column = {name: string; type: string; nullable: boolean; generated: boolean; primary: boolean};
+type Column = {name: string; type: string; nullable: boolean; generated: boolean; defaulted: boolean; primary: boolean};
 type Scope = {client: SqlClient; database: string; owner: string; role: string; credentials: string};
 class DatabaseError extends Error {
   status: number;
@@ -128,6 +128,7 @@ async function columns(client: SqlClient, schema: string, table: string): Promis
   if (schema === 'information_schema' || schema.startsWith('pg_')) throw new DatabaseError(403, 'Esquema de sistema protegido.');
   const r = await client.query(`SELECT a.attname AS name, format_type(a.atttypid,a.atttypmod) AS type,
     NOT a.attnotnull AS nullable, (a.attgenerated<>'' OR a.attidentity<>'') AS generated,
+    a.atthasdef AS defaulted,
     EXISTS(SELECT 1 FROM pg_index i WHERE i.indrelid=c.oid AND i.indisprimary AND a.attnum=ANY(i.indkey)) AS primary
     FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid
     WHERE n.nspname=$1 AND c.relname=$2 AND c.relkind IN ('r','p') AND a.attnum>0 AND NOT a.attisdropped ORDER BY a.attnum`, [schema, table]);
@@ -164,9 +165,10 @@ export async function editRow(client: SqlClient, schema: string, table: string, 
   let sql: string;
   if (action === 'insert' || action === 'update') {
     const data = object(input['values']), keys = Object.keys(data);
-    if (!keys.length || keys.length > cols.length || keys.some(k => !cols.some(c => c.name === k && !c.generated)))
+    if ((action === 'update' && !keys.length) || keys.length > cols.length || keys.some(k => !cols.some(c => c.name === k && !c.generated)))
       throw new DatabaseError(400, 'Use somente colunas editáveis; omita campos automáticos.');
-    sql = action === 'insert' ? 'INSERT INTO ' + target + ' (' + keys.map(identifier).join(',') + ') VALUES (' + keys.map(k => bind(data[k])).join(',') + ')' :
+    sql = action === 'insert' ? (keys.length ? 'INSERT INTO ' + target + ' (' + keys.map(identifier).join(',') + ') VALUES (' + keys.map(k => bind(data[k])).join(',') + ')' :
+      'INSERT INTO ' + target + ' DEFAULT VALUES') :
       'UPDATE ' + target + ' SET ' + keys.map(k => identifier(k) + '=' + bind(data[k])).join(',');
   } else if (action === 'delete') sql = 'DELETE FROM ' + target;
   else throw new DatabaseError(400, 'Ação inválida.');

@@ -39,3 +39,43 @@ test('mobile database browser edits only confirmed rows and requires opt-in for 
   await expect(page.getByRole('button',{name:'Confirmar e executar SQL'})).toBeEnabled();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
+
+
+test('manual primary keys are editable while PostgreSQL defaults stay omitted',async({page})=>{
+  const writes=[];
+  await page.route('**/api/**',async route=>{
+    const request=route.request(),path=new URL(request.url()).pathname.slice(4);
+    const payload=request.method()==='POST'?request.postDataJSON():null;
+    if(path==='/session')return route.fulfill({contentType:'application/json',body:JSON.stringify({authenticated:true,setupRequired:false})});
+    if(path==='/database/status')return route.fulfill({contentType:'application/json',body:JSON.stringify({
+      engine:'postgresql',integration:'connected',enabled:true,instance:{version:'18.6'},
+      databases:[{name:'postgres',owner:'postgres',sizeBytes:1000},{name:'alpha',owner:'owner_alpha',sizeBytes:1000}],
+      roles:[],metrics:{databaseCount:2,connections:1,totalBytes:2000},
+      security:{hostAuthentication:'trust',adminAuthentication:'verified-certificate',provisioningEnabled:true,message:'OK'},
+      checkedAt:new Date().toISOString(),message:'Conectado'})});
+    if(path==='/database/admin/alpha/tables')return route.fulfill({contentType:'application/json',body:JSON.stringify({
+      tables:[{schema:'public',name:'catalogo',kind:'r',size_bytes:'8192',estimated_rows:'0'}]})});
+    if(path==='/database/admin/alpha/rows'){
+      if(payload){writes.push(payload);return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,affectedRows:1})});}
+      return route.fulfill({contentType:'application/json',body:JSON.stringify({
+        columns:[
+          {name:'codigo',type:'text',primary:true,generated:false,nullable:false,defaulted:false},
+          {name:'criado_em',type:'timestamp',primary:false,generated:false,nullable:false,defaulted:true},
+          {name:'observacao',type:'text',primary:false,generated:false,nullable:true,defaulted:false}],
+        rows:[],offset:0,hasMore:false})});
+    }
+    return route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Not mocked'})});
+  });
+  await page.goto('/angular/#database');
+  await page.getByRole('button',{name:'Gerenciar banco',exact:true}).click();
+  await page.getByRole('button',{name:'Abrir dados',exact:true}).click();
+  await page.getByRole('button',{name:'Adicionar registro'}).click();
+  const input=page.getByLabel('Valores (JSON)');
+  expect(JSON.parse(await input.inputValue())).toEqual({codigo:null});
+  await input.fill('{"codigo":"MANUAL-001"}');
+  await page.getByLabel('Digite alpha para confirmar a alteração').fill('alpha');
+  await page.getByRole('button',{name:'Confirmar gravação'}).click();
+  await expect(page.getByRole('status').filter({hasText:'Registro adicionado'})).toBeVisible();
+  expect(writes).toHaveLength(1);
+  expect(writes[0].values).toEqual({codigo:'MANUAL-001'});
+});

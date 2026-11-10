@@ -22,8 +22,8 @@
     </div>
     @if(selected();as table){
       <h4>{{table.schema}}.{{table.name}}</h4>
-      <details><summary>Estrutura e tipos das colunas</summary><div class="scroll"><table><thead><tr><th>Coluna</th><th>Tipo</th><th>Chave</th><th>Obrigatória</th><th>Automática</th></tr></thead><tbody>
-        @for(col of columns();track col.name){<tr><td>{{col.name}}</td><td>{{col.type}}</td><td>{{col.primary?'Primária':'—'}}</td><td>{{col.nullable?'Não':'Sim'}}</td><td>{{col.generated?'Sim':'Não'}}</td></tr>}
+      <details><summary>Estrutura e tipos das colunas</summary><div class="scroll"><table><thead><tr><th>Coluna</th><th>Tipo</th><th>Chave</th><th>Obrigatória</th><th>Automática</th><th>Padrão</th></tr></thead><tbody>
+        @for(col of columns();track col.name){<tr><td>{{col.name}}</td><td>{{col.type}}</td><td>{{col.primary?'Primária':'—'}}</td><td>{{col.nullable?'Não':'Sim'}}</td><td>{{col.generated?'Sim':'Não'}}</td><td>{{col.defaulted?'Sim':'Não'}}</td></tr>}
       </tbody></table></div></details>
       <div class="actions"><button type="button" (click)="startEdit('insert')" [disabled]="busy()||!columns().length">+ Adicionar registro</button>
         <button type="button" (click)="openTable(table,offset()-50)" [disabled]="busy()||offset()===0">Anterior</button>
@@ -38,7 +38,7 @@
         <h4>{{e.action==='insert'?'Adicionar registro':e.action==='update'?'Editar registro':'Excluir registro'}}</h4>
         @if(e.action!=='insert'){<p>Chave: {{json(e.key)}}. Uma versão desatualizada será recusada.</p>}
         @if(e.action!=='delete'){<label for="db-row-values">Valores (JSON)</label><textarea id="db-row-values" [value]="values()" (input)="values.set($any($event.target).value);confirm.set('')" spellcheck="false" [disabled]="busy()"></textarea>
-          <small>Valores são apresentados como texto para preservar números grandes. Use null para NULL e omita colunas com valor automático/padrão. Objetos e listas também podem ser informados no JSON.</small>}
+          <small>Valores são apresentados como texto para preservar números grandes. Na inclusão, campos obrigatórios sem padrão aparecem como null para você preencher; campos com padrão são omitidos e preenchidos pelo PostgreSQL. Chaves primárias manuais devem ser informadas. Use null somente para NULL; objetos e listas também podem ser informados no JSON.</small>}
         <label for="db-row-confirm">Digite {{database()}} para confirmar a alteração</label><input id="db-row-confirm" [value]="confirm()" (input)="confirm.set($any($event.target).value)" autocomplete="off" [disabled]="busy()"/>
         <div class="actions"><button type="button" (click)="cancel()" [disabled]="busy()">Cancelar</button><button type="button" (click)="saveRow()" [disabled]="busy()||confirm()!==database()">Confirmar {{e.action==='delete'?'exclusão':'gravação'}}</button></div>
       </section>}
