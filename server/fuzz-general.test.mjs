@@ -159,7 +159,7 @@ test('fuzz archive import path traversal and file-type limits without extraction
  for(let i=0;i<CASES;i++){
    const leaf=randomText(1+next()%28,'abcdefghijklmnopqrstuvwxyz0123456789-_.');
    // Dots in the leaf are okay unless they form a forbidden component.
-   const safe=leaf==='.'||leaf==='..'? 'safe'+i : leaf;
+   const safe=['.','..','.git'].includes(leaf.toLowerCase()) ? 'safe'+i : leaf;
    const path='repo/'+safe;
    const size=next()%4096;
    assert.deepEqual(validateArchiveListing(path+'\n',row(path,size)),{count:1,bytes:size},context('valid archive',i));
