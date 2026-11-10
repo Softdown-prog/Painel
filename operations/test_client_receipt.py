@@ -64,7 +64,7 @@ class ReceiptRecovery(unittest.TestCase):
         for message, expected in samples:
             response = self.response(255, stdout='')
             response.stderr = message + ' secret-key-canary'
-            with self.subTest(expected=expected), patch.object(client.subprocess, 'run', return_value=response) as run, \\
+            with self.subTest(expected=expected), patch.object(client.subprocess, 'run', return_value=response) as run, \
                  patch.object(client.time, 'sleep') as sleep:
                 result = client.execute_ssh(['ssh'], self.payload)
             self.assertEqual(result['transportCategory'], expected)
@@ -82,7 +82,7 @@ class ReceiptRecovery(unittest.TestCase):
     def test_unknown_ssh_failure_keeps_bounded_receipt_retry(self):
         response = self.response(255, stdout='')
         response.stderr = 'arbitrary sensitive failure secret-key-canary'
-        with patch.object(client.subprocess, 'run', return_value=response) as run, \\
+        with patch.object(client.subprocess, 'run', return_value=response) as run, \
              patch.object(client.time, 'sleep') as sleep:
             result = client.execute_ssh(['ssh'], self.payload)
         self.assertEqual(result['transportCategory'], 'unknown_transport_error')
@@ -109,7 +109,7 @@ class ReceiptRecovery(unittest.TestCase):
         self.assertNotIn('raw secret path', json.dumps(absent))
 
     def test_missing_configured_secrets_fails_before_oidc(self):
-        with patch.dict(client.os.environ, {'VPS_SSH_KEY': '', 'VPS_KNOWN_HOSTS': ''}, clear=True), \\
+        with patch.dict(client.os.environ, {'VPS_SSH_KEY': '', 'VPS_KNOWN_HOSTS': ''}, clear=True), \
              patch.object(client, 'publish_result', return_value=1) as publish:
             exit_code = client.main()
         self.assertEqual(exit_code, 1)
