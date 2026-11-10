@@ -26,10 +26,12 @@ type Deps={
  enabled?:boolean;configured?:boolean;manager?:TerminalJobManager|PersistentTerminalJobManager;
 };
 
-export function validJobCommand(data:Record<string,unknown>):data is {command:string}{
- return Object.keys(data).length===1&&typeof data['command']==='string'&&
-  data['command'].trim().length>0&&Buffer.byteLength(data['command'],'utf8')<=MAX_COMMAND_BYTES&&
-  !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(data['command']);
+export function validJobCommand(data:unknown):data is {command:string}{
+ if(!data||typeof data!=='object'||Array.isArray(data))return false;
+ const value=data as Record<string,unknown>;
+ return Object.keys(value).length===1&&typeof value['command']==='string'&&
+  value['command'].trim().length>0&&Buffer.byteLength(value['command'],'utf8')<=MAX_COMMAND_BYTES&&
+  !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value['command']);
 }
 
 export function streamSsh(command:string,onData:(chunk:string)=>void,signal:AbortSignal):Promise<number>{
