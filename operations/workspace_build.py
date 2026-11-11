@@ -20,7 +20,7 @@ import time
 
 WORKSPACES = Path('/srv/panel-codex/workspace')
 JOBS = Path('/srv/panel-workspace-builds')
-IMAGE = 'node:24-bookworm-slim'
+IMAGE = 'panel-lhs-qa:node24-pw1.56.1'
 PROJECT_RE = re.compile(r'^(?!Geral$|AdministracaoVPS$)[A-Za-z0-9][A-Za-z0-9_-]{0,63}$')
 JOB_RE = re.compile(r'^[a-f0-9]{16}$')
 # Representative cross-system smoke coverage; NOT a full CI or visual sign-off.
@@ -68,37 +68,47 @@ LHS_SMOKE_TESTS = (
 )
 LHS_SMOKE_COMMAND = 'node --test --test-concurrency=2 ' + ' '.join('tests/' + name for name in LHS_SMOKE_TESTS)
 
-# The pre-commit gate is intentionally broader than the smoke profile:
-# every Node game test plus the Angular lint and production build.
+# Complete game checks. Visual scripts exercise real Chromium, including
+# desktop/mobile interaction, Canvas pixels, movement, retail and console gameplay.
+LHS_INSTALL = (
+    ('install', 'npm ci --no-audit --no-fund', 600, 'bridge'),
+    ('install-angular', 'npm ci --prefix frontend-angular --no-audit --no-fund', 900, 'bridge'),
+)
+LHS_COMPILE = (
+    ('typecheck', 'npm run typecheck', 300, 'none'),
+    ('build', 'npm run build', 300, 'none'),
+)
+LHS_VISUAL = (
+    ('canonical-site', 'npm run build:site && npm run check:site', 1500, 'none'),
+    ('site-desktop-mobile', 'node scripts/verify_live_site_preview.mjs', 240, 'none'),
+    ('canvas-desktop-mobile', 'node scripts/capture_scene.mjs out/validation', 900, 'none'),
+    ('canvas-pixel-cache', 'node scripts/verify_rendering.mjs out/validation', 300, 'none'),
+    ('layout-touch-and-save', 'node scripts/verify_layout_editor.mjs out/validation', 480, 'none'),
+    ('mobile-gameplay', 'node scripts/verify_mobile_interface.mjs out/validation', 480, 'none'),
+    ('ps1-integrated', 'node scripts/verify_ps1_2002.mjs out/validation', 480, 'none'),
+    ('ps2-integrated', 'node scripts/verify_ps2_gameplay.mjs out/validation', 900, 'none'),
+)
+LHS_ANGULAR = (
+    ('angular-lint', 'npm run lint --prefix frontend-angular', 300, 'none'),
+    ('angular-build', 'npm run build --prefix frontend-angular', 900, 'none'),
+)
 PROFILES = {
     'lhs-quick': (
-        ('install', 'npm ci --no-audit --no-fund', 600, 'bridge'),
-        ('typecheck', 'npm run typecheck', 300, 'none'),
-        ('build', 'npm run build', 300, 'none'),
+        LHS_INSTALL[0], *LHS_COMPILE,
         ('game-smoke', LHS_SMOKE_COMMAND, 900, 'none'),
     ),
     'lhs-core': (
-        ('install', 'npm ci --no-audit --no-fund', 600, 'bridge'),
-        ('typecheck', 'npm run typecheck', 300, 'none'),
-        ('build', 'npm run build', 300, 'none'),
+        LHS_INSTALL[0], *LHS_COMPILE,
         ('all-game-unit-regressions', 'npm test', 1800, 'none'),
     ),
-    'lhs-angular': (
-        ('install', 'npm ci --no-audit --no-fund', 600, 'bridge'),
-        ('install-angular', 'npm ci --prefix frontend-angular --no-audit --no-fund', 900, 'bridge'),
-        ('typecheck', 'npm run typecheck', 300, 'none'),
-        ('build', 'npm run build', 300, 'none'),
-        ('angular-lint', 'npm run lint --prefix frontend-angular', 300, 'none'),
-        ('angular-build', 'npm run build --prefix frontend-angular', 900, 'none'),
-    ),
+    'lhs-angular': (*LHS_INSTALL, *LHS_COMPILE, *LHS_ANGULAR),
+    'lhs-visual': (*LHS_INSTALL, *LHS_COMPILE, *LHS_VISUAL),
+    # This is the DEFAULT pre-commit gate: all game tests AND actual browser,
+    # touch, visual, PS1/PS2 and the real Angular site, not poster-only smoke.
     'lhs-precommit': (
-        ('install', 'npm ci --no-audit --no-fund', 600, 'bridge'),
-        ('install-angular', 'npm ci --prefix frontend-angular --no-audit --no-fund', 900, 'bridge'),
-        ('typecheck', 'npm run typecheck', 300, 'none'),
-        ('build', 'npm run build', 300, 'none'),
+        *LHS_INSTALL, *LHS_COMPILE,
         ('all-game-unit-regressions', 'npm test', 1800, 'none'),
-        ('angular-lint', 'npm run lint --prefix frontend-angular', 300, 'none'),
-        ('angular-build', 'npm run build --prefix frontend-angular', 900, 'none'),
+        *LHS_ANGULAR, *LHS_VISUAL,
     ),
 }
 
@@ -114,16 +124,20 @@ def project_dir(name: str, root: Path = WORKSPACES) -> Path:
     return path
 
 
-def docker_args(work: Path, *, source: Path | None, phase: str, network='none') -> list[str]:
+def docker_args(work: Path, *, source: Path | None, phase: str, network='none', container_name: str | None = None) -> list[str]:
     # No ports, Docker socket, host filesystem root, privileged mode or extra capabilities.
     if network not in ('none', 'bridge'):
         raise ValueError('Rede não autorizada')
+    if container_name is not None and not re.fullmatch(r'panel-ws-[a-f0-9]{16}-[0-9]{1,2}', container_name):
+        raise ValueError('Nome de container inválido')
     argv = ['docker', 'run', '--rm', '--init', '--read-only', '--cap-drop=ALL',
             '--security-opt=no-new-privileges:true', '--pids-limit=128',
             '--cpus=1.5', '--memory=1536m', '--memory-swap=1536m',
+            '--shm-size=256m',
             '--network='+network, '--user=61110:61110',
             '--tmpfs=/tmp:rw,nosuid,nodev,size=128m',
             '--env=HOME=/work/.home', '--env=npm_config_cache=/work/.npm-cache',
+            *(('--name='+container_name,) if container_name else ()),
             '--mount=type=bind,src='+str(work)+',dst=/work',
             '--workdir=/work/games/lan_house_simulator']
     if source is not None:
@@ -180,15 +194,22 @@ def run_pipeline(job_id: str, root: Path = WORKSPACES, jobs: Path = JOBS) -> Non
                  *[(name, command, timeout, network, None)
                    for name, command, timeout, network in PROFILES[profile]]]
         try:
-            for name, command, limit, network, snapshot_source in steps:
+            for index, (name, command, limit, network, snapshot_source) in enumerate(steps):
                 write_state(folder, current=name)
                 print('=== '+name+' ===', flush=True)
-                argv = docker_args(work, source=snapshot_source, phase=command, network=network)
+                container = f'panel-ws-{job_id}-{index}'
+                argv = docker_args(work, source=snapshot_source, phase=command,
+                                   network=network, container_name=container)
                 try:
                     result = subprocess.run(argv, stdin=subprocess.DEVNULL, timeout=limit, check=False)
                     if result.returncode != 0:
                         raise RuntimeError(f'{name}: código de saída {result.returncode}')
                 except subprocess.TimeoutExpired as exc:
+                    # Killing the Docker CLI does not guarantee the container stops.
+                    # Target only the deterministic disposable container of this job.
+                    subprocess.run(['docker', 'rm', '-f', container], timeout=30,
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, check=False)
                     raise RuntimeError(f'{name}: excedeu {limit} segundos') from exc
             write_state(folder, status='passed', current=None, success=True, finished=time.time())
             print('RESULTADO: APROVADO', flush=True)
