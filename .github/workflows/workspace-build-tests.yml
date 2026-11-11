@@ -43,6 +43,32 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build isolated Node 24 / Playwright QA image
         run: docker build -f operations/workspace-build.Dockerfile -t panel-lhs-qa:node24-pw1.56.1 operations/
+      - name: Check out immutable public LHS source for real smoke validation
+        uses: actions/checkout@v4
+        with:
+          repository: Softdown-prog/A7-forge-2D-
+          ref: bd6a43a141e7497339a7200feb03707f5c97da82
+          path: lhs-src
+          persist-credentials: false
+      - name: Run real LHS TypeScript build and cross-system smoke in disposable Docker
+        run: |
+          set -euo pipefail
+          sudo mkdir -p "$RUNNER_TEMP/lhs-projects/gh_12_abcdef12" "$RUNNER_TEMP/lhs-jobs/0123456789abcdef"
+          sudo cp -a lhs-src/. "$RUNNER_TEMP/lhs-projects/gh_12_abcdef12/"
+          sudo env RUNNER_TEMP="$RUNNER_TEMP" python3 - <<'PY'
+          import importlib.util,os
+          from pathlib import Path
+          spec=importlib.util.spec_from_file_location('ws','operations/workspace_build.py')
+          ws=importlib.util.module_from_spec(spec);spec.loader.exec_module(ws)
+          root=Path(os.environ['RUNNER_TEMP'])/'lhs-projects'
+          jobs=Path(os.environ['RUNNER_TEMP'])/'lhs-jobs'
+          jobid='0123456789abcdef'
+          ws.write_state(jobs/jobid, project='gh_12_abcdef12', profile='lhs-quick', status='queued')
+          ws.run_pipeline(jobid,root,jobs)
+          result=ws.status(jobid,jobs)
+          print('LHS real smoke:',{k:v for k,v in result.items() if k!='logTail'})
+          if result['status']!='passed': raise SystemExit('Real LHS smoke failed: '+str(result.get('error')))
+          PY
       - name: Launch real Chromium and verify Canvas without network or Docker socket
         run: |
           docker run --rm --init --read-only --cap-drop ALL             --security-opt no-new-privileges:true --pids-limit 128             --memory 1536m --memory-swap 1536m --cpus 1.5             --shm-size 256m --network none --user 61110:61110             --tmpfs /tmp:rw,nosuid,nodev,size=128m -e HOME=/tmp             panel-lhs-qa:node24-pw1.56.1 node -e '
