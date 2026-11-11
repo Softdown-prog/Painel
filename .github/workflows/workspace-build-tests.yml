@@ -4,12 +4,20 @@ on:
     branches: [main, feat/workspace-build-isolation-20261111]
     paths:
       - 'operations/workspace_build.py'
+      - 'agents/operations.mjs'
+      - 'agents/operations.test.mjs'
+      - 'server/agent-operations.ts'
+      - 'server/agent-operations.test.mjs'
       - 'operations/workspace-build.Dockerfile'
       - 'operations/test_workspace_build.py'
       - '.github/workflows/workspace-build-tests.yml'
   pull_request:
     paths:
       - 'operations/workspace_build.py'
+      - 'agents/operations.mjs'
+      - 'agents/operations.test.mjs'
+      - 'server/agent-operations.ts'
+      - 'server/agent-operations.test.mjs'
       - 'operations/workspace-build.Dockerfile'
       - 'operations/test_workspace_build.py'
       - '.github/workflows/workspace-build-tests.yml'
@@ -54,3 +62,18 @@ jobs:
                 } finally { await browser.close(); }
               })().catch(err=>{console.error(err);process.exitCode=1;});
             '
+  agent-mcp-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install exact Panel dependencies
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript build gate
+        run: npm run typecheck
+      - name: Agent project approval and workspace MCP integration contracts
+        run: node --experimental-strip-types --test agents/operations.test.mjs server/agent-operations.test.mjs
