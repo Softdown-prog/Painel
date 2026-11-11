@@ -93,4 +93,40 @@ class WorkspacesTest(unittest.TestCase):
             self.assertEqual(ws.redact('api_key=secret-value'), 'api_key=[OCULTO]')
 
 
+    def test_start_is_admin_only_and_does_not_execute_build_inline(self):
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as jobs:
+            root,jobs=Path(root),Path(jobs)
+            (root/'gh_12_abcdef12').mkdir()
+            with patch.object(ws.os,'geteuid',return_value=1000):
+                with self.assertRaises(PermissionError):
+                    ws.start('gh_12_abcdef12','lhs-quick',root,jobs)
+            class Child:
+                pid=4321
+            with patch.object(ws.os,'geteuid',return_value=0), patch.object(ws.secrets,'token_hex',return_value='0123456789abcdef'), patch.object(ws.subprocess,'Popen',return_value=Child()) as proc:
+                result=ws.start('gh_12_abcdef12','lhs-quick',root,jobs)
+            self.assertEqual(result,'0123456789abcdef')
+            self.assertTrue(proc.call_args.kwargs['start_new_session'])
+            self.assertEqual(proc.call_args.kwargs['stdin'],subprocess.DEVNULL)
+            state=ws.status(result,jobs)
+            self.assertEqual(state['status'],'queued')
+            self.assertNotIn('pid',state)
+
+    def test_concurrent_job_fails_closed_before_docker(self):
+        import fcntl
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as jobs:
+            root,jobs=Path(root),Path(jobs)
+            (root/'gh_12_abcdef12').mkdir();(jobs/'0123456789abcdef').mkdir()
+            ws.write_state(jobs/'0123456789abcdef',project='gh_12_abcdef12',profile='lhs-quick')
+            lock=(jobs/'.active.lock');lock.touch()
+            with lock.open('r+') as held:
+                fcntl.flock(held,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                with patch.object(ws.subprocess,'run') as runner:
+                    ws.run_pipeline('0123456789abcdef',root,jobs)
+                runner.assert_not_called()
+            self.assertEqual(ws.status('0123456789abcdef',jobs)['status'],'busy')
+
+    def test_snapshot_shell_command_parses(self):
+        subprocess.run(['sh','-n','-c',ws.clean_copy_command()],check=True)
+
+
 if __name__=='__main__':unittest.main()
