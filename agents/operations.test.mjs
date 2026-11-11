@@ -59,6 +59,30 @@ test('reviewed JSON remains complete while worker polling omits large history pa
  assert.ok(Buffer.byteLength(JSON.stringify(compact))<2000);
 });
 
+
+test('LHS workspace tools validate profiles, ids and project scope before requesting host action',t=>{
+ const f=fixture(t),project={...session,project:'Painel'};
+ assert.equal(toolsFor('Geral').some(x=>x.name==='validar_workspace'),false);
+ assert.equal(toolsFor(ADMIN_PROJECT).some(x=>x.name==='validar_workspace'),false);
+ assert.equal(toolsFor('Painel').some(x=>x.name==='validar_workspace'),true);
+ assert.equal(toolsFor('Painel').some(x=>x.name==='consultar_workspace'),true);
+ assert.throws(()=>f.propose('validar_workspace',{perfil:'shell'},project));
+ assert.throws(()=>f.propose('validar_workspace',{perfil:'lhs-quick',command:'docker ps'},project));
+ assert.throws(()=>f.propose('consultar_workspace',{jobId:'../../etc/shadow'},project));
+ assert.throws(()=>f.propose('consultar_workspace',{jobId:'123456789abcdef0',extra:'x'},project));
+ const c=f.propose('validar_workspace',{perfil:'lhs-precommit'},project);
+ assert.equal(c.mode,'approval');assert.equal(c.status,'pending');
+ assert.equal(JSON.parse(f.responses.at(-1).result.contentItems[0].text).executed,false);
+ f.store.complete(c.id,{success:false});
+ const read=f.propose('consultar_workspace',{jobId:'0123456789abcdef'},project);
+ assert.equal(read.mode,'read');assert.equal(read.status,'pending');
+ f.store.complete(read.id,{success:false});
+ assert.throws(()=>f.store.propose({threadId:project.id,turnId:project.turnId,
+   callId:'wrong-origin',tool:'validar_workspace',arguments:{perfil:'lhs-core'}},
+   'rpc',project,f.root,{repository:'Softdown-prog/Other'}));
+});
+
+
 function repository(t){const root=mkdtempSync(join(tmpdir(),'agent-git-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
  const run=args=>execFileSync('git',args,{cwd:root,encoding:'utf8',stdio:['ignore','pipe','pipe']});
  run(['init','-q']);run(['config','user.email','fixture@example.invalid']);run(['config','user.name','Fixture']);
