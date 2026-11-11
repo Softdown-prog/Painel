@@ -165,6 +165,40 @@ def write_state(job: Path, **values: object) -> None:
     os.replace(temp, path)
 
 
+def collect_visual_artifacts(work: Path, folder: Path) -> list[str]:
+    """Preserve only bounded real browser images and clips; never the source tree."""
+    output = work / 'games' / 'lan_house_simulator' / 'out' / 'validation'
+    if not output.is_dir() or output.is_symlink():
+        return []
+    destination = folder / 'artifacts'
+    max_files, max_bytes, max_file = 100, 48*1024*1024, 12*1024*1024
+    total = 0
+    retained = []
+    for candidate in sorted(output.rglob('*')):
+        if len(retained) >= max_files:
+            break
+        if candidate.is_symlink() or not candidate.is_file():
+            continue
+        if candidate.suffix.lower() not in ('.png', '.webp', '.webm'):
+            continue
+        if not re.fullmatch(r'[A-Za-z0-9._-]{1,95}', candidate.name):
+            continue
+        if not candidate.resolve().is_relative_to(output.resolve()):
+            continue
+        size = candidate.stat().st_size
+        if size < 32 or size > max_file or total + size > max_bytes:
+            continue
+        destination.mkdir(mode=0o700, exist_ok=True)
+        safe_name = f'{len(retained):03d}-{candidate.name}'
+        target = destination / safe_name
+        with candidate.open('rb') as src, target.open('xb') as dst:
+            shutil.copyfileobj(src, dst)
+        target.chmod(0o600)
+        retained.append(safe_name)
+        total += size
+    return retained
+
+
 def run_pipeline(job_id: str, root: Path = WORKSPACES, jobs: Path = JOBS) -> None:
     folder = jobs / job_id
     state = json.loads((folder / 'status.json').read_text())
@@ -217,6 +251,12 @@ def run_pipeline(job_id: str, root: Path = WORKSPACES, jobs: Path = JOBS) -> Non
             write_state(folder, status='failed', current=name, success=False, error=str(exc)[:400], finished=time.time())
             print('RESULTADO: FALHOU - '+str(exc)[:400], flush=True)
         finally:
+            try:
+                retained = collect_visual_artifacts(work, folder)
+                write_state(folder, artifacts=retained)
+            except Exception:
+                # Saving optional review images must never turn failed tests green.
+                write_state(folder, artifacts=[], artifactError='Não foi possível preservar imagens.')
             shutil.rmtree(work, ignore_errors=True)
 
 
