@@ -149,6 +149,56 @@ class WorkspacesTest(unittest.TestCase):
         self.assertTrue(all(step[3] == 'none' for step in profile[2:]))
         self.assertNotIn('npx playwright', ' '.join(commands))
 
+    def test_real_gameplay_and_browser_are_mandatory_precommit(self):
+        profile = ws.PROFILES['lhs-precommit']
+        self.assertEqual(ws.IMAGE, 'panel-lhs-qa:node24-pw1.56.1')
+        commands = [step[1] for step in profile]
+        visual = [step[0] for step in ws.LHS_VISUAL]
+        self.assertGreaterEqual(len(visual), 8)
+        for step in ('canonical-site', 'site-desktop-mobile',
+                     'canvas-desktop-mobile', 'canvas-pixel-cache',
+                     'layout-touch-and-save', 'mobile-gameplay',
+                     'ps1-integrated', 'ps2-integrated'):
+            self.assertIn(step, visual)
+            self.assertIn(step, [s[0] for s in profile])
+        self.assertTrue(all(s[3] == 'none' for s in profile[2:]))
+        self.assertIn('npm test', commands)
+        self.assertTrue(all(s[3] == 'none' for s in ws.LHS_VISUAL))
+        self.assertEqual(ws.PROFILES['lhs-visual'][-len(ws.LHS_VISUAL):], ws.LHS_VISUAL)
+        self.assertEqual(ws.PROFILES['lhs-quick'][-1][0], 'game-smoke')
+
+    def test_container_names_are_fixed_for_cleanup(self):
+        with tempfile.TemporaryDirectory() as folder:
+            work = Path(folder)
+            ok='panel-ws-0123456789abcdef-0'
+            args = ws.docker_args(work, source=None, phase='node -v', container_name=ok)
+            self.assertIn('--name='+ok, args)
+            self.assertIn('--shm-size=256m', args)
+            for malformed in ('--privileged', 'another-container', 'panel-ws-0123456789abcdef-99-extra'):
+                with self.subTest(malformed=malformed), self.assertRaises(ValueError):
+                    ws.docker_args(work,source=None,phase='true',container_name=malformed)
+
+    def test_timeout_forces_only_own_disposable_container_offline(self):
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as jobs:
+            root,jobs=Path(root),Path(jobs)
+            (root/'gh_12_abcdef12').mkdir()
+            (jobs/'0123456789abcdef').mkdir()
+            ws.write_state(jobs/'0123456789abcdef',
+                           project='gh_12_abcdef12',profile='lhs-quick')
+            invoked=[]
+            def fake_run(argv,**kwargs):
+                invoked.append(argv)
+                if len(invoked)==2:
+                    raise subprocess.TimeoutExpired(argv,timeout=120)
+                return subprocess.CompletedProcess(argv,0)
+            with patch.object(ws.os,'chown'), patch.object(ws.subprocess,'run',side_effect=fake_run):
+                ws.run_pipeline('0123456789abcdef',root,jobs)
+            self.assertEqual(invoked[2], ['docker','rm','-f','panel-ws-0123456789abcdef-1'])
+            state=ws.status('0123456789abcdef',jobs)
+            self.assertFalse(state['success'])
+            self.assertEqual(state['current'], 'install')
+            self.assertFalse((jobs/'0123456789abcdef'/'source').exists())
+
     def test_snapshot_shell_command_parses(self):
         subprocess.run(['sh','-n','-c',ws.clean_copy_command()],check=True)
 
