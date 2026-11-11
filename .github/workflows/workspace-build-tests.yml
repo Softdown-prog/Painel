@@ -69,6 +69,40 @@ jobs:
           print('LHS real smoke:',{k:v for k,v in result.items() if k!='logTail'})
           if result['status']!='passed': raise SystemExit('Real LHS smoke failed: '+str(result.get('error')))
           PY
+      - name: Run complete LHS precommit with actual Angular, PS1/PS2 and browser tests
+        run: |
+          set -euo pipefail
+          sudo mkdir -p "$RUNNER_TEMP/lhs-jobs/fedcba9876543210"
+          sudo env RUNNER_TEMP="$RUNNER_TEMP" python3 - <<'PY'
+          import importlib.util,os
+          from pathlib import Path
+          spec=importlib.util.spec_from_file_location('ws','operations/workspace_build.py')
+          ws=importlib.util.module_from_spec(spec);spec.loader.exec_module(ws)
+          root=Path(os.environ['RUNNER_TEMP'])/'lhs-projects'
+          jobs=Path(os.environ['RUNNER_TEMP'])/'lhs-jobs'
+          jobid='fedcba9876543210'
+          ws.write_state(jobs/jobid,project='gh_12_abcdef12',profile='lhs-precommit',status='queued')
+          ws.run_pipeline(jobid,root,jobs)
+          result=ws.status(jobid,jobs)
+          print('Full LHS precommit:',{k:v for k,v in result.items() if k!='logTail'})
+          if result['status']!='passed':
+              raise SystemExit('Real complete LHS tests failed at '+str(result.get('current'))+': '+str(result.get('error')))
+          PY
+      - name: Preserve real Canvas and gameplay images for review
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/lhs-review"
+          if sudo test -d "$RUNNER_TEMP/lhs-jobs/fedcba9876543210/artifacts"; then
+            sudo cp -a "$RUNNER_TEMP/lhs-jobs/fedcba9876543210/artifacts/." "$RUNNER_TEMP/lhs-review/"
+            sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/lhs-review"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lhs-workspace-real-canvas-${{ github.run_id }}
+          path: ${{ runner.temp }}/lhs-review/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Launch real Chromium and verify Canvas without network or Docker socket
         run: |
           docker run --rm --init --read-only --cap-drop ALL             --security-opt no-new-privileges:true --pids-limit 128             --memory 1536m --memory-swap 1536m --cpus 1.5             --shm-size 256m --network none --user 61110:61110             --tmpfs /tmp:rw,nosuid,nodev,size=128m -e HOME=/tmp             panel-lhs-qa:node24-pw1.56.1 node -e '
