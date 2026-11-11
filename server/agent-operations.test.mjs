@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {AgentOperations,redactAgentOutput,validatePublication} from './agent-operations.ts';
+import {AgentOperations,redactAgentOutput,validatePublication,workspaceCommand} from './agent-operations.ts';
 import {ToolCalls} from '../agents/operations.mjs';
 
-function fixture(t){
+function fixture(t, repository='Softdown-prog/Painel'){
  const root=mkdtempSync(join(tmpdir(),'agent-api-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
- const repo={fullName:'Softdown-prog/Painel',branch:'main',workflow:'deploy-vps.yml'};
+ const repo={fullName:repository,branch:'main',workflow:'deploy-vps.yml'};
  writeFileSync(join(root,'github-repositories.json'),JSON.stringify([repo]));
  writeFileSync(join(root,'agent-projects.json'),JSON.stringify({Painel:{repository:repo.fullName,branch:'main'}}));
  const responses=[],mutations=[],jobsStarted=[],cancelled=[];
@@ -49,6 +49,71 @@ function fixture(t){
    {id:'thread-unit',turnId:'turn-unit',project},root);
  return {root,store,responses,mutations,jobsStarted,cancelled,job,controller,propose};
 }
+
+
+test('fixed LHS workspace command rejects arbitrary profile, paths and shell text',()=>{
+ assert.equal(workspaceCommand('start','gh_12_abcdef12','lhs-precommit'),
+  'python3 /usr/local/lib/panel-workspaces/workspace_build.py start gh_12_abcdef12 lhs-precommit');
+ assert.equal(workspaceCommand('status','gh_12_abcdef12','0123456789abcdef'),
+  'python3 /usr/local/lib/panel-workspaces/workspace_build.py status 0123456789abcdef');
+ assert.throws(()=>workspaceCommand('start','../../etc','lhs-precommit'));
+ assert.throws(()=>workspaceCommand('start','Painel','docker ps'));
+ assert.throws(()=>workspaceCommand('status','Painel','../../etc/passwd'));
+});
+
+test('LHS validation requires an approved project destination and returns queued, never passed',async t=>{
+ const f=fixture(t,'Softdown-prog/A7-forge-2D-');
+ const c=f.propose('validar_workspace',{perfil:'lhs-precommit'},'Painel');
+ await f.controller.step();
+ assert.equal(c.status,'pending');
+ assert.equal(c.destination.repository,'Softdown-prog/A7-forge-2D-');
+ assert.equal(c.destination.host,'fixture-vps');
+ assert.equal(f.jobsStarted.length,0);
+ await f.controller.decide(c.id,'approve',{fingerprint:c.fingerprint});
+ assert.deepEqual(f.jobsStarted,
+  ['python3 /usr/local/lib/panel-workspaces/workspace_build.py start Painel lhs-precommit']);
+ assert.equal(c.status,'running');
+ f.job.state='completed';f.job.exitCode=0;f.job.output=JSON.stringify({jobId:'0123456789abcdef',status:'queued'});
+ await f.controller.step();
+ assert.equal(c.status,'completed');
+ const receipt=JSON.parse(c.summary);
+ assert.equal(receipt.accepted,true);assert.equal(receipt.passed,false);
+ assert.equal(receipt.finished,false);assert.equal(receipt.status,'queued');
+ assert.equal(receipt.jobId,'0123456789abcdef');
+ assert.equal(f.mutations.length,0);
+});
+
+test('LHS build status only passes when the matched project actually finished',async t=>{
+ const f=fixture(t,'Softdown-prog/A7-forge-2D-');
+ const c=f.propose('consultar_workspace',{jobId:'0123456789abcdef'},'Painel');
+ await f.controller.step();
+ assert.equal(c.status,'running');
+ assert.deepEqual(f.jobsStarted,
+  ['python3 /usr/local/lib/panel-workspaces/workspace_build.py status 0123456789abcdef']);
+ f.job.state='completed';f.job.exitCode=0;f.job.output=JSON.stringify(
+  {project:'Painel',profile:'lhs-precommit',status:'passed',success:true,logTail:'OK'});
+ await f.controller.step();
+ assert.equal(c.status,'completed');
+ const result=JSON.parse(c.summary);
+ assert.equal(result.success,true);assert.equal(result.data.passed,true);
+ assert.equal(result.data.finished,true);
+ const bad=f.propose('consultar_workspace',{jobId:'0123456789abcdef'},'Painel');
+ await f.controller.step();
+ f.job.output=JSON.stringify({project:'Other',status:'passed',success:true});
+ await f.controller.step();
+ assert.equal(bad.status,'failed');
+ assert.match(bad.summary,/nenhum teste foi considerado aprovado/);
+});
+
+test('non-LHS project cannot create or query LHS workspace builds',async t=>{
+ const f=fixture(t);
+ const c=f.propose('validar_workspace',{perfil:'lhs-precommit'},'Painel');
+ await f.controller.step();
+ assert.equal(c.status,'failed');assert.equal(f.jobsStarted.length,0);
+ const read=f.propose('consultar_workspace',{jobId:'0123456789abcdef'},'Painel');
+ await f.controller.step();
+ assert.equal(read.status,'failed');assert.equal(f.jobsStarted.length,0);
+});
 
 test('background reads return actual data but never execute a pending host command',async t=>{
  const f=fixture(t),command=f.propose();
