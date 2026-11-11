@@ -35,11 +35,15 @@ class WorkspacesTest(unittest.TestCase):
                 self.assertIn('--cap-drop=ALL',args)
                 self.assertIn('--user=61110:61110',args)
                 self.assertIn('--network='+network,args)
+                self.assertIn('--workdir=/work',args)
+                self.assertNotIn('--workdir=/work/games/lan_house_simulator',args)
                 self.assertIn('--memory=1536m',args)
                 self.assertFalse(any('docker.sock' in arg for arg in args))
                 self.assertFalse(any('--privileged' in arg for arg in args))
                 self.assertFalse(any('--publish' in arg for arg in args))
                 self.assertEqual(args[-1],'echo verified')
+            run_args=ws.docker_args(path,source=None,phase='npm run build',network='none')
+            self.assertIn('--workdir=/work/games/lan_house_simulator',run_args)
             with self.assertRaises(ValueError): ws.docker_args(path,source=None,phase='true',network='host')
 
     def test_snapshot_is_offline_and_removes_sensitive_files(self):
