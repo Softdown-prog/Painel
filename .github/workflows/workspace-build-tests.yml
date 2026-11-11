@@ -77,3 +77,9 @@ jobs:
         run: npm run typecheck
       - name: Agent project approval and workspace MCP integration contracts
         run: node --experimental-strip-types --test agents/operations.test.mjs server/agent-operations.test.mjs
+      - name: Full Panel Node regression suite
+        run: npm test
+      - name: Check browser and admin scripts
+        run: npm run check:js
+      - name: Compile Panel frontend scripts
+        run: npm run build:frontend
