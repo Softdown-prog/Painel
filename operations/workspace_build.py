@@ -23,24 +23,80 @@ JOBS = Path('/srv/panel-workspace-builds')
 IMAGE = 'node:24-bookworm-slim'
 PROJECT_RE = re.compile(r'^(?!Geral$|AdministracaoVPS$)[A-Za-z0-9][A-Za-z0-9_-]{0,63}$')
 JOB_RE = re.compile(r'^[a-f0-9]{16}$')
+# Representative cross-system smoke coverage; NOT a full CI or visual sign-off.
+LHS_SMOKE_TESTS = (
+    'simulation.test.mjs',
+    'application-composition.test.mjs',
+    'runtime-composition.test.mjs',
+    'historical-economy.test.mjs',
+    'financial-review.test.mjs',
+    'merchandise.test.mjs',
+    'station-accounting.test.mjs',
+    'station-power.test.mjs',
+    'employee-workdays.test.mjs',
+    'customer-spending.test.mjs',
+    'customer-congestion.test.mjs',
+    'crowd-navigation.test.mjs',
+    'doorway-recovery.test.mjs',
+    'exit-circulation.test.mjs',
+    'multiroom-collision.test.mjs',
+    'layout-editor.test.mjs',
+    'layout-save-integrity.test.mjs',
+    'local-save-recovery.test.mjs',
+    'ps1-2002.test.mjs',
+    'ps2-integration.test.mjs',
+    'ps2-procedural-cover.test.mjs',
+    'gpu-demand.test.mjs',
+    'top-games-shop-integration.test.mjs',
+    'story-events.test.mjs',
+    'era.test.mjs',
+    'render-motion.test.mjs',
+    'scene-modular-render-boundaries.test.mjs',
+    'scene-surface.test.mjs',
+    'actor-art-polish.test.mjs',
+    'lcd-generations.test.mjs',
+    'pc-screen-activities.test.mjs',
+    'account-client.test.mjs',
+    'angular-ui-foundation.test.mjs',
+    'ui-engine-boundary.test.mjs',
+    'services.test.mjs',
+    'print-service.test.mjs',
+    'disc-copy.test.mjs',
+    'save-money-roundoff.test.mjs',
+    'windows-license-boundary.test.mjs',
+    'work-effects.test.mjs',
+)
+LHS_SMOKE_COMMAND = 'node --test --test-concurrency=2 ' + ' '.join('tests/' + name for name in LHS_SMOKE_TESTS)
+
+# The pre-commit gate is intentionally broader than the smoke profile:
+# every Node game test plus the Angular lint and production build.
 PROFILES = {
     'lhs-quick': (
         ('install', 'npm ci --no-audit --no-fund', 600, 'bridge'),
         ('typecheck', 'npm run typecheck', 300, 'none'),
         ('build', 'npm run build', 300, 'none'),
-        ('poster-regression', 'node --test tests/poster-modules.test.mjs', 120, 'none'),
+        ('game-smoke', LHS_SMOKE_COMMAND, 900, 'none'),
     ),
     'lhs-core': (
         ('install', 'npm ci --no-audit --no-fund', 600, 'bridge'),
         ('typecheck', 'npm run typecheck', 300, 'none'),
         ('build', 'npm run build', 300, 'none'),
-        ('test', 'npm test', 1800, 'none'),
+        ('all-game-unit-regressions', 'npm test', 1800, 'none'),
     ),
     'lhs-angular': (
         ('install', 'npm ci --no-audit --no-fund', 600, 'bridge'),
         ('install-angular', 'npm ci --prefix frontend-angular --no-audit --no-fund', 900, 'bridge'),
         ('typecheck', 'npm run typecheck', 300, 'none'),
         ('build', 'npm run build', 300, 'none'),
+        ('angular-lint', 'npm run lint --prefix frontend-angular', 300, 'none'),
+        ('angular-build', 'npm run build --prefix frontend-angular', 900, 'none'),
+    ),
+    'lhs-precommit': (
+        ('install', 'npm ci --no-audit --no-fund', 600, 'bridge'),
+        ('install-angular', 'npm ci --prefix frontend-angular --no-audit --no-fund', 900, 'bridge'),
+        ('typecheck', 'npm run typecheck', 300, 'none'),
+        ('build', 'npm run build', 300, 'none'),
+        ('all-game-unit-regressions', 'npm test', 1800, 'none'),
         ('angular-lint', 'npm run lint --prefix frontend-angular', 300, 'none'),
         ('angular-build', 'npm run build --prefix frontend-angular', 900, 'none'),
     ),
@@ -143,7 +199,7 @@ def run_pipeline(job_id: str, root: Path = WORKSPACES, jobs: Path = JOBS) -> Non
             shutil.rmtree(work, ignore_errors=True)
 
 
-def start(project: str, profile: str, root: Path = WORKSPACES, jobs: Path = JOBS) -> str:
+def start(project: str, profile: str = 'lhs-precommit', root: Path = WORKSPACES, jobs: Path = JOBS) -> str:
     project_dir(project, root)
     if profile not in PROFILES:
         raise ValueError('Perfil inválido')
@@ -193,7 +249,7 @@ def status(job_id: str, jobs: Path = JOBS) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description='Workspace de build isolado; somente perfis fixos')
     sub = parser.add_subparsers(dest='action', required=True)
-    begin = sub.add_parser('start');begin.add_argument('project');begin.add_argument('profile', choices=PROFILES)
+    begin = sub.add_parser('start');begin.add_argument('project');begin.add_argument('profile', nargs='?', default='lhs-precommit', choices=PROFILES)
     check = sub.add_parser('status');check.add_argument('job_id')
     worker = sub.add_parser('_worker', help=argparse.SUPPRESS);worker.add_argument('job_id')
     args = parser.parse_args()

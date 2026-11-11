@@ -125,6 +125,30 @@ class WorkspacesTest(unittest.TestCase):
                 runner.assert_not_called()
             self.assertEqual(ws.status('0123456789abcdef',jobs)['status'],'busy')
 
+    def test_smoke_covers_game_systems_not_only_art(self):
+        command = ws.PROFILES['lhs-quick'][-1][1]
+        self.assertIn('node --test --test-concurrency=2', command)
+        self.assertGreaterEqual(len(ws.LHS_SMOKE_TESTS), 30)
+        self.assertEqual(len(ws.LHS_SMOKE_TESTS), len(set(ws.LHS_SMOKE_TESTS)))
+        for domain in ('simulation', 'historical-economy', 'merchandise',
+                       'customer-congestion', 'doorway-recovery', 'ps1-2002',
+                       'ps2-integration', 'render-motion', 'local-save-recovery',
+                       'angular-ui-foundation', 'services', 'story-events'):
+            self.assertIn('tests/'+domain+'.test.mjs', command)
+        self.assertNotIn('poster-modules.test.mjs', command)
+        self.assertTrue(all(step[3] == 'none' for step in ws.PROFILES['lhs-quick'][1:]))
+
+    def test_default_precommit_requires_full_game_and_angular(self):
+        profile = ws.PROFILES['lhs-precommit']
+        commands = [step[1] for step in profile]
+        for command in ('npm run typecheck', 'npm run build', 'npm test',
+                        'npm run lint --prefix frontend-angular',
+                        'npm run build --prefix frontend-angular'):
+            self.assertIn(command, commands)
+        self.assertEqual(sum(1 for c in commands if c == 'npm test'), 1)
+        self.assertTrue(all(step[3] == 'none' for step in profile[2:]))
+        self.assertNotIn('npx playwright', ' '.join(commands))
+
     def test_snapshot_shell_command_parses(self):
         subprocess.run(['sh','-n','-c',ws.clean_copy_command()],check=True)
 

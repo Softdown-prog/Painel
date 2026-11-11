@@ -18,8 +18,7 @@ O GitHub Runner não participa deste procedimento.
 - Um build por vez, 1,5 vCPU, 1.536 MiB RAM, 128 processos, timeouts por etapa.
 - Usa `node:24-bookworm-slim` (imagem a fixar por digest em produção). **Não executa
   Playwright real ainda**; um perfil de navegador exigirá imagem com Chromium e
-  bibliotecas pré-instalados. Os perfis `lhs-quick`, `lhs-core` e `lhs-angular`
-  testam TypeScript/Node/Angular sem abrir navegador.
+  bibliotecas pré-instalados. Os perfis testam TypeScript/Node/Angular sem abrir navegador.
 - Não altera o projeto original, a `main`, a VPS em produção ou o CI.
 
 ## Instalação controlada na VPS (não executada por esta entrega)
@@ -47,7 +46,7 @@ Em **Painel → Agentes Codex → Administração da VPS**, a ferramenta já exi
 `solicitar_comando_vps` pode propor o comando fixo, sujeito à aprovação humana:
 
 ```sh
-python3 /usr/local/lib/panel-workspaces/workspace_build.py start gh_12_abcdef12 lhs-quick
+python3 /usr/local/lib/panel-workspaces/workspace_build.py start gh_12_abcdef12 lhs-precommit
 ```
 
 `gh_12_abcdef12` é um **exemplo de identificador**, não o nome de uma cópia
@@ -62,11 +61,12 @@ Perfis atuais:
 
 | Perfil | Passos |
 | --- | --- |
-| `lhs-quick` | npm ci, typecheck, build, regressão dos pôsteres |
+| `lhs-quick` | npm ci, typecheck, build e **40 arquivos de testes representativos** de simulação, economia, clientes, filas, circulação, saves, PS1/PS2, renderização, serviços e interface. **Smoke, não aprovação do jogo inteiro** |
 | `lhs-core` | npm ci, typecheck, build, npm test |
 | `lhs-angular` | npm ci, dependências Angular, typecheck, build, lint e build Angular |
+| **`lhs-precommit` (padrão)** | TypeScript, build, **todos os testes Node do jogo via `npm test`**, lint e build de produção Angular. **Não substitui os testes reais de navegador no CI** |
 
-A API não deve inferir aprovação do GitHub PR a partir deste resultado. Um build
+O perfil rápido jamais autoriza um commit isoladamente. Para alterações normais, usar o perfil padrão **`lhs-precommit`**, e para Canvas, gameplay e UI também exigir Playwright e capturas reais numa etapa adicional. A API não deve inferir aprovação do GitHub PR a partir deste resultado. Um build
 válido exige `status=passed`; `queued`, `running`, `busy` ou `failed` **não** são
 sucesso. Os jobs iniciados pelo terminal são curtos: o script cria um supervisor
 desvinculado, e os perfis podem durar vários minutos. Logs de etapas permanecem
