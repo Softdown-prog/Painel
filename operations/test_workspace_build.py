@@ -203,6 +203,36 @@ class WorkspacesTest(unittest.TestCase):
             self.assertEqual(state['current'], 'install')
             self.assertFalse((jobs/'0123456789abcdef'/'source').exists())
 
+    def test_real_visual_artifacts_are_bounded_and_secret_free(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            work = root/'source'
+            out = work/'games'/'lan_house_simulator'/'out'/'validation'
+            out.mkdir(parents=True)
+            private = root/'sensitive.env'
+            private.write_text('PRIVATE='+'z'*250)
+            (out/'desktop.png').write_bytes(b'\\x89PNG'+b'X'*200)
+            (out/'mobile.webp').write_bytes(b'RIFF'+b'Y'*200)
+            (out/'clips.webm').write_bytes(b'WEBM'+b'Z'*200)
+            (out/'secret-link.png').symlink_to(private)
+            (out/'private.env').write_bytes(b'X'*200)
+            names = ws.collect_visual_artifacts(work,root)
+            self.assertEqual(len(names),3)
+            self.assertTrue(any(x.endswith('desktop.png') for x in names))
+            self.assertTrue(all((root/'artifacts'/x).stat().st_mode & 0o077 == 0 for x in names))
+            self.assertEqual((root/'artifacts'/next(x for x in names if x.endswith('desktop.png'))).read_bytes(),b'\\x89PNG'+b'X'*200)
+            self.assertFalse(any('private' in x or 'secret' in x for x in names))
+
+    def test_visual_artifacts_do_not_follow_output_symlink(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);work=root/'source'
+            (work/'games'/'lan_house_simulator'/'out').mkdir(parents=True)
+            other=root/'private';other.mkdir()
+            (other/'leaked.png').write_bytes(b'X'*200)
+            (work/'games'/'lan_house_simulator'/'out'/'validation').symlink_to(other)
+            self.assertEqual(ws.collect_visual_artifacts(work,root),[])
+            self.assertFalse((root/'artifacts').exists())
+
     def test_snapshot_shell_command_parses(self):
         subprocess.run(['sh','-n','-c',ws.clean_copy_command()],check=True)
 
