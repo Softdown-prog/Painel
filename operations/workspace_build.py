@@ -139,7 +139,7 @@ def docker_args(work: Path, *, source: Path | None, phase: str, network='none', 
             '--env=HOME=/work/.home', '--env=npm_config_cache=/work/.npm-cache',
             *(('--name='+container_name,) if container_name else ()),
             '--mount=type=bind,src='+str(work)+',dst=/work',
-            '--workdir=/work/games/lan_house_simulator']
+            '--workdir='+('/work' if source is not None else '/work/games/lan_house_simulator')]
     if source is not None:
         argv += ['--mount=type=bind,src='+str(source)+',dst=/source,readonly']
     argv += [IMAGE, 'sh', '-eu', '-c', phase]
