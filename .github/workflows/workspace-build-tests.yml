@@ -1,0 +1,28 @@
+name: Panel workspace build contracts
+on:
+  push:
+    branches: [main, feat/workspace-build-isolation-20261111]
+    paths:
+      - 'operations/workspace_build.py'
+      - 'operations/test_workspace_build.py'
+      - '.github/workflows/workspace-build-tests.yml'
+  pull_request:
+    paths:
+      - 'operations/workspace_build.py'
+      - 'operations/test_workspace_build.py'
+      - '.github/workflows/workspace-build-tests.yml'
+permissions:
+  contents: read
+jobs:
+  workspace-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile workspace supervisor
+        run: python -m py_compile operations/workspace_build.py operations/test_workspace_build.py
+      - name: Run offline isolation and lifecycle contracts
+        run: python -m unittest operations/test_workspace_build.py -v
