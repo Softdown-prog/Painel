@@ -10,25 +10,100 @@ import time
 import urllib.parse
 import urllib.request
 
+
+# Nomes estáveis e públicos: nunca publicar stderr bruto, chave ou endereço da VPS.
+SSH_DIAGNOSTIC_HINTS = {
+    'host_key_verification_failed': 'Verificar a chave pública genuína do host e VPS_KNOWN_HOSTS; manter StrictHostKeyChecking.',
+    'invalid_private_key': 'Verificar o formato da chave privada em VPS_OPERATIONS_SSH_KEY.',
+    'authentication_failed': 'Verificar a chave pública autorizada para vpsops e as permissões SSH.',
+    'connection_refused': 'Verificar sshd, porta SSH e regras de firewall da VPS.',
+    'connection_timed_out': 'Verificar rota de rede, firewall e disponibilidade da VPS.',
+    'network_unreachable': 'Verificar conectividade da VPS e do runner.',
+    'dns_resolution_failed': 'Verificar o nome do host configurado para o SSH.',
+    'connection_closed': 'Verificar sshd, Fail2ban e limites de conexão na VPS.',
+    'ssh_command_timeout': 'Verificar a disponibilidade do executor; confirmar o recibo antes de repetir operações.',
+    'ssh_client_unavailable': 'Verificar disponibilidade do executável ssh no runner.',
+    'invalid_executor_response': 'O comando remoto não devolveu recibo JSON válido; verificar o executor na VPS.',
+    'unknown_transport_error': 'Inspecionar sshd, firewall, chave e conectividade na VPS, sem desabilitar a validação do host.',
+    'missing_ssh_configuration': 'Configurar as credenciais SSH ausentes nos secrets do GitHub Actions.',
+}
+
+
+def ssh_failure_category(stderr, returncode):
+    """Classificação por padrões; stderr é confidencial e jamais é retornado."""
+    value = (stderr or '').lower()
+    if any(word in value for word in ('remote host identification has changed',
+                                       'host key verification failed',
+                                       'no matching host key type found',
+                                       'no hostkey alg')):
+        return 'host_key_verification_failed'
+    if any(word in value for word in ('load key ', 'error in libcrypto',
+                                       'invalid format', 'bad permissions',
+                                       'unprotected private key file')):
+        return 'invalid_private_key'
+    if any(word in value for word in ('permission denied (publickey',
+                                       'too many authentication failures',
+                                       'sign_and_send_pubkey: signing failed',
+                                       'no more authentication methods to try')):
+        return 'authentication_failed'
+    if 'connection refused' in value:
+        return 'connection_refused'
+    if any(word in value for word in ('connection timed out', 'operation timed out',
+                                       'connect timed out')):
+        return 'connection_timed_out'
+    if any(word in value for word in ('network is unreachable', 'no route to host')):
+        return 'network_unreachable'
+    if any(word in value for word in ('could not resolve hostname',
+                                       'name or service not known',
+                                       'temporary failure in name resolution')):
+        return 'dns_resolution_failed'
+    if any(word in value for word in ('connection closed', 'connection reset',
+                                       'kex_exchange_identification')):
+        return 'connection_closed'
+    return 'unknown_transport_error' if returncode == 255 else 'invalid_executor_response'
+
+
+def transport_error(category, returncode=None, attempts=1, missing=None):
+    result = {'exitCode': 1, 'error': 'SSH transport failed; no valid executor result',
+              'transportCategory': category, 'diagnosticHint': SSH_DIAGNOSTIC_HINTS[category],
+              'attempts': attempts}
+    if returncode is not None:
+        result['transportExitCode'] = returncode
+    if missing:
+        result['missingSettings'] = missing
+    return result
+
 def execute_ssh(command, payload):
     encoded = json.dumps(payload)
     for attempt in range(2):
-        process = subprocess.run(command, input=encoded, text=True, capture_output=True, timeout=1600)
+        try:
+            process = subprocess.run(command, input=encoded, text=True, capture_output=True, timeout=1600)
+        except subprocess.TimeoutExpired:
+            return transport_error('ssh_command_timeout', attempts=attempt + 1)
+        except OSError:
+            return transport_error('ssh_client_unavailable', attempts=attempt + 1)
         try:
             result = json.loads(process.stdout)
             if isinstance(result, dict) and result.get('id') == payload['id'] and type(result.get('exitCode')) is int:
                 return result
         except (ValueError, TypeError):
             pass
-        if process.returncode == 255 and attempt == 0:
-            # Reuse the exact authenticated request. The host returns its saved
-            # receipt for a duplicate; never create another deployment identity.
+        category = ssh_failure_category(process.stderr, process.returncode)
+        # Erros permanentes de chave/autenticação não melhoram com retry.
+        permanent = {'host_key_verification_failed', 'invalid_private_key',
+                     'authentication_failed', 'dns_resolution_failed'}
+        if process.returncode == 255 and attempt == 0 and category not in permanent:
+            # Reuse exactly the same request ID. Receiver handles duplicates
+            # through its durable receipt; no second deployment identity.
             time.sleep(30)
             continue
-        return {'exitCode': 1, 'error': 'SSH transport failed; no valid executor result',
-                'transportExitCode': process.returncode}
+        return transport_error(category, process.returncode, attempt + 1)
 
 def main():
+    missing = [name for name in ('VPS_SSH_KEY', 'VPS_KNOWN_HOSTS')
+               if not os.environ.get(name, '').strip()]
+    if missing:
+        return publish_result(transport_error('missing_ssh_configuration', missing=missing))
     url = os.environ['ACTIONS_ID_TOKEN_REQUEST_URL'] + '&audience=' + urllib.parse.quote('vps-operations:164.163.9.7')
     req = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']})
     with urllib.request.urlopen(req, timeout=20) as response:
@@ -88,7 +163,11 @@ def main():
                    '-o', 'ConnectTimeout=20', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3',
                    'vpsops@164.163.9.7', 'operations-v1']
         result = execute_ssh(command, payload)
-    # No raw SSH stderr or runner environment is published (may contain sensitive transport details).
+    return publish_result(result)
+
+
+def publish_result(result):
+    """Persist and summarize only allowlisted results, never raw SSH output."""
     Path('vps-result.json').write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result, indent=2))
     summary = os.environ.get('GITHUB_STEP_SUMMARY')
