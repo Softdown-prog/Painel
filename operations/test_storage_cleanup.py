@@ -37,19 +37,42 @@ class StorageCleanupTests(unittest.TestCase):
             _, targets = gc.plan(self.images, self.containers, {B: stamp}, 30000)
             self.assertEqual(targets, [])
 
-    def test_unknown_repository_and_import_ledger_preserved(self):
+    def test_stale_foreign_and_old_managed_images_can_be_reclaimed(self):
         self.images.append(image(C, 'other/project:spare'))
         _, targets = gc.plan(self.images, self.containers, {B: 0, C: 0}, 30000,
                              protected_refs=['example/app:old'])
-        self.assertEqual(targets, [])
-
-    def test_one_foreign_alias_protects_whole_image(self):
+        self.assertEqual([x['id'] for x in targets], [C])
         self.images[1]['RepoTags'].append('unregistered/spare:old')
-        self.assertEqual(gc.plan(self.images, self.containers, {B: 0}, 30000)[1], [])
-
-    def test_managed_application_repositories_keep_their_own_ledger_policy(self):
+        self.assertEqual([x['id'] for x in gc.plan(self.images, self.containers, {B: 0, C: 0}, 30000)[1]], [B, C])
         self.containers[0]['Config'] = {'Labels': {'com.softload.panel.managed': 'true'}}
-        self.assertEqual(gc.plan(self.images, self.containers, {B: 0}, 30000)[1], [])
+        self.assertEqual([x['id'] for x in gc.plan(self.images, self.containers, {B: 0, C: 0}, 30000)[1]], [B, C])
+
+    def test_pinned_toolbox_and_qa_images_survive_without_containers(self):
+        for ref in sorted(gc.PINNED_TOOLBOX_REFS):
+            self.images.append(image(C, ref))
+            _, targets = gc.plan(self.images, self.containers, {B: 0, C: 0}, 30000)
+            self.assertEqual([t['id'] for t in targets], [B])
+            self.images.pop()
+
+    def test_untagged_unused_image_is_eligible(self):
+        self.images.append({'Id': C, 'RepoTags': [], 'RepoDigests': []})
+        _, targets = gc.plan(self.images, self.containers, {B: 0, C: 0}, 30000)
+        self.assertEqual([t['id'] for t in targets], [B, C])
+        self.assertEqual(targets[-1]['refs'], [])
+
+    def test_recent_imports_are_protected_only_during_staging(self):
+        from datetime import datetime, timezone
+        with tempfile.TemporaryDirectory() as directory:
+            folder=Path(directory)
+            (folder/'image-imports.json').write_text(json.dumps([
+                {'repository':'Softdown-prog/Tool', 'digest':'sha256:'+'a'*64,
+                 'importedAt':datetime.fromtimestamp(10000,timezone.utc).isoformat()},
+                {'repository':'Softdown-prog/Tool', 'digest':'sha256:'+'b'*64,
+                 'importedAt':datetime.fromtimestamp(3000,timezone.utc).isoformat()}]))
+            with patch.object(gc,'DATA',folder):
+                refs=gc.protected_imports(now=11000)
+                self.assertEqual(refs,['ghcr.io/softdown-prog/tool@sha256:'+'a'*64])
+
 
     def test_registry_port_and_digest_parsing(self):
         self.assertEqual(gc.repository('localhost:5000/shop/app:tag'), 'localhost:5000/shop/app')
@@ -85,6 +108,17 @@ class StorageCleanupTests(unittest.TestCase):
              patch.object(gc, 'docker', side_effect=responses) as docker:
             self.assertTrue(gc.remove_target(target))
             self.assertEqual(docker.call_args_list[1].args, ('image', 'rm', '--no-prune', 'example/app:old'))
+
+    def test_untagged_deletion_uses_exact_image_id_without_force(self):
+        target={'id':B,'refs':[]}
+        replies=[SimpleNamespace(returncode=0,stdout=json.dumps([{'Id':B}])),
+                 SimpleNamespace(returncode=0,stdout=''),
+                 SimpleNamespace(returncode=1,stdout='')]
+        with patch.object(gc,'inventory',return_value=(self.images,self.containers)), \
+             patch.object(gc,'protected_imports',return_value=[]), \
+             patch.object(gc,'docker',side_effect=replies) as docker:
+            self.assertTrue(gc.remove_target(target))
+            self.assertEqual(docker.call_args_list[1].args,('image','rm','--no-prune',B))
 
     def test_symlink_maintenance_metadata_refused(self):
         import os
