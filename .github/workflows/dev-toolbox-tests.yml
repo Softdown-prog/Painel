@@ -6,12 +6,24 @@ on:
     paths:
       - 'operations/dev-toolbox.Dockerfile'
       - 'operations/install-dev-toolbox-vps.sh'
+      - 'operations/workspace_build.py'
+      - 'operations/test_workspace_build.py'
+      - 'agents/operations.mjs'
+      - 'agents/operations.test.mjs'
+      - 'server/agent-operations.ts'
+      - 'server/agent-operations.test.mjs'
       - 'operations/dev-toolbox/**'
       - '.github/workflows/dev-toolbox-tests.yml'
   pull_request:
     paths:
       - 'operations/dev-toolbox.Dockerfile'
       - 'operations/install-dev-toolbox-vps.sh'
+      - 'operations/workspace_build.py'
+      - 'operations/test_workspace_build.py'
+      - 'agents/operations.mjs'
+      - 'agents/operations.test.mjs'
+      - 'server/agent-operations.ts'
+      - 'server/agent-operations.test.mjs'
       - 'operations/dev-toolbox/**'
       - '.github/workflows/dev-toolbox-tests.yml'
   workflow_dispatch:
@@ -21,6 +33,10 @@ on:
         required: false
         type: boolean
         default: false
+
+concurrency:
+  group: softdown-toolbox-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -36,6 +52,26 @@ jobs:
           bash -n operations/dev-toolbox/smoke.sh
           bash -n operations/install-dev-toolbox-vps.sh
           python3 -m unittest discover -s operations/dev-toolbox -p 'test_*.py' -v
+
+  toolbox-agent-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install Panel dependencies from committed lockfile
+        run: npm ci --no-audit --no-fund
+      - name: Validate Panel TypeScript and repo-scoped MCP tool allowlists
+        run: |
+          npm run typecheck
+          node --experimental-strip-types --test agents/operations.test.mjs server/agent-operations.test.mjs
+      - name: Validate sandbox image selection and full game precommit contracts
+        run: python3 -m unittest operations/test_workspace_build.py -v
+      - name: Full Panel regression suite
+        run: npm test
 
   toolbox-core:
     runs-on: ubuntu-24.04
@@ -77,9 +113,54 @@ jobs:
             panel-dev-toolbox:browser sh /smoke.sh browser
       - name: Report image size and immutable image ID
         run: docker image inspect panel-dev-toolbox:browser --format '{{.Id}} {{.Size}}'
+      - name: Checkout immutable LHS code for full real game testing
+        uses: actions/checkout@v4
+        with:
+          repository: Softdown-prog/A7-forge-2D-
+          ref: c70032b3aa4e952d5eb99bf3f8a672aa6c3c68dc
+          path: lhs-src
+          persist-credentials: false
+      - name: Run full LHS precommit in the NEW toolbox image
+        run: |
+          set -euo pipefail
+          sudo mkdir -p "$RUNNER_TEMP/toolbox-projects/gh_12_abcdef12" \
+            "$RUNNER_TEMP/toolbox-jobs/aaaabbbbccccdddd"
+          sudo cp -a lhs-src/. "$RUNNER_TEMP/toolbox-projects/gh_12_abcdef12/"
+          sudo env RUNNER_TEMP="$RUNNER_TEMP" python3 - <<'PY'
+          import importlib.util,os
+          from pathlib import Path
+          spec=importlib.util.spec_from_file_location('ws','operations/workspace_build.py')
+          ws=importlib.util.module_from_spec(spec);spec.loader.exec_module(ws)
+          root=Path(os.environ['RUNNER_TEMP'])/'toolbox-projects'
+          jobs=Path(os.environ['RUNNER_TEMP'])/'toolbox-jobs'
+          job='aaaabbbbccccdddd'
+          ws.write_state(jobs/job,project='gh_12_abcdef12',
+                         profile='lhs-toolbox-precommit',status='queued')
+          ws.run_pipeline(job,root,jobs)
+          result=ws.status(job,jobs)
+          print('LHS full toolbox result:',{k:v for k,v in result.items() if k!='logTail'})
+          if result['status']!='passed':
+              raise SystemExit('Toolbox full-game tests FAILED at '+str(result.get('current'))+': '+str(result.get('error')))
+          PY
+      - name: Gather genuine game screenshots produced by toolbox
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/toolbox-review"
+          if sudo test -d "$RUNNER_TEMP/toolbox-jobs/aaaabbbbccccdddd/artifacts"; then
+            sudo cp -a "$RUNNER_TEMP/toolbox-jobs/aaaabbbbccccdddd/artifacts/." "$RUNNER_TEMP/toolbox-review/"
+            sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/toolbox-review"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dev-toolbox-lhs-real-gameplay-${{ github.run_id }}
+          path: ${{ runner.temp }}/toolbox-review/
+          retention-days: 7
+          if-no-files-found: warn
+
 
   toolbox-full-optional:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.full == true }}
+    if: ${{ (github.event_name == 'push' && github.ref_name == 'feat/dev-toolbox-multistack-20261111') || (github.event_name == 'workflow_dispatch' && inputs.full == true) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:

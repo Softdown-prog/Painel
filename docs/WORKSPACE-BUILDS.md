@@ -181,3 +181,25 @@ python3 -m unittest operations/test_workspace_build.py -v
 Os testes verificam sintaxe dos argumentos, escopo dos mounts, falha fechada,
 bloqueio de traversal/symlink, exclusão da cópia temporária e rede `none` nos testes.
 Eles **não** comprovam a execução de `npm test` na VPS. O GitHub Actions verifica também a compilação TypeScript do Painel, os contratos dos Agentes e a inicialização real do Chromium em Docker isolado.
+
+
+## Softdown Dev Toolbox opcional — base Ubuntu 24.04
+
+A branch `feat/dev-toolbox-multistack-20261111` acrescenta uma imagem
+**separada** `panel-dev-toolbox:browser`, com Node 24, Python 3.13,
+Go, Rust, Java, Ruby, PHP e Playwright 1.56.1/Chromium. A imagem completa
+`panel-dev-toolbox:full` acrescenta documentos, ciência de dados e mídia,
+mas possui custo de espaço maior e precisa de homologação própria.
+
+Após construir e homologar a imagem **na VPS**, o agente poderá solicitar
+`lhs-toolbox-precommit` ou `terrania-toolbox-precommit` com aprovação
+humana, sempre executando a mesma suíte obrigatória de cada jogo.
+Os perfis `lhs-precommit` e `terrania-precommit` continuam usando a
+imagem original; não houve substituição silenciosa. O Docker está configurado
+para `--pull=never`: caso a imagem local não exista, o job falha.
+
+O instalador `operations/install-dev-toolbox-vps.sh` possui modos
+`check` (somente verificação) e `apply` (build da imagem escolhida).
+Nenhuma instalação, alteração de Compose, merge ou conexão deste chat
+ao MCP é realizada automaticamente. Detalhes em
+[`operations/dev-toolbox/README.md`](../operations/dev-toolbox/README.md).

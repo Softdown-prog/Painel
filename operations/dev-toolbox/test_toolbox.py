@@ -17,6 +17,10 @@ class ToolboxPolicyTest(unittest.TestCase):
         for command in ('npm install --global', 'pnpm@', 'yarn@',
                         'typescript@', 'python3 --version', 'playwright install --with-deps chromium'):
             self.assertIn(command, DOCKERFILE)
+        for name in ('node:24-bookworm-slim', 'python:3.13-slim-bookworm',
+                     'golang:1.26-bookworm', 'rust:1.97-slim-bookworm',
+                     'ubuntu:24.04'):
+            self.assertRegex(DOCKERFILE, name.replace('.', '[.]')+r'@sha256:[a-f0-9]{64}')
         self.assertIn("PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers", DOCKERFILE)
         self.assertIn("playwright --version | grep '1.56.1'", SMOKE)
 
@@ -29,6 +33,7 @@ class ToolboxPolicyTest(unittest.TestCase):
         self.assertNotIn('docker.sock', DOCKERFILE)
         self.assertNotIn('ENTRYPOINT', DOCKERFILE)
         self.assertNotIn('supervisord', DOCKERFILE)
+        self.assertIn('FROM browser AS default', DOCKERFILE)
         self.assertIn('CMD ["bash"]', DOCKERFILE)
 
     def test_no_real_deployment_from_ci(self):
@@ -64,6 +69,8 @@ class ToolboxPolicyTest(unittest.TestCase):
                         install.index('docker build --pull'))
         self.assertIn('docker run --rm --init --read-only --cap-drop ALL --network none',install)
         self.assertIn('find "$file" -maxdepth 0 -perm /022',install)
+        self.assertIn('flock -n 9',install)
+        self.assertIn('.active.lock',install)
         self.assertIn('dirty; no image was built',install)
         self.assertNotIn('docker compose down',install)
         self.assertNotIn('docker system prune',install)

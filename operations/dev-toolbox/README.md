@@ -10,7 +10,8 @@ The new image is stored in Docker and is started **only on demand**.
 **Important:** building this image is not a connection to ChatGPT, is not a
 substitute for Codex/MCP authentication and does not silently enable agent
 execution. Existing `lhs-precommit` and `terrania-precommit` continue using
-their original QA image until an explicit, tested profile migration.
+their original QA image. Choosing the `*-toolbox-precommit` alias is an
+explicit, independently approved operation, not a default migration.
 
 ## Image targets
 
@@ -21,9 +22,9 @@ their original QA image until an explicit, tested profile migration.
 | `browser` | Languages + Playwright 1.56.1 with real Chromium | Canvas, visual and mobile-browser QA |
 | `full` | Browser + LibreOffice, Pandoc, qpdf, FFmpeg, ImageMagick, Tesseract, Bun 1.4, Python science/document packages and npm document/markdown packages | Optional heavy data/doc/media work |
 
-The Dockerfile defaults to the final `full` target if no target is supplied.
-**In production, always specify an explicit target** so no large image is built
-by accident. Browser tests are real, not screenshots generated from text.
+The Dockerfile defaults to the lighter `browser` target if no target is
+supplied. **In production, still specify the exact target** so upgrades are
+intentional; the large `full` image always requires `--target full`. Browser tests are real, not screenshots generated from text.
 
 Project-level `package-lock.json` and Python lockfiles take precedence over
 global tools. For example LHS and Terrania both use Playwright 1.56.1; the
@@ -34,14 +35,15 @@ a separate authenticated component.
 
 ### Version pinning policy
 
-The image's *families* are declared, but upstream base tags (e.g.
-`node:24-bookworm-slim`, `python:3.13-slim-bookworm`,
-`ubuntu:24.04`) can move when new patches are published. The optional full
-Python requirements use bounded ranges; optional npm media packages are
-also not yet hash locked. Do **not** claim bit-for-bit reproducibility.
-Before production installation, record and pin the audited image digests
-and resolve complete Python/npm dependency locks. Updating one version
-requires rerunning the full QA matrix and retaining the resulting image ID.
+Ubuntu, Node 24, Python 3.13, Go 1.26 and Rust 1.97 now use
+**SHA-256 image digests observed in the passing GitHub-hosted CI build**.
+This prevents upstream tag movement from changing these runtime images.
+The distro's apt package revisions and the optional `full` Python/npm
+dependencies are **not fully hash locked**, so a fresh rebuild is not yet
+bit-for-bit reproducible. Prior to production installation, freeze the
+remaining apt/npm/Python resolved dependency lock and inspect licenses and
+security updates. Changing any digest or lock requires rerunning the QA
+matrix and recording the resulting local image ID.
 
 ### Isolated validation
 
@@ -81,6 +83,8 @@ sudo bash operations/install-dev-toolbox-vps.sh apply /reviewed/Painel/checkout 
 Compose or replaces `panel-lhs-qa:node24-pw1.56.1`. `full` is deliberately
 a separate, larger choice and has its own manually invoked CI validation.
 The installer refuses low memory/disk resources and dirty tracked files.
+It also holds the workspace supervisor's active-build lock before changing
+an image tag, so an in-flight QA container is not disrupted.
 
 For the VPS's limited RAM, build/install one image at a time, inspect actual
 image sizes and prune **only specifically identified unused toolbox images**
@@ -92,9 +96,13 @@ if needed. Never run `docker system prune` as a generic cleanup.
    requires an explicit manual CI build and a reviewed dependency lock.
 2. Record fixed image digests, scan licenses/vulnerabilities and test available
    RAM, disk and browser stability on a maintenance-safe VPS window.
-3. Build a separately reviewed allowlisted execution route from the Panel's
-   approved Codex tool calls to an ephemeral toolbox process. The agent must
-   never gain the Docker socket or arbitrary host-shell access.
+3. The branch adds the opt-in, repo-bound `lhs-toolbox-precommit` and
+   `terrania-toolbox-precommit` profiles to the approved Codex tools. They
+   require the same human approval as the existing build gate and use the
+   locally installed `panel-dev-toolbox:browser` image with `--pull=never`.
+   If the image is missing, the job fails rather than pulling anything.
+   Validate the exact project profile end-to-end after the host installation;
+   the agent still gets no Docker socket or arbitrary host shell.
 4. Retain existing LHS/Terrania QA gates, project-specific test scripts and
    one active branch; keep commits, PRs and merges user-authorized.
 

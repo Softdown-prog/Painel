@@ -1,17 +1,18 @@
 # Softdown Dev Toolbox: opt-in, disposable multi-stack developer image.
 # The always-on Codex/MCP service keeps its small image; this is not a replacement.
-# Upstream tags are deliberately documented as version FAMILY pins until their
-# content digests are verified in CI and frozen for the VPS.
-ARG NODE_REF=node:24-bookworm-slim
-ARG PYTHON_REF=python:3.13-slim-bookworm
-ARG GO_REF=golang:1.26-bookworm
-ARG RUST_REF=rust:1.97-slim-bookworm
+# All five upstream images are pinned to content digests observed in an
+# approved GitHub-hosted browser build. Distro apt and optional full-tier
+# dependencies still require separate lock/review before VPS production.
+ARG NODE_REF=node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54
+ARG PYTHON_REF=python:3.13-slim-bookworm@sha256:a5a7017efc5969e00ae2b91c8eb0631049a569652aa4ffc4501769049ae45c72
+ARG GO_REF=golang:1.26-bookworm@sha256:dc40a13b61304647ed7e5d581d246b86413dfc29d63c6d018310feb93cd98fc0
+ARG RUST_REF=rust:1.97-slim-bookworm@sha256:2775a09d208ff0d7c1f50490c45b62db929e87ba1dcbc3f2132ac71a704bcdd3
 FROM ${NODE_REF} AS upstream-node
 FROM ${PYTHON_REF} AS upstream-python
 FROM ${GO_REF} AS upstream-go
 FROM ${RUST_REF} AS upstream-rust
 
-FROM ubuntu:24.04 AS core
+FROM ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5 AS core
 ARG DEBIAN_FRONTEND=noninteractive
 ENV CI=1 \
     LANG=C.UTF-8 \
@@ -98,3 +99,8 @@ RUN npm install --global --no-audit --no-fund \
       marked markdownlint-cli remark-cli \
     && npm cache clean --force
 LABEL com.softdown.panel.toolbox="full"
+
+# Safe default: never build the large media/science layer unless --target full
+# was explicitly selected. All workflows and VPS installers set --target.
+FROM browser AS default
+LABEL com.softdown.panel.toolbox="default-browser"

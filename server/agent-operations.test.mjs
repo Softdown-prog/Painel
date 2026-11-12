@@ -61,6 +61,15 @@ test('fixed LHS workspace command rejects arbitrary profile, paths and shell tex
  assert.throws(()=>workspaceCommand('status','Painel','../../etc/passwd'));
 });
 
+test('workspace command uses fixed local toolbox precommit aliases without arbitrary images',()=>{
+ assert.equal(workspaceCommand('start','gh_12_abcdef12','lhs-toolbox-precommit'),
+  'python3 /usr/local/lib/panel-workspaces/workspace_build.py start gh_12_abcdef12 lhs-toolbox-precommit');
+ assert.equal(workspaceCommand('start','gh_12_abcdef12','terrania-toolbox-precommit'),
+  'python3 /usr/local/lib/panel-workspaces/workspace_build.py start gh_12_abcdef12 terrania-toolbox-precommit');
+ assert.throws(()=>workspaceCommand('start','gh_12_abcdef12','panel-dev-toolbox:full'));
+ assert.throws(()=>workspaceCommand('start','gh_12_abcdef12','--privileged'));
+});
+
 test('LHS validation requires an approved project destination and returns queued, never passed',async t=>{
  const f=fixture(t,'Softdown-prog/A7-forge-2D-');
  const c=f.propose('validar_workspace',{perfil:'lhs-precommit'},'Painel');

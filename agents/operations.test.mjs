@@ -102,6 +102,24 @@ test('Terrania tool proposals accept only Terrania profiles and reject cross-pro
 });
 
 
+test('opt-in toolbox precommit profiles remain repo-bound and require approval',t=>{
+ const f=fixture(t),project={...session,project:'Painel'};
+ const lhs={repository:'Softdown-prog/A7-forge-2D-'};
+ const terrania={repository:'Softdown-prog/Terrania'};
+ const first=f.store.propose({threadId:project.id,turnId:project.turnId,callId:'toolbox-lhs',
+  tool:'validar_workspace',arguments:{perfil:'lhs-toolbox-precommit'}},'rpc',project,f.root,lhs);
+ assert.equal(first.status,'pending');assert.equal(first.mode,'approval');
+ f.store.complete(first.id,{success:false});
+ assert.throws(()=>f.store.propose({threadId:project.id,turnId:project.turnId,callId:'toolbox-cross-lhs',
+  tool:'validar_workspace',arguments:{perfil:'terrania-toolbox-precommit'}},'rpc',project,f.root,lhs));
+ const second=f.store.propose({threadId:project.id,turnId:project.turnId,callId:'toolbox-terrania',
+  tool:'validar_workspace',arguments:{perfil:'terrania-toolbox-precommit'}},'rpc',project,f.root,terrania);
+ assert.equal(second.status,'pending');
+ f.store.complete(second.id,{success:false});
+ assert.throws(()=>f.store.propose({threadId:project.id,turnId:project.turnId,callId:'toolbox-cross-terrania',
+  tool:'validar_workspace',arguments:{perfil:'lhs-toolbox-precommit'}},'rpc',project,f.root,terrania));
+});
+
 function repository(t){const root=mkdtempSync(join(tmpdir(),'agent-git-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
  const run=args=>execFileSync('git',args,{cwd:root,encoding:'utf8',stdio:['ignore','pipe','pipe']});
  run(['init','-q']);run(['config','user.email','fixture@example.invalid']);run(['config','user.name','Fixture']);
