@@ -47,8 +47,9 @@ def authorize(policy, args):
 
 
 def supervisor():
-    if not SUPERVISOR.is_file() or SUPERVISOR.is_symlink():
-        raise RuntimeError('Root-owned Node24 supervisor is unavailable')
+    if (not SUPERVISOR.is_file() or SUPERVISOR.is_symlink() or
+        SUPERVISOR.stat().st_uid != 0 or SUPERVISOR.stat().st_mode & 0o022):
+        raise RuntimeError('Trusted root-owned Node24 supervisor is unavailable')
     spec = importlib.util.spec_from_file_location('chatgpt_supervisor', SUPERVISOR)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -145,6 +146,8 @@ def run_workspace(policy, args):
     if STATE.is_symlink():
         raise RuntimeError('Unsafe state directory')
     STATE.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if STATE.stat().st_uid != 0 or STATE.stat().st_mode & 0o077:
+        raise RuntimeError('State directory is not private and root-owned')
     ws = supervisor()
     if getattr(ws, 'CHATGPT_WORKSPACES', None) != SOURCES:
         raise RuntimeError('Installed supervisor does not support isolated ChatGPT workspace')
