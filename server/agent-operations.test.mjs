@@ -115,6 +115,39 @@ test('non-LHS project cannot create or query LHS workspace builds',async t=>{
  assert.equal(read.status,'failed');assert.equal(f.jobsStarted.length,0);
 });
 
+test('Terrania uses its own Node 24 full-game profile, never an LHS profile',async t=>{
+ const f=fixture(t,'Softdown-prog/Terrania');
+ const wrong=f.propose('validar_workspace',{perfil:'lhs-precommit'},'Painel');
+ await f.controller.step();
+ assert.equal(wrong.status,'failed');assert.equal(f.jobsStarted.length,0);
+ const c=f.propose('validar_workspace',{perfil:'terrania-precommit'},'Painel');
+ await f.controller.step();
+ assert.equal(c.status,'pending');
+ assert.equal(c.destination.repository,'Softdown-prog/Terrania');
+ await f.controller.decide(c.id,'approve',{fingerprint:c.fingerprint});
+ assert.deepEqual(f.jobsStarted,['python3 /usr/local/lib/panel-workspaces/workspace_build.py start Painel terrania-precommit']);
+ f.job.state='completed';f.job.exitCode=0;f.job.output=JSON.stringify({jobId:'0123456789abcdef',status:'queued'});
+ await f.controller.step();
+ assert.equal(JSON.parse(c.summary).passed,false);
+ const read=f.propose('consultar_workspace',{jobId:'0123456789abcdef'},'Painel');
+ await f.controller.step();
+ f.job.output=JSON.stringify({project:'Painel',profile:'terrania-precommit',status:'passed',success:true});
+ await f.controller.step();
+ assert.equal(JSON.parse(read.summary).data.passed,true);
+ const mismatched=f.propose('consultar_workspace',{jobId:'0123456789abcdef'},'Painel');
+ await f.controller.step();
+ f.job.output=JSON.stringify({project:'Painel',profile:'lhs-precommit',status:'passed',success:true});
+ await f.controller.step();
+ assert.equal(mismatched.status,'failed');
+});
+
+test('LHS rejects Terrania profile even for an authorized LHS project',async t=>{
+ const f=fixture(t,'Softdown-prog/A7-forge-2D-');
+ const c=f.propose('validar_workspace',{perfil:'terrania-precommit'},'Painel');
+ await f.controller.step();
+ assert.equal(c.status,'failed');assert.equal(f.jobsStarted.length,0);
+});
+
 test('background reads return actual data but never execute a pending host command',async t=>{
  const f=fixture(t),command=f.propose();
  const read=f.propose('consultar_vps',{consulta:'containers'},'Geral');
