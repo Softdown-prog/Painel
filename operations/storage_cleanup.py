@@ -190,7 +190,7 @@ def remove_target(target):
     return docker('image', 'inspect', target['id'], check=False).returncode != 0
 
 
-def execute(apply=False, minimum_age=INTERVAL, scheduled=False):
+def execute(apply=False, minimum_age=MIN_UNUSED_AGE, scheduled=False):
     if os.geteuid() != 0:
         raise PermissionError('Host administrator required')
     ROOT.mkdir(mode=0o700, exist_ok=True)
