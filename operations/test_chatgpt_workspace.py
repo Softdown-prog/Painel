@@ -1,5 +1,6 @@
 """Offline authorization and status-privacy tests; no VPS or Docker required."""
 import copy
+import os
 import json
 from pathlib import Path
 import sys
@@ -84,6 +85,39 @@ class BridgeAuthorization(unittest.TestCase):
             proc.return_value.returncode=1
             with self.assertRaises(RuntimeError):
                 chat.git(['fetch'],Path('/tmp'))
+
+
+    def test_root_umask_snapshots_remain_readable_by_nonroot_docker_uid(self):
+        # The OIDC receiver sets umask 077; Git source files are 0600/0700.
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / 'snapshot'
+            source.mkdir(mode=0o700)
+            nested = source / 'games'
+            nested.mkdir(mode=0o700)
+            package = nested / 'package.json'
+            package.write_text('{"name":"test"}')
+            package.chmod(0o600)
+            executable = nested / 'run.sh'
+            executable.write_text('#!/bin/sh\\nexit 0\\n')
+            executable.chmod(0o700)
+
+            chat.make_snapshot_readable(source)
+            self.assertEqual(source.stat().st_mode & 0o777, 0o755)
+            self.assertEqual(nested.stat().st_mode & 0o777, 0o755)
+            self.assertEqual(package.stat().st_mode & 0o777, 0o644)
+            self.assertEqual(executable.stat().st_mode & 0o777, 0o755)
+            self.assertFalse(package.stat().st_mode & 0o022)
+
+    def test_snapshot_rejects_symlinks_before_changing_modes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / 'snapshot'
+            source.mkdir(mode=0o700)
+            private = source / 'private'
+            private.mkdir(mode=0o700)
+            (source / 'bad').symlink_to('/etc/passwd')
+            with self.assertRaisesRegex(RuntimeError, 'Unsafe source snapshot entry'):
+                chat.make_snapshot_readable(source)
+            self.assertEqual(private.stat().st_mode & 0o777, 0o700)
 
     def test_fixed_public_repository_selection(self):
         self.assertEqual(chat.PROJECTS['lhs'],('Softdown-prog/A7-forge-2D-','lhs-precommit'))
