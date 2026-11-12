@@ -63,7 +63,7 @@ fi
 
 if [[ "$mode" == check ]]; then
   echo 'PASS: installation preflight complete; no files, services or containers modified'
-  echo 'NOTE: host memory headroom and end-to-end LHS build still require acceptance testing'
+  echo 'NOTE: end-to-end LHS build still requires acceptance testing on this host'
   exit 0
 fi
 
