@@ -114,11 +114,22 @@ class StorageCleanupTests(unittest.TestCase):
         replies=[SimpleNamespace(returncode=0,stdout=json.dumps([{'Id':B}])),
                  SimpleNamespace(returncode=0,stdout=''),
                  SimpleNamespace(returncode=1,stdout='')]
-        with patch.object(gc,'inventory',return_value=(self.images,self.containers)), \
+        untagged=[self.images[0],{'Id':B,'RepoTags':[],'RepoDigests':[]}]
+        with patch.object(gc,'inventory',return_value=(untagged,self.containers)), \
              patch.object(gc,'protected_imports',return_value=[]), \
              patch.object(gc,'docker',side_effect=replies) as docker:
             self.assertTrue(gc.remove_target(target))
             self.assertEqual(docker.call_args_list[1].args,('image','rm','--no-prune',B))
+
+    def test_newly_protected_digest_alias_blocks_stale_tag_deletion(self):
+        digest='ghcr.io/demo/app@sha256:'+'e'*64
+        self.images[1]['RepoDigests']=[digest]
+        target={'id':B,'refs':['example/app:old']}
+        with patch.object(gc,'inventory',return_value=(self.images,self.containers)), \
+             patch.object(gc,'protected_imports',return_value=[digest]), \
+             patch.object(gc,'docker') as docker:
+            self.assertFalse(gc.remove_target(target))
+            docker.assert_not_called()
 
     def test_symlink_maintenance_metadata_refused(self):
         import os
