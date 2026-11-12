@@ -137,9 +137,10 @@ fixa `.node-version=24`, alinhado com o Angular 22 do projeto.
 | **`terrania-precommit`** | Todos os passos de `terrania-core` **mais Playwright Chromium desktop e Android**, com servidor e aplicação reais |
 
 Os testes de navegador executam em contêiner sem acesso à rede externa, com
-loopback interno para a aplicação local, limites de 2 vCPU/2 GiB e trava de
-memória disponível. Se faltar memória, o perfil **falha**; não declara aprovação
-nem ignora o navegador. Instalação `npm ci` é a única fase autorizada à rede
+loopback interno para a aplicação local, sem cotas fixas de CPU/RAM ou
+bloqueio por limiar de memória livre. Se o navegador ou o sistema falhar por
+falta real de recursos, o perfil **falha**; não declara aprovação nem ignora
+o navegador. Instalação `npm ci` é a única fase autorizada à rede
 Docker `bridge` para buscar dependências.
 
 O supervisor exige um checkout na **raiz Terrania** com `package.json`,
