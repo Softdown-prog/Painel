@@ -114,6 +114,32 @@ def source_checkout(project, sha):
     return name
 
 
+def prune_old_sources(project, keep):
+    """Keep just the last checkout for a game. Never touch unrecognized directories."""
+    prefix = 'cg_' + project + '_'
+    for old in SOURCES.iterdir():
+        if old.name == keep or not old.name.startswith(prefix):
+            continue
+        # A failed git checkout, symlink or an unknown directory is not ours to delete.
+        if not re.fullmatch(re.escape(prefix) + r'[a-f0-9]{16}', old.name):
+            continue
+        receipt = STATE / ('source-' + old.name + '.json')
+        if old.is_symlink() or not old.is_dir() or old.stat().st_uid != 0:
+            continue
+        if receipt.is_symlink() or not receipt.is_file():
+            continue
+        try:
+            info = json.loads(receipt.read_text())
+        except (ValueError, OSError):
+            continue
+        if (info.get('project') != project or type(info.get('sha')) is not str or
+            not SHA.fullmatch(info['sha']) or not old.name.endswith(info['sha'][:16])):
+            continue
+        # The caller holds start.lock and has verified no job is active.
+        shutil.rmtree(old)
+        receipt.unlink()
+
+
 def run_workspace(policy, args):
     action, project = authorize(policy, args)
     if STATE.is_symlink():
@@ -152,6 +178,7 @@ def run_workspace(policy, args):
                 if json.loads((entry/'status.json').read_text()).get('status') in ('queued','running'):
                     raise RuntimeError('Another workspace build is active')
         work = source_checkout(project,args['sha'])
+        prune_old_sources(project, work)
         jid = ws.start(work,args['profile'],root=ws.CHATGPT_WORKSPACES)
         receipt = STATE/('job-'+jid+'.json')
         with receipt.open('x') as file:
