@@ -21,6 +21,7 @@ import time
 WORKSPACES = Path('/srv/panel-codex/workspace')
 JOBS = Path('/srv/panel-workspace-builds')
 IMAGE = 'panel-lhs-qa:node24-pw1.56.1'
+TOOLBOX_IMAGE = 'panel-dev-toolbox:browser'
 PROJECT_RE = re.compile(r'^(?!Geral$|AdministracaoVPS$)[A-Za-z0-9][A-Za-z0-9_-]{0,63}$')
 JOB_RE = re.compile(r'^[a-f0-9]{16}$')
 # Representative cross-system smoke coverage; NOT a full CI or visual sign-off.
@@ -148,8 +149,18 @@ PROFILES.update({
 })
 
 
+# Opt-in only. Existing defaults and test gates are unchanged until approved.
+# The new aliases must always run exactly the same full tests.
+PROFILES['lhs-toolbox-precommit'] = PROFILES['lhs-precommit']
+PROFILES['terrania-toolbox-precommit'] = PROFILES['terrania-precommit']
+
+
+def toolbox_profile(profile: str) -> bool:
+    return profile in ('lhs-toolbox-precommit', 'terrania-toolbox-precommit')
+
+
 def terrania_profile(profile: str) -> bool:
-    return profile in ('terrania-core', 'terrania-precommit')
+    return profile in ('terrania-core', 'terrania-precommit', 'terrania-toolbox-precommit')
 
 
 def project_dir(name: str, root: Path = WORKSPACES) -> Path:
@@ -163,13 +174,13 @@ def project_dir(name: str, root: Path = WORKSPACES) -> Path:
     return path
 
 
-def docker_args(work: Path, *, source: Path | None, phase: str, network='none', container_name: str | None = None, video: bool = False, terrania: bool = False) -> list[str]:
+def docker_args(work: Path, *, source: Path | None, phase: str, network='none', container_name: str | None = None, video: bool = False, terrania: bool = False, toolbox: bool = False) -> list[str]:
     # No ports, Docker socket, host filesystem root, privileged mode or extra capabilities.
     if network not in ('none', 'bridge'):
         raise ValueError('Rede não autorizada')
     if container_name is not None and not re.fullmatch(r'panel-ws-[a-f0-9]{16}-[0-9]{1,2}', container_name):
         raise ValueError('Nome de container inválido')
-    argv = ['docker', 'run', '--rm', '--init', '--read-only', '--cap-drop=ALL',
+    argv = ['docker', 'run', '--rm', '--pull=never', '--init', '--read-only', '--cap-drop=ALL',
             '--security-opt=no-new-privileges:true', '--pids-limit=128',
             '--cpus='+('2.0' if video else '1.5'),
             '--memory='+('2048m' if video else '1536m'),
@@ -183,7 +194,7 @@ def docker_args(work: Path, *, source: Path | None, phase: str, network='none', 
             '--workdir='+('/work' if source is not None or terrania else '/work/games/lan_house_simulator')]
     if source is not None:
         argv += ['--mount=type=bind,src='+str(source)+',dst=/source,readonly']
-    argv += [IMAGE, 'sh', '-eu', '-c', phase]
+    argv += [TOOLBOX_IMAGE if toolbox else IMAGE, 'sh', '-eu', '-c', phase]
     return argv
 
 
@@ -296,7 +307,8 @@ def run_pipeline(job_id: str, root: Path = WORKSPACES, jobs: Path = JOBS) -> Non
                     raise RuntimeError(f'{name}: memória livre insuficiente para Chromium/vídeo (requer 2,5 GiB disponíveis)')
                 container = f'panel-ws-{job_id}-{index}'
                 argv = docker_args(work, source=snapshot_source, phase=command,
-                                   network=network, container_name=container, video=video, terrania=terrania_profile(profile))
+                                   network=network, container_name=container, video=video,
+                                   terrania=terrania_profile(profile), toolbox=toolbox_profile(profile))
                 try:
                     result = subprocess.run(argv, stdin=subprocess.DEVNULL, timeout=limit, check=False)
                     if result.returncode != 0:
