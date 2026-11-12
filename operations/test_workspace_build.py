@@ -435,4 +435,56 @@ class WorkspacesTest(unittest.TestCase):
             self.assertFalse(any('--project=desktop' in argv[-1] for argv in observed))
 
 
+    def test_toolbox_profiles_are_explicit_and_do_not_reduce_game_coverage(self):
+        self.assertEqual(ws.IMAGE, 'panel-lhs-qa:node24-pw1.56.1')
+        self.assertEqual(ws.TOOLBOX_IMAGE, 'panel-dev-toolbox:browser')
+        self.assertTrue(ws.toolbox_profile('lhs-toolbox-precommit'))
+        self.assertTrue(ws.toolbox_profile('terrania-toolbox-precommit'))
+        self.assertFalse(ws.toolbox_profile('lhs-precommit'))
+        self.assertFalse(ws.toolbox_profile('terrania-precommit'))
+        self.assertEqual(ws.PROFILES['lhs-toolbox-precommit'], ws.PROFILES['lhs-precommit'])
+        self.assertEqual(ws.PROFILES['terrania-toolbox-precommit'], ws.PROFILES['terrania-precommit'])
+        self.assertTrue(ws.terrania_profile('terrania-toolbox-precommit'))
+        self.assertIn('/source/angular.json', ws.clean_copy_command('terrania-toolbox-precommit'))
+        self.assertIn('games/lan_house_simulator', ws.clean_copy_command('lhs-toolbox-precommit'))
+
+    def test_toolbox_docker_image_is_local_only_and_preserves_sandbox(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work=Path(directory)
+            base=ws.docker_args(work,source=None,phase='true',toolbox=False)
+            toolbox=ws.docker_args(work,source=None,phase='true',toolbox=True)
+            terrania=ws.docker_args(work,source=None,phase='true',toolbox=True,terrania=True)
+            self.assertIn(ws.IMAGE,base)
+            self.assertNotIn(ws.TOOLBOX_IMAGE,base)
+            self.assertIn(ws.TOOLBOX_IMAGE,toolbox)
+            self.assertIn(ws.TOOLBOX_IMAGE,terrania)
+            self.assertIn('--pull=never',base)
+            self.assertIn('--pull=never',toolbox)
+            self.assertIn('--workdir=/work/games/lan_house_simulator',toolbox)
+            self.assertIn('--workdir=/work',terrania)
+            for args in (base,toolbox,terrania):
+                self.assertIn('--network=none',args)
+                self.assertIn('--user=61110:61110',args)
+                self.assertIn('--read-only',args)
+                self.assertFalse(any('docker.sock' in a for a in args))
+
+    def test_toolbox_profile_routes_only_own_fixed_image(self):
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as jobs:
+            root,jobs=Path(root),Path(jobs)
+            (root/'project').mkdir()
+            job=jobs/'0123456789abcdef';job.mkdir()
+            ws.write_state(job,project='project',profile='lhs-toolbox-precommit',status='queued')
+            observed=[]
+            def fake_run(argv,**kwargs):
+                observed.append(argv)
+                return subprocess.CompletedProcess(argv,0)
+            with patch.object(ws.os,'chown'),patch.object(ws.subprocess,'run',side_effect=fake_run),patch.object(ws,'enough_memory_for_video',return_value=True):
+                ws.run_pipeline('0123456789abcdef',root,jobs)
+            self.assertEqual(ws.status('0123456789abcdef',jobs)['status'],'passed')
+            self.assertEqual(len(observed),1+len(ws.PROFILES['lhs-toolbox-precommit']))
+            self.assertTrue(all(ws.TOOLBOX_IMAGE in argv for argv in observed))
+            self.assertTrue(all('--pull=never' in argv for argv in observed))
+            self.assertFalse(job.joinpath('source').exists())
+
+
 if __name__=='__main__':unittest.main()
