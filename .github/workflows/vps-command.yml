@@ -50,7 +50,7 @@ jobs:
   command:
     # Issue bridge lets the connected GitHub tool request ONLY a read-only inventory.
     # Creating an arbitrary issue/PR never grants a shell or deployment permission.
-    if: github.repository == 'Softdown-prog/Painel' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.issue.user.id == 189416996 && (github.event.issue.title == '[VPS] inventory' || github.event.issue.title == '[VPS] mcp-query' || github.event.issue.title == '[VPS] sac-status' || github.event.issue.title == '[VPS] sac-report' || github.event.issue.title == '[VPS] sac-job' || github.event.issue.title == '[VPS] sac-submit')))
+    if: github.repository == 'Softdown-prog/Painel' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.issue.user.id == 189416996 && (github.event.issue.title == '[VPS] inventory' || github.event.issue.title == '[VPS] mcp-query' || github.event.issue.title == '[VPS] sac-status' || github.event.issue.title == '[VPS] sac-report' || github.event.issue.title == '[VPS] sac-job' || github.event.issue.title == '[VPS] sac-submit' || github.event.issue.title == '[VPS] workspace')))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -61,7 +61,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Execute on the VPS (no dependency on Pages)
         env:
-          VPS_OPERATION: ${{ github.event_name == 'issues' && github.event.issue.title == '[VPS] sac-submit' && 'sac_submit' || github.event_name == 'issues' && (github.event.issue.title == '[VPS] sac-status' || github.event.issue.title == '[VPS] sac-report' || github.event.issue.title == '[VPS] sac-job') && 'sac_worker' || github.event_name == 'issues' && github.event.issue.title == '[VPS] mcp-query' && 'mcp_query' || inputs.operation || 'inventory' }}
+          VPS_OPERATION: ${{ github.event_name == 'issues' && github.event.issue.title == '[VPS] sac-submit' && 'sac_submit' || github.event_name == 'issues' && (github.event.issue.title == '[VPS] sac-status' || github.event.issue.title == '[VPS] sac-report' || github.event.issue.title == '[VPS] sac-job') && 'sac_worker' || github.event_name == 'issues' && github.event.issue.title == '[VPS] mcp-query' && 'mcp_query' || github.event.issue.title == '[VPS] workspace' && 'workspace' || inputs.operation || 'inventory' }}
           VPS_SAC_ARGS: ${{ github.event_name == 'issues' && github.event.issue.title == '[VPS] sac-submit' && github.event.issue.body || '' }}
           VPS_SAC_PROJECT_ID: ${{ inputs.sac_project_id || '' }}
           VPS_SAC_PROFILE_ID: ${{ inputs.sac_profile_id || '' }}
@@ -69,6 +69,7 @@ jobs:
           VPS_SAC_JOB_ID: ${{ github.event_name == 'issues' && github.event.issue.title == '[VPS] sac-job' && github.event.issue.body || inputs.sac_job_id || '' }}
           VPS_SAC_ACTION: ${{ github.event_name == 'issues' && github.event.issue.title == '[VPS] sac-job' && 'job' || github.event_name == 'issues' && github.event.issue.title == '[VPS] sac-report' && 'report' || github.event_name == 'issues' && github.event.issue.title == '[VPS] sac-status' && 'status' || inputs.sac_action || '' }}
           VPS_MCP_ARGS: ${{ github.event_name == 'issues' && github.event.issue.body || inputs.mcp_request || '' }}
+          VPS_WORKSPACE_ARGS: ${{ github.event_name == 'issues' && github.event.issue.title == '[VPS] workspace' && github.event.issue.body || '' }}
           VPS_PROJECT: ${{ inputs.project || 'infrastructure' }}
           VPS_SHA: ${{ inputs.sha }}
           VPS_SSH_KEY: ${{ secrets.VPS_OPERATIONS_SSH_KEY }}
