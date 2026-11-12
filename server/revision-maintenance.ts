@@ -93,16 +93,6 @@ function isManagedContainer(c:Container):boolean {
   typeof slug==='string' &&
   (c.Names||[]).some(n=>['/softload-app-','/softload-backup-','/softload-candidate-'].some(prefix=>n===prefix+slug));
 }
-function latestKeys(imports:Import[]):Set<string>{
- const groups=new Map<string,Import[]>();
- for(const i of imports){const a=groups.get(i.slug)||[];a.push(i);groups.set(i.slug,a);}
- const keep=new Set<string>();
- for(const [slug,items] of groups){
-  items.sort((a,b)=>new Date(b.importedAt).getTime()-new Date(a.importedAt).getTime());
-  for(const i of items.slice(0,KEEP))keep.add(slug+'/'+i.revision);
- }
- return keep;
-}
 async function hostInventory(docker:DockerRequest):Promise<HostInventory>{
  const unavailable:HostInventory={available:false,total:0,totalBytesEstimate:0,untagged:0,multipleVersionRepositories:[],images:[]};
  try{
