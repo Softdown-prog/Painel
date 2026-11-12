@@ -1,0 +1,153 @@
+name: Panel workspace build contracts
+on:
+  push:
+    branches: [main, feat/workspace-build-isolation-20261111]
+    paths:
+      - 'operations/workspace_build.py'
+      - 'operations/install-workspace-build-vps.sh'
+      - 'operations/systemd/vps-panel-workspace-gc.service'
+      - 'operations/systemd/vps-panel-workspace-gc.timer'
+      - 'agents/operations.mjs'
+      - 'agents/operations.test.mjs'
+      - 'server/agent-operations.ts'
+      - 'server/agent-operations.test.mjs'
+      - 'operations/workspace-build.Dockerfile'
+      - 'operations/test_workspace_build.py'
+      - '.github/workflows/workspace-build-tests.yml'
+  pull_request:
+    paths:
+      - 'operations/workspace_build.py'
+      - 'operations/install-workspace-build-vps.sh'
+      - 'operations/systemd/vps-panel-workspace-gc.service'
+      - 'operations/systemd/vps-panel-workspace-gc.timer'
+      - 'agents/operations.mjs'
+      - 'agents/operations.test.mjs'
+      - 'server/agent-operations.ts'
+      - 'server/agent-operations.test.mjs'
+      - 'operations/workspace-build.Dockerfile'
+      - 'operations/test_workspace_build.py'
+      - '.github/workflows/workspace-build-tests.yml'
+permissions:
+  contents: read
+jobs:
+  workspace-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile workspace supervisor
+        run: python -m py_compile operations/workspace_build.py operations/test_workspace_build.py
+      - name: Run offline isolation and lifecycle contracts
+        run: python -m unittest operations/test_workspace_build.py -v
+      - name: Lint opt-in host installer (no VPS mutation)
+        run: bash -n operations/install-workspace-build-vps.sh
+  browser-sandbox-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build isolated Node 24 / Playwright QA image
+        run: docker build -f operations/workspace-build.Dockerfile -t panel-lhs-qa:node24-pw1.56.1 operations/
+      - name: Check out immutable public LHS source for real smoke validation
+        uses: actions/checkout@v4
+        with:
+          repository: Softdown-prog/A7-forge-2D-
+          ref: ac0f1ca0fffad7ef8ee6722f03a67666d0dab544
+          path: lhs-src
+          persist-credentials: false
+      - name: Run real LHS TypeScript build and cross-system smoke in disposable Docker
+        run: |
+          set -euo pipefail
+          sudo mkdir -p "$RUNNER_TEMP/lhs-projects/gh_12_abcdef12" "$RUNNER_TEMP/lhs-jobs/0123456789abcdef"
+          sudo cp -a lhs-src/. "$RUNNER_TEMP/lhs-projects/gh_12_abcdef12/"
+          sudo env RUNNER_TEMP="$RUNNER_TEMP" python3 - <<'PY'
+          import importlib.util,os
+          from pathlib import Path
+          spec=importlib.util.spec_from_file_location('ws','operations/workspace_build.py')
+          ws=importlib.util.module_from_spec(spec);spec.loader.exec_module(ws)
+          root=Path(os.environ['RUNNER_TEMP'])/'lhs-projects'
+          jobs=Path(os.environ['RUNNER_TEMP'])/'lhs-jobs'
+          jobid='0123456789abcdef'
+          ws.write_state(jobs/jobid, project='gh_12_abcdef12', profile='lhs-quick', status='queued')
+          ws.run_pipeline(jobid,root,jobs)
+          result=ws.status(jobid,jobs)
+          print('LHS real smoke:',{k:v for k,v in result.items() if k!='logTail'})
+          if result['status']!='passed': raise SystemExit('Real LHS smoke failed: '+str(result.get('error')))
+          PY
+      - name: Run complete LHS precommit with actual Angular, PS1/PS2 and browser tests
+        run: |
+          set -euo pipefail
+          sudo mkdir -p "$RUNNER_TEMP/lhs-jobs/fedcba9876543210"
+          sudo env RUNNER_TEMP="$RUNNER_TEMP" python3 - <<'PY'
+          import importlib.util,os
+          from pathlib import Path
+          spec=importlib.util.spec_from_file_location('ws','operations/workspace_build.py')
+          ws=importlib.util.module_from_spec(spec);spec.loader.exec_module(ws)
+          root=Path(os.environ['RUNNER_TEMP'])/'lhs-projects'
+          jobs=Path(os.environ['RUNNER_TEMP'])/'lhs-jobs'
+          jobid='fedcba9876543210'
+          ws.write_state(jobs/jobid,project='gh_12_abcdef12',profile='lhs-precommit',status='queued')
+          ws.run_pipeline(jobid,root,jobs)
+          result=ws.status(jobid,jobs)
+          print('Full LHS precommit:',{k:v for k,v in result.items() if k!='logTail'})
+          if result['status']!='passed':
+              raise SystemExit('Real complete LHS tests failed at '+str(result.get('current'))+': '+str(result.get('error')))
+          PY
+      - name: Preserve real Canvas and gameplay images for review
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/lhs-review"
+          if sudo test -d "$RUNNER_TEMP/lhs-jobs/fedcba9876543210/artifacts"; then
+            sudo cp -a "$RUNNER_TEMP/lhs-jobs/fedcba9876543210/artifacts/." "$RUNNER_TEMP/lhs-review/"
+            sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/lhs-review"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lhs-workspace-real-canvas-${{ github.run_id }}
+          path: ${{ runner.temp }}/lhs-review/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Launch real Chromium and verify Canvas without network or Docker socket
+        run: |
+          docker run --rm --init --read-only --cap-drop ALL             --security-opt no-new-privileges:true --pids-limit 128             --memory 1536m --memory-swap 1536m --cpus 1.5             --shm-size 256m --network none --user 61110:61110             --tmpfs /tmp:rw,nosuid,nodev,size=128m -e HOME=/tmp             panel-lhs-qa:node24-pw1.56.1 node -e '
+              const {chromium} = require("/usr/local/lib/node_modules/playwright");
+              (async () => {
+                const browser = await chromium.launch({headless:true,args:["--no-sandbox"]});
+                try {
+                  const page = await browser.newPage({viewport:{width:393,height:873}});
+                  await page.goto("data:text/html,<canvas id=c width=30 height=30></canvas>");
+                  const green = await page.evaluate(() => {
+                    const ctx=document.getElementById("c").getContext("2d");
+                    ctx.fillStyle="#00ff00";ctx.fillRect(0,0,30,30);
+                    return Array.from(ctx.getImageData(1,1,1,1).data).join(",");
+                  });
+                  if(green!=="0,255,0,255")throw Error("Canvas failed: "+green);
+                  console.log("PASS: real Chromium and Canvas under constrained Docker sandbox");
+                } finally { await browser.close(); }
+              })().catch(err=>{console.error(err);process.exitCode=1;});
+            '
+  agent-mcp-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install exact Panel dependencies
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript build gate
+        run: npm run typecheck
+      - name: Agent project approval and workspace MCP integration contracts
+        run: node --experimental-strip-types --test agents/operations.test.mjs server/agent-operations.test.mjs
+      - name: Full Panel Node regression suite
+        run: npm test
+      - name: Check browser and admin scripts
+        run: npm run check:js
+      - name: Compile Panel frontend scripts
+        run: npm run build:frontend

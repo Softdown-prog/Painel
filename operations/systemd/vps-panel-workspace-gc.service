@@ -1,0 +1,17 @@
+[Unit]
+Description=Remove expired completed LHS QA workspace jobs
+Documentation=https://github.com/Softdown-prog/Painel/blob/main/docs/WORKSPACE-BUILDS.md
+ConditionPathExists=/usr/local/lib/panel-workspaces/workspace_build.py
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+ExecStart=/usr/bin/python3 /usr/local/lib/panel-workspaces/workspace_build.py gc --days 7 --apply
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/srv/panel-workspace-builds
+RestrictAddressFamilies=AF_UNIX

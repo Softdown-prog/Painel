@@ -4,6 +4,11 @@ import {join,sep} from 'node:path';
 import {randomBytes,createHash} from 'node:crypto';
 
 export const ADMIN_PROJECT='AdministracaoVPS';
+export const WORKSPACE_REPOSITORY_PROFILES=Object.freeze({
+ 'Softdown-prog/A7-forge-2D-':Object.freeze(['lhs-quick','lhs-core','lhs-angular','lhs-visual','lhs-precommit']),
+ 'Softdown-prog/Terrania':Object.freeze(['terrania-core','terrania-precommit']),
+});
+export const WORKSPACE_PROFILES=Object.freeze(Object.values(WORKSPACE_REPOSITORY_PROFILES).flat());
 const object=properties=>({type:'object',properties,additionalProperties:false,required:Object.keys(properties)});
 const text={type:'string'};
 export function toolsFor(project){
@@ -12,9 +17,17 @@ export function toolsFor(project){
  if(project===ADMIN_PROJECT)tools.push({type:'function',name:'solicitar_comando_vps',
   description:'Propõe comando administrativo no host. Só executa depois de confirmação humana no painel; a saída também precisa de revisão antes de retornar ao chat. Não inclua segredos.',
   inputSchema:object({command:text,reason:text})});
- else if(project!=='Geral')tools.push({type:'function',name:'publicar_pull_request',
-  description:'Propõe publicar as alterações da cópia atual em branch nova e PR, após revisão humana do diff no painel. Nunca faz merge ou push na main.',
-  inputSchema:object({title:text,description:text})});
+ else if(project!=='Geral'){
+  tools.push({type:'function',name:'validar_workspace',
+   description:'Solicita compilação e testes reais do LHS ou Terrania, em perfil fixo e contêiner Node 24. Exige aprovação humana; não faz commit, PR nem deploy. Retorno inicial queued não significa aprovação.',
+   inputSchema:object({perfil:{type:'string',enum:[...WORKSPACE_PROFILES]}})});
+  tools.push({type:'function',name:'consultar_workspace',
+   description:'Consulta o estado real de uma validação autorizada do projeto; status queued ou running nunca significa testes aprovados.',
+   inputSchema:object({jobId:{type:'string',pattern:'^[a-f0-9]{16}$'}})});
+  tools.push({type:'function',name:'publicar_pull_request',
+   description:'Propõe publicar as alterações da cópia atual em branch nova e PR, após revisão humana do diff no painel. Nunca faz merge ou push na main.',
+   inputSchema:object({title:text,description:text})});
+ }
  return tools;
 }
 export const safeText=(s,max=4000)=>typeof s==='string'&&s.length>0&&s.length<=max&&!/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(s);
@@ -80,6 +93,14 @@ export class ToolCalls {
   if(params.tool==='consultar_vps'||params.tool==='consultar_github'){
    const values=params.tool==='consultar_vps'?['containers','recursos']:['repositorios','execucoes','pull_requests'];
    if(Object.keys(args).join(',')!=='consulta'||!values.includes(args.consulta))throw Error('Consulta inválida.');
+  }else if(params.tool==='consultar_workspace'){
+   if(Object.keys(args).join(',')!=='jobId'||typeof args.jobId!=='string'||!/^[a-f0-9]{16}$/.test(args.jobId))throw Error('Identificador de validação inválido.');
+   if(origin?.repository&&!WORKSPACE_REPOSITORY_PROFILES[origin.repository])
+    throw Error('Repositório não autorizado para validação de workspace.');
+  }else if(params.tool==='validar_workspace'){
+   if(Object.keys(args).join(',')!=='perfil'||!WORKSPACE_PROFILES.includes(args.perfil))throw Error('Perfil de validação inválido.');
+   if(origin?.repository&&!WORKSPACE_REPOSITORY_PROFILES[origin.repository]?.includes(args.perfil))
+    throw Error('Perfil incompatível com o repositório de origem.');
   }else if(params.tool==='solicitar_comando_vps'){
    if(Object.keys(args).sort().join(',')!=='command,reason'||!safeText(args.command)||!safeText(args.reason,1000)||containsSecret(args.command))throw Error('Comando inválido ou contém segredo.');
   }else{

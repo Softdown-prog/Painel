@@ -15,6 +15,23 @@ type Dependencies={dataDir:string;inventory:()=>Promise<unknown>;resources:()=>P
  git?:typeof github;jobs?:typeof terminalJobManager;now?:()=>number;enabled?:boolean;host?:()=>{host:string;user:string;port:number;valid:boolean}};
 const ID=/^[a-f0-9]{32}$/,HASH=/^[a-f0-9]{64}$/,SHA=/^[a-f0-9]{40}$/;
 const slug=/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+const WORKSPACE_SCRIPT='/usr/local/lib/panel-workspaces/workspace_build.py';
+const WORKSPACE_ID=/^[a-f0-9]{16}$/;
+const WORKSPACE_REPOSITORY_PROFILES:Record<string,ReadonlySet<string>>={
+ 'Softdown-prog/A7-forge-2D-':new Set(['lhs-quick','lhs-core','lhs-angular','lhs-visual','lhs-precommit']),
+ 'Softdown-prog/Terrania':new Set(['terrania-core','terrania-precommit']),
+};
+const WORKSPACE_PROFILES=new Set(Object.values(WORKSPACE_REPOSITORY_PROFILES).flatMap(set=>[...set]));
+/** Constructs only allowlisted commands: neither the model nor the browser supplies shell text. */
+export function workspaceCommand(action:'start'|'status',project:string,parameter:unknown):string{
+ if(!slug.test(project)||['Geral','AdministracaoVPS'].includes(project))throw Error('Workspace inválido.');
+ if(action==='start'&&typeof parameter==='string'&&WORKSPACE_PROFILES.has(parameter))
+  return 'python3 '+WORKSPACE_SCRIPT+' start '+project+' '+parameter;
+ if(action==='status'&&typeof parameter==='string'&&WORKSPACE_ID.test(parameter))
+  return 'python3 '+WORKSPACE_SCRIPT+' status '+parameter;
+ throw Error('Ação do workspace não autorizada.');
+}
+
 const privateContent=(s:string)=>/-----BEGIN (?:[A-Z ]*PRIVATE KEY)|\b(?:gh[pousr]_|github_pat_|sk-proj-|APP_USR-|cfat_|cfut_|AKIA)[A-Za-z0-9_\/-]{10,}|\bre_[A-Za-z0-9_]{20,}|\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/i.test(s);
 export function redactAgentOutput(value:string,secrets:string[]=[]):string{
  let text=value.slice(0,64000);
@@ -159,8 +176,23 @@ export class AgentOperations {
   }
   throw Error('Consulta não autorizada.');
  }
+ private workspaceBinding(c:Call):Binding{
+  const linked=this.binding(c.project);
+  const profiles=WORKSPACE_REPOSITORY_PROFILES[linked.repository];
+  if(!profiles)throw Error('Repositório não autorizado para compilação de workspace.');
+  if(c.tool==='validar_workspace'&&!profiles.has(String(c.args['perfil']??'')))
+   throw Error('Perfil não autorizado para o repositório vinculado.');
+  return linked;
+ }
  private destination(c:Call):Record<string,string|number>{
   if(c.tool==='publicar_pull_request'){const b=this.binding(c.project);return {repository:b.repository,branch:b.branch};}
+  if(c.tool==='validar_workspace'){
+   const b=this.workspaceBinding(c),settings=(this.d.host??terminalSshConfig)();
+   if(!settings.valid)throw Error('Executor SSH indisponível.');
+   workspaceCommand('start',c.project,c.args['perfil']);
+   return {repository:b.repository,branch:b.branch,project:c.project,
+    host:settings.host,user:settings.user,port:settings.port};
+  }
   if(c.tool==='solicitar_comando_vps'&&c.project==='AdministracaoVPS'){
    const settings=(this.d.host??terminalSshConfig)();if(!settings.valid)throw Error('SSH indisponível.');
    return {host:settings.host,user:settings.user,port:settings.port};
@@ -176,11 +208,59 @@ export class AgentOperations {
     try{
      if(c.status==='pending'&&c.mode==='approval'&&!c.destination){
       const destination=this.destination(c);await this.d.bridge('/tool-calls/'+c.id+'/prepare','POST',{fingerprint:c.fingerprint,destination});
+     }else if(c.status==='pending'&&c.mode==='read'&&c.tool==='consultar_workspace'){
+      this.workspaceBinding(c);
+      const command=workspaceCommand('status',c.project,c.args['jobId']);
+      await this.d.bridge('/tool-calls/'+c.id+'/claim','POST',{fingerprint:c.fingerprint});
+      const job=await (this.d.jobs??terminalJobManager)().start(command);
+      if(!job)throw Error('Terminal ocupado.');
+      this.hostJobs.set(c.id,job.id);
      }else if(c.status==='pending'&&c.mode==='read'&&['consultar_vps','consultar_github'].includes(c.tool)){
       await this.d.bridge('/tool-calls/'+c.id+'/claim','POST',{fingerprint:c.fingerprint});
       const result=await this.read(c),serialized=JSON.stringify(result);
       if(Buffer.byteLength(serialized)>24000||privateContent(serialized)||this.secrets.some(s=>s.length>=16&&serialized.includes(s)))throw Error('Resposta excede o limite ou contém dados privados.');
       await this.finish(c,{success:true,data:result});
+     }else if(c.status==='running'&&c.tool==='consultar_workspace'){
+      const id=this.hostJobs.get(c.id);
+      if(!id){await this.finish(c,{success:false,message:'Consulta interrompida, não repetida.'});continue;}
+      const job=await (this.d.jobs??terminalJobManager)().get(id);
+      if(job&&job.state!=='running'){
+       this.hostJobs.delete(c.id);
+       try{
+        if(job.state!=='completed'||job.exitCode!==0||job.truncated)throw Error('Consulta SSH incompleta.');
+        const parsed=JSON.parse(job.output);
+        if(!parsed||parsed.project!==c.project||!['queued','running','passed','failed','busy'].includes(parsed.status))
+         throw Error('Resposta inválida ou de outro projeto.');
+        const binding=this.workspaceBinding(c);
+        if(!WORKSPACE_REPOSITORY_PROFILES[binding.repository]?.has(String(parsed.profile??'')))
+         throw Error('Perfil do job não pertence ao repositório autorizado.');
+        const data={jobId:c.args['jobId'],profile:String(parsed.profile??''),
+         status:parsed.status,passed:parsed.status==='passed'&&parsed.success===true,
+         finished:parsed.status==='passed'||parsed.status==='failed'||parsed.status==='busy',
+         current:String(parsed.current??''),error:String(parsed.error??'').slice(0,400),
+         logTail:redactAgentOutput(String(parsed.logTail??''),this.secrets)};
+        await this.finish(c,{success:true,data});
+       }catch{
+        await this.finish(c,{success:false,message:'Não foi possível validar o estado do job; nenhum teste foi considerado aprovado.'});
+       }
+      }
+     }else if(c.status==='running'&&c.tool==='validar_workspace'){
+      const id=this.hostJobs.get(c.id);
+      if(!id){await this.finish(c,{success:false,message:'Inicialização não confirmada; não repetir automaticamente.'});continue;}
+      const job=await (this.d.jobs??terminalJobManager)().get(id);
+      if(job&&job.state!=='running'){
+       this.hostJobs.delete(c.id);
+       try{
+        if(job.state!=='completed'||job.exitCode!==0||job.truncated)throw Error('Inicialização remota não confirmada.');
+        const receipt=JSON.parse(job.output);
+        if(!receipt||!WORKSPACE_ID.test(receipt.jobId)||receipt.status!=='queued')
+         throw Error('Recibo inválido.');
+        await this.finish(c,{success:true,accepted:true,jobId:receipt.jobId,status:'queued',
+         passed:false,finished:false,message:'Apenas enfileirado. Consulte o resultado antes de considerar os testes aprovados.'});
+       }catch{
+        await this.finish(c,{success:false,message:'Inicialização não comprovada. Confira a VPS antes de repetir.'});
+       }
+      }
      }else if(c.status==='running'&&c.tool==='solicitar_comando_vps'){
       const id=this.hostJobs.get(c.id);
       if(!id){await this.finish(c,{success:false,message:'A API reiniciou ou não confirmou a execução. Consulte o Terminal VPS antes de reenviar.'});continue;}
@@ -247,11 +327,24 @@ export class AgentOperations {
     if(c.project!=='AdministracaoVPS'||typeof c.args['command']!=='string'||!c.args['command'].trim()||c.args['command'].length>4000||
      /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(c.args['command'])||privateContent(c.args['command'])||
      !(process.env['PANEL_TERMINAL_SSH_ENABLED']==='1'||this.d.jobs))throw Error('Comando ou terminal não autorizado.');
+   }else if(c.tool==='validar_workspace'){
+    this.workspaceBinding(c);
+    workspaceCommand('start',c.project,c.args['perfil']);
+    if(!(process.env['PANEL_TERMINAL_SSH_ENABLED']==='1'||this.d.jobs))
+     throw Error('Executor SSH não autorizado.');
    }else if(c.tool==='publicar_pull_request'){this.binding(c.project);validatePublication(c.args);}
    else throw Error('Operação não autorizada.');
    if(this.secrets.some(s=>s.length>=16&&JSON.stringify(c.args).includes(s)))throw Error('A proposta contém credencial privada.');
    await this.d.bridge('/tool-calls/'+id+'/claim','POST',input);
    try{
+    if(c.tool==='validar_workspace'){
+     const command=workspaceCommand('start',c.project,c.args['perfil']);
+     const job=await (this.d.jobs??terminalJobManager)().start(command);
+     if(!job)throw Error('Terminal ocupado.');
+     this.hostJobs.set(id,job.id);
+     return {ok:true,status:'starting',passed:false,jobId:null,
+      message:'Executor autorizado. Aguardando recibo; nenhum teste foi aprovado ainda.'};
+    }
     if(c.tool==='solicitar_comando_vps'){
      const job=await (this.d.jobs??terminalJobManager)().start(c.args['command']);
      if(!job)throw Error('Terminal ocupado.');this.hostJobs.set(id,job.id);

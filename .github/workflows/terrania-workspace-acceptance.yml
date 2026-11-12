@@ -1,0 +1,71 @@
+name: Terrania Node 24 workspace MCP acceptance (no deploy)
+
+on:
+  push:
+    branches: [feat/workspace-build-isolation-20261111]
+    paths:
+      - 'operations/workspace_build.py'
+      - 'operations/workspace-build.Dockerfile'
+      - '.github/workflows/terrania-workspace-acceptance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terrania-mcp-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  terrania-precommit:
+    name: Terrania full Node24 Angular Phaser Chromium desktop Android
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch immutable Terrania branch revision without credentials
+        uses: actions/checkout@v4
+        with:
+          repository: Softdown-prog/Terrania
+          ref: 4b55a046895940f0089f8d65152a22f3454d8544
+          path: terrania-src
+          persist-credentials: false
+      - name: Build disposable Node 24 browser-test image
+        run: docker build -f operations/workspace-build.Dockerfile -t panel-lhs-qa:node24-pw1.56.1 operations/
+      - name: Run actual Terrania precommit inside isolated Docker
+        run: |
+          set -euo pipefail
+          sudo mkdir -p "$RUNNER_TEMP/terrania-projects/gh_12_abcdef12" "$RUNNER_TEMP/terrania-jobs/0123456789abcdef"
+          sudo cp -a terrania-src/. "$RUNNER_TEMP/terrania-projects/gh_12_abcdef12/"
+          sudo env RUNNER_TEMP="$RUNNER_TEMP" python3 - <<'PY'
+          import importlib.util, os
+          from pathlib import Path
+          spec = importlib.util.spec_from_file_location('workspace', 'operations/workspace_build.py')
+          ws = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(ws)
+          root = Path(os.environ['RUNNER_TEMP']) / 'terrania-projects'
+          jobs = Path(os.environ['RUNNER_TEMP']) / 'terrania-jobs'
+          job_id = '0123456789abcdef'
+          ws.write_state(jobs/job_id, project='gh_12_abcdef12', profile='terrania-precommit', status='queued')
+          ws.run_pipeline(job_id, root, jobs)
+          result = ws.status(job_id, jobs)
+          print('Terrania Node 24 workspace:', {key: value for key, value in result.items() if key != 'logTail'})
+          if result['status'] != 'passed':
+              print(result.get('logTail', '')[-3000:])
+              raise SystemExit('Terrania precommit failed: ' + str(result.get('current')) + ': ' + str(result.get('error')))
+          PY
+      - name: Retain bounded real Playwright screenshots when available
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/terrania-review"
+          if sudo test -d "$RUNNER_TEMP/terrania-jobs/0123456789abcdef/artifacts"; then
+            sudo cp -a "$RUNNER_TEMP/terrania-jobs/0123456789abcdef/artifacts/." "$RUNNER_TEMP/terrania-review/"
+            sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/terrania-review"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: terrania-mcp-playwright-${{ github.run_id }}
+          path: ${{ runner.temp }}/terrania-review/
+          retention-days: 7
+          if-no-files-found: ignore

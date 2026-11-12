@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily expired LHS QA workspace job cleanup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=30m
+Persistent=true
+Unit=vps-panel-workspace-gc.service
+
+[Install]
+WantedBy=timers.target
