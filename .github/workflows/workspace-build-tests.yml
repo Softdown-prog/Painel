@@ -55,7 +55,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Softdown-prog/A7-forge-2D-
-          ref: 6cfc4a57a421edea24e137c7b50fefa76a423c56
+          ref: ac0f1ca0fffad7ef8ee6722f03a67666d0dab544
           path: lhs-src
           persist-credentials: false
       - name: Run real LHS TypeScript build and cross-system smoke in disposable Docker
