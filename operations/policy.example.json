@@ -28,7 +28,8 @@
         "code_mcp",
         "mcp_query",
         "sac_worker",
-        "sac_submit"
+        "sac_submit",
+        "workspace"
       ]
     },
     "1438758092": {
@@ -201,5 +202,15 @@
     ],
     "state_dir": "/var/lib/sac-builder/state",
     "projects": []
+  },
+  "workspace": {
+    "enabled": false,
+    "actor_ids": [
+      "189416996"
+    ],
+    "projects": [
+      "lhs",
+      "terrania"
+    ]
   }
 }

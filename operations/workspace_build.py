@@ -19,6 +19,8 @@ import sys
 import time
 
 WORKSPACES = Path('/srv/panel-codex/workspace')
+# Root-owned ChatGPT source snapshots, independent of agent-writable Codex workspaces.
+CHATGPT_WORKSPACES = Path('/srv/panel-chatgpt-sources')
 JOBS = Path('/srv/panel-workspace-builds')
 IMAGE = 'panel-lhs-qa:node24-pw1.56.1'
 TOOLBOX_IMAGE = 'panel-dev-toolbox:browser'
@@ -348,7 +350,10 @@ def start(project: str, profile: str = 'lhs-precommit', root: Path = WORKSPACES,
     write_state(folder, status='queued', success=None, project=project, profile=profile, created=time.time())
     output = (folder / 'output.log').open('wb')
     try:
-        worker = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), '_worker', job_id],
+        worker_argv = [sys.executable, str(Path(__file__).resolve()), '_worker', job_id]
+        if root == CHATGPT_WORKSPACES:
+            worker_argv.append('chatgpt')
+        worker = subprocess.Popen(worker_argv,
                                   stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
                                   close_fds=True, start_new_session=True)
         write_state(folder, pid=worker.pid)
@@ -440,7 +445,7 @@ def main() -> int:
     begin = sub.add_parser('start');begin.add_argument('project');begin.add_argument('profile', nargs='?', default='lhs-precommit', choices=PROFILES)
     check = sub.add_parser('status');check.add_argument('job_id')
     cleanup = sub.add_parser('gc');cleanup.add_argument('--days',type=int,default=7);cleanup.add_argument('--apply',action='store_true')
-    worker = sub.add_parser('_worker', help=argparse.SUPPRESS);worker.add_argument('job_id')
+    worker = sub.add_parser('_worker', help=argparse.SUPPRESS);worker.add_argument('job_id');worker.add_argument('scope',nargs='?',choices=['codex','chatgpt'],default='codex')
     args = parser.parse_args()
     try:
         if args.action == 'start':
@@ -454,7 +459,7 @@ def main() -> int:
         else:
             if not JOB_RE.fullmatch(args.job_id):
                 raise ValueError('Job inválido')
-            run_pipeline(args.job_id)
+            run_pipeline(args.job_id, CHATGPT_WORKSPACES if args.scope == 'chatgpt' else WORKSPACES)
     except Exception as exc:
         print(json.dumps({'error':str(exc)[:300]}), file=sys.stderr)
         return 1
