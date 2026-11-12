@@ -410,6 +410,7 @@ class WorkspacesTest(unittest.TestCase):
             self.assertEqual(ws.status('0123456789abcdef',jobs)['status'], 'passed')
             self.assertEqual(len(observed), 1 + len(ws.PROFILES['terrania-precommit']))
             self.assertTrue(all('--workdir=/work' in argv for argv in observed))
+            self.assertTrue(all('--env=TERRANIA_WORKSPACE_SANITIZED=1' in argv for argv in observed))
             self.assertTrue(all('--network=none' in argv for argv in observed[3:]))
             self.assertTrue(all('--network=bridge' in argv for argv in observed[1:3]))
             self.assertEqual(len([x for x in observed if '--memory=2048m' in x]),2)
