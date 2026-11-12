@@ -124,6 +124,13 @@ def main():
         args = json.loads(raw)
         if not isinstance(args, dict):
             raise ValueError('MCP request must be a JSON object')
+    elif operation == 'workspace':
+        raw = os.environ.get('VPS_WORKSPACE_ARGS', '')
+        if len(raw.encode('utf-8')) > 1024:
+            raise ValueError('ChatGPT workspace request exceeds 1024 bytes')
+        args = json.loads(raw)
+        if not isinstance(args, dict):
+            raise ValueError('ChatGPT workspace request must be a JSON object')
     elif operation == 'sac_worker':
         action = os.environ.get('VPS_SAC_ACTION', '')
         if action == 'job':
