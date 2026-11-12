@@ -57,7 +57,7 @@ function fakeDocker() {
   };
   return { fn, images, calls };
 }
-test('staging requires approved run, immutable local image and healthy promotion; rollback restores old container', async () => {
+test('staging requires approved run; healthy promotion discards old backup immediately', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'panel-releases-'));
   writeFileSync(join(dir, 'projects.json'), JSON.stringify([{ slug: 'demo', repository: repo,
     connectedAt: '2026-10-25T00:00:00Z' }]));
@@ -99,19 +99,15 @@ test('staging requires approved run, immutable local image and healthy promotion
     assert.equal((await request('/projects/demo/releases/promote', 'POST', { expectedRevision: '0'.repeat(40) })).status, 409);
     assert.ok(docker.images.has('softload-candidate-demo'), 'Wrong revision must not trigger a promotion');
     assert.equal((await request('/projects/demo/releases/promote', 'POST', { expectedRevision: 'invalid' })).status, 400);
-    assert.equal((await request('/projects/demo/releases/promote', 'POST', { expectedRevision: sha })).status, 200);
+    const promoted = await request('/projects/demo/releases/promote', 'POST', { expectedRevision: sha });
+    assert.equal(promoted.status, 200);
+    assert.equal(promoted.data.backupDiscarded, true);
     assert.equal(docker.images.get('softload-app-demo').Config.Labels[role], 'candidate');
-    assert.equal(docker.images.get('softload-backup-demo').State.Status, 'exited');
-    const blocked = await request('/projects/demo/releases/stage', 'POST', { runId: 987 });
-    assert.equal(blocked.status, 409, JSON.stringify(blocked));
-    assert.equal((await request('/projects/demo/releases/rollback', 'POST')).status, 200);
-    assert.equal(docker.images.get('softload-app-demo').Id, 'old');
-    assert.equal(docker.images.get('softload-app-demo').State.Status, 'running');
-    assert.equal(docker.images.get('softload-candidate-demo').State.Status, 'exited');
-    assert.equal((await request('/projects/demo/releases/finalize', 'POST', { confirm: 'DELETE_BACKUP' })).status, 200);
-    assert.equal(docker.images.has('softload-candidate-demo'), false);
     assert.equal(docker.images.has('softload-backup-demo'), false);
-    assert.equal(docker.images.get('softload-app-demo').Id, 'old');
+    assert.equal(docker.images.has('softload-candidate-demo'), false);
+    assert.equal(docker.images.get('softload-app-demo').State.Status, 'running');
+    assert.equal((await request('/projects/demo/releases/rollback', 'POST')).status, 409);
+    assert.equal((await request('/projects/demo/releases/finalize', 'POST', { confirm: 'DELETE_BACKUP' })).status, 404);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 test('release endpoints fail closed for unknown project', async () => {
