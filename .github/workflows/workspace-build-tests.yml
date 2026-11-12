@@ -51,11 +51,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build isolated Node 24 / Playwright QA image
         run: docker build -f operations/workspace-build.Dockerfile -t panel-lhs-qa:node24-pw1.56.1 operations/
-      - name: Check out immutable public LHS source for real smoke validation
+      - name: Check out current verified LHS main source at immutable SHA
         uses: actions/checkout@v4
         with:
           repository: Softdown-prog/A7-forge-2D-
-          ref: ac0f1ca0fffad7ef8ee6722f03a67666d0dab544
+          ref: e4564086adc8011d1558cd016f944e1a1308e3ba
           path: lhs-src
           persist-credentials: false
       - name: Run real LHS TypeScript build and cross-system smoke in disposable Docker
