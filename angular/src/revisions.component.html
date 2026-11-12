@@ -12,7 +12,7 @@
       <div><small>ESPAÇO ESTIMADO</small><strong>{{bytes(r.oldBytesEstimate)}}</strong></div>
       <div><small>LIMPEZA AUTOMÁTICA</small><strong>{{r.enabled?(r.automatic?'Ativada':'Pausada'):'Desabilitada'}}</strong></div>
     </div>
-    <p class="tip">Última leitura: {{date(r.checkedAt)}}. Mantém pelo menos {{r.keepPerApp}} revisões por aplicação e protege importações recentes por {{r.ageDays}} dias. Espaço estimado sem deduplicação de camadas Docker.</p>
+    <p class="tip">Última leitura: {{date(r.checkedAt)}}. Política: manter apenas imagens de containers existentes e importações em preparação por até 1 hora. Sem reserva de revisões antigas. Espaço estimado sem deduplicação de camadas Docker.</p>
     @if(r.scheduler;as scheduler){
       <p class="tip" role="status">
         Agendador VPS: {{scheduler.enabledByCompose?'habilitado no Compose':'desabilitado no Compose'}}
@@ -24,7 +24,7 @@
     }
     @if(r.hostMaintenance;as maintenance){
       @if(maintenance.installed){
-        <p class="tip" role="status">Limpeza do host: {{maintenance.status==='queued'?'solicitada; aguardando execução':maintenance.status==='completed'?'concluída':maintenance.status==='waiting-deploy'?'aguardando deploy':maintenance.status==='partial'?'parcial':maintenance.status==='paused'?'pausada':'falha'}} · {{maintenance.removed??0}} imagens removidas · {{bytes(maintenance.bytesFreed)}} realmente liberados. O coletor preserva containers e volumes; imagens recém-observadas aguardam seis horas.</p>
+        <p class="tip" role="status">Limpeza do host: {{maintenance.status==='queued'?'solicitada; aguardando execução':maintenance.status==='completed'?'concluída':maintenance.status==='waiting-deploy'?'aguardando deploy':maintenance.status==='partial'?'parcial':maintenance.status==='paused'?'pausada':'falha'}} · {{maintenance.removed??0}} imagens removidas · {{bytes(maintenance.bytesFreed)}} realmente liberados. O coletor preserva containers e volumes; imagens recém-observadas aguardam 15 minutos antes de serem elegíveis.</p>
       }
     }
     <div class="actions">
@@ -41,7 +41,7 @@
           <p>A configuração será aplicada à rotina de limpeza da VPS, incluindo o coletor do host quando instalado. Ele aguarda deploys ativos e não remove containers ou volumes.</p>
         }@else{
           <strong>Confirmar remoção de imagens elegíveis e limpeza de cache?</strong>
-          <p>A API protege versões ativas, de rollback e recentes. A remoção de imagens é irreversível; os tamanhos são estimados.</p>
+          <p>A API protege imagens vinculadas a containers e importações em preparação; não mantém imagens antigas somente como backup. A remoção é irreversível; os tamanhos são estimados.</p>
           <label>Digite LIMPAR para confirmar
             <input [value]="confirmText()" (input)="confirmText.set($any($event.target).value)" spellcheck="false" autocapitalize="off" autocomplete="off"></label>
         }
