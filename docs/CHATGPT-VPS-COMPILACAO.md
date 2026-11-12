@@ -74,11 +74,10 @@ runner ou containers de produção. Não altera os fluxos de deploy.
 O servidor precisa ter git, acesso HTTPS aos repositórios públicos
 e pelo menos 6 GiB livres para preparar a revisão. O supervisor
 verifica disponibilidade de memória para Chrome, e o bridge bloqueia
-compilações simultâneas na VPS de 4 GB. Revisões diferentes têm
-pastas de fonte imutáveis; uma revisão não pode substituir outra.
-Essa retenção de fontes é separada da limpeza de imagens Docker.
-Antes de operar continuamente, definir coleta de fontes obsoletas
-com comprovação de que não há trabalhos ativos.
+compilações simultâneas na VPS de 4 GB. Cada revisão usa sua própria pasta imutável; antes de um novo teste,
+o bridge verifica que não há compilação em andamento e remove cópias
+anteriores do mesmo jogo que tenham proveniência validada. Não mantém
+backups locais de fontes. Isso é separado da limpeza de imagens Docker.
 
 O teste CI do GitHub sozinho não comprova execução na VPS. Após
 instalação, homologar check, start e status com as revisões reais
