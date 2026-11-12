@@ -17,7 +17,7 @@ PROJECTS = {
 SHA = re.compile(r'[a-f0-9]{40}\Z')
 JOB = re.compile(r'[a-f0-9]{16}\Z')
 STATE = Path('/var/lib/panel-chatgpt-workspaces')
-SOURCES = Path('/srv/panel-codex/workspace')
+SOURCES = Path('/srv/panel-chatgpt-sources')
 SUPERVISOR = Path('/usr/local/lib/panel-workspaces/workspace_build.py')
 
 
@@ -68,8 +68,8 @@ def git(argv, cwd):
 
 
 def source_checkout(project, sha):
-    if SOURCES.is_symlink() or not SOURCES.is_dir():
-        raise RuntimeError('Source workspace root is unavailable')
+    if SOURCES.is_symlink() or not SOURCES.is_dir() or SOURCES.stat().st_uid != 0 or SOURCES.stat().st_mode & 0o022:
+        raise RuntimeError('Root-owned source workspace root is unavailable or writable')
     if shutil.disk_usage(SOURCES).free < 6 * 1024**3:
         raise RuntimeError('At least 6 GiB free disk required')
     name = 'cg_' + project + '_' + sha[:16]
@@ -120,6 +120,8 @@ def run_workspace(policy, args):
         raise RuntimeError('Unsafe state directory')
     STATE.mkdir(mode=0o700, parents=True, exist_ok=True)
     ws = supervisor()
+    if getattr(ws, 'CHATGPT_WORKSPACES', None) != SOURCES:
+        raise RuntimeError('Installed supervisor does not support isolated ChatGPT workspace')
     if action == 'check':
         return {'action':'check','supervisorInstalled':True,
                 'profiles':[x[1] for x in PROJECTS.values()], 'changed':False}
@@ -150,7 +152,7 @@ def run_workspace(policy, args):
                 if json.loads((entry/'status.json').read_text()).get('status') in ('queued','running'):
                     raise RuntimeError('Another workspace build is active')
         work = source_checkout(project,args['sha'])
-        jid = ws.start(work,args['profile'])
+        jid = ws.start(work,args['profile'],root=ws.CHATGPT_WORKSPACES)
         receipt = STATE/('job-'+jid+'.json')
         with receipt.open('x') as file:
             json.dump({'project':project,'sha':args['sha'],
