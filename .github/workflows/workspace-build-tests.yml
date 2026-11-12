@@ -1,7 +1,7 @@
 name: Panel workspace build contracts
 on:
   push:
-    branches: [main, feat/workspace-build-isolation-20261111]
+    branches: [main, feat/workspace-build-isolation-20261111, feat/dev-toolbox-multistack-20261111]
     paths:
       - 'operations/workspace_build.py'
       - 'operations/install-workspace-build-vps.sh'
