@@ -140,11 +140,12 @@ def source_checkout(project, sha):
     return name
 
 
-def prune_old_sources(project, keep):
-    """Keep just the last checkout for a game. Never touch unrecognized directories."""
+def prune_old_sources(project, keep, preserve=()):
+    """Prune old trusted sources, but never delete a checkout used by an active job."""
     prefix = 'cg_' + project + '_'
+    protected = set(preserve)
     for old in SOURCES.iterdir():
-        if old.name == keep or not old.name.startswith(prefix):
+        if old.name == keep or old.name in protected or not old.name.startswith(prefix):
             continue
         # A failed git checkout, symlink or an unknown directory is not ours to delete.
         if not re.fullmatch(re.escape(prefix) + r'[a-f0-9]{16}', old.name):
@@ -200,13 +201,24 @@ def run_workspace(policy, args):
                 'changed':False}
     with (STATE/'start.lock').open('a+') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        # Refuse a second test during a queued/running build instead of starving 4 GB VPS.
-        for entry in ws.JOBS.iterdir():
-            if entry.is_dir() and JOB.fullmatch(entry.name) and (entry/'status.json').is_file():
-                if json.loads((entry/'status.json').read_text()).get('status') in ('queued','running'):
-                    raise RuntimeError('Another workspace build is active')
+        # Multiple jobs may run at once. Keep all source snapshots referenced by
+        # queued/running jobs so a newer revision cannot delete an active input.
+        active_sources = set()
+        if ws.JOBS.is_dir():
+            for entry in ws.JOBS.iterdir():
+                state_file = entry / 'status.json'
+                if (not JOB.fullmatch(entry.name) or entry.is_symlink() or
+                        not entry.is_dir() or state_file.is_symlink() or
+                        not state_file.is_file()):
+                    continue
+                state = json.loads(state_file.read_text())
+                workspace = state.get('project')
+                if (state.get('status') in ('queued', 'running') and
+                        type(workspace) is str and
+                        re.fullmatch(r'cg_(?:lhs|terrania)_[a-f0-9]{16}', workspace)):
+                    active_sources.add(workspace)
         work = source_checkout(project,args['sha'])
-        prune_old_sources(project, work)
+        prune_old_sources(project, work, preserve=active_sources)
         jid = ws.start(work,args['profile'],root=ws.CHATGPT_WORKSPACES)
         receipt = STATE/('job-'+jid+'.json')
         with receipt.open('x') as file:
