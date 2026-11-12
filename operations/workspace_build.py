@@ -178,6 +178,7 @@ def docker_args(work: Path, *, source: Path | None, phase: str, network='none', 
             '--network='+network, '--user=61110:61110',
             '--tmpfs=/tmp:rw,nosuid,nodev,size=128m',
             '--env=HOME=/work/.home', '--env=npm_config_cache=/work/.npm-cache',
+            *(['--env=TERRANIA_WORKSPACE_SANITIZED=1'] if terrania else []),
             *(('--name='+container_name,) if container_name else ()),
             '--mount=type=bind,src='+str(work)+',dst=/work',
             '--workdir='+('/work' if source is not None or terrania else '/work/games/lan_house_simulator')]
