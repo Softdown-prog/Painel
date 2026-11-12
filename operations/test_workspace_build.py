@@ -171,6 +171,18 @@ class WorkspacesTest(unittest.TestCase):
         self.assertEqual(ws.PROFILES['lhs-visual'][-len(ws.LHS_VISUAL):], ws.LHS_VISUAL)
         self.assertEqual(ws.PROFILES['lhs-quick'][-1][0], 'game-smoke')
 
+    def test_legacy_browser_exercises_real_game_before_angular_replaces_dist(self):
+        for profile_name in ('lhs-visual','lhs-precommit'):
+            steps=ws.PROFILES[profile_name]
+            names=[step[0] for step in steps]
+            self.assertLess(names.index('build'),names.index('canvas-desktop-mobile'))
+            self.assertLess(names.index('canvas-desktop-mobile'),names.index('layout-touch-and-save'))
+            self.assertLess(names.index('ps2-integrated'),names.index('canonical-site'))
+            self.assertLess(names.index('canonical-site'),names.index('site-desktop-mobile'))
+            self.assertEqual(steps[-1][0],'site-desktop-mobile')
+            self.assertIn('node scripts/verify_live_site_preview.mjs', steps[-1][1])
+        self.assertEqual(ws.LHS_VISUAL, ws.LHS_GAME_BROWSER+ws.LHS_CANONICAL_SITE)
+
     def test_container_names_are_fixed_for_cleanup(self):
         with tempfile.TemporaryDirectory() as folder:
             work = Path(folder)
