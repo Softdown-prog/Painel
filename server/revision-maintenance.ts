@@ -27,8 +27,9 @@ type Deps = {
 };
 const REPO_OWNER = (process.env['PANEL_GHCR_ALLOWED_OWNER'] || 'Softdown-prog').toLowerCase();
 const MAX_IMPORTS = 300;
-const KEEP = 2; // Last two imports per app are always retained.
-const DAYS = 14; // Do not remove very recent images, even on a small VPS.
+const KEEP = 0; // No historical image revisions are retained as backup.
+const DAYS = 0;
+const STAGING_GRACE = 60 * 60 * 1000; // Newly imported image can still be staged.
 const INTERVAL = 6 * 60 * 60 * 1000;
 const DAY = 86400000;
 const RECORD_NAME = 'image-imports.json';
@@ -143,13 +144,15 @@ export async function revisionReport(dataDir:string,docker:DockerRequest=dockerR
  if(!Array.isArray(containers))throw new CleanupError(502,'Lista do Docker inválida.');
  // The executor returns all panel-managed slots, including the backup and the candidate.
  const owned=containers.filter(isManagedContainer);
+ const allReferenced=new Set(containers.map(c=>c.ImageID).filter(Boolean));
  const usedBy=new Map<string,'em_uso'|'reserva'>();
  for(const c of owned){
   if(!c.ImageID)continue;
   const backup=(c.Names||[]).some(name=>name.startsWith('/softload-backup-')||name.startsWith('/softload-candidate-'));
   if(!usedBy.has(c.ImageID)||!backup)usedBy.set(c.ImageID,backup?'reserva':'em_uso');
  }
- const recent=latestKeys(imported);
+ // The active container and the short import-to-stage window are the only
+ // reasons to retain a revision. There are no automatic backup slots.
  const lookedUp=new Map<string,Image|null>();
  const entries:Entry[]=[];
  for(const record of imported){
@@ -176,8 +179,10 @@ export async function revisionReport(dataDir:string,docker:DockerRequest=dockerR
    status=usedBy.get(record.imageId)!;
    reason=status==='reserva'?'Imagem guardada para rollback ou teste da próxima versão.':'Esta imagem está associada ao container principal.';
   }
-  else if(recent.has(record.slug+'/'+record.revision)){status='recente';reason='Entre as duas últimas revisões preservadas desta aplicação.';}
-  else if(now-importedAt<DAYS*DAY){status='recente';reason='Importada há menos de 14 dias.';}
+  else if(allReferenced.has(record.imageId)){
+   status='protegida';reason='Imagem referenciada por outro container existente, mesmo parado.';
+  }
+  else if(now-importedAt<STAGING_GRACE){status='recente';reason='Importada há menos de uma hora; aguardando eventual publicação.';}
   entries.push({...record,ref,sizeBytes:image?.Size||0,status,reason});
  }
  // A shared image must never be removed if any import record preserves it.
@@ -292,5 +297,5 @@ export function startRevisionMonitor(dataDir:string):void {
  };
  const timer=setInterval(()=>{void run();},INTERVAL);
  timer.unref();
- console.log('Revision cleanup monitor ready; checks auto setting every 6 hours and keeps two imports per app.');
+ console.log('Revision cleanup monitor ready; no historical import backups; currently used and short-lived staging images protected.');
 }
