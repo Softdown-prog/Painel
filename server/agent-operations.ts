@@ -18,8 +18,8 @@ const slug=/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const WORKSPACE_SCRIPT='/usr/local/lib/panel-workspaces/workspace_build.py';
 const WORKSPACE_ID=/^[a-f0-9]{16}$/;
 const WORKSPACE_REPOSITORY_PROFILES:Record<string,ReadonlySet<string>>={
- 'Softdown-prog/A7-forge-2D-':new Set(['lhs-quick','lhs-core','lhs-angular','lhs-visual','lhs-precommit']),
- 'Softdown-prog/Terrania':new Set(['terrania-core','terrania-precommit']),
+ 'Softdown-prog/A7-forge-2D-':new Set(['lhs-quick','lhs-core','lhs-angular','lhs-visual','lhs-precommit','lhs-toolbox-precommit']),
+ 'Softdown-prog/Terrania':new Set(['terrania-core','terrania-precommit','terrania-toolbox-precommit']),
 };
 const WORKSPACE_PROFILES=new Set(Object.values(WORKSPACE_REPOSITORY_PROFILES).flatMap(set=>[...set]));
 /** Constructs only allowlisted commands: neither the model nor the browser supplies shell text. */
