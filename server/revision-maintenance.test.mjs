@@ -61,23 +61,23 @@ test('host report exposes measured bytes only and manual host cleanup is queued,
   assert.equal((await revisionReport(x.dir,x.docker,now)).hostMaintenance.status,'completed');
  }finally{x.destroy();}
 });
-test('report retains running rollback, last 2 per application and recent images',async()=>{
+test('report preserves existing backup container but no historical imported image backups',async()=>{
  const x=env();
  try{
   const plan=await revisionReport(x.dir,x.docker,now);
   assert.equal(plan.totalImports,5);
-  assert.equal(plan.oldCount,2);
+  assert.equal(plan.oldCount,4);
   assert.equal(plan.hostInventory.total,3);
   assert.equal(plan.hostInventory.untagged,1);
   assert.equal(plan.hostInventory.multipleVersionRepositories[0].versions,2);
   assert.equal(plan.entries.find(e=>e.revision==='2'.repeat(40)).status,'reserva');
-  assert.equal(plan.entries.find(e=>e.revision==='4'.repeat(40)).status,'recente');
-  assert.equal(plan.entries.find(e=>e.revision==='5'.repeat(40)).status,'recente');
-  assert.equal(plan.oldBytesEstimate,240000000);
+  assert.equal(plan.entries.find(e=>e.revision==='4'.repeat(40)).status,'antiga');
+  assert.equal(plan.entries.find(e=>e.revision==='5'.repeat(40)).status,'antiga');
+  assert.equal(plan.oldBytesEstimate,480000000);
   assert.equal(x.deleted.length,0);
  }finally{x.destroy();}
 });
-test('manual cleanup requires explicit opt-in and confirmation, records counts and preserves backups',async()=>{
+test('manual cleanup removes all unused import revisions and preserves owned backup container',async()=>{
  const x=env();
  try{
   let response;
@@ -94,12 +94,12 @@ test('manual cleanup requires explicit opt-in and confirmation, records counts a
   assert.equal(x.deleted.length,0);
   const result=await call(true,{confirm:'LIMPAR_REVISOES_ANTIGAS'});
   assert.equal(result.status,200);
-  assert.equal(result.removed,2);
+  assert.equal(result.removed,4);
   assert.equal(result.failed,0);
-  assert.equal(x.deleted.length,2);
+  assert.equal(x.deleted.length,4);
   assert.ok(x.deleted.every(ref=>!ref.includes('sha256:'+ '2'.repeat(64))));
   const remaining=JSON.parse(readFileSync(join(x.dir,'image-imports.json'),'utf8'));
-  assert.equal(remaining.length,3);
+  assert.equal(remaining.length,1);
   const history=JSON.parse(readFileSync(join(x.dir,'revision-cleanup-history.json'),'utf8'));
   assert.equal(history.length,1);assert.equal(history[0].source,'manual');
  }finally{x.destroy();}
@@ -123,15 +123,27 @@ test('report blocks cleanup when image metadata differs from verified import rec
 test('shared image remains protected if it is retained by any application',async()=>{
  const x=env();
  try{
-  x.items.push({...record(1,1,'outra'),imageId:imageId(1)});
+  x.items.push({...record(1,0.001,'outra'),imageId:imageId(1)});
   writeFileSync(join(x.dir,'image-imports.json'),JSON.stringify(x.items));
   const report=await revisionReport(x.dir,x.docker,now);
   assert.equal(report.entries.find(e=>e.slug==='loja'&&e.revision==='1'.repeat(40)).status,'reserva');
-  assert.equal(report.oldCount,1);
+  assert.equal(report.oldCount,3);
   assert.equal(x.deleted.length,0);
  }finally{x.destroy();}
 });
 
+test('brand-new image import has a one-hour staging window, but no two-version retention',async()=>{
+ const x=env();
+ try {
+  x.items.push(record(7,0.001));
+  writeFileSync(join(x.dir,'image-imports.json'),JSON.stringify(x.items));
+  const report=await revisionReport(x.dir,x.docker,now);
+  assert.equal(report.keepPerApp,0);
+  assert.equal(report.ageDays,0);
+  assert.equal(report.entries.find(e=>e.revision==='7'.repeat(40)).status,'recente');
+  assert.equal(report.entries.find(e=>e.revision==='4'.repeat(40)).status,'antiga');
+ }finally{x.destroy();}
+});
 test('scheduled cleanup can be activated and paused by the administrator without deleting images',async()=>{
  const x=env();
  try{
@@ -159,7 +171,7 @@ test('read-only Docker-wide inventory remains optional if host image listing is 
   };
   const report=await revisionReport(x.dir,docker,now);
   assert.equal(report.hostInventory.available,false);
-  assert.equal(report.oldCount,2);
+  assert.equal(report.oldCount,4);
   assert.equal(x.deleted.length,0);
  }finally{x.destroy();}
 });

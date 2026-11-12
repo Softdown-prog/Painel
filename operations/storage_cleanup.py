@@ -163,7 +163,7 @@ def protected_imports(now=None):
         imported_at = row.get('importedAt')
         try:
             stamp = datetime.fromisoformat(imported_at.replace('Z', '+00:00')).timestamp()
-            if not 0 <= now - stamp <= IMPORT_STAGING_GRACE:
+            if stamp <= now and now - stamp > IMPORT_STAGING_GRACE:
                 continue
         except (TypeError, ValueError, AttributeError):
             pass  # Invalid import dates stay protected until manually reviewed.
@@ -177,12 +177,20 @@ def remove_target(target):
         images, containers = inventory()
         if any(c['Image'] == target['id'] for c in containers):
             return False
+        current_image = next((i for i in images if i['Id'] == target['id']), None)
+        # Protect all aliases of an image, not only the tag currently being
+        # removed. An importer may have pinned a different digest meanwhile.
+        protected = set(protected_imports()) | PINNED_TOOLBOX_REFS
+        if current_image:
+            refs = set(image_refs(current_image))
+            if refs.intersection(protected) or refs.difference(target['refs']):
+                return False
         current = docker('image', 'inspect', ref, check=False)
         if current.returncode:  # A preceding untag may already have removed the digest.
             continue
         if json.loads(current.stdout)[0]['Id'] != target['id']:
             return False
-        if ref in PINNED_TOOLBOX_REFS or ref in protected_imports():
+        if ref in protected:
             return False
         # No force and no recursive parent deletion. Docker independently refuses use.
         if docker('image', 'rm', '--no-prune', ref, check=False).returncode:
@@ -190,7 +198,7 @@ def remove_target(target):
     return docker('image', 'inspect', target['id'], check=False).returncode != 0
 
 
-def execute(apply=False, minimum_age=INTERVAL, scheduled=False):
+def execute(apply=False, minimum_age=MIN_UNUSED_AGE, scheduled=False):
     if os.geteuid() != 0:
         raise PermissionError('Host administrator required')
     ROOT.mkdir(mode=0o700, exist_ok=True)

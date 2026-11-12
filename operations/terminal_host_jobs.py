@@ -252,7 +252,7 @@ def run(job_id):
         raise ValueError('Job not running')
     script=ROOT/('script-'+job_id+'.sh')
     output=ROOT/('output-'+job_id+'.txt')
-    fd=os.open(output,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+    fd=os.open(output,os.O_RDWR|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
     code=None
     try:
         # systemd owns this process group; API/SSH disconnect cannot kill it.
