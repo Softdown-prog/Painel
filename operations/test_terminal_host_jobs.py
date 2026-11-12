@@ -182,7 +182,7 @@ print(host.public(host.prune()[0])['state'])
         self.assertTrue(host.read_meta(ID)['cancelRequested'])
         self.assertEqual(cmd.call_args.args[0],['systemctl','stop','--no-block',host.unit(ID)])
     def test_large_output_is_truncated_without_killing_process(self):
-        command=b'head -c 90000 /dev/zero | tr "\\\\000" x'
+        command=b'head -c 90000 /dev/zero | tr "\\\\000" x' + b'; printf TOOLBOX_SUCCESS'
         self.root.joinpath('script-'+ID+'.sh').write_bytes(command)
         host.save({'id':ID,'fingerprint':'a'*16,'state':'running','startedAt':host.now(),
                    'finishedAt':None,'exitCode':None,'error':None,
@@ -191,6 +191,9 @@ print(host.public(host.prune()[0])['state'])
         self.assertEqual(host.read_meta(ID)['state'],'completed')
         self.assertTrue(host.read_meta(ID)['truncated'])
         self.assertEqual(len((self.root/('output-'+ID+'.txt')).read_bytes()),host.MAX_OUTPUT)
+        output=(self.root/('output-'+ID+'.txt')).read_bytes()
+        self.assertTrue(output.endswith(b'TOOLBOX_SUCCESS'))
+        self.assertEqual(host.public(host.read_meta(ID))['output'][-15:],'TOOLBOX_SUCCESS')
     def test_abandoned_private_script_and_output_are_pruned_without_metadata(self):
         import time
         for kind,ext in [('script','sh'),('output','txt')]:
