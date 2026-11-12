@@ -118,6 +118,44 @@ class StatusPrivacy(unittest.TestCase):
             self.assertNotIn('SECRET',json.dumps(result))
             self.assertNotIn('logTail',result)
 
+
+    def test_start_runs_full_supervisor_with_independent_source_root(self):
+        class Stub:
+            CHATGPT_WORKSPACES = chat.SOURCES
+            def __init__(self, jobs):
+                self.JOBS = jobs
+                self.received = None
+            def start(self, project, profile, root=None):
+                self.received = (project, profile, root)
+                return 'abcdef0123456789'
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as jobs:
+            stub = Stub(Path(jobs))
+            with patch.object(chat, 'STATE', Path(root)), \
+                 patch.object(chat, 'supervisor', return_value=stub), \
+                 patch.object(chat, 'source_checkout', return_value='cg_lhs_aaaaaaaaaaaaaaaa'), \
+                 patch.object(chat, 'prune_old_sources') as cleaned:
+                data = chat.run_workspace(ENABLED, {'action':'start','project':'lhs',
+                                                   'profile':'lhs-precommit','sha':SHA})
+                self.assertEqual(stub.received, ('cg_lhs_aaaaaaaaaaaaaaaa',
+                                                'lhs-precommit', chat.SOURCES))
+                self.assertFalse(data['passed'])
+                self.assertEqual(data['status'], 'queued')
+                cleaned.assert_called_once_with('lhs','cg_lhs_aaaaaaaaaaaaaaaa')
+                saved = json.loads((Path(root)/'job-abcdef0123456789.json').read_text())
+                self.assertEqual(saved['sha'], SHA)
+
+    def test_untrusted_source_directories_are_never_cleaned(self):
+        with tempfile.TemporaryDirectory() as folder, tempfile.TemporaryDirectory() as state:
+            sources = Path(folder)
+            foreign = sources/'cg_lhs_aaaaaaaaaaaaaaaa'
+            foreign.mkdir()
+            unrelated = sources/'cg_terrania_bbbbbbbbbbbbbbbb'
+            unrelated.mkdir()
+            with patch.object(chat, 'SOURCES', sources), patch.object(chat, 'STATE', Path(state)):
+                chat.prune_old_sources('lhs', 'cg_lhs_cccccccccccccccc')
+            self.assertTrue(foreign.is_dir())
+            self.assertTrue(unrelated.is_dir())
+
     def test_check_readonly(self):
         stub=type('Stub', (), {'CHATGPT_WORKSPACES':chat.SOURCES})()
         with tempfile.TemporaryDirectory() as folder,patch.object(chat,'STATE',Path(folder)), \
