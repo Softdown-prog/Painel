@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Softdown-prog/Terrania
-          ref: 3cb2113bc5bb35e1ebea28d0a149a38b348e3201
+          ref: 4b55a046895940f0089f8d65152a22f3454d8544
           path: terrania-src
           persist-credentials: false
       - name: Build disposable Node 24 browser-test image
