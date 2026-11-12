@@ -133,7 +133,7 @@ def project_dir(name: str, root: Path = WORKSPACES) -> Path:
     return path
 
 
-def docker_args(work: Path, *, source: Path | None, phase: str, network='none', container_name: str | None = None) -> list[str]:
+def docker_args(work: Path, *, source: Path | None, phase: str, network='none', container_name: str | None = None, video: bool = False) -> list[str]:
     # No ports, Docker socket, host filesystem root, privileged mode or extra capabilities.
     if network not in ('none', 'bridge'):
         raise ValueError('Rede não autorizada')
@@ -141,8 +141,10 @@ def docker_args(work: Path, *, source: Path | None, phase: str, network='none', 
         raise ValueError('Nome de container inválido')
     argv = ['docker', 'run', '--rm', '--init', '--read-only', '--cap-drop=ALL',
             '--security-opt=no-new-privileges:true', '--pids-limit=128',
-            '--cpus=1.5', '--memory=1536m', '--memory-swap=1536m',
-            '--shm-size=256m',
+            '--cpus='+('2.0' if video else '1.5'),
+            '--memory='+('2048m' if video else '1536m'),
+            '--memory-swap='+('2048m' if video else '1536m'),
+            '--shm-size='+('384m' if video else '256m'),
             '--network='+network, '--user=61110:61110',
             '--tmpfs=/tmp:rw,nosuid,nodev,size=128m',
             '--env=HOME=/work/.home', '--env=npm_config_cache=/work/.npm-cache',
@@ -153,6 +155,18 @@ def docker_args(work: Path, *, source: Path | None, phase: str, network='none', 
         argv += ['--mount=type=bind,src='+str(source)+',dst=/source,readonly']
     argv += [IMAGE, 'sh', '-eu', '-c', phase]
     return argv
+
+
+def enough_memory_for_video() -> bool:
+    """Do not contend with production services when a browser needs 2 GiB."""
+    try:
+        for line in Path('/proc/meminfo').read_text().splitlines():
+            if line.startswith('MemAvailable:'):
+                kib = int(line.split()[1])
+                return kib >= 2560 * 1024
+    except (OSError, IndexError, ValueError):
+        return False
+    return False
 
 
 def clean_copy_command() -> str:
@@ -240,9 +254,12 @@ def run_pipeline(job_id: str, root: Path = WORKSPACES, jobs: Path = JOBS) -> Non
             for index, (name, command, limit, network, snapshot_source) in enumerate(steps):
                 write_state(folder, current=name)
                 print('=== '+name+' ===', flush=True)
+                video = name in ('ps1-integrated', 'ps2-integrated')
+                if video and not enough_memory_for_video():
+                    raise RuntimeError(f'{name}: memória livre insuficiente para Chromium/vídeo (requer 2,5 GiB disponíveis)')
                 container = f'panel-ws-{job_id}-{index}'
                 argv = docker_args(work, source=snapshot_source, phase=command,
-                                   network=network, container_name=container)
+                                   network=network, container_name=container, video=video)
                 try:
                     result = subprocess.run(argv, stdin=subprocess.DEVNULL, timeout=limit, check=False)
                     if result.returncode != 0:
