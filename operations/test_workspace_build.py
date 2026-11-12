@@ -340,6 +340,31 @@ class WorkspacesTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 ws.collect_expired_jobs(jobs)
 
+    def test_install_script_is_syntactically_valid_and_opt_in_only(self):
+        installer = Path(__file__).with_name('install-workspace-build-vps.sh')
+        subprocess.run(['bash','-n',str(installer)],check=True)
+        script=installer.read_text()
+        self.assertIn('"$1" != "check" && "$1" != "apply"',script)
+        self.assertIn('if [[ "$mode" == check ]]; then',script)
+        self.assertLess(script.index('if [[ "$mode" == check ]]; then'),
+                        script.index('docker build --pull'))
+        self.assertIn('flock -n 9',script)
+        self.assertIn('docker run --rm --init --read-only --network none',script)
+        self.assertIn('systemctl enable --now vps-panel-workspace-gc.timer',script)
+        self.assertNotIn('docker compose down',script)
+        self.assertNotIn('docker system prune',script)
+
+    def test_gc_systemd_unit_only_modifies_own_data_directory(self):
+        unit_dir=Path(__file__).parent/'systemd'
+        service=(unit_dir/'vps-panel-workspace-gc.service').read_text()
+        timer=(unit_dir/'vps-panel-workspace-gc.timer').read_text()
+        self.assertIn('workspace_build.py gc --days 7 --apply',service)
+        self.assertIn('ReadWritePaths=/srv/panel-workspace-builds',service)
+        self.assertIn('ProtectSystem=strict',service)
+        self.assertIn('NoNewPrivileges=yes',service)
+        self.assertIn('OnCalendar=',timer)
+        self.assertIn('Unit=vps-panel-workspace-gc.service',timer)
+
     def test_snapshot_shell_command_parses(self):
         subprocess.run(['sh','-n','-c',ws.clean_copy_command()],check=True)
 
