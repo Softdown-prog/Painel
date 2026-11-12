@@ -117,7 +117,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Softdown-prog/A7-forge-2D-
-          ref: c70032b3aa4e952d5eb99bf3f8a672aa6c3c68dc
+          ref: 39fdedc8ce6236d766d73e8cfe9990b264b642c6
           path: lhs-src
           persist-credentials: false
       - name: Run full LHS precommit in the NEW toolbox image
