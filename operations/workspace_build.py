@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fixed-purpose, one-job-at-a-time isolated LHS build executor for the Panel VPS.
+"""Fixed-purpose parallel isolated LHS build executor for the Panel VPS.
 
 The host script is a trusted broker: never run untrusted commands on the host,
 pass the Docker socket into the job, or expose this script as unauthenticated HTTP.
@@ -184,9 +184,7 @@ def docker_args(work: Path, *, source: Path | None, phase: str, network='none', 
         raise ValueError('Nome de container inválido')
     argv = ['docker', 'run', '--rm', '--pull=never', '--init', '--read-only', '--cap-drop=ALL',
             '--security-opt=no-new-privileges:true', '--pids-limit=128',
-            '--cpus='+('2.0' if video else '1.5'),
-            '--memory='+('2048m' if video else '1536m'),
-            '--memory-swap='+('2048m' if video else '1536m'),
+            # IPC /dev/shm sizing is not a limit on total container RAM.
             '--shm-size='+('384m' if video else '256m'),
             '--network='+network, '--user=61110:61110',
             '--tmpfs=/tmp:rw,nosuid,nodev,size=128m',
@@ -198,18 +196,6 @@ def docker_args(work: Path, *, source: Path | None, phase: str, network='none', 
         argv += ['--mount=type=bind,src='+str(source)+',dst=/source,readonly']
     argv += [TOOLBOX_IMAGE if toolbox else IMAGE, 'sh', '-eu', '-c', phase]
     return argv
-
-
-def enough_memory_for_video() -> bool:
-    """Do not contend with production services when a browser needs 2 GiB."""
-    try:
-        for line in Path('/proc/meminfo').read_text().splitlines():
-            if line.startswith('MemAvailable:'):
-                kib = int(line.split()[1])
-                return kib >= 2560 * 1024
-    except (OSError, IndexError, ValueError):
-        return False
-    return False
 
 
 def clean_copy_command(profile: str = 'lhs-precommit') -> str:
@@ -287,7 +273,9 @@ def run_pipeline(job_id: str, root: Path = WORKSPACES, jobs: Path = JOBS) -> Non
     lock_path.touch(exist_ok=True)
     with lock_path.open('r+') as lock:
         try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            # Readers may build concurrently. Installer and GC take the exclusive
+            # form of this same lock to prevent replacement or cleanup mid-build.
+            fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
         except BlockingIOError:
             write_state(folder, status='busy', finished=time.time(), success=False)
             return
@@ -305,8 +293,6 @@ def run_pipeline(job_id: str, root: Path = WORKSPACES, jobs: Path = JOBS) -> Non
                 write_state(folder, current=name)
                 print('=== '+name+' ===', flush=True)
                 video = name in ('ps1-integrated', 'ps2-integrated', 'terrania-browser-desktop', 'terrania-browser-android')
-                if video and not enough_memory_for_video():
-                    raise RuntimeError(f'{name}: memória livre insuficiente para Chromium/vídeo (requer 2,5 GiB disponíveis)')
                 container = f'panel-ws-{job_id}-{index}'
                 argv = docker_args(work, source=snapshot_source, phase=command,
                                    network=network, container_name=container, video=video,

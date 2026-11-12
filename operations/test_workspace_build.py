@@ -37,7 +37,7 @@ class WorkspacesTest(unittest.TestCase):
                 self.assertIn('--network='+network,args)
                 self.assertIn('--workdir=/work',args)
                 self.assertNotIn('--workdir=/work/games/lan_house_simulator',args)
-                self.assertIn('--memory=1536m',args)
+                self.assertFalse(any(a.startswith(('--cpus=', '--memory=', '--memory-swap=')) for a in args))
                 self.assertFalse(any('docker.sock' in arg for arg in args))
                 self.assertFalse(any('--privileged' in arg for arg in args))
                 self.assertFalse(any('--publish' in arg for arg in args))
@@ -115,7 +115,23 @@ class WorkspacesTest(unittest.TestCase):
             self.assertEqual(state['status'],'queued')
             self.assertNotIn('pid',state)
 
-    def test_concurrent_job_fails_closed_before_docker(self):
+    def test_concurrent_job_runs_with_shared_build_lock(self):
+        import fcntl
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as jobs:
+            root,jobs=Path(root),Path(jobs)
+            (root/'gh_12_abcdef12').mkdir();(jobs/'0123456789abcdef').mkdir()
+            ws.write_state(jobs/'0123456789abcdef',project='gh_12_abcdef12',profile='lhs-quick')
+            lock=(jobs/'.active.lock');lock.touch()
+            calls=[]
+            with lock.open('r+') as held:
+                fcntl.flock(held,fcntl.LOCK_SH|fcntl.LOCK_NB)
+                with patch.object(ws.os,'chown'),patch.object(ws.subprocess,'run',
+                                  side_effect=lambda argv,**kw:(calls.append(argv) or subprocess.CompletedProcess(argv,0))):
+                    ws.run_pipeline('0123456789abcdef',root,jobs)
+            self.assertEqual(ws.status('0123456789abcdef',jobs)['status'],'passed')
+            self.assertEqual(len(calls),1+len(ws.PROFILES['lhs-quick']))
+
+    def test_exclusive_maintenance_lock_still_refuses_build(self):
         import fcntl
         with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as jobs:
             root,jobs=Path(root),Path(jobs)
@@ -183,26 +199,21 @@ class WorkspacesTest(unittest.TestCase):
             self.assertIn('node scripts/verify_live_site_preview.mjs', steps[-1][1])
         self.assertEqual(ws.LHS_VISUAL, ws.LHS_GAME_BROWSER+ws.LHS_CANONICAL_SITE)
 
-    def test_ps1_and_ps2_video_have_bounded_resources_and_headroom_gate(self):
+    def test_video_phases_have_no_cpu_or_ram_quota_and_no_headroom_gate(self):
         with tempfile.TemporaryDirectory() as folder:
             work=Path(folder)
             normal=ws.docker_args(work,source=None,phase='true',video=False)
             video=ws.docker_args(work,source=None,phase='true',video=True)
-            self.assertIn('--memory=1536m',normal)
-            self.assertIn('--cpus=1.5',normal)
-            self.assertIn('--memory=2048m',video)
-            self.assertIn('--memory-swap=2048m',video)
-            self.assertIn('--cpus=2.0',video)
+            for args in (normal,video):
+                self.assertFalse(any(a.startswith(('--cpus=', '--memory=', '--memory-swap=')) for a in args))
+            self.assertIn('--shm-size=256m',normal)
             self.assertIn('--shm-size=384m',video)
             for step in ws.LHS_GAME_BROWSER:
                 if step[0].startswith('ps'):
                     self.assertIn('node scripts/verify_ps',step[1])
-        with patch.object(ws.Path,'read_text',return_value='MemTotal: 4194304 kB\\nMemAvailable: 2228224 kB\\n'):
-            self.assertFalse(ws.enough_memory_for_video())
-        with patch.object(ws.Path,'read_text',return_value='MemAvailable: 5242880 kB\\n'):
-            self.assertTrue(ws.enough_memory_for_video())
+        self.assertFalse(hasattr(ws,'enough_memory_for_video'))
 
-    def test_video_phase_fails_before_container_when_memory_is_low(self):
+    def test_video_phase_runs_without_memory_threshold(self):
         with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as jobs:
             root,jobs=Path(root),Path(jobs)
             (root/'gh_12_abcdef12').mkdir()
@@ -212,13 +223,12 @@ class WorkspacesTest(unittest.TestCase):
             def stub_run(argv,**kwargs):
                 observed.append(argv)
                 return subprocess.CompletedProcess(argv,0)
-            with patch.object(ws.os,'chown'),patch.object(ws.subprocess,'run',side_effect=stub_run),patch.object(ws,'enough_memory_for_video',return_value=False):
+            with patch.object(ws.os,'chown'),patch.object(ws.subprocess,'run',side_effect=stub_run):
                 ws.run_pipeline('0123456789abcdef',root,jobs)
             result=ws.status('0123456789abcdef',jobs)
-            self.assertEqual(result['status'],'failed')
-            self.assertEqual(result['current'],'ps1-integrated')
-            self.assertIn('memória livre insuficiente',result['error'])
-            self.assertFalse(any('verify_ps1' in ' '.join(a) for a in observed))
+            self.assertEqual(result['status'],'passed')
+            self.assertTrue(any('verify_ps1_2002' in argv[-1] for argv in observed))
+            self.assertTrue(any('verify_ps2_gameplay' in argv[-1] for argv in observed))
 
     def test_container_names_are_fixed_for_cleanup(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -404,36 +414,34 @@ class WorkspacesTest(unittest.TestCase):
             def fake_run(args, **kwargs):
                 observed.append(args)
                 return subprocess.CompletedProcess(args, 0)
-            with patch.object(ws.os,'chown'), patch.object(ws.subprocess,'run',side_effect=fake_run), patch.object(ws,'enough_memory_for_video',return_value=True):
+            with patch.object(ws.os,'chown'), patch.object(ws.subprocess,'run',side_effect=fake_run):
                 ws.run_pipeline('0123456789abcdef',root,jobs)
             self.assertEqual(ws.status('0123456789abcdef',jobs)['status'], 'passed')
             self.assertEqual(len(observed), 1 + len(ws.PROFILES['terrania-precommit']))
             self.assertTrue(all('--workdir=/work' in argv for argv in observed))
             self.assertTrue(all('--network=none' in argv for argv in observed[3:]))
             self.assertTrue(all('--network=bridge' in argv for argv in observed[1:3]))
-            self.assertEqual(len([x for x in observed if '--memory=2048m' in x]),2)
+            self.assertTrue(all(not any(v.startswith(('--cpus=', '--memory=', '--memory-swap=')) for v in argv) for argv in observed))
             self.assertTrue(any('--project=android' in argv[-1] for argv in observed))
             self.assertTrue(any('--project=desktop' in argv[-1] for argv in observed))
             self.assertFalse((jobs/'0123456789abcdef'/'source').exists())
 
-    def test_terrania_browser_low_memory_is_failed_not_skipped(self):
+    def test_terrania_browser_runs_without_host_memory_threshold(self):
         with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as jobs:
-            root, jobs = Path(root), Path(jobs)
+            root,jobs=Path(root),Path(jobs)
             (root/'gh_12_abcdef12').mkdir()
             (jobs/'0123456789abcdef').mkdir()
             ws.write_state(jobs/'0123456789abcdef',project='gh_12_abcdef12',
                            profile='terrania-precommit',status='queued')
             observed=[]
-            def fake_run(args, **kwargs):
-                observed.append(args)
-                return subprocess.CompletedProcess(args, 0)
-            with patch.object(ws.os,'chown'), patch.object(ws.subprocess,'run',side_effect=fake_run), patch.object(ws,'enough_memory_for_video',return_value=False):
+            def fake_run(argv,**kwargs):
+                observed.append(argv)
+                return subprocess.CompletedProcess(argv,0)
+            with patch.object(ws.os,'chown'),patch.object(ws.subprocess,'run',side_effect=fake_run):
                 ws.run_pipeline('0123456789abcdef',root,jobs)
-            state=ws.status('0123456789abcdef',jobs)
-            self.assertEqual(state['status'],'failed')
-            self.assertEqual(state['current'],'terrania-browser-desktop')
-            self.assertFalse(any('--project=desktop' in argv[-1] for argv in observed))
-
+            self.assertEqual(ws.status('0123456789abcdef',jobs)['status'],'passed')
+            self.assertTrue(any('--project=desktop' in a[-1] for a in observed))
+            self.assertTrue(any('--project=android' in a[-1] for a in observed))
 
     def test_toolbox_profiles_are_explicit_and_do_not_reduce_game_coverage(self):
         self.assertEqual(ws.IMAGE, 'panel-lhs-qa:node24-pw1.56.1')
@@ -478,7 +486,7 @@ class WorkspacesTest(unittest.TestCase):
             def fake_run(argv,**kwargs):
                 observed.append(argv)
                 return subprocess.CompletedProcess(argv,0)
-            with patch.object(ws.os,'chown'),patch.object(ws.subprocess,'run',side_effect=fake_run),patch.object(ws,'enough_memory_for_video',return_value=True):
+            with patch.object(ws.os,'chown'),patch.object(ws.subprocess,'run',side_effect=fake_run):
                 ws.run_pipeline('0123456789abcdef',root,jobs)
             self.assertEqual(ws.status('0123456789abcdef',jobs)['status'],'passed')
             self.assertEqual(len(observed),1+len(ws.PROFILES['lhs-toolbox-precommit']))

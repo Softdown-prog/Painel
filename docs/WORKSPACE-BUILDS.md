@@ -15,9 +15,11 @@ O GitHub Runner não participa deste procedimento.
 - Apenas `npm ci` usa a rede Docker `bridge` para buscar dependências; os testes
   rodam sem rede. Isso não equivale a uma política de egress rigorosa: antes de
   habilitar para código não confiável, configurar uma rede dedicada com filtragem.
-- Um build por vez; em geral 1,5 vCPU e 1.536 MiB RAM. PS1/PS2 com gravação
-  usam até 2 vCPU e 2 GiB, somente com 2,5 GiB de memória disponível.
-  O supervisor também limita processos e tempo por etapa.
+- Compilações podem rodar em paralelo, sem cotas artificiais de CPU/RAM por
+  contêiner e sem bloquear Chromium por um limiar fixo de memória disponível.
+  O supervisor conserva isolamento de processos, diretórios, rede e tempo por etapa.
+  Instalação e limpeza administrativa usam lock exclusivo para não substituir
+  ferramentas ou remover fontes durante trabalhos ativos.
 - Imagem local `panel-lhs-qa:node24-pw1.56.1` construída de
   `operations/workspace-build.Dockerfile`: Node 24, Playwright 1.56.1 e Chromium
   pré-instalados. O teste em GitHub-hosted Docker comprova abertura de Chromium,
@@ -135,9 +137,10 @@ fixa `.node-version=24`, alinhado com o Angular 22 do projeto.
 | **`terrania-precommit`** | Todos os passos de `terrania-core` **mais Playwright Chromium desktop e Android**, com servidor e aplicação reais |
 
 Os testes de navegador executam em contêiner sem acesso à rede externa, com
-loopback interno para a aplicação local, limites de 2 vCPU/2 GiB e trava de
-memória disponível. Se faltar memória, o perfil **falha**; não declara aprovação
-nem ignora o navegador. Instalação `npm ci` é a única fase autorizada à rede
+loopback interno para a aplicação local, sem cotas fixas de CPU/RAM ou
+bloqueio por limiar de memória livre. Se o navegador ou o sistema falhar por
+falta real de recursos, o perfil **falha**; não declara aprovação nem ignora
+o navegador. Instalação `npm ci` é a única fase autorizada à rede
 Docker `bridge` para buscar dependências.
 
 O supervisor exige um checkout na **raiz Terrania** com `package.json`,

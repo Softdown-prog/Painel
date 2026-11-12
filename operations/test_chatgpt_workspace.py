@@ -85,6 +85,39 @@ class BridgeAuthorization(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 chat.git(['fetch'],Path('/tmp'))
 
+
+    def test_root_umask_snapshots_remain_readable_by_nonroot_docker_uid(self):
+        # The OIDC receiver sets umask 077; Git source files are 0600/0700.
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / 'snapshot'
+            source.mkdir(mode=0o700)
+            nested = source / 'games'
+            nested.mkdir(mode=0o700)
+            package = nested / 'package.json'
+            package.write_text('{"name":"test"}')
+            package.chmod(0o600)
+            executable = nested / 'run.sh'
+            executable.write_text('#!/bin/sh\nexit 0\n')
+            executable.chmod(0o700)
+
+            chat.make_snapshot_readable(source)
+            self.assertEqual(source.stat().st_mode & 0o777, 0o755)
+            self.assertEqual(nested.stat().st_mode & 0o777, 0o755)
+            self.assertEqual(package.stat().st_mode & 0o777, 0o644)
+            self.assertEqual(executable.stat().st_mode & 0o777, 0o755)
+            self.assertFalse(package.stat().st_mode & 0o022)
+
+    def test_snapshot_rejects_symlinks_before_changing_modes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / 'snapshot'
+            source.mkdir(mode=0o700)
+            private = source / 'private'
+            private.mkdir(mode=0o700)
+            (source / 'bad').symlink_to('/etc/passwd')
+            with self.assertRaisesRegex(RuntimeError, 'Unsafe source snapshot entry'):
+                chat.make_snapshot_readable(source)
+            self.assertEqual(private.stat().st_mode & 0o777, 0o700)
+
     def test_fixed_public_repository_selection(self):
         self.assertEqual(chat.PROJECTS['lhs'],('Softdown-prog/A7-forge-2D-','lhs-precommit'))
         self.assertEqual(chat.PROJECTS['terrania'],('Softdown-prog/Terrania','terrania-precommit'))
@@ -140,9 +173,40 @@ class StatusPrivacy(unittest.TestCase):
                                                 'lhs-precommit', chat.SOURCES))
                 self.assertFalse(data['passed'])
                 self.assertEqual(data['status'], 'queued')
-                cleaned.assert_called_once_with('lhs','cg_lhs_aaaaaaaaaaaaaaaa')
+                cleaned.assert_called_once_with('lhs','cg_lhs_aaaaaaaaaaaaaaaa',preserve=set())
                 saved = json.loads((Path(root)/'job-abcdef0123456789.json').read_text())
                 self.assertEqual(saved['sha'], SHA)
+
+    def test_start_allows_parallel_job_and_preserves_its_source(self):
+        class Stub:
+            CHATGPT_WORKSPACES = chat.SOURCES
+            def __init__(self, jobs):
+                self.JOBS = jobs
+            def start(self, project, profile, root=None):
+                return 'abcdef0123456789'
+        with tempfile.TemporaryDirectory() as state_dir, tempfile.TemporaryDirectory() as jobs_dir:
+            jobs = Path(jobs_dir)
+            active = jobs/'1111111111111111'
+            active.mkdir()
+            (active/'status.json').write_text(json.dumps({
+                'status':'running',
+                'project':'cg_lhs_bbbbbbbbbbbbbbbb',
+                'profile':'lhs-precommit'
+            }))
+            stub = Stub(jobs)
+            with patch.object(chat, 'STATE', Path(state_dir)), \
+                 patch.object(chat, 'supervisor', return_value=stub), \
+                 patch.object(chat, 'source_checkout', return_value='cg_lhs_aaaaaaaaaaaaaaaa'), \
+                 patch.object(chat, 'prune_old_sources') as cleaned:
+                data = chat.run_workspace(ENABLED, {
+                    'action':'start','project':'lhs',
+                    'profile':'lhs-precommit','sha':SHA
+                })
+            self.assertEqual(data['status'], 'queued')
+            self.assertEqual(data['jobId'], 'abcdef0123456789')
+            cleaned.assert_called_once_with(
+                'lhs', 'cg_lhs_aaaaaaaaaaaaaaaa',
+                preserve={'cg_lhs_bbbbbbbbbbbbbbbb'})
 
     def test_untrusted_source_directories_are_never_cleaned(self):
         with tempfile.TemporaryDirectory() as folder, tempfile.TemporaryDirectory() as state:

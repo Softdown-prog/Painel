@@ -72,9 +72,10 @@ permissão da nova operação, sem reiniciar API, Caddy, PostgreSQL, Codex,
 runner ou containers de produção. Não altera os fluxos de deploy.
 
 O servidor precisa ter git, acesso HTTPS aos repositórios públicos
-e pelo menos 6 GiB livres para preparar a revisão. O supervisor
-verifica disponibilidade de memória para Chrome, e o bridge bloqueia
-compilações simultâneas na VPS de 4 GB. Cada revisão usa sua própria pasta imutável; antes de um novo teste,
+e pelo menos 6 GiB livres para preparar a revisão. O supervisor não aplica cotas artificiais de CPU/RAM nem exige limiar fixo
+de memória para Chrome. Compilações simultâneas são permitidas; cada job usa
+seu diretório próprio e bloqueios compartilhados para que instalação e limpeza
+administrativa não modifiquem arquivos ativos. Cada revisão usa sua própria pasta imutável; antes de um novo teste,
 o bridge verifica que não há compilação em andamento e remove cópias
 anteriores do mesmo jogo que tenham proveniência validada. Não mantém
 backups locais de fontes. Isso é separado da limpeza de imagens Docker.
