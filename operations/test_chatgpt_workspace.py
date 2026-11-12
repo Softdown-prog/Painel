@@ -1,6 +1,5 @@
 """Offline authorization and status-privacy tests; no VPS or Docker required."""
 import copy
-import os
 import json
 from pathlib import Path
 import sys
@@ -98,7 +97,7 @@ class BridgeAuthorization(unittest.TestCase):
             package.write_text('{"name":"test"}')
             package.chmod(0o600)
             executable = nested / 'run.sh'
-            executable.write_text('#!/bin/sh\\nexit 0\\n')
+            executable.write_text('#!/bin/sh\nexit 0\n')
             executable.chmod(0o700)
 
             chat.make_snapshot_readable(source)
