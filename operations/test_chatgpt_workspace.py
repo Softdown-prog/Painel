@@ -92,13 +92,15 @@ class BridgeAuthorization(unittest.TestCase):
 
 class StatusPrivacy(unittest.TestCase):
     def test_unregistered_jobs_rejected(self):
+        stub = type('Stub', (), {'CHATGPT_WORKSPACES':chat.SOURCES})()
         with tempfile.TemporaryDirectory() as folder,patch.object(chat,'STATE',Path(folder)), \
-             patch.object(chat,'supervisor',return_value=object()):
+             patch.object(chat,'supervisor',return_value=stub):
             with self.assertRaises(ValueError):
                 chat.run_workspace(ENABLED,{'action':'status','jobId':'f'*16})
 
     def test_status_binds_job_identity_and_never_exposes_private_logs(self):
         class Stub:
+            CHATGPT_WORKSPACES=chat.SOURCES
             PROFILES={'terrania-precommit':[('terrania-build','npm run build',900,'none')]}
             def status(self, jid):
                 return {'project':'cg_terrania_aaaaaaaaaaaaaaaa','profile':'terrania-precommit',
@@ -117,8 +119,9 @@ class StatusPrivacy(unittest.TestCase):
             self.assertNotIn('logTail',result)
 
     def test_check_readonly(self):
+        stub=type('Stub', (), {'CHATGPT_WORKSPACES':chat.SOURCES})()
         with tempfile.TemporaryDirectory() as folder,patch.object(chat,'STATE',Path(folder)), \
-             patch.object(chat,'supervisor',return_value=object()):
+             patch.object(chat,'supervisor',return_value=stub):
             result=chat.run_workspace(ENABLED,{'action':'check'})
             self.assertFalse(result['changed'])
             self.assertEqual(len(result['profiles']),2)
