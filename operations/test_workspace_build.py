@@ -376,7 +376,7 @@ class WorkspacesTest(unittest.TestCase):
         core = ws.PROFILES['terrania-core']
         full = ws.PROFILES['terrania-precommit']
         commands = [step[1] for step in full]
-        for command in ('npm run architecture:check', 'npm run typecheck',
+        for command in ('TERRANIA_WORKSPACE_SANITIZED=1 npm run architecture:check', 'npm run typecheck',
                         'npm test', 'npm run build', 'npm test --prefix server',
                         'npm run build --prefix server',
                         'npm run test:browser -- --project=desktop',
@@ -389,6 +389,7 @@ class WorkspacesTest(unittest.TestCase):
         copy = ws.clean_copy_command('terrania-precommit')
         self.assertIn('/source/angular.json', copy)
         self.assertIn('terrania-origins', copy)
+        self.assertIn(': > /work/.env.example', copy)
         self.assertNotIn('/source/games/lan_house_simulator/package.json', copy)
         self.assertIn('/source/games/lan_house_simulator/package.json', ws.clean_copy_command('lhs-precommit'))
 
