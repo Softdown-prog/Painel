@@ -33,6 +33,11 @@ COPY --from=upstream-python /usr/local/ /usr/local/
 COPY --from=upstream-node /usr/local/bin/ /usr/local/bin/
 COPY --from=upstream-node /usr/local/lib/node_modules/ /usr/local/lib/node_modules/
 COPY --from=upstream-node /usr/local/include/node/ /usr/local/include/node/
+# Node's upstream image ships Yarn symlinks pointing to an /opt directory.
+# We do not copy that directory; remove only those stale links before installing
+# the pinned Yarn package. Do NOT use npm --force or overwrite unrelated tools.
+RUN if [ -L /usr/local/bin/yarn ]; then rm /usr/local/bin/yarn; fi \
+    && if [ -L /usr/local/bin/yarnpkg ]; then rm /usr/local/bin/yarnpkg; fi
 ARG PNPM_VERSION=10.0.0
 ARG YARN_VERSION=1.22.22
 ARG TS_VERSION=7.0.2
