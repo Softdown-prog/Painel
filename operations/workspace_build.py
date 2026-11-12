@@ -130,7 +130,7 @@ TERRANIA_INSTALL = (
     ('terrania-server-install', 'npm ci --prefix server --no-audit --no-fund', 600, 'bridge'),
 )
 TERRANIA_CORE = (
-    ('terrania-architecture', 'npm run architecture:check', 300, 'none'),
+    ('terrania-architecture', 'TERRANIA_WORKSPACE_SANITIZED=1 npm run architecture:check', 300, 'none'),
     ('terrania-typecheck', 'npm run typecheck', 360, 'none'),
     ('terrania-unit-tests', 'npm test', 1800, 'none'),
     ('terrania-build', 'npm run build', 900, 'none'),
@@ -211,7 +211,9 @@ def clean_copy_command(profile: str = 'lhs-precommit') -> str:
             "cp -R /source/. /work/; "
             "find /work -type d \\( -name .git -o -name node_modules -o -name .codex \\) -prune -exec rm -rf {} +; "
             "find /work -type f \\( -name .env -o -name '.env.*' -o -name .npmrc -o -name auth.json \\) -delete; "
-            "mkdir -p /work/.home /work/.npm-cache")
+            "mkdir -p /work/.home /work/.npm-cache" +
+            ("; if test -f /source/.env.example; then : > /work/.env.example; fi"
+             if terrania_profile(profile) else ""))
 
 
 def write_state(job: Path, **values: object) -> None:
