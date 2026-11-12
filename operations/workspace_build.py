@@ -122,6 +122,36 @@ PROFILES = {
 }
 
 
+# Terrania has a different layout and requires an independent, complete gate:
+# Angular, Phaser, domain tests, Node backend and actual Chromium desktop/Android.
+# The Playwright image is pinned to the version in Terrania package.json.
+TERRANIA_INSTALL = (
+    ('terrania-install', 'npm ci --no-audit --no-fund', 900, 'bridge'),
+    ('terrania-server-install', 'npm ci --prefix server --no-audit --no-fund', 600, 'bridge'),
+)
+TERRANIA_CORE = (
+    ('terrania-architecture', 'npm run architecture:check', 300, 'none'),
+    ('terrania-typecheck', 'npm run typecheck', 360, 'none'),
+    ('terrania-unit-tests', 'npm test', 1800, 'none'),
+    ('terrania-build', 'npm run build', 900, 'none'),
+    ('terrania-server-typecheck', 'npm run typecheck --prefix server', 360, 'none'),
+    ('terrania-server-tests', 'npm test --prefix server', 900, 'none'),
+    ('terrania-server-build', 'npm run build --prefix server', 600, 'none'),
+)
+TERRANIA_BROWSER = (
+    ('terrania-browser-desktop', 'npm run test:browser -- --project=desktop', 1800, 'none'),
+    ('terrania-browser-android', 'npm run test:browser -- --project=android', 1800, 'none'),
+)
+PROFILES.update({
+    'terrania-core': (*TERRANIA_INSTALL, *TERRANIA_CORE),
+    'terrania-precommit': (*TERRANIA_INSTALL, *TERRANIA_CORE, *TERRANIA_BROWSER),
+})
+
+
+def terrania_profile(profile: str) -> bool:
+    return profile in ('terrania-core', 'terrania-precommit')
+
+
 def project_dir(name: str, root: Path = WORKSPACES) -> Path:
     if not isinstance(name, str) or not PROJECT_RE.fullmatch(name):
         raise ValueError('Projeto inválido')
@@ -133,7 +163,7 @@ def project_dir(name: str, root: Path = WORKSPACES) -> Path:
     return path
 
 
-def docker_args(work: Path, *, source: Path | None, phase: str, network='none', container_name: str | None = None, video: bool = False) -> list[str]:
+def docker_args(work: Path, *, source: Path | None, phase: str, network='none', container_name: str | None = None, video: bool = False, terrania: bool = False) -> list[str]:
     # No ports, Docker socket, host filesystem root, privileged mode or extra capabilities.
     if network not in ('none', 'bridge'):
         raise ValueError('Rede não autorizada')
@@ -150,7 +180,7 @@ def docker_args(work: Path, *, source: Path | None, phase: str, network='none', 
             '--env=HOME=/work/.home', '--env=npm_config_cache=/work/.npm-cache',
             *(('--name='+container_name,) if container_name else ()),
             '--mount=type=bind,src='+str(work)+',dst=/work',
-            '--workdir='+('/work' if source is not None else '/work/games/lan_house_simulator')]
+            '--workdir='+('/work' if source is not None or terrania else '/work/games/lan_house_simulator')]
     if source is not None:
         argv += ['--mount=type=bind,src='+str(source)+',dst=/source,readonly']
     argv += [IMAGE, 'sh', '-eu', '-c', phase]
@@ -169,10 +199,15 @@ def enough_memory_for_video() -> bool:
     return False
 
 
-def clean_copy_command() -> str:
+def clean_copy_command(profile: str = 'lhs-precommit') -> str:
     # The source is mounted only with --network=none. Dependency installs and
     # tests see the *sanitized copy*, never the private project mount.
-    return ("test -f /source/games/lan_house_simulator/package.json; "
+    if terrania_profile(profile):
+        source_check = ("test -f /source/package.json; test -f /source/angular.json; "
+                        "grep -Eq '\"name\"[[:space:]]*:[[:space:]]*\"terrania-origins\"' /source/package.json; ")
+    else:
+        source_check = "test -f /source/games/lan_house_simulator/package.json; "
+    return (source_check +
             "cp -R /source/. /work/; "
             "find /work -type d \\( -name .git -o -name node_modules -o -name .codex \\) -prune -exec rm -rf {} +; "
             "find /work -type f \\( -name .env -o -name '.env.*' -o -name .npmrc -o -name auth.json \\) -delete; "
@@ -188,9 +223,9 @@ def write_state(job: Path, **values: object) -> None:
     os.replace(temp, path)
 
 
-def collect_visual_artifacts(work: Path, folder: Path) -> list[str]:
+def collect_visual_artifacts(work: Path, folder: Path, *, terrania: bool = False) -> list[str]:
     """Preserve only bounded real browser images and clips; never the source tree."""
-    output = work / 'games' / 'lan_house_simulator' / 'out' / 'validation'
+    output = (work / 'test-results') if terrania else (work / 'games' / 'lan_house_simulator' / 'out' / 'validation')
     if not output.is_dir() or output.is_symlink():
         return []
     destination = folder / 'artifacts'
@@ -247,19 +282,19 @@ def run_pipeline(job_id: str, root: Path = WORKSPACES, jobs: Path = JOBS) -> Non
         # unprivileged Docker user; root credentials are never mounted.
         os.chown(work, 61110, 61110)
         write_state(folder, status='running', started=time.time(), current='snapshot')
-        steps = [('snapshot', clean_copy_command(), 120, 'none', source),
+        steps = [('snapshot', clean_copy_command(profile), 120, 'none', source),
                  *[(name, command, timeout, network, None)
                    for name, command, timeout, network in PROFILES[profile]]]
         try:
             for index, (name, command, limit, network, snapshot_source) in enumerate(steps):
                 write_state(folder, current=name)
                 print('=== '+name+' ===', flush=True)
-                video = name in ('ps1-integrated', 'ps2-integrated')
+                video = name in ('ps1-integrated', 'ps2-integrated', 'terrania-browser-desktop', 'terrania-browser-android')
                 if video and not enough_memory_for_video():
                     raise RuntimeError(f'{name}: memória livre insuficiente para Chromium/vídeo (requer 2,5 GiB disponíveis)')
                 container = f'panel-ws-{job_id}-{index}'
                 argv = docker_args(work, source=snapshot_source, phase=command,
-                                   network=network, container_name=container, video=video)
+                                   network=network, container_name=container, video=video, terrania=terrania_profile(profile))
                 try:
                     result = subprocess.run(argv, stdin=subprocess.DEVNULL, timeout=limit, check=False)
                     if result.returncode != 0:
@@ -278,7 +313,7 @@ def run_pipeline(job_id: str, root: Path = WORKSPACES, jobs: Path = JOBS) -> Non
             print('RESULTADO: FALHOU - '+str(exc)[:400], flush=True)
         finally:
             try:
-                retained = collect_visual_artifacts(work, folder)
+                retained = collect_visual_artifacts(work, folder, terrania=terrania_profile(profile))
                 write_state(folder, artifacts=retained)
             except Exception:
                 # Saving optional review images must never turn failed tests green.
