@@ -212,7 +212,8 @@ def clean_copy_command(profile: str = 'lhs-precommit') -> str:
             "find /work -type d \\( -name .git -o -name node_modules -o -name .codex \\) -prune -exec rm -rf {} +; "
             "find /work -type f \\( -name .env -o -name '.env.*' -o -name .npmrc -o -name auth.json \\) -delete; "
             "mkdir -p /work/.home /work/.npm-cache" +
-            ("; if test -f /source/.env.example; then : > /work/.env.example; fi"
+            ("; if test -f /source/.env.example; then : > /work/.env.example; fi" +
+             "; if test -f /source/server/.env.example; then : > /work/server/.env.example; fi"
              if terrania_profile(profile) else ""))
 
 
