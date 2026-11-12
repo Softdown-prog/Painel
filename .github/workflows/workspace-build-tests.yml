@@ -47,22 +47,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Softdown-prog/A7-forge-2D-
-          ref: bd6a43a141e7497339a7200feb03707f5c97da82
+          ref: 6cfc4a57a421edea24e137c7b50fefa76a423c56
           path: lhs-src
           persist-credentials: false
-      - name: Verify candidate PS1 readiness fix on disposable checkout only
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          test=Path('lhs-src/games/lan_house_simulator/scripts/verify_ps1_2002.mjs')
-          source=test.read_text()
-          old='await playPage.goto("http://127.0.0.1:4173",{waitUntil:"networkidle"});'
-          new=('await playPage.goto("http://127.0.0.1:4173",{waitUntil:"domcontentloaded"});'
-               'await playPage.locator("#start-screen").waitFor({state:"visible",timeout:30000});')
-          if source.count(old)!=1: raise SystemExit('PS1 test source changed; refuse patch')
-          test.write_text(source.replace(old,new))
-          print('Candidate: await real game menu readiness instead of network idle; assertions untouched')
-          PY
       - name: Run real LHS TypeScript build and cross-system smoke in disposable Docker
         run: |
           set -euo pipefail
