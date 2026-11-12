@@ -256,9 +256,21 @@ export async function handleReleaseRoute(req: IncomingMessage, res: ServerRespon
           catch (recoveryError) { console.error('Recovery requires attention:', recoveryError); }
           throw error;
         }
-        // The former container remains stopped as the rollback backup.
+        // This deployment uses a single active revision after successful
+        // promotion. Preserve the prior container only if a verified deletion
+        // fails, making the exception visible for explicit finalization.
+        const promoted = await optional(docker, PREFIX + slug);
+        if (!promoted || promoted.State?.Status !== 'running' ||
+            promoted.State.Health?.Status !== 'healthy') {
+          throw new ReleaseError(502, 'Nova versão não confirmou HEALTHCHECK após promoção; backup preservado para recuperação.');
+        }
+        verifyRelease(promoted, PREFIX + slug, slug, project.repository, 'candidate');
+        const removed = await docker('/containers/' + encodeURIComponent((await optional(docker, BACKUP + slug))!.Id) + '?force=0&v=0', 'DELETE');
         return { promoted: true, revision: candidate.Config?.Labels?.[REVISION],
-          message: 'Candidata promovida. Backup anterior preservado para rollback.' };
+          backupDiscarded: removed.status === 204,
+          message: removed.status === 204
+            ? 'Nova versão saudável. Container anterior descartado; apenas a versão ativa é mantida.'
+            : 'Nova versão saudável, mas Docker não descartou o backup anterior. Finalize o slot antes da próxima publicação.' };
       }
       if (operation === 'rollback') {
         if (!backup || candidate) throw new ReleaseError(409, 'Rollback exige backup e slot de candidata livre.');

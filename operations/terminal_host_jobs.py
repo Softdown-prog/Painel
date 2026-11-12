@@ -23,7 +23,7 @@ SELF = '/usr/local/libexec/vps-panel-terminal-jobs'
 ID = re.compile(r'^[0-9a-f]{32}$')
 FP = re.compile(r'^[0-9a-f]{16}$')
 MAX_COMMAND = 4 * 1024 * 1024
-MAX_OUTPUT = 64_000  # same limit the Panel UI already expects
+MAX_OUTPUT = 64_000  # retain the newest 64k bytes, bounded host disk and API payload
 MAX_AGE = 3600
 MAX_RUNTIME = 1800
 MAX_JOBS = 12
@@ -257,7 +257,7 @@ def run(job_id):
     try:
         # systemd owns this process group; API/SSH disconnect cannot kill it.
         # sh reads the script by pathname, never via argv.
-        with os.fdopen(fd,'wb',buffering=0) as file:
+        with os.fdopen(fd,'w+b',buffering=0) as file:
             process=subprocess.Popen(['/bin/sh',str(script)],stdin=subprocess.DEVNULL,
                                      stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
                                      close_fds=True)
@@ -268,12 +268,25 @@ def run(job_id):
                     block=os.read(process.stdout.fileno(),8192)
                     if not block:
                         break
-                    left=max(0,MAX_OUTPUT-total)
-                    if left:
-                        file.write(block[:left])
-                        file.flush()
-                        total+=min(len(block),left)
-                    if len(block)>left and not data['truncated']:
+                    total+=len(block)
+                    # Preserve the tail of verbose builds. Do not grow disk or
+                    # expose unbounded output via SSH/HTTP. Each rewrite uses at
+                    # most MAX_OUTPUT bytes and the file stays root-only (0600).
+                    file.seek(0,os.SEEK_END)
+                    size=file.tell()
+                    if size+len(block)<=MAX_OUTPUT:
+                        file.write(block)
+                    else:
+                        if len(block)>=MAX_OUTPUT:
+                            tail=block[-MAX_OUTPUT:]
+                        else:
+                            keep=MAX_OUTPUT-len(block)
+                            file.seek(max(0,size-keep))
+                            tail=file.read(keep)+block
+                        file.seek(0)
+                        file.write(tail)
+                        file.truncate(len(tail))
+                    if total>MAX_OUTPUT and not data['truncated']:
                         data['truncated']=True
                         save(data)
             code=process.wait()
