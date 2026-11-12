@@ -265,10 +265,24 @@ export async function handleReleaseRoute(req: IncomingMessage, res: ServerRespon
           throw new ReleaseError(502, 'Nova versão não confirmou HEALTHCHECK após promoção; backup preservado para recuperação.');
         }
         verifyRelease(promoted, PREFIX + slug, slug, project.repository, 'candidate');
-        const removed = await docker('/containers/' + encodeURIComponent((await optional(docker, BACKUP + slug))!.Id) + '?force=0&v=0', 'DELETE');
+        let backupDiscarded = false;
+        try {
+          const former = await optional(docker, BACKUP + slug);
+          if (!former) backupDiscarded = true;
+          else {
+            verifyBackup(former, slug, project.repository);
+            if (former.State?.Status !== 'running') {
+              const removed = await docker('/containers/' + encodeURIComponent(former.Id) + '?force=0&v=0', 'DELETE');
+              backupDiscarded = removed.status === 204;
+            }
+          }
+        } catch {
+          // The new version is already live. Keep the old container for manual
+          // review rather than misreport a failed deletion as a failed deploy.
+        }
         return { promoted: true, revision: candidate.Config?.Labels?.[REVISION],
-          backupDiscarded: removed.status === 204,
-          message: removed.status === 204
+          backupDiscarded,
+          message: backupDiscarded
             ? 'Nova versão saudável. Container anterior descartado; apenas a versão ativa é mantida.'
             : 'Nova versão saudável, mas Docker não descartou o backup anterior. Finalize o slot antes da próxima publicação.' };
       }
