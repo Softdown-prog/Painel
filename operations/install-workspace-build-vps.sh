@@ -75,7 +75,7 @@ flock -n 9 || { echo 'A workspace build is active; refusing image replacement' >
 # Intentionally no secret mounts, --privileged, or Docker socket in the QA image.
 docker build --pull -f "$dockerfile" -t "$image" "$checkout/operations"
 docker run --rm --init --read-only --network none --cap-drop ALL \
-  --security-opt no-new-privileges:true --pids-limit 64 --memory 256m \
+  --security-opt no-new-privileges:true --pids-limit 64 \
   --user 61110:61110 --tmpfs /tmp:rw,nosuid,nodev,size=64m \
   "$image" node --version >/dev/null
 
