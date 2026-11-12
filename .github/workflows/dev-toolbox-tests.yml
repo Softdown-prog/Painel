@@ -117,9 +117,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Softdown-prog/A7-forge-2D-
-          ref: 818232cf6649f06375cced0bd53898bda4d740f0
+          ref: 45f5941d55397fcc17e83a14495745c6687d4423
           path: lhs-src
           persist-credentials: false
+      - name: Verify exact PS1-regression game revision
+        run: |
+          test "$(git -C lhs-src rev-parse HEAD)" = "45f5941d55397fcc17e83a14495745c6687d4423"
+          echo "PS1 game regression source: 45f5941d55397fcc17e83a14495745c6687d4423"
       - name: Run full LHS precommit in the NEW toolbox image
         run: |
           set -euo pipefail
