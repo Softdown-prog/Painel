@@ -32,7 +32,7 @@ jobs:
       - name: Verify shell syntax and offline image boundaries
         run: |
           bash -n operations/dev-toolbox/smoke.sh
-          python3 -m unittest operations/dev-toolbox/test_toolbox.py -v
+          python3 -m unittest discover -s operations/dev-toolbox -p 'test_*.py' -v
 
   toolbox-core:
     runs-on: ubuntu-24.04
