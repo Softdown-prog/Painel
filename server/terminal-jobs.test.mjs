@@ -64,10 +64,15 @@ test('bounded output truncates without killing the running command',async()=>{
  const started=manager.start('echo data');assert.ok(started);
  await tick();
  emit('x'.repeat(120000));
- const status=manager.current();
+ let status=manager.current();
  assert.equal(status.state,'running');
  assert.equal(status.truncated,true);
  assert.equal(status.output.length,64000);
+ emit('INSTALLATION_COMPLETE\\n');
+ status=manager.current();
+ assert.equal(status.output.length,64000);
+ assert.equal(status.output.endsWith('INSTALLATION_COMPLETE\\n'),true);
+ assert.equal(status.output.includes('x'),true);
  pending.resolve(0);await tick();
  assert.equal(manager.current().state,'completed');
 });
