@@ -156,7 +156,7 @@ jobs:
 
 
   toolbox-full-optional:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.full == true }}
+    if: ${{ (github.event_name == 'push' && github.ref_name == 'feat/dev-toolbox-multistack-20261111') || (github.event_name == 'workflow_dispatch' && inputs.full == true) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
