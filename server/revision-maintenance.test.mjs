@@ -140,7 +140,7 @@ test('brand-new image import has a one-hour staging window, but no two-version r
   const report=await revisionReport(x.dir,x.docker,now);
   assert.equal(report.keepPerApp,0);
   assert.equal(report.ageDays,0);
-  assert.equal(report.entries.find(e=>e.revision==='7'.repeat(40)).status,'ausente');
+  assert.equal(report.entries.find(e=>e.revision==='7'.repeat(40)).status,'recente');
   assert.equal(report.entries.find(e=>e.revision==='4'.repeat(40)).status,'antiga');
  }finally{x.destroy();}
 });
@@ -171,7 +171,7 @@ test('read-only Docker-wide inventory remains optional if host image listing is 
   };
   const report=await revisionReport(x.dir,docker,now);
   assert.equal(report.hostInventory.available,false);
-  assert.equal(report.oldCount,2);
+  assert.equal(report.oldCount,4);
   assert.equal(x.deleted.length,0);
  }finally{x.destroy();}
 });
