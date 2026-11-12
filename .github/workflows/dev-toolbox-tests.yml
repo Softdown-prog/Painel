@@ -5,11 +5,13 @@ on:
     branches: [feat/dev-toolbox-multistack-20261111]
     paths:
       - 'operations/dev-toolbox.Dockerfile'
+      - 'operations/install-dev-toolbox-vps.sh'
       - 'operations/dev-toolbox/**'
       - '.github/workflows/dev-toolbox-tests.yml'
   pull_request:
     paths:
       - 'operations/dev-toolbox.Dockerfile'
+      - 'operations/install-dev-toolbox-vps.sh'
       - 'operations/dev-toolbox/**'
       - '.github/workflows/dev-toolbox-tests.yml'
   workflow_dispatch:
@@ -32,6 +34,7 @@ jobs:
       - name: Verify shell syntax and offline image boundaries
         run: |
           bash -n operations/dev-toolbox/smoke.sh
+          bash -n operations/install-dev-toolbox-vps.sh
           python3 -m unittest discover -s operations/dev-toolbox -p 'test_*.py' -v
 
   toolbox-core:
