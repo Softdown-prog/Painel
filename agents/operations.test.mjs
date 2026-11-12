@@ -83,6 +83,25 @@ test('LHS workspace tools validate profiles, ids and project scope before reques
 });
 
 
+test('Terrania tool proposals accept only Terrania profiles and reject cross-project requests',t=>{
+ const f=fixture(t),project={...session,project:'Painel'};
+ const origin={repository:'Softdown-prog/Terrania'};
+ assert.throws(()=>f.store.propose({threadId:project.id,turnId:project.turnId,callId:'bad-profile',
+   tool:'validar_workspace',arguments:{perfil:'lhs-precommit'}},'rpc',project,f.root,origin));
+ const c=f.store.propose({threadId:project.id,turnId:project.turnId,callId:'terrania-profile',
+   tool:'validar_workspace',arguments:{perfil:'terrania-precommit'}},'rpc',project,f.root,origin);
+ assert.equal(c.status,'pending');
+ f.store.complete(c.id,{success:false});
+ const read=f.store.propose({threadId:project.id,turnId:project.turnId,callId:'terrania-read',
+   tool:'consultar_workspace',arguments:{jobId:'0123456789abcdef'}},'rpc',project,f.root,origin);
+ assert.equal(read.mode,'read');
+ f.store.complete(read.id,{success:false});
+ assert.throws(()=>f.store.propose({threadId:project.id,turnId:project.turnId,callId:'other-repository',
+   tool:'consultar_workspace',arguments:{jobId:'0123456789abcdef'}},'rpc',project,f.root,
+   {repository:'Softdown-prog/Other'}));
+});
+
+
 function repository(t){const root=mkdtempSync(join(tmpdir(),'agent-git-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
  const run=args=>execFileSync('git',args,{cwd:root,encoding:'utf8',stdio:['ignore','pipe','pipe']});
  run(['init','-q']);run(['config','user.email','fixture@example.invalid']);run(['config','user.name','Fixture']);
