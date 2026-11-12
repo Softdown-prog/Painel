@@ -4,7 +4,11 @@ import {join,sep} from 'node:path';
 import {randomBytes,createHash} from 'node:crypto';
 
 export const ADMIN_PROJECT='AdministracaoVPS';
-export const WORKSPACE_PROFILES=Object.freeze(['lhs-quick','lhs-core','lhs-angular','lhs-visual','lhs-precommit']);
+export const WORKSPACE_REPOSITORY_PROFILES=Object.freeze({
+ 'Softdown-prog/A7-forge-2D-':Object.freeze(['lhs-quick','lhs-core','lhs-angular','lhs-visual','lhs-precommit']),
+ 'Softdown-prog/Terrania':Object.freeze(['terrania-core','terrania-precommit']),
+});
+export const WORKSPACE_PROFILES=Object.freeze(Object.values(WORKSPACE_REPOSITORY_PROFILES).flat());
 const object=properties=>({type:'object',properties,additionalProperties:false,required:Object.keys(properties)});
 const text={type:'string'};
 export function toolsFor(project){
@@ -15,7 +19,7 @@ export function toolsFor(project){
   inputSchema:object({command:text,reason:text})});
  else if(project!=='Geral'){
   tools.push({type:'function',name:'validar_workspace',
-   description:'Solicita a compilação e testes reais do Lan House Simulator no container temporário da VPS. Requer aprovação humana; não executa commit nem PR. O resultado inicial é apenas um job enfileirado, não aprovação de testes.',
+   description:'Solicita compilação e testes reais do LHS ou Terrania, em perfil fixo e contêiner Node 24. Exige aprovação humana; não faz commit, PR nem deploy. Retorno inicial queued não significa aprovação.',
    inputSchema:object({perfil:{type:'string',enum:[...WORKSPACE_PROFILES]}})});
   tools.push({type:'function',name:'consultar_workspace',
    description:'Consulta o estado real de uma validação autorizada do projeto; status queued ou running nunca significa testes aprovados.',
@@ -91,10 +95,12 @@ export class ToolCalls {
    if(Object.keys(args).join(',')!=='consulta'||!values.includes(args.consulta))throw Error('Consulta inválida.');
   }else if(params.tool==='consultar_workspace'){
    if(Object.keys(args).join(',')!=='jobId'||typeof args.jobId!=='string'||!/^[a-f0-9]{16}$/.test(args.jobId))throw Error('Identificador de validação inválido.');
-   if(origin?.repository&&origin.repository!=='Softdown-prog/A7-forge-2D-')throw Error('Validação disponível somente para LHS.');
+   if(origin?.repository&&!WORKSPACE_REPOSITORY_PROFILES[origin.repository])
+    throw Error('Repositório não autorizado para validação de workspace.');
   }else if(params.tool==='validar_workspace'){
    if(Object.keys(args).join(',')!=='perfil'||!WORKSPACE_PROFILES.includes(args.perfil))throw Error('Perfil de validação inválido.');
-   if(origin?.repository&&origin.repository!=='Softdown-prog/A7-forge-2D-')throw Error('Validação disponível somente para LHS.');
+   if(origin?.repository&&!WORKSPACE_REPOSITORY_PROFILES[origin.repository]?.includes(args.perfil))
+    throw Error('Perfil incompatível com o repositório de origem.');
   }else if(params.tool==='solicitar_comando_vps'){
    if(Object.keys(args).sort().join(',')!=='command,reason'||!safeText(args.command)||!safeText(args.reason,1000)||containsSecret(args.command))throw Error('Comando inválido ou contém segredo.');
   }else{
