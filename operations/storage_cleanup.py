@@ -9,11 +9,19 @@ import re
 import shutil
 import subprocess
 import time
+from datetime import datetime, timezone
 
 ROOT = Path('/var/lib/vps-storage-cleanup')
 DATA = Path('/var/lib/docker/volumes/softload_panel_data/_data')
 BROKER = Path('/var/lib/vps-operations')
-INTERVAL = 6 * 3600
+INTERVAL = 3600
+MIN_UNUSED_AGE = 15 * 60
+IMPORT_STAGING_GRACE = 3600
+# Runtime QA images intentionally have no permanent container. Never garbage-collect them.
+PINNED_TOOLBOX_REFS = frozenset({
+    'panel-lhs-qa:node24-pw1.56.1',
+    'panel-dev-toolbox:core', 'panel-dev-toolbox:browser', 'panel-dev-toolbox:full'
+})
 REPORT = 'host-storage-cleanup-report.json'
 REQUEST = 'host-storage-cleanup-request.json'
 IMAGE_ID = re.compile(r'^sha256:[a-f0-9]{64}$')
@@ -75,27 +83,25 @@ def inventory():
     return images, containers
 
 
-def plan(images, containers, first_unused, now, minimum_age=INTERVAL, protected_refs=()):
+def plan(images, containers, first_unused, now, minimum_age=MIN_UNUSED_AGE, protected_refs=()):
     """Age means continuously observed unused, never the image's build timestamp."""
     used = {c['Image'] for c in containers}  # Includes stopped and rollback containers.
-    repos = {repository(r) for i in images if i['Id'] in used for r in image_refs(i)}
-    managed = {c['Image'] for c in containers if c.get('Config', {}).get('Labels', {}).get('com.softload.panel.managed') == 'true'}
-    managed_repos = {repository(r) for i in images if i['Id'] in managed for r in image_refs(i)}
-    protected = set(protected_refs)
+    protected = set(protected_refs) | PINNED_TOOLBOX_REFS
     state, targets = {}, []
     for image in images:
         identity = image['Id']
         if not IMAGE_ID.fullmatch(identity):
             raise ValueError('Invalid image identity')
         refs = image_refs(image)
-        if identity in used or protected.intersection(refs) or any(repository(r) in managed_repos for r in refs):
+        if identity in used or protected.intersection(refs):
             continue
         stamp = first_unused.get(identity, now)
         if not isinstance(stamp, (int, float)) or isinstance(stamp, bool) or stamp > now:
             stamp = now
         state[identity] = stamp
-        # Unknown repositories are reported, never silently garbage-collected.
-        if refs and all(repository(r) in repos for r in refs) and now - stamp >= minimum_age:
+        # An image is eligible only after it has been observed unused for the
+        # grace period. This includes untagged and foreign-repository images.
+        if now - stamp >= minimum_age:
             targets.append({'id': identity, 'refs': refs})
     return state, targets
 
@@ -143,19 +149,30 @@ def lock_deployments(stack):
         raise BlockingIOError('Deployment lock set changed')
 
 
-def protected_imports():
+def protected_imports(now=None):
     rows = read_json(DATA / 'image-imports.json', [])
     if not isinstance(rows, list):
         raise ValueError('Invalid import ledger')
+    now = time.time() if now is None else now
     refs = []
     for row in rows:
-        if isinstance(row, dict) and isinstance(row.get('repository'), str) and isinstance(row.get('digest'), str):
-            refs.append('ghcr.io/' + row['repository'].lower() + '@' + row['digest'])
+        if not (isinstance(row, dict) and isinstance(row.get('repository'), str)
+                and isinstance(row.get('digest'), str)):
+            continue
+        ref = 'ghcr.io/' + row['repository'].lower() + '@' + row['digest']
+        imported_at = row.get('importedAt')
+        try:
+            stamp = datetime.fromisoformat(imported_at.replace('Z', '+00:00')).timestamp()
+            if not 0 <= now - stamp <= IMPORT_STAGING_GRACE:
+                continue
+        except (TypeError, ValueError, AttributeError):
+            pass  # Invalid import dates stay protected until manually reviewed.
+        refs.append(ref)
     return refs
 
 
 def remove_target(target):
-    for ref in target['refs']:
+    for ref in target['refs'] or [target['id']]:
         # Refresh ALL containers and the resolved reference before every mutation.
         images, containers = inventory()
         if any(c['Image'] == target['id'] for c in containers):
@@ -165,7 +182,7 @@ def remove_target(target):
             continue
         if json.loads(current.stdout)[0]['Id'] != target['id']:
             return False
-        if ref in protected_imports():
+        if ref in PINNED_TOOLBOX_REFS or ref in protected_imports():
             return False
         # No force and no recursive parent deletion. Docker independently refuses use.
         if docker('image', 'rm', '--no-prune', ref, check=False).returncode:
@@ -191,7 +208,7 @@ def execute(apply=False, minimum_age=INTERVAL, scheduled=False):
         if settings.get('automatic') is False or now - state.get('lastCompletedAt', 0) < INTERVAL:
             return {'status': 'not-due'}
     report = {'installed': True, 'status': 'planned', 'checkedAt': now * 1000,
-              'intervalHours': 6, 'removed': 0, 'failed': 0, 'bytesFreed': 0,
+              'intervalHours': 1, 'removed': 0, 'failed': 0, 'bytesFreed': 0,
               'source': 'manual' if requested or not scheduled else 'automatic'}
     if requested:
         report['requestId'] = request['id']
@@ -255,7 +272,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--scheduled', action='store_true')
-    parser.add_argument('--min-unused-hours', type=float, default=6)
+    parser.add_argument('--min-unused-hours', type=float, default=MIN_UNUSED_AGE / 3600)
     parser.add_argument('--check-docker', action='store_true')
     args = parser.parse_args()
     if not 0 <= args.min_unused_hours <= 720:
