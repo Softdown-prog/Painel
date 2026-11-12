@@ -90,6 +90,7 @@ class StorageCleanupTests(unittest.TestCase):
         target = {'id': B, 'refs': ['example/app:old']}
         response = SimpleNamespace(returncode=0, stdout=json.dumps([{'Id': A}]))
         with patch.object(gc, 'inventory', return_value=(self.images, self.containers)), \
+             patch.object(gc, 'protected_imports', return_value=[]), \
              patch.object(gc, 'docker', return_value=response) as docker:
             self.assertFalse(gc.remove_target(target))
             self.assertFalse(any('rm' in call.args for call in docker.call_args_list))
