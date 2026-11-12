@@ -8,8 +8,9 @@ shell ou repositório arbitrário é aceito.
 O jogo é baixado por HTTPS diretamente de um repositório público fixo,
 na revisão exata (SHA de 40 caracteres). O supervisor Node 24 instalado
 cria containers efêmeros com Playwright/Chromium e perfil completo.
-A pasta /srv/panel-codex/workspace é apenas o diretório pré-existente
-do supervisor: o serviço Codex não é consultado ou executado.
+O bridge usa um diretório raiz próprio /srv/panel-chatgpt-sources,
+propriedade exclusiva do administrador. Ele reutiliza o supervisor de build
+sem reutilizar os workspaces ou a execução do Codex.
 
 ## Solicitações via ChatGPT com a conexão GitHub
 
@@ -59,14 +60,14 @@ o receiver e a nova operação na política de host. Uma vez aprovado o
 checkout e os testes do GitHub, executar como root (sem Codex):
 
 ~~~sh
-sudo sha256sum /usr/local/lib/vps-operations/receiver.py
-sudo bash operations/install-chatgpt-workspace-vps.sh check /checkout/revisado/Painel HASH_RECEIVER_INSTALADO
-sudo bash operations/install-chatgpt-workspace-vps.sh apply /checkout/revisado/Painel HASH_RECEIVER_INSTALADO
+sudo sha256sum /usr/local/lib/vps-operations/receiver.py /usr/local/lib/panel-workspaces/workspace_build.py
+sudo bash operations/install-chatgpt-workspace-vps.sh check /checkout/revisado/Painel HASH_RECEIVER_INSTALADO HASH_SUPERVISOR_INSTALADO
+sudo bash operations/install-chatgpt-workspace-vps.sh apply /checkout/revisado/Painel HASH_RECEIVER_INSTALADO HASH_SUPERVISOR_INSTALADO
 ~~~
 
 O install verifica o hash da versão instalada, os componentes root-owned,
 o supervisor e a política de operação autenticada. O modo check não
-modifica arquivos. O modo apply atualiza apenas receiver, helper e
+modifica arquivos. O modo apply atualiza apenas receiver, helper, supervisor e
 permissão da nova operação, sem reiniciar API, Caddy, PostgreSQL, Codex,
 runner ou containers de produção. Não altera os fluxos de deploy.
 
