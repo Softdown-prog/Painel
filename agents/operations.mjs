@@ -5,8 +5,8 @@ import {randomBytes,createHash} from 'node:crypto';
 
 export const ADMIN_PROJECT='AdministracaoVPS';
 export const WORKSPACE_REPOSITORY_PROFILES=Object.freeze({
- 'Softdown-prog/A7-forge-2D-':Object.freeze(['lhs-quick','lhs-core','lhs-angular','lhs-visual','lhs-precommit']),
- 'Softdown-prog/Terrania':Object.freeze(['terrania-core','terrania-precommit']),
+ 'Softdown-prog/A7-forge-2D-':Object.freeze(['lhs-quick','lhs-core','lhs-angular','lhs-visual','lhs-precommit','lhs-toolbox-precommit']),
+ 'Softdown-prog/Terrania':Object.freeze(['terrania-core','terrania-precommit','terrania-toolbox-precommit']),
 });
 export const WORKSPACE_PROFILES=Object.freeze(Object.values(WORKSPACE_REPOSITORY_PROFILES).flat());
 const object=properties=>({type:'object',properties,additionalProperties:false,required:Object.keys(properties)});
