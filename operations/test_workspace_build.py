@@ -390,6 +390,7 @@ class WorkspacesTest(unittest.TestCase):
         self.assertIn('/source/angular.json', copy)
         self.assertIn('terrania-origins', copy)
         self.assertIn(': > /work/.env.example', copy)
+        self.assertIn(': > /work/server/.env.example', copy)
         self.assertNotIn('/source/games/lan_house_simulator/package.json', copy)
         self.assertIn('/source/games/lan_house_simulator/package.json', ws.clean_copy_command('lhs-precommit'))
 
