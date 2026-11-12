@@ -68,6 +68,30 @@ def git(argv, cwd):
     return p.stdout.decode('utf-8', 'replace').strip()
 
 
+
+def make_snapshot_readable(root):
+    """Expose only public Git source as read-only to the isolated Docker UID.
+
+    The root-owned OIDC receiver uses umask 077. Git checkout therefore
+    creates internal directories as 0700 and files as 0600, even though the
+    snapshot top-level is 0755. Docker runs as UID 61110 and cannot traverse
+    those paths. Reject links or foreign-owned entries before changing modes.
+    """
+    if root.is_symlink() or not root.is_dir() or root.stat().st_uid != os.geteuid():
+        raise RuntimeError('Untrusted source snapshot')
+    entries = list(root.rglob('*'))
+    for entry in entries:
+        if (entry.is_symlink() or entry.stat().st_uid != os.geteuid() or
+                not (entry.is_dir() or entry.is_file())):
+            raise RuntimeError('Unsafe source snapshot entry')
+    for entry in entries:
+        if entry.is_dir():
+            entry.chmod(0o755)
+        else:
+            entry.chmod(0o755 if entry.stat().st_mode & 0o111 else 0o644)
+    root.chmod(0o755)
+
+
 def source_checkout(project, sha):
     if SOURCES.is_symlink() or not SOURCES.is_dir() or SOURCES.stat().st_uid != 0 or SOURCES.stat().st_mode & 0o022:
         raise RuntimeError('Root-owned source workspace root is unavailable or writable')
@@ -81,6 +105,7 @@ def source_checkout(project, sha):
             raise RuntimeError('Source provenance not trusted')
         if json.loads(marker.read_text()) != {'project':project,'sha':sha}:
             raise RuntimeError('Source revision mismatch')
+        make_snapshot_readable(dest)
         return name
     # Separate, root-owned repository snapshot. No dependency on the Codex runtime.
     with tempfile.TemporaryDirectory(prefix='.chatgpt-fetch-', dir=SOURCES) as folder:
@@ -108,7 +133,7 @@ def source_checkout(project, sha):
         if project == 'terrania':
             if json.loads((work/'package.json').read_text()).get('name') != 'terrania-origins':
                 raise RuntimeError('Unexpected game manifest')
-        work.chmod(0o755)  # Readable by isolated Docker UID 61110.
+        make_snapshot_readable(work)
         os.rename(work, dest)
     marker.write_text(json.dumps({'project':project,'sha':sha}))
     marker.chmod(0o600)
