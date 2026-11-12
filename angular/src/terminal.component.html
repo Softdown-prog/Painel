@@ -59,7 +59,7 @@
     </section>
   }
   @if(job()?.state==='running'){<section class="result" aria-label="Saída parcial do terminal"><strong>Saída em tempo real</strong>
-    @if(job()?.truncated){<p class="warning">Exibição limitada a 64 mil caracteres; a tarefa continua.</p>}
+    @if(job()?.truncated){<p class="warning">Exibindo os últimos 64 mil caracteres. As linhas mais antigas foram omitidas; a tarefa continua.</p>}
     <pre tabindex="0">{{output()||'(aguardando saída)'}}</pre>
     <div class="copy-output-row">
       <button type="button" class="copy-output" (click)="copyOutput()" [disabled]="!output()">
@@ -75,7 +75,7 @@
       <div class="result-bar"><strong [class.failed]="r.exitCode!==0">Saída · código {{r.exitCode}}</strong>
         <small>{{executedAt()}}</small></div>
       @if(r.timedOut){<p class="error">Tempo limite atingido; a execução foi interrompida.</p>}
-      @if(r.truncated){<p class="warning">Saída limitada pelo servidor. Alguns dados foram omitidos.</p>}
+      @if(r.truncated){<p class="warning">Exibindo somente o final do log (até 64 mil caracteres). Confira também o código de saída acima.</p>}
       <pre tabindex="0">{{output()||'(nenhuma saída)'}}</pre>
     <div class="copy-output-row">
       <button type="button" class="copy-output" (click)="copyOutput()" [disabled]="!output()">
