@@ -282,6 +282,64 @@ class WorkspacesTest(unittest.TestCase):
             self.assertEqual(ws.collect_visual_artifacts(work,root),[])
             self.assertFalse((root/'artifacts').exists())
 
+    def test_gc_removes_only_expired_finished_jobs_not_active_or_other_files(self):
+        now=2000000000.0
+        with tempfile.TemporaryDirectory() as tmp:
+            jobs=Path(tmp)
+            folders={
+                '1111111111111111':('passed',now-9*86400),
+                '2222222222222222':('failed',now-8*86400),
+                '3333333333333333':('busy',now-10*86400),
+                '4444444444444444':('passed',now-86400),
+                '5555555555555555':('running',now-50*86400),
+                '6666666666666666':('queued',now-50*86400),
+            }
+            for job_id,(status,finished) in folders.items():
+                item=jobs/job_id;item.mkdir()
+                ws.write_state(item,status=status,finished=finished)
+                (item/'output.log').write_text('private log')
+            outside=jobs/'private-live';outside.mkdir()
+            (outside/'do-not-touch.txt').write_text('safe')
+            (jobs/'aaaaaaaaaaaaaaaa').symlink_to(outside)
+            (jobs/'bbbbbbbbbbbbbbbb').mkdir()
+            (jobs/'bbbbbbbbbbbbbbbb'/'status.json').write_text('{invalid')
+            (jobs/'cccccccccccccccc').mkdir()
+            ws.write_state(jobs/'cccccccccccccccc',status='failed')
+            expected=['1111111111111111','2222222222222222','3333333333333333']
+            dry=ws.collect_expired_jobs(jobs,now=now)
+            self.assertTrue(dry['dryRun'])
+            self.assertEqual(dry['eligible'],expected)
+            self.assertTrue(all((jobs/x).exists() for x in expected))
+            actual=ws.collect_expired_jobs(jobs,dry_run=False,now=now)
+            self.assertFalse(actual['dryRun'])
+            self.assertEqual(actual['eligible'],expected)
+            self.assertTrue(all(not (jobs/x).exists() for x in expected))
+            for job_id in folders:
+                if job_id not in expected:self.assertTrue((jobs/job_id).exists())
+            self.assertTrue((jobs/'aaaaaaaaaaaaaaaa').is_symlink())
+            self.assertTrue((outside/'do-not-touch.txt').exists())
+
+    def test_gc_refuses_invalid_retention_symlink_root_and_active_build(self):
+        import fcntl
+        with tempfile.TemporaryDirectory() as tmp:
+            jobs=Path(tmp)/'jobs';jobs.mkdir()
+            for days in (0,31,-1):
+                with self.subTest(days=days),self.assertRaises(ValueError):
+                    ws.collect_expired_jobs(jobs,days=days)
+            (Path(tmp)/'alias').symlink_to(jobs)
+            with self.assertRaises(ValueError):
+                ws.collect_expired_jobs(Path(tmp)/'alias')
+            lock=jobs/'.active.lock'
+            lock.touch()
+            with lock.open('r+') as held:
+                fcntl.flock(held,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                with self.assertRaisesRegex(RuntimeError,'limpeza recusada'):
+                    ws.collect_expired_jobs(jobs,dry_run=False)
+            lock.unlink()
+            lock.symlink_to(Path(tmp)/'untrusted')
+            with self.assertRaises(ValueError):
+                ws.collect_expired_jobs(jobs)
+
     def test_snapshot_shell_command_parses(self):
         subprocess.run(['sh','-n','-c',ws.clean_copy_command()],check=True)
 
