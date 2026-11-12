@@ -17,8 +17,11 @@ const ID=/^[a-f0-9]{32}$/,HASH=/^[a-f0-9]{64}$/,SHA=/^[a-f0-9]{40}$/;
 const slug=/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const WORKSPACE_SCRIPT='/usr/local/lib/panel-workspaces/workspace_build.py';
 const WORKSPACE_ID=/^[a-f0-9]{16}$/;
-const LHS_REPOSITORY='Softdown-prog/A7-forge-2D-';
-const WORKSPACE_PROFILES=new Set(['lhs-quick','lhs-core','lhs-angular','lhs-visual','lhs-precommit']);
+const WORKSPACE_REPOSITORY_PROFILES:Record<string,ReadonlySet<string>>={
+ 'Softdown-prog/A7-forge-2D-':new Set(['lhs-quick','lhs-core','lhs-angular','lhs-visual','lhs-precommit']),
+ 'Softdown-prog/Terrania':new Set(['terrania-core','terrania-precommit']),
+};
+const WORKSPACE_PROFILES=new Set(Object.values(WORKSPACE_REPOSITORY_PROFILES).flatMap(set=>[...set]));
 /** Constructs only allowlisted commands: neither the model nor the browser supplies shell text. */
 export function workspaceCommand(action:'start'|'status',project:string,parameter:unknown):string{
  if(!slug.test(project)||['Geral','AdministracaoVPS'].includes(project))throw Error('Workspace inválido.');
@@ -175,7 +178,10 @@ export class AgentOperations {
  }
  private workspaceBinding(c:Call):Binding{
   const linked=this.binding(c.project);
-  if(linked.repository!==LHS_REPOSITORY)throw Error('Workspace restrito ao repositório LHS autorizado.');
+  const profiles=WORKSPACE_REPOSITORY_PROFILES[linked.repository];
+  if(!profiles)throw Error('Repositório não autorizado para compilação de workspace.');
+  if(c.tool==='validar_workspace'&&!profiles.has(String(c.args['perfil']??'')))
+   throw Error('Perfil não autorizado para o repositório vinculado.');
   return linked;
  }
  private destination(c:Call):Record<string,string|number>{
@@ -225,6 +231,9 @@ export class AgentOperations {
         const parsed=JSON.parse(job.output);
         if(!parsed||parsed.project!==c.project||!['queued','running','passed','failed','busy'].includes(parsed.status))
          throw Error('Resposta inválida ou de outro projeto.');
+        const binding=this.workspaceBinding(c);
+        if(!WORKSPACE_REPOSITORY_PROFILES[binding.repository]?.has(String(parsed.profile??'')))
+         throw Error('Perfil do job não pertence ao repositório autorizado.');
         const data={jobId:c.args['jobId'],profile:String(parsed.profile??''),
          status:parsed.status,passed:parsed.status==='passed'&&parsed.success===true,
          finished:parsed.status==='passed'||parsed.status==='failed'||parsed.status==='busy',
