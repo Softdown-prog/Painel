@@ -1,13 +1,15 @@
 name: ChatGPT VPS workspace bridge safety
 on:
   push:
-    branches: [feat/chatgpt-vps-workspace-bridge-20261112]
+    branches: [feat/chatgpt-vps-workspace-bridge-20261112, fix/chatgpt-workspace-snapshot-permissions-20261112]
     paths:
       - 'operations/chatgpt_workspace.py'
       - 'operations/test_chatgpt_workspace.py'
       - 'operations/receiver.py'
       - 'operations/client.py'
       - 'operations/workspace_build.py'
+      - 'operations/test_workspace_build.py'
+      - 'operations/install-workspace-build-vps.sh'
       - 'operations/policy.example.json'
       - 'operations/install-chatgpt-workspace-vps.sh'
       - '.github/workflows/vps-command.yml'
