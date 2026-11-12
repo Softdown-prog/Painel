@@ -135,9 +135,13 @@ export class TerminalJobManager {
   // Async job begins immediately, but never blocks its HTTP response.
   void Promise.resolve().then(()=>this.run(command,part=>{
    if(job.state!=='running')return;
-   const space=MAX_OUTPUT_CHARS-job.output.length;
-   if(space>0)job.output+=part.slice(0,space);
-   if(part.length>space)job.truncated=true;
+   // Keep the *latest* output so a verbose Docker build still exposes its
+   // final exit/health checks. Bound memory and each HTTP response to 64k.
+   const combined=job.output+part;
+   if(combined.length>MAX_OUTPUT_CHARS){
+    job.output=combined.slice(-MAX_OUTPUT_CHARS);
+    job.truncated=true;
+   }else job.output=combined;
   },controller.signal)).then(code=>{
    job.exitCode=code;
    job.state=job.timedOut?'timed_out':job.cancelled?'cancelled':code===0?'completed':'failed';
