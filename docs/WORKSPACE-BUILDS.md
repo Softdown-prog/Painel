@@ -120,6 +120,42 @@ sucesso. Os jobs iniciados pelo terminal são curtos: o script cria um superviso
 desvinculado, e os perfis podem durar vários minutos. Logs de etapas permanecem
 na pasta privada do job e são retornados em trecho limitado pela operação `status`.
 
+
+## Terrania — Node 24, Angular, Phaser e MCP
+
+A mesma imagem isolada `panel-lhs-qa:node24-pw1.56.1` serve aos testes do
+Terrania, mas **os perfis são separados por repositório**, sem reutilizar
+scripts do Lan House Simulator. Terrania na branch
+[`feat/mcp-workspace-node24-20261111`](https://github.com/Softdown-prog/Terrania/tree/feat/mcp-workspace-node24-20261111)
+fixa `.node-version=24`, alinhado com o Angular 22 do projeto.
+
+| Perfil | Validações |
+| --- | --- |
+| `terrania-core` | `npm ci` raiz e `server`; registro arquitetural; typecheck, testes e builds reais do motor/Angular e do backend Node |
+| **`terrania-precommit`** | Todos os passos de `terrania-core` **mais Playwright Chromium desktop e Android**, com servidor e aplicação reais |
+
+Os testes de navegador executam em contêiner sem acesso à rede externa, com
+loopback interno para a aplicação local, limites de 2 vCPU/2 GiB e trava de
+memória disponível. Se faltar memória, o perfil **falha**; não declara aprovação
+nem ignora o navegador. Instalação `npm ci` é a única fase autorizada à rede
+Docker `bridge` para buscar dependências.
+
+O supervisor exige um checkout na **raiz Terrania** com `package.json`,
+`angular.json` e nome `terrania-origins`. O código do Painel autoriza cada
+perfil apenas para o repositório vinculado. Um workspace LHS que solicite um
+perfil Terrania, ou vice-versa, é recusado. `consultar_workspace` não considera
+verde um job cuja identidade do perfil não corresponda ao repositório.
+
+O MCP `scripts/mcp/server.mjs` existente no Terrania é **somente leitura** e
+independente do executor de compilação do Painel. Nenhum dos dois conecta
+automaticamente este chat à VPS. O `server/Dockerfile` do jogo é uma imagem
+de backend separada e não foi promovida para Node 24 nesta etapa.
+
+**Condição para uso real:** revisar esta branch do Painel, autorizar
+separadamente a instalação no host via `install-workspace-build-vps.sh`,
+verificar imagem, bindings e bridge, e homologar um `terrania-precommit`
+com `status=passed` na VPS. Este commit não realiza nenhuma dessas ações.
+
 ## Pendências antes de ativar em produção
 
 1. Homologar imagem Docker real na **VPS** e verificar memória, CPU, DNS e
