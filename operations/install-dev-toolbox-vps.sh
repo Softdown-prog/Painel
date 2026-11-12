@@ -45,6 +45,17 @@ if [[ "$mode" == check ]]; then
   echo 'PASS: preflight only. No image built or containers/services modified.'
   exit 0
 fi
+# Do not replace the toolbox image while the workspace supervisor owns a build.
+# This lock is used only for an authorized apply; check mode never writes.
+if [[ -d /srv/panel-workspace-builds ]]; then
+  [[ ! -L /srv/panel-workspace-builds ]] || { echo 'Unsafe workspace jobs directory' >&2; exit 2; }
+  lock=/srv/panel-workspace-builds/.active.lock
+  [[ ! -L "$lock" ]] || { echo 'Unsafe workspace lock path' >&2; exit 2; }
+  command -v flock >/dev/null
+  : >> "$lock"
+  exec 9<>"$lock"
+  flock -n 9 || { echo 'A workspace build is active; refusing image replacement' >&2; exit 2; }
+fi
 # The reviewed Dockerfile is the only build input, with no production volumes.
 docker build --pull --target "$target" -f "$dockerfile" -t "$image" "$checkout/operations"
 docker run --rm --init --read-only --cap-drop ALL --network none \
