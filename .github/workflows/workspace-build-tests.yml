@@ -4,6 +4,9 @@ on:
     branches: [main, feat/workspace-build-isolation-20261111]
     paths:
       - 'operations/workspace_build.py'
+      - 'operations/install-workspace-build-vps.sh'
+      - 'operations/systemd/vps-panel-workspace-gc.service'
+      - 'operations/systemd/vps-panel-workspace-gc.timer'
       - 'agents/operations.mjs'
       - 'agents/operations.test.mjs'
       - 'server/agent-operations.ts'
@@ -14,6 +17,9 @@ on:
   pull_request:
     paths:
       - 'operations/workspace_build.py'
+      - 'operations/install-workspace-build-vps.sh'
+      - 'operations/systemd/vps-panel-workspace-gc.service'
+      - 'operations/systemd/vps-panel-workspace-gc.timer'
       - 'agents/operations.mjs'
       - 'agents/operations.test.mjs'
       - 'server/agent-operations.ts'
@@ -36,6 +42,8 @@ jobs:
         run: python -m py_compile operations/workspace_build.py operations/test_workspace_build.py
       - name: Run offline isolation and lifecycle contracts
         run: python -m unittest operations/test_workspace_build.py -v
+      - name: Lint opt-in host installer (no VPS mutation)
+        run: bash -n operations/install-workspace-build-vps.sh
   browser-sandbox-smoke:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
