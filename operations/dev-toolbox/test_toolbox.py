@@ -20,7 +20,7 @@ class ToolboxPolicyTest(unittest.TestCase):
         for name in ('node:24-bookworm-slim', 'python:3.13-slim-bookworm',
                      'golang:1.26-bookworm', 'rust:1.97-slim-bookworm',
                      'ubuntu:24.04'):
-            self.assertRegex(DOCKERFILE, name.replace('.', r'\\.')+r'@sha256:[a-f0-9]{64}')
+            self.assertRegex(DOCKERFILE, name.replace('.', '[.]')+r'@sha256:[a-f0-9]{64}')
         self.assertIn("PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers", DOCKERFILE)
         self.assertIn("playwright --version | grep '1.56.1'", SMOKE)
 
