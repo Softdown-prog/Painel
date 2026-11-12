@@ -99,3 +99,8 @@ RUN npm install --global --no-audit --no-fund \
       marked markdownlint-cli remark-cli \
     && npm cache clean --force
 LABEL com.softdown.panel.toolbox="full"
+
+# Safe default: never build the large media/science layer unless --target full
+# was explicitly selected. All workflows and VPS installers set --target.
+FROM browser AS default
+LABEL com.softdown.panel.toolbox="default-browser"
