@@ -369,4 +369,69 @@ class WorkspacesTest(unittest.TestCase):
         subprocess.run(['sh','-n','-c',ws.clean_copy_command()],check=True)
 
 
+    def test_terrania_profiles_are_isolated_and_require_actual_gameplay(self):
+        self.assertEqual(ws.IMAGE, 'panel-lhs-qa:node24-pw1.56.1')
+        self.assertTrue(ws.terrania_profile('terrania-precommit'))
+        self.assertFalse(ws.terrania_profile('lhs-precommit'))
+        core = ws.PROFILES['terrania-core']
+        full = ws.PROFILES['terrania-precommit']
+        commands = [step[1] for step in full]
+        for command in ('npm run architecture:check', 'npm run typecheck',
+                        'npm test', 'npm run build', 'npm test --prefix server',
+                        'npm run build --prefix server',
+                        'npm run test:browser -- --project=desktop',
+                        'npm run test:browser -- --project=android'):
+            self.assertIn(command, commands)
+        self.assertEqual(full[:len(core)], core)
+        self.assertTrue(all(step[3] == 'none' for step in full[2:]))
+        self.assertTrue(all(step[3] == 'bridge' for step in full[:2]))
+        self.assertTrue(all('lhs-' not in step[0] for step in full))
+        copy = ws.clean_copy_command('terrania-precommit')
+        self.assertIn('/source/angular.json', copy)
+        self.assertIn('terrania-origins', copy)
+        self.assertNotIn('/source/games/lan_house_simulator/package.json', copy)
+        self.assertIn('/source/games/lan_house_simulator/package.json', ws.clean_copy_command('lhs-precommit'))
+
+    def test_terrania_workdir_network_limits_and_both_browser_projects(self):
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as jobs:
+            root, jobs = Path(root), Path(jobs)
+            (root/'gh_12_abcdef12').mkdir()
+            (jobs/'0123456789abcdef').mkdir()
+            ws.write_state(jobs/'0123456789abcdef',project='gh_12_abcdef12',
+                           profile='terrania-precommit',status='queued')
+            observed = []
+            def fake_run(args, **kwargs):
+                observed.append(args)
+                return subprocess.CompletedProcess(args, 0)
+            with patch.object(ws.os,'chown'), patch.object(ws.subprocess,'run',side_effect=fake_run), patch.object(ws,'enough_memory_for_video',return_value=True):
+                ws.run_pipeline('0123456789abcdef',root,jobs)
+            self.assertEqual(ws.status('0123456789abcdef',jobs)['status'], 'passed')
+            self.assertEqual(len(observed), 1 + len(ws.PROFILES['terrania-precommit']))
+            self.assertTrue(all('--workdir=/work' in argv for argv in observed))
+            self.assertTrue(all('--network=none' in argv for argv in observed[3:]))
+            self.assertTrue(all('--network=bridge' in argv for argv in observed[1:3]))
+            self.assertEqual(len([x for x in observed if '--memory=2048m' in x]),2)
+            self.assertTrue(any('--project=android' in argv[-1] for argv in observed))
+            self.assertTrue(any('--project=desktop' in argv[-1] for argv in observed))
+            self.assertFalse((jobs/'0123456789abcdef'/'source').exists())
+
+    def test_terrania_browser_low_memory_is_failed_not_skipped(self):
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as jobs:
+            root, jobs = Path(root), Path(jobs)
+            (root/'gh_12_abcdef12').mkdir()
+            (jobs/'0123456789abcdef').mkdir()
+            ws.write_state(jobs/'0123456789abcdef',project='gh_12_abcdef12',
+                           profile='terrania-precommit',status='queued')
+            observed=[]
+            def fake_run(args, **kwargs):
+                observed.append(args)
+                return subprocess.CompletedProcess(args, 0)
+            with patch.object(ws.os,'chown'), patch.object(ws.subprocess,'run',side_effect=fake_run), patch.object(ws,'enough_memory_for_video',return_value=False):
+                ws.run_pipeline('0123456789abcdef',root,jobs)
+            state=ws.status('0123456789abcdef',jobs)
+            self.assertEqual(state['status'],'failed')
+            self.assertEqual(state['current'],'terrania-browser-desktop')
+            self.assertFalse(any('--project=desktop' in argv[-1] for argv in observed))
+
+
 if __name__=='__main__':unittest.main()
