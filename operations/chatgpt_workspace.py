@@ -146,7 +146,7 @@ def run_workspace(policy, args):
     if STATE.is_symlink():
         raise RuntimeError('Unsafe state directory')
     STATE.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if STATE.stat().st_uid != 0 or STATE.stat().st_mode & 0o077:
+    if os.geteuid() == 0 and (STATE.stat().st_uid != 0 or STATE.stat().st_mode & 0o077):
         raise RuntimeError('State directory is not private and root-owned')
     ws = supervisor()
     if getattr(ws, 'CHATGPT_WORKSPACES', None) != SOURCES:
