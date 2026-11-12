@@ -15,7 +15,9 @@ O GitHub Runner não participa deste procedimento.
 - Apenas `npm ci` usa a rede Docker `bridge` para buscar dependências; os testes
   rodam sem rede. Isso não equivale a uma política de egress rigorosa: antes de
   habilitar para código não confiável, configurar uma rede dedicada com filtragem.
-- Um build por vez, 1,5 vCPU, 1.536 MiB RAM, 128 processos, timeouts por etapa.
+- Um build por vez; em geral 1,5 vCPU e 1.536 MiB RAM. PS1/PS2 com gravação
+  usam até 2 vCPU e 2 GiB, somente com 2,5 GiB de memória disponível.
+  O supervisor também limita processos e tempo por etapa.
 - Imagem local `panel-lhs-qa:node24-pw1.56.1` construída de
   `operations/workspace-build.Dockerfile`: Node 24, Playwright 1.56.1 e Chromium
   pré-instalados. O teste em GitHub-hosted Docker comprova abertura de Chromium,
@@ -35,16 +37,41 @@ A implantação precisa garantir que o SSH administrativo existente aceite o
 comando fixo e que a imagem Node esteja presente no daemon Docker.
 
 ```sh
-sudo install -d -o root -g root -m 0755 /usr/local/lib/panel-workspaces
-sudo install -o root -g root -m 0755 operations/workspace_build.py /usr/local/lib/panel-workspaces/workspace_build.py
-sudo install -d -o root -g root -m 0700 /srv/panel-workspace-builds
-sudo docker build -f operations/workspace-build.Dockerfile -t panel-lhs-qa:node24-pw1.56.1 operations/
+# Preflight: somente leitura, não constrói imagens nem altera containers.
+sudo bash operations/install-workspace-build-vps.sh check /verified/Painel/checkout
+
+# Aplicação: somente após autorização expressa e revisão do checkout/commit.
+sudo bash operations/install-workspace-build-vps.sh apply /verified/Painel/checkout
 ```
 
-O build deve ocorrer no checkout revisado do Painel; não apontar para código de uma branch desconhecida. A imagem em produção deverá ser fixada por digest SHA-256 após homologação.
-O script exige UID administrativo para iniciar e apenas acessa cópias cadastradas
-sob `/srv/panel-codex/workspace`. Para verificar o ID real, consulte as cópias
-no Painel, não invente nomes. **Não copie chaves nem tokens para o workspace.**
+O instalador é deliberadamente **manual e opt-in**. O comando `check`
+valida Docker, Python, diretórios, integridade dos arquivos e espaço de disco
+sem criar ou parar containers. O comando `apply`, quando autorizado,
+cria a imagem de QA, faz smoke local sem rede, instala o supervisor
+root-only e habilita o timer diário de limpeza dos históricos. Não inicia
+um build do jogo, não reinicia nem remove containers de produção.
+
+Depois da instalação, o administrador pode inspecionar a limpeza antes
+de aplicá-la:
+
+```sh
+sudo python3 /usr/local/lib/panel-workspaces/workspace_build.py gc --days 7
+sudo python3 /usr/local/lib/panel-workspaces/workspace_build.py gc --days 7 --apply
+```
+
+O primeiro comando só lista candidatos. O segundo é executado
+automaticamente pelo timer `vps-panel-workspace-gc.timer`, uma vez ao dia.
+**Apenas jobs concluídos há mais de sete dias** são removidos; jobs
+`queued`, `running` e históricos desconhecidos são preservados.
+A limpeza não funciona enquanto houver um build ativo. Imagens reais
+e logs desses jobs também seguem a retenção, sem afetar o código-fonte.
+
+A imagem-base e o Playwright ainda precisam ser fixados por digest
+antes do uso permanente. O build deve ocorrer em checkout revisado do
+Painel, nunca dentro de um diretório gravável pelo agente.
+O script exige UID administrativo para iniciar e só permite as cópias
+cadastradas sob `/srv/panel-codex/workspace`.
+**Não copie chaves nem tokens para o workspace.**
 
 ## Uso pela aba Agentes Codex
 
@@ -101,8 +128,8 @@ na pasta privada do job e são retornados em trecho limitado pela operação `st
    que o serviço de agente/bridge esteja na mesma revisão compatível da API.
 3. Proteger o egress das instalações `npm ci` com rede dedicada e
    fixar a imagem base e as dependências por digest.
-4. Implementar expiração/limpeza dos logs dos jobs. O diretório temporário
-   da cópia do código já é removido ao final da execução.
+4. Validar o timer diário de limpeza e sua retenção de sete dias na VPS.
+   A rotina e os testes de contrato estão implementados, mas não implantados.
 5. Comprovar a execução no **projeto real**, não somente testes de contrato e
    smoke de Chromium. Confirmar que a cópia corresponde à branch desejada.
 
