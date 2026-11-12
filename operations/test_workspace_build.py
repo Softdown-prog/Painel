@@ -183,6 +183,43 @@ class WorkspacesTest(unittest.TestCase):
             self.assertIn('node scripts/verify_live_site_preview.mjs', steps[-1][1])
         self.assertEqual(ws.LHS_VISUAL, ws.LHS_GAME_BROWSER+ws.LHS_CANONICAL_SITE)
 
+    def test_ps1_and_ps2_video_have_bounded_resources_and_headroom_gate(self):
+        with tempfile.TemporaryDirectory() as folder:
+            work=Path(folder)
+            normal=ws.docker_args(work,source=None,phase='true',video=False)
+            video=ws.docker_args(work,source=None,phase='true',video=True)
+            self.assertIn('--memory=1536m',normal)
+            self.assertIn('--cpus=1.5',normal)
+            self.assertIn('--memory=2048m',video)
+            self.assertIn('--memory-swap=2048m',video)
+            self.assertIn('--cpus=2.0',video)
+            self.assertIn('--shm-size=384m',video)
+            for step in ws.LHS_GAME_BROWSER:
+                if step[0].startswith('ps'):
+                    self.assertIn('node scripts/verify_ps',step[1])
+        with patch.object(ws.Path,'read_text',return_value='MemTotal: 4194304 kB\\nMemAvailable: 2228224 kB\\n'):
+            self.assertFalse(ws.enough_memory_for_video())
+        with patch.object(ws.Path,'read_text',return_value='MemAvailable: 5242880 kB\\n'):
+            self.assertTrue(ws.enough_memory_for_video())
+
+    def test_video_phase_fails_before_container_when_memory_is_low(self):
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as jobs:
+            root,jobs=Path(root),Path(jobs)
+            (root/'gh_12_abcdef12').mkdir()
+            (jobs/'0123456789abcdef').mkdir()
+            ws.write_state(jobs/'0123456789abcdef',project='gh_12_abcdef12',profile='lhs-visual')
+            observed=[]
+            def stub_run(argv,**kwargs):
+                observed.append(argv)
+                return subprocess.CompletedProcess(argv,0)
+            with patch.object(ws.os,'chown'),patch.object(ws.subprocess,'run',side_effect=stub_run),patch.object(ws,'enough_memory_for_video',return_value=False):
+                ws.run_pipeline('0123456789abcdef',root,jobs)
+            result=ws.status('0123456789abcdef',jobs)
+            self.assertEqual(result['status'],'failed')
+            self.assertEqual(result['current'],'ps1-integrated')
+            self.assertIn('memória livre insuficiente',result['error'])
+            self.assertFalse(any('verify_ps1' in ' '.join(a) for a in observed))
+
     def test_container_names_are_fixed_for_cleanup(self):
         with tempfile.TemporaryDirectory() as folder:
             work = Path(folder)
