@@ -52,7 +52,7 @@ jobs:
     # Creating an arbitrary issue/PR never grants a shell or deployment permission.
     if: github.repository == 'Softdown-prog/Painel' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.issue.user.id == 189416996 && (github.event.issue.title == '[VPS] inventory' || github.event.issue.title == '[VPS] mcp-query' || github.event.issue.title == '[VPS] sac-status' || github.event.issue.title == '[VPS] sac-report' || github.event.issue.title == '[VPS] sac-job' || github.event.issue.title == '[VPS] sac-submit' || github.event.issue.title == '[VPS] workspace')))
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: read
       id-token: write
