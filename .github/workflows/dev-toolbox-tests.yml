@@ -1,0 +1,99 @@
+name: Dev Toolbox isolated image validation
+
+on:
+  push:
+    branches: [feat/dev-toolbox-multistack-20261111]
+    paths:
+      - 'operations/dev-toolbox.Dockerfile'
+      - 'operations/install-dev-toolbox-vps.sh'
+      - 'operations/dev-toolbox/**'
+      - '.github/workflows/dev-toolbox-tests.yml'
+  pull_request:
+    paths:
+      - 'operations/dev-toolbox.Dockerfile'
+      - 'operations/install-dev-toolbox-vps.sh'
+      - 'operations/dev-toolbox/**'
+      - '.github/workflows/dev-toolbox-tests.yml'
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Build the large optional document and media toolbox
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  toolbox-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify shell syntax and offline image boundaries
+        run: |
+          bash -n operations/dev-toolbox/smoke.sh
+          bash -n operations/install-dev-toolbox-vps.sh
+          python3 -m unittest discover -s operations/dev-toolbox -p 'test_*.py' -v
+
+  toolbox-core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Ubuntu 24.04 core with real Node 24 and Python 3.13
+        run: |
+          docker build --pull --target core -f operations/dev-toolbox.Dockerfile \
+            -t panel-dev-toolbox:core operations/
+      - name: Run actual offline core versions as non-root
+        run: |
+          docker run --rm --init --read-only --network none --cap-drop ALL \
+            --security-opt no-new-privileges:true --pids-limit 96 \
+            --memory 1024m --memory-swap 1024m --cpus 1.5 \
+            --user 61110:61110 --tmpfs /tmp:rw,nosuid,nodev,size=128m \
+            -v "$PWD/operations/dev-toolbox/smoke.sh:/smoke.sh:ro" \
+            panel-dev-toolbox:core sh /smoke.sh core
+      - name: Report image size and immutable image ID
+        run: docker image inspect panel-dev-toolbox:core --format '{{.Id}} {{.Size}}'
+
+  toolbox-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Rust, Go, Java, PHP, Ruby and real Playwright Chromium
+        run: |
+          docker build --pull --target browser -f operations/dev-toolbox.Dockerfile \
+            -t panel-dev-toolbox:browser operations/
+      - name: Verify all compilers and actual Chromium Canvas pixel with no network
+        run: |
+          docker run --rm --init --read-only --network none --cap-drop ALL \
+            --security-opt no-new-privileges:true --pids-limit 128 \
+            --memory 2048m --memory-swap 2048m --cpus 2 \
+            --shm-size 384m --user 61110:61110 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=128m \
+            -v "$PWD/operations/dev-toolbox/smoke.sh:/smoke.sh:ro" \
+            panel-dev-toolbox:browser sh /smoke.sh browser
+      - name: Report image size and immutable image ID
+        run: docker image inspect panel-dev-toolbox:browser --format '{{.Id}} {{.Size}}'
+
+  toolbox-full-optional:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.full == true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build optional full documents/media/science tier
+        run: |
+          docker build --pull --target full -f operations/dev-toolbox.Dockerfile \
+            -t panel-dev-toolbox:full operations/
+      - name: Validate real full toolbox offline and non-root
+        run: |
+          docker run --rm --init --read-only --network none --cap-drop ALL \
+            --security-opt no-new-privileges:true --pids-limit 128 \
+            --memory 3072m --memory-swap 3072m --cpus 2 \
+            --shm-size 384m --user 61110:61110 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=128m \
+            -v "$PWD/operations/dev-toolbox/smoke.sh:/smoke.sh:ro" \
+            panel-dev-toolbox:full sh /smoke.sh full
