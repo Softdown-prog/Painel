@@ -1,0 +1,41 @@
+name: ChatGPT VPS workspace bridge safety
+on:
+  push:
+    branches: [feat/chatgpt-vps-workspace-bridge-20261112]
+    paths:
+      - 'operations/chatgpt_workspace.py'
+      - 'operations/test_chatgpt_workspace.py'
+      - 'operations/receiver.py'
+      - 'operations/client.py'
+      - 'operations/policy.example.json'
+      - 'operations/install-chatgpt-workspace-vps.sh'
+      - '.github/workflows/vps-command.yml'
+      - '.github/workflows/chatgpt-workspace-contracts.yml'
+  pull_request:
+    paths:
+      - 'operations/chatgpt_workspace.py'
+      - 'operations/test_chatgpt_workspace.py'
+      - 'operations/receiver.py'
+      - 'operations/client.py'
+      - 'operations/policy.example.json'
+      - 'operations/install-chatgpt-workspace-vps.sh'
+      - '.github/workflows/vps-command.yml'
+      - '.github/workflows/chatgpt-workspace-contracts.yml'
+permissions:
+  contents: read
+jobs:
+  safety:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cryptographic OIDC verification dependency
+        run: python3 -m pip install 'cryptography>=43,<50'
+      - name: Syntax and authorization contracts
+        run: |
+          python3 -m py_compile operations/client.py operations/receiver.py operations/chatgpt_workspace.py operations/test_chatgpt_workspace.py
+          python3 -m unittest discover -s operations -p 'test_chatgpt_workspace.py' -v
+      - name: Existing MCP issue and token regression tests
+        run: python3 -m unittest discover -s operations -p 'test_mcp_query.py' -v
+      - name: Host installer shell syntax
+        run: bash -n operations/install-chatgpt-workspace-vps.sh
