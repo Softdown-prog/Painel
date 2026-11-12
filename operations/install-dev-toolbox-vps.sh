@@ -16,7 +16,7 @@ smoke="$checkout/operations/dev-toolbox/smoke.sh"
 requirements="$checkout/operations/dev-toolbox/python-requirements.in"
 for file in "$dockerfile" "$smoke" "$requirements"; do
   [[ -f "$file" && ! -L "$file" ]] || { echo "Missing or symlink source: $file" >&2; exit 2; }
-  [[ $(( $(stat -c '%a' "$file") % 10 )) -le 4 ]] || { echo 'Untrusted installation source permission' >&2; exit 2; }
+  [[ -z "$(find "$file" -maxdepth 0 -perm /022 -print -quit)" ]] || { echo 'Untrusted writable installation source' >&2; exit 2; }
 done
 if ! git -C "$checkout" rev-parse --is-inside-work-tree | grep -qx true; then
   echo 'Only an inspected Git checkout is supported' >&2; exit 2
