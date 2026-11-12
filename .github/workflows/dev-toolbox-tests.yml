@@ -34,6 +34,10 @@ on:
         type: boolean
         default: false
 
+concurrency:
+  group: softdown-toolbox-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
