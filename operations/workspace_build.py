@@ -333,11 +333,64 @@ def status(job_id: str, jobs: Path = JOBS) -> dict:
     return {k: v for k, v in state.items() if k != 'pid'}
 
 
+def collect_expired_jobs(jobs: Path = JOBS, *, days: int = 7,
+                         dry_run: bool = True, now: float | None = None) -> dict:
+    """Remove only old, completed direct-child jobs with the worker lock held.
+
+    Queued/running jobs and unknown/symlink entries are never touched.
+    """
+    if not isinstance(days, int) or not 1 <= days <= 30:
+        raise ValueError('Retenção inválida: 1 a 30 dias')
+    if jobs.is_symlink() or not jobs.is_dir():
+        raise ValueError('Raiz de jobs indisponível ou simbólica')
+    current = time.time() if now is None else now
+    cutoff = current - days * 86400
+    lock_path = jobs / '.active.lock'
+    if lock_path.is_symlink():
+        raise ValueError('Lock de jobs inseguro')
+    lock_path.touch(exist_ok=True)
+    with lock_path.open('r+') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError('Build em andamento: limpeza recusada')
+        expired = []
+        kept = 0
+        for entry in jobs.iterdir():
+            if not JOB_RE.fullmatch(entry.name) or entry.is_symlink() or not entry.is_dir():
+                continue
+            state_file = entry / 'status.json'
+            if not state_file.is_file() or state_file.is_symlink():
+                kept += 1
+                continue
+            try:
+                state = json.loads(state_file.read_text())
+            except (ValueError, OSError):
+                kept += 1
+                continue
+            if state.get('status') not in ('passed', 'failed', 'busy'):
+                kept += 1
+                continue
+            finished = state.get('finished')
+            if isinstance(finished, bool) or not isinstance(finished, (int, float)):
+                kept += 1
+                continue
+            if not 0 < finished < cutoff:
+                kept += 1
+                continue
+            expired.append(entry.name)
+            if not dry_run:
+                shutil.rmtree(entry)
+        return {'dryRun': dry_run, 'retentionDays': days,
+                'eligible': sorted(expired), 'kept': kept}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description='Workspace de build isolado; somente perfis fixos')
     sub = parser.add_subparsers(dest='action', required=True)
     begin = sub.add_parser('start');begin.add_argument('project');begin.add_argument('profile', nargs='?', default='lhs-precommit', choices=PROFILES)
     check = sub.add_parser('status');check.add_argument('job_id')
+    cleanup = sub.add_parser('gc');cleanup.add_argument('--days',type=int,default=7);cleanup.add_argument('--apply',action='store_true')
     worker = sub.add_parser('_worker', help=argparse.SUPPRESS);worker.add_argument('job_id')
     args = parser.parse_args()
     try:
@@ -345,6 +398,10 @@ def main() -> int:
             print(json.dumps({'jobId': start(args.project, args.profile), 'status':'queued'}))
         elif args.action == 'status':
             print(json.dumps(status(args.job_id)))
+        elif args.action == 'gc':
+            if os.geteuid() != 0:
+                raise PermissionError('Limpeza permitida apenas ao administrador')
+            print(json.dumps(collect_expired_jobs(days=args.days, dry_run=not args.apply)))
         else:
             if not JOB_RE.fullmatch(args.job_id):
                 raise ValueError('Job inválido')
