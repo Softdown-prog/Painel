@@ -56,6 +56,21 @@ class ToolboxPolicyTest(unittest.TestCase):
         self.assertIn('scikit-learn', REQUIREMENTS)
         self.assertIn('python-pptx', REQUIREMENTS)
 
+    def test_image_installer_is_explicit_and_does_not_touch_running_services(self):
+        install=(ROOT/'operations'/'install-dev-toolbox-vps.sh').read_text()
+        self.assertIn('"$1" != check && "$1" != apply',install)
+        self.assertIn('if [[ "$mode" == check ]]; then',install)
+        self.assertLess(install.index('if [[ "$mode" == check ]]; then'),
+                        install.index('docker build --pull'))
+        self.assertIn('docker run --rm --init --read-only --cap-drop ALL --network none',install)
+        self.assertIn('find "$file" -maxdepth 0 -perm /022',install)
+        self.assertIn('dirty; no image was built',install)
+        self.assertNotIn('docker compose down',install)
+        self.assertNotIn('docker system prune',install)
+        self.assertNotIn('docker.sock',install)
+        self.assertNotIn('systemctl',install)
+        self.assertNotIn('panel-lhs-qa:',install)
+
     def test_real_browser_and_canvas_are_tested(self):
         for s in ('chromium.launch(', "getContext('2d')",
                   'getImageData(1,1,1,1)', 'PASS: real Chromium and Canvas pixel',
