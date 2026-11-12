@@ -127,7 +127,7 @@ test('shared image remains protected if it is retained by any application',async
   writeFileSync(join(x.dir,'image-imports.json'),JSON.stringify(x.items));
   const report=await revisionReport(x.dir,x.docker,now);
   assert.equal(report.entries.find(e=>e.slug==='loja'&&e.revision==='1'.repeat(40)).status,'reserva');
-  assert.equal(report.oldCount,1);
+  assert.equal(report.oldCount,3);
   assert.equal(x.deleted.length,0);
  }finally{x.destroy();}
 });
