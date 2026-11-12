@@ -7,6 +7,18 @@ test('identifiers are quoted, including quotes, and unsafe/oversized names fail'
   assert.equal(identifier('a"; DROP DATABASE postgres;--'),'"a""; DROP DATABASE postgres;--"');
   for(const input of ['',null,'x\0y','a'.repeat(64)])assert.throws(()=>identifier(input));
 });
+test('form preserves special PostgreSQL column names without prototype mutation',()=>{
+ const columns=[
+   {name:'__proto__',generated:false,defaulted:false,nullable:false},
+   {name:'constructor',generated:false,defaulted:false,nullable:false},
+   {name:'created_at',generated:false,defaulted:true,nullable:false}
+ ];
+ const values=initialInsertValues(columns);
+ assert.equal(Object.hasOwn(values,'__proto__'),true);
+ assert.equal(Object.hasOwn(values,'constructor'),true);
+ assert.equal(Object.getPrototypeOf(values),Object.prototype);
+ assert.deepEqual(JSON.parse(JSON.stringify(values)),JSON.parse('{"__proto__":null,"constructor":null}'));
+});
 test('changes require exact target confirmation',()=>{
   assert.throws(()=>confirmation({confirmation:'alpha'},'beta'));
   confirmation({confirmation:'beta'},'beta');

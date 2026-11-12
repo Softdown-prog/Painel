@@ -61,11 +61,10 @@ export class DatabaseManagerComponent implements OnInit {
     this.cancel();this.selected.set(table);await this.fetchRows(table,offset);
   });}
   startEdit(action:'insert'|'update'|'delete',row:Entry={}):void{
-    this.cancel();const key:Entry={},values:Entry=action==='insert'?initialInsertValues(this.columns()):{};
-    for(const col of this.columns()){
-      if(col.primary && action!=='insert')key[col.name]=row[col.name];
-      if(!col.generated && action==='update')values[col.name]=row[col.name];
-    }
+    this.cancel();
+    const key:Entry=action==='insert'?{}:Object.fromEntries(this.columns().filter(c=>c.primary).map(c=>[c.name,row[c.name]]));
+    const values:Entry=action==='insert'?initialInsertValues(this.columns()):
+      action==='update'?Object.fromEntries(this.columns().filter(c=>!c.generated).map(c=>[c.name,row[c.name]])):{};
     this.edit.set({action,key,version:String(row['__panel_version']??'')});this.values.set(JSON.stringify(values,null,2));
   }
   async saveRow():Promise<void>{

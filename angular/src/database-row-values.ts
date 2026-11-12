@@ -3,9 +3,9 @@
 export type InsertColumn = {name:string;nullable:boolean;generated:boolean;defaulted:boolean};
 
 export function initialInsertValues(columns:readonly InsertColumn[]):Record<string,null>{
-  const values:Record<string,null>={};
-  for(const column of columns){
-    if(!column.generated&&!column.defaulted&&!column.nullable)values[column.name]=null;
-  }
-  return values;
+  // fromEntries creates own data properties even for PostgreSQL columns named
+  // __proto__, constructor or other JavaScript object prototype properties.
+  return Object.fromEntries(columns.filter(column=>
+    !column.generated&&!column.defaulted&&!column.nullable
+  ).map(column=>[column.name,null])) as Record<string,null>;
 }

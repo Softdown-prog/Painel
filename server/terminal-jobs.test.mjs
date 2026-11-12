@@ -28,6 +28,12 @@ test('rejects malformed/oversized multiline payloads before SSH',()=>{
   assert.equal(validJobCommand(input),false);
  }
 });
+test('non-object command bodies always fail closed without exceptions',()=>{
+  for(const body of [null,undefined,false,0,'uptime',[],['uptime'],{}]){
+    assert.equal(validJobCommand(body),false);
+  }
+  assert.equal(validJobCommand({command:'uptime'}),true);
+});
 test('job responds immediately and streams progress without 18-second cutoff',async()=>{
  const pending=defer();let push;
  const manager=new TerminalJobManager(async (_command,onData)=>{push=onData;return pending.promise;});
