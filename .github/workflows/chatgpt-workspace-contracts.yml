@@ -40,5 +40,7 @@ jobs:
         run: python3 -m unittest discover -s operations -p 'test_workspace_build.py' -v
       - name: Existing MCP issue and token regression tests
         run: python3 -m unittest discover -s operations -p 'test_mcp_query.py' -v
+      - name: Complete offline VPS operations regression suite
+        run: python3 -m unittest discover -s operations -p 'test_*.py' -v
       - name: Host installer shell syntax
         run: bash -n operations/install-chatgpt-workspace-vps.sh
