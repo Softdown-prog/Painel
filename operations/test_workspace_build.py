@@ -425,7 +425,7 @@ class WorkspacesTest(unittest.TestCase):
         full = ws.PROFILES['terrania-precommit']
         commands = [step[1] for step in full]
         for command in ('TERRANIA_WORKSPACE_SANITIZED=1 npm run architecture:check', 'npm run typecheck',
-                        'npm test', 'npm run build', 'npm test --prefix server',
+                        'TERRANIA_WORKSPACE_SANITIZED=1 npm test', 'npm run build', 'npm test --prefix server',
                         'npm run build --prefix server',
                         'npm run test:browser -- --project=desktop',
                         'npm run test:browser -- --project=android'):
