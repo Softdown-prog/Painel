@@ -135,7 +135,7 @@ TERRANIA_INSTALL = (
 TERRANIA_CORE = (
     ('terrania-architecture', 'TERRANIA_WORKSPACE_SANITIZED=1 npm run architecture:check', 300, 'none'),
     ('terrania-typecheck', 'npm run typecheck', 360, 'none'),
-    ('terrania-unit-tests', 'npm test', 1800, 'none'),
+    ('terrania-unit-tests', 'TERRANIA_WORKSPACE_SANITIZED=1 npm test', 1800, 'none'),
     ('terrania-build', 'npm run build', 900, 'none'),
     ('terrania-server-typecheck', 'npm run typecheck --prefix server', 360, 'none'),
     ('terrania-server-tests', 'npm test --prefix server', 900, 'none'),
