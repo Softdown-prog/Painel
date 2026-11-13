@@ -53,6 +53,16 @@ class WorkspacesTest(unittest.TestCase):
         self.assertEqual(ws.PROFILES['lhs-quick'][0][3], 'bridge')
         self.assertTrue(all(p[3] == 'none' for p in ws.PROFILES['lhs-quick'][1:]))
 
+    def test_terrania_unit_tests_inherit_sanitized_index_mode(self):
+        # npm test spawns scripts/index-project.mjs --check in a child process.
+        # The child must inherit the explicit Git-free sanitized workspace flag.
+        for profile in ('terrania-core','terrania-precommit','terrania-toolbox-precommit'):
+            steps={name:(command,network) for name,command,_,network in ws.PROFILES[profile]}
+            self.assertEqual(steps['terrania-architecture'],
+                             ('TERRANIA_WORKSPACE_SANITIZED=1 npm run architecture:check','none'))
+            self.assertEqual(steps['terrania-unit-tests'],
+                             ('TERRANIA_WORKSPACE_SANITIZED=1 npm test','none'))
+
     def test_sanitized_terrania_snapshot_keeps_empty_nested_env_examples(self):
         # A tracked server/.env.example is indexed by architecture:check.
         # Removing it causes stale node-server.md and docs/INDEX.md.
