@@ -53,6 +53,34 @@ class WorkspacesTest(unittest.TestCase):
         self.assertEqual(ws.PROFILES['lhs-quick'][0][3], 'bridge')
         self.assertTrue(all(p[3] == 'none' for p in ws.PROFILES['lhs-quick'][1:]))
 
+    def test_sanitized_terrania_snapshot_keeps_empty_nested_env_examples(self):
+        # A tracked server/.env.example is indexed by architecture:check.
+        # Removing it causes stale node-server.md and docs/INDEX.md.
+        with tempfile.TemporaryDirectory() as tmp:
+            source=Path(tmp)/'source';source.mkdir()
+            work=Path(tmp)/'work';work.mkdir()
+            (source/'server').mkdir()
+            (source/'.git').mkdir()
+            (source/'.git'/'config').write_text('private')
+            (source/'package.json').write_text('{"name":"terrania-origins"}')
+            (source/'angular.json').write_text('{}')
+            (source/'.env.example').write_text('ROOT_SECRET=fixture')
+            (source/'server'/'.env.example').write_text('SERVER_SECRET=fixture')
+            (source/'server'/'.env').write_text('SECRET=fixture')
+            (source/'server'/'.env.local').write_text('SECRET=fixture')
+            (source/'server'/'.npmrc').write_text('token=fixture')
+            (source/'server'/'auth.json').write_text('{"token":"fixture"}')
+            command=ws.clean_copy_command('terrania-precommit')
+            command=command.replace('/source',str(source)).replace('/work',str(work))
+            subprocess.run(['sh','-eu','-c',command],check=True)
+            self.assertTrue((work/'server'/'.env.example').is_file())
+            self.assertEqual((work/'server'/'.env.example').read_text(),'')
+            self.assertEqual((work/'.env.example').read_text(),'')
+            for name in ('.env','.env.local','.npmrc','auth.json'):
+                self.assertFalse((work/'server'/name).exists(),name)
+            self.assertFalse((work/'.git').exists())
+            self.assertTrue((work/'server').is_dir())
+
     def test_pipeline_runs_docker_only_on_fixed_profiles_and_cleans_files(self):
         with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as jobs:
             root,jobs=Path(root),Path(jobs)
