@@ -209,7 +209,10 @@ def clean_copy_command(profile: str = 'lhs-precommit') -> str:
     return (source_check +
             "cp -R /source/. /work/; "
             "find /work -type d \\( -name .git -o -name node_modules -o -name .codex \\) -prune -exec rm -rf {} +; "
-            "find /work -type f \\( -name .env -o -name '.env.*' -o -name .npmrc -o -name auth.json \\) -delete; "
+            "find /work -type f \\( -name .env -o -name '.env.*' -o -name .npmrc -o -name auth.json \\) ! -name .env.example -delete; "
+            # Preserve tracked .env.example paths for the architecture index,
+            # but blank their contents so examples never carry sample secrets.
+            "find /work -type f -name .env.example -exec sh -c 'for file do : > \\"$file\\"; done' sh {} +; "
             "mkdir -p /work/.home /work/.npm-cache" +
             ("; if test -f /source/.env.example; then : > /work/.env.example; fi"
              if terrania_profile(profile) else ""))
