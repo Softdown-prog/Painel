@@ -14,6 +14,14 @@ test('histórico limita o período a 24 horas e não duplica coletas próximas',
   assert.deepEqual(appendResourceSample([old, current], next, now), [current, next]);
   assert.deepEqual(appendResourceSample([current], point('2026-10-28T11:59:00Z'), now), [current]);
 });
+test('histórico aceita coleta agendada que chegou 1 ms antes do intervalo de cinco minutos', () => {
+  const now = new Date('2026-10-28T12:00:00Z');
+  const previous = point(now.getTime() - 300_000 + 1);
+  const next = point(now, 41, 50);
+  assert.deepEqual(appendResourceSample([previous], next, now), [previous, next]);
+  // Leituras realmente próximas continuam sendo ignoradas.
+  assert.deepEqual(appendResourceSample([point(now.getTime() - 60_000)], next, now), [point(now.getTime() - 60_000)]);
+});
 test('histórico não inventa percentuais ausentes ou inválidos', () => {
   const now = new Date('2026-10-28T12:00:00Z');
   assert.deepEqual(appendResourceSample([], point(now, null, null), now), []);
