@@ -42,8 +42,8 @@
         '  revisoes auto ligar|desligar     altera a limpeza automática no painel',
         '  historico                        mostra comandos desta sessão',
         '  <comando Linux>                  executa na VPS via SSH como administrador',
-      '  linux status                     consulta tarefa e saída parcial',
-      '  linux cancelar                   solicita interrupção de uma tarefa',
+        '  linux status                     consulta tarefa e saída parcial',
+        '  linux cancelar                   solicita interrupção de uma tarefa',
         '',
         'SHELL ADMINISTRATIVO: com a sessão do painel ativa, comandos Linux são executados como root.',
         'Exemplo: docker ps, systemctl status ssh ou curl https://exemplo.com.',
@@ -141,19 +141,22 @@
     }
     async function runCommand(command) {
         const args = command.trim().split(/\s+/);
-        let cmd = args[0].toLowerCase();
+        let cmd = (args[0] ?? '').toLowerCase();
         if (cmd === 'linux') {
-      const shellCommand = command.slice(5).trim();
-      if (shellCommand === 'status') return jobStatus();
-      if (shellCommand === 'cancelar') {
-        const status = await api('/terminal/ssh/jobs/current');
-        if (!status.job || status.job.state !== 'running') return 'Não há tarefa ativa.';
-        if (!confirmAction('Interromper SSH', status.job.id, 'Processos remotos desvinculados podem continuar após encerrar o SSH.')) return 'Cancelado.';
-        await mutate('/terminal/ssh/jobs/' + status.job.id + '/cancel', 'POST');
-        return 'Solicitada interrupção do SSH. Digite linux status para conferir.';
-      }
-      return runLinux(shellCommand);
-    }
+            const shellCommand = command.slice(5).trim();
+            if (shellCommand === 'status')
+                return jobStatus();
+            if (shellCommand === 'cancelar') {
+                const status = await api('/terminal/ssh/jobs/current');
+                if (!status.job || status.job.state !== 'running')
+                    return 'Não há tarefa ativa.';
+                if (!confirmAction('Interromper SSH', status.job.id, 'Processos remotos desvinculados podem continuar após encerrar o SSH.'))
+                    return 'Cancelado.';
+                await mutate('/terminal/ssh/jobs/' + status.job.id + '/cancel', 'POST');
+                return 'Solicitada interrupção do SSH. Digite linux status para conferir.';
+            }
+            return runLinux(shellCommand);
+        }
         if (cmd === 'ajuda' || cmd === 'help' || cmd === '?')
             return HELP;
         if (cmd === 'revisoes') {
@@ -177,7 +180,7 @@
                 const result = await mutate('/maintenance/revisions/cleanup', 'POST', { confirm: 'LIMPAR_REVISOES_ANTIGAS' });
                 return 'Limpeza concluída: ' + result.removed + ' removidas · ' + result.failed + ' falhas.';
             }
-            if (args[1] === 'auto' && args.length === 3 && ['ligar', 'desligar'].includes(args[2])) {
+            if (args[1] === 'auto' && args.length === 3 && ['ligar', 'desligar'].includes(args[2] ?? '')) {
                 const automatic = args[2] === 'ligar';
                 if (!confirmAction(automatic ? 'Ativar limpeza automática' : 'Pausar limpeza automática', 'VPS', automatic ? 'Verifica a cada seis horas, protegendo backups e duas últimas revisões/app.' : 'Nenhuma imagem será apagada automaticamente.'))
                     return 'Cancelado.';
@@ -259,7 +262,7 @@
         if (cmd === 'logs') {
             if (args.length !== 2)
                 throw new Error('Uso: logs <nome-do-serviço-ou-app>');
-            const target = args[1];
+            const target = args[1] ?? '';
             let path;
             if (SERVICES.includes(target))
                 path = '/services/' + target + '/logs?tail=100';
@@ -271,8 +274,10 @@
         if (Object.hasOwn(ACTIONS, cmd)) {
             if (args.length !== 2)
                 throw new Error('Uso: ' + cmd + ' <serviço-ou-app>');
-            const target = args[1];
+            const target = args[1] ?? '';
             const action = ACTIONS[cmd];
+            if (!action)
+                throw new Error('Ação inválida.');
             const isService = SERVICES.includes(target);
             if (isService && (target === 'caddy' || target === 'portainer'))
                 throw new Error('Caddy e Portainer são somente leitura neste painel.');
@@ -285,9 +290,9 @@
         if (cmd === 'app') {
             const operation = args[1];
             if (operation === 'criar' && args.length >= 4 && args.length <= 6) {
-                const name = args[2];
+                const name = args[2] ?? '';
                 validateName(name);
-                const image = args[3];
+                const image = args[3] ?? '';
                 const ramMb = Number(args[4] || 256);
                 const cpuCores = Number(args[5] || 0.5);
                 const configured = await api('/apps');
@@ -303,7 +308,7 @@
                 return 'Aplicação criada: ' + name + '. Digite iniciar ' + name + ' para ligá-la.';
             }
             if (operation === 'recursos' && args.length === 5) {
-                const name = args[2];
+                const name = args[2] ?? '';
                 validateName(name);
                 const ramMb = Number(args[3]);
                 const cpuCores = Number(args[4]);
@@ -315,7 +320,7 @@
                 return 'Limites atualizados para ' + name + '.';
             }
             if (operation === 'remover' && args.length === 3) {
-                const name = args[2];
+                const name = args[2] ?? '';
                 validateName(name);
                 if (!confirmAction('Remover aplicação', name, 'Exige que o container esteja parado e sem domínio vinculado. A exclusão não pode ser desfeita.'))
                     return 'Operação cancelada.';
@@ -326,7 +331,7 @@
         }
         if (cmd === 'dominio') {
             if (args[1] === 'criar' && args.length === 4) {
-                const name = args[2];
+                const name = args[2] ?? '';
                 validateName(name);
                 const port = Number(args[3]);
                 if (!Number.isInteger(port) || port < 1024 || port > 65535)
@@ -337,7 +342,7 @@
                 return 'Endereço reservado: ' + d.route.host + '\nA publicação pública ainda depende de DNS, HTTPS e recarga do gateway.';
             }
             if (args[1] === 'remover' && args.length === 3) {
-                const name = args[2];
+                const name = args[2] ?? '';
                 validateName(name);
                 if (!confirmAction('Remover domínio', name, 'Será removido do cadastro; a configuração do gateway ainda exige atualização.'))
                     return 'Operação cancelada.';
@@ -406,7 +411,7 @@
     });
     document.getElementById('terminalHelpButton')?.addEventListener('click', () => void execute('ajuda'));
     document.getElementById('terminalClearButton')?.addEventListener('click', () => { output.replaceChildren(); input.focus(); });
-    document.querySelectorAll('[data-terminal-command]').forEach(button => button.addEventListener('click', () => void execute(button.dataset.terminalCommand || 'ajuda')));
+    document.querySelectorAll('[data-terminal-command]').forEach(button => button.addEventListener('click', () => void execute(button.dataset['terminalCommand'] || 'ajuda')));
     async function refreshTerminalConnection() {
         try {
             const session = await api('/session');
