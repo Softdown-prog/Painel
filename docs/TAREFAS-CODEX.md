@@ -1,3 +1,48 @@
+### 2026-11-14 — Auditoria de alinhamento e correções conservadoras (branch em revisão)
+
+**Escopo:** leitura de `api.mjs`, executor/política Docker, segredos, PostgreSQL
+(`database.ts`), MCP HTTP, ponte Codex, medição de memória/histórico e workflows;
+execução de toda a bateria offline. Nada foi tocado na VPS, DNS, Caddy, segredos ou
+serviços; nenhum componente foi desligado ou removido.
+
+**Bugs corrigidos (código criado):**
+- `2dd1e44429ed` — corpo JSON malformado ou literal `null` em `/setup`, `/login` e
+  demais rotas respondia HTTP 500 "Erro interno"; agora 400. Contador de falhas de
+  login "esquece" erros isolados após 15 min; bloqueio já ativo não foi alterado.
+- `5b46e84d5266` — o histórico de memória/disco descartava ~1 em 20 coletas porque
+  `setInterval` pode disparar 1 ms antes de 5 min (buracos de 10 min no gráfico);
+  tolerância de 5 s, leituras próximas continuam ignoradas.
+- `ab8f40162a93` — `.js` versionados estavam defasados dos `.ts` (proteções de
+  índice); regenerados por `npm run build:frontend`. O CI já recompila no deploy.
+
+**Validações locais (distintas):** `typecheck`, `npm test` (344; 343 aprovados, 1 skip
+preexistente), `check:js`, `build:frontend` sem diferença posterior, 201 testes Python,
+fuzz geral (8/8), lint e build Angular, 120 testes E2E Angular com API simulada e
+`docker compose config` das combinações.
+**CI aprovado:** pendente no PR. **Frontend publicado:** não. **Backend instalado:**
+não. **VPS validada:** não.
+
+**Pendências só de aviso (não alteradas de propósito; precisam de decisão do operador):**
+1. `operations/workspace_build.py` (11/11) removeu `--cpus/--memory` e o portão de
+   memória dos builds de workspace; só restam `--pids-limit=128` e `--shm-size`.
+   Contradiz a regra do `AGENTS.md` e permite que um build com Chromium consuma a RAM
+   dos serviços de produção da mesma VPS (risco de OOM-kill). Sugestão: teto alto por
+   cgroup/slice systemd com `OOMScoreAdjust` para proteger produção.
+2. Seis workflows citam a branch `feat/angular-complete-migration`, que não existe
+   mais no remoto. `ci.yml` e `native-runtime.yml` também incluem `main` (sem efeito
+   prático). Os outros quatro (`code-mcp-vps`, `mcp-public-diagnostics`,
+   `repo-mcp-index`, `rust-executor-shadow`) só disparam nela, então não rodam em
+   `main`. `repo-mcp-index` (que o `AGENTS.md` diz gerar o índice) nem roda
+   manualmente em `main` (condição `if`), e `repo-mcp.test.mjs` fixa essa branch.
+   Mudar exige ajustar o teste e decidir sobre `mcp-public-diagnostics`, que usa
+   segredo Cloudflare. Uma tentativa de trocar o gatilho foi revertida por isso.
+3. Job E2E do `ci.yml` só roda em PR ou na branch antiga; push em `main` não o executa.
+4. `ci.yml` não falha se o `.js` versionado divergir do `.ts` (causa da defasagem).
+5. Lint Angular: 3 avisos de tipo de retorno; build: avisos NG8107 em template.
+6. Pequenos: arquivo `parity.test.mjs` exige o binário Rust compilado (só no CI
+   sombra); `failures` de login nunca é podado; `input()` da ponte Codex devolve 502
+   para JSON malformado (aceitável, só impreciso).
+
 ### 2026-11-10 — Fuzzer geral determinístico (PR #116; branch em revisão)
 
 **Primeira execução real:** workflow [General deterministic fuzz](https://github.com/Softdown-prog/Painel/actions/runs/42810335688),

@@ -6,6 +6,7 @@ import { memorySnapshot } from './host-metrics.ts';
 export type ResourcePoint = { at: string; memoryPercent: number | null; diskPercent: number | null };
 type ResourceStore = { version: 1; samples: ResourcePoint[] };
 const INTERVAL_MS = 5 * 60_000;
+const TOLERANCE_MS = 5_000;
 const WINDOW_MS = 24 * 60 * 60_000;
 const MAX_POINTS = 288;
 const MAX_BYTES = 100_000;
@@ -29,7 +30,9 @@ export function appendResourceSample(previous: ResourcePoint[], next: ResourcePo
   if (Math.abs(Date.parse(next.at) - time) > 60_000) return previous;
   const recent = previous.filter(point => valid(point) && Date.parse(point.at) >= time - WINDOW_MS &&
     Date.parse(point.at) <= time + 60_000).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  if (recent.at(-1) && Date.parse(next.at) - Date.parse(recent.at(-1)!.at) < INTERVAL_MS)
+  // setInterval can fire ~1 ms early relative to Date.now(); without a small
+  // tolerance about 1 in 20 scheduled samples was dropped, leaving 10-minute gaps.
+  if (recent.at(-1) && Date.parse(next.at) - Date.parse(recent.at(-1)!.at) < INTERVAL_MS - TOLERANCE_MS)
     return recent.slice(-MAX_POINTS);
   if (next.memoryPercent === null && next.diskPercent === null)
     return recent.slice(-MAX_POINTS);
