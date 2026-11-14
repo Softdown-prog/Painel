@@ -28,13 +28,14 @@ não. **VPS validada:** não.
    Contradiz a regra do `AGENTS.md` e permite que um build com Chromium consuma a RAM
    dos serviços de produção da mesma VPS (risco de OOM-kill). Sugestão: teto alto por
    cgroup/slice systemd com `OOMScoreAdjust` para proteger produção.
-2. Cinco workflows (`code-mcp-vps`, `mcp-public-diagnostics`, `repo-mcp-index`,
-   `rust-executor-shadow`, e o gatilho de push de `ci.yml`/`native-runtime.yml`) citam a
-   branch `feat/angular-complete-migration`, que não existe mais no remoto; os quatro
-   primeiros só validam nela, então não rodam em `main`. `repo-mcp-index` (que o
-   `AGENTS.md` diz gerar o índice) nem roda manualmente em `main` (condição `if`), e
-   `repo-mcp.test.mjs` fixa essa branch. Mudar exige ajustar o teste e decidir sobre
-   os que usam segredo Cloudflare.
+2. Seis workflows citam a branch `feat/angular-complete-migration`, que não existe
+   mais no remoto. `ci.yml` e `native-runtime.yml` também incluem `main` (sem efeito
+   prático). Os outros quatro (`code-mcp-vps`, `mcp-public-diagnostics`,
+   `repo-mcp-index`, `rust-executor-shadow`) só disparam nela, então não rodam em
+   `main`. `repo-mcp-index` (que o `AGENTS.md` diz gerar o índice) nem roda
+   manualmente em `main` (condição `if`), e `repo-mcp.test.mjs` fixa essa branch.
+   Mudar exige ajustar o teste e decidir sobre `mcp-public-diagnostics`, que usa
+   segredo Cloudflare. Uma tentativa de trocar o gatilho foi revertida por isso.
 3. Job E2E do `ci.yml` só roda em PR ou na branch antiga; push em `main` não o executa.
 4. `ci.yml` não falha se o `.js` versionado divergir do `.ts` (causa da defasagem).
 5. Lint Angular: 3 avisos de tipo de retorno; build: avisos NG8107 em template.
