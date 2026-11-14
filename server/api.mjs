@@ -78,7 +78,20 @@ async function body(req) {
     }
     chunks.push(part);
   }
-  return JSON.parse(chunks.length ? Buffer.concat(chunks).toString('utf8') : '{}');
+  let parsed;
+  try { parsed = JSON.parse(chunks.length ? Buffer.concat(chunks).toString('utf8') : '{}'); }
+  catch {
+    const error = new Error('Invalid JSON body');
+    error.statusCode = 400;
+    throw error;
+  }
+  // A literal `null` would make every handler fail with a TypeError (HTTP 500).
+  if (parsed === null) {
+    const error = new Error('Invalid JSON body');
+    error.statusCode = 400;
+    throw error;
+  }
+  return parsed;
 }
 function hashPassword(password, salt = randomBytes(24).toString('hex')) {
   return { salt, hash: scryptSync(password, salt, 64).toString('hex') };
@@ -97,9 +110,15 @@ function cookie(value, age) { return `panel_session=${value}; Path=/api; HttpOnl
 function clientIp(req) { return String(req.headers['cf-connecting-ip'] || req.socket.remoteAddress || 'unknown').slice(0, 128); }
 function blocked(ip) { const item = failures.get(ip); return Boolean(item && item.until > Date.now()); }
 function failed(ip) {
-  const item = failures.get(ip) || { count: 0, until: 0 };
+  const now = Date.now();
+  const item = failures.get(ip) || { count: 0, until: 0, last: now };
+  // Isolated typos must not accumulate forever: forget a counter that never
+  // reached the lockout once 15 minutes passed without another failure.
+  // A lockout already in force (count >= 5) is deliberately left untouched.
+  if (item.count < 5 && now - (item.last || 0) > 15 * 60_000) item.count = 0;
   item.count += 1;
-  if (item.count >= 5) item.until = Date.now() + 15 * 60_000;
+  item.last = now;
+  if (item.count >= 5) item.until = now + 15 * 60_000;
   failures.set(ip, item);
 }
 function docker(path, method = 'GET') {
@@ -332,6 +351,11 @@ http.createServer((req, res) => {
   Promise.resolve(handler(req, res)).catch(error => {
     if (error?.statusCode === 413) {
       if (!res.headersSent) send(res, 413, { error: 'Envio excedeu o limite técnico de 4 MB de script.' });
+      else res.end();
+      return;
+    }
+    if (error?.statusCode === 400) {
+      if (!res.headersSent) send(res, 400, { error: 'Corpo da requisição inválido (JSON esperado).' });
       else res.end();
       return;
     }

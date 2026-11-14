@@ -88,3 +88,41 @@ test('setup, login, session and logout require the edge key', async () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('malformed or null JSON bodies are rejected with 400, never an internal error', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'softload-panel-badjson-'));
+  const key = 'b'.repeat(64);
+  const keyPath = join(dir, 'edge-key');
+  writeFileSync(keyPath, key);
+  const port = await freePort();
+  const child = spawn(process.execPath, ['--experimental-strip-types', join(import.meta.dirname, 'api.mjs')], {
+    env: { ...process.env, PORT: String(port), PANEL_DATA_DIR: dir, PANEL_EDGE_KEY_FILE: keyPath },
+    stdio: ['ignore', 'ignore', 'ignore']
+  });
+  const post = async (path, raw) => {
+    const response = await fetch(`http://127.0.0.1:${port}${path}`, {
+      method: 'POST', headers: { 'x-panel-edge-key': key, 'content-type': 'application/json' }, body: raw
+    });
+    return { status: response.status, data: await response.json() };
+  };
+  try {
+    for (let attempt = 0; attempt < 50; attempt++) {
+      try { await fetch(`http://127.0.0.1:${port}/session`, { headers: { 'x-panel-edge-key': key } }); break; }
+      catch { await new Promise(resolve => setTimeout(resolve, 50)); }
+    }
+    for (const raw of ['null', '{bad', '']) {
+      const attempt = raw === '' ? undefined : raw;
+      const setup = await post('/setup', attempt);
+      // An empty body is valid JSON ({}) and is rejected by validation (403), not as malformed input.
+      assert.equal(setup.status, raw === '' ? 403 : 400, `setup ${JSON.stringify(raw)}`);
+    }
+    const setupToken = readFileSync(join(dir, 'setup-token'), 'utf8').trim();
+    assert.equal((await post('/setup', JSON.stringify({ setupToken, password: 'A long password!123' }))).status, 201);
+    for (const raw of ['null', '{bad']) assert.equal((await post('/login', raw)).status, 400, `login ${raw}`);
+    // Malformed bodies must not consume the brute-force budget or break valid login afterwards.
+    assert.equal((await post('/login', JSON.stringify({ username: 'admin', password: 'A long password!123' }))).status, 200);
+  } finally {
+    child.kill();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
